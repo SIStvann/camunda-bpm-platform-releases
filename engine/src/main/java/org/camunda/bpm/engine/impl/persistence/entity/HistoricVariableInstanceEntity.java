@@ -63,6 +63,7 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
   protected String textValue;
   protected String textValue2;
 
+  protected String state = "CREATED";
   protected ByteArrayField byteArrayField = new ByteArrayField(this);
 
   protected TypedValueField typedValueField = new TypedValueField(this, false);
@@ -117,6 +118,7 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
     state.add(getSerializerName());
     state.add(textValue);
     state.add(textValue2);
+    state.add(this.state);
     state.add(doubleValue);
     state.add(longValue);
     state.add(processDefinitionId);
@@ -351,6 +353,14 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
     this.tenantId = tenantId;
   }
 
+  public String getState() {
+    return state;
+  }
+
+  public void setState(String state) {
+    this.state = state;
+  }
+
   @Override
   public String toString() {
     return this.getClass().getSimpleName()
@@ -373,6 +383,7 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
       + ", doubleValue=" + doubleValue
       + ", textValue=" + textValue
       + ", textValue2=" + textValue2
+      + ", state=" + state
       + ", byteArrayId=" + getByteArrayId()
       + "]";
   }

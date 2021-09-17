@@ -7,9 +7,9 @@
 
   <bean id="dataSource" class="org.springframework.jdbc.datasource.SimpleDriverDataSource">
     <property name="driverClass" value="org.h2.Driver"/>
-    <property name="url" value="jdbc:h2:mem:camunda;DB_CLOSE_DELAY=1000;MVCC=TRUE;TRACE_LEVEL_FILE=0;DB_CLOSE_ON_EXIT=FALSE"/>
-    <property name="username" value="camunda"/>
-    <property name="password" value="camunda"/>
+    <property name="url" value="jdbc:h2:mem:camunda_ProcessInstanceModificationInTransactionTest;DB_CLOSE_DELAY=1000;MVCC=TRUE;TRACE_LEVEL_FILE=0;DB_CLOSE_ON_EXIT=FALSE"/>
+    <property name="username" value="sa"/>
+    <property name="password" value=""/>
   </bean>
 
   <bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
@@ -27,14 +27,6 @@
     <property name="jobExecutorActivate" value="false"/>
 
     <property name="history" value="full"/>
-
-    <property name="customPostBPMNParseListeners">
-      <list>
-        <bean class="org.camunda.bpm.engine.impl.bpmn.parser.FoxFailedJobParseListener"/>
-      </list>
-    </property>
-
-    <property name="failedJobCommandFactory" ref="foxFailedJobCommandFactory"/>
 
   </bean>
 
@@ -57,8 +49,6 @@
 
   <context:annotation-config/>
 
-
-  <bean id="foxFailedJobCommandFactory" class="org.camunda.bpm.engine.impl.jobexecutor.FoxFailedJobCommandFactory"/>
 
   <bean id="userBean" class="org.camunda.bpm.engine.spring.test.transaction.modification.UserBean"></bean>
   <bean id="deleteVariableListener" class="org.camunda.bpm.engine.spring.test.transaction.modification.DeleteVariableListener"></bean>

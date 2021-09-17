@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.camunda.bpm.qa</groupId>
     <artifactId>camunda-qa</artifactId>
-    <version>7.7.0</version>
+    <version>7.8.0</version>
   </parent>
 
   <artifactId>camunda-qa-old-engine</artifactId>
@@ -12,7 +12,7 @@
   <name>camunda BPM - QA - test new schema with old engine</name>
 
   <properties>
-    <camunda.old.engine.version>7.6.0</camunda.old.engine.version>
+    <camunda.old.engine.version>7.7.0</camunda.old.engine.version>
   </properties>
 
   <build>
@@ -59,34 +59,39 @@
           <dependency>
             <groupId>org.camunda.bpm</groupId>
             <artifactId>camunda-bom</artifactId>
-            <version>7.6.0</version>
+            <version>7.7.0</version>
             <scope>import</scope>
             <type>pom</type>
           </dependency>
           <dependency>
             <groupId>org.camunda.bpm</groupId>
             <artifactId>camunda-engine</artifactId>
-            <version>7.6.0</version>
+            <version>7.7.0</version>
           </dependency>
           <dependency>
             <groupId>org.camunda.bpm.model</groupId>
             <artifactId>camunda-xml-model</artifactId>
-            <version>7.6.0</version>
+            <version>7.7.0</version>
           </dependency>
           <dependency>
             <groupId>org.camunda.bpm.model</groupId>
             <artifactId>camunda-bpmn-model</artifactId>
-            <version>7.6.0</version>
+            <version>7.7.0</version>
           </dependency>
           <dependency>
             <groupId>org.camunda.bpm.model</groupId>
             <artifactId>camunda-cmmn-model</artifactId>
-            <version>7.6.0</version>
+            <version>7.7.0</version>
           </dependency>
           <dependency>
             <groupId>org.camunda.bpm.model</groupId>
             <artifactId>camunda-dmn-model</artifactId>
-            <version>7.6.0</version>
+            <version>7.7.0</version>
+          </dependency>
+          <dependency>
+            <groupId>org.mybatis</groupId>
+            <artifactId>mybatis</artifactId>
+            <version>3.2.8</version>
           </dependency>
          </dependencies>
       </dependencyManagement>
@@ -168,7 +173,7 @@
         <dependency>
           <groupId>org.camunda.bpm</groupId>
           <artifactId>camunda-engine</artifactId>
-          <version>7.6.0</version>
+          <version>7.7.0</version>
           <scope>test</scope>
         </dependency>
         <dependency>
@@ -306,8 +311,6 @@
                 
                 <exclude>**/ProcessDiagramRetrievalTest.java</exclude>
 
-                <!-- ManagementServiceTest must be included back after 7.6.5 released -> CAM-7696 -->
-                <exclude>**/ManagementServiceTest.java</exclude>
                 <exclude>**/ManagementServiceTableCountTest.java</exclude>
               </excludes>
               <testFailureIgnore>false</testFailureIgnore>

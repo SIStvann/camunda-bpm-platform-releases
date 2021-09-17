@@ -21,7 +21,12 @@ import javax.ws.rs.core.UriInfo;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.batch.history.HistoricBatch;
 import org.camunda.bpm.engine.batch.history.HistoricBatchQuery;
+import org.camunda.bpm.engine.history.CleanableHistoricBatchReport;
+import org.camunda.bpm.engine.history.CleanableHistoricBatchReportResult;
+import org.camunda.bpm.engine.query.Query;
 import org.camunda.bpm.engine.rest.dto.CountResultDto;
+import org.camunda.bpm.engine.rest.dto.history.batch.CleanableHistoricBatchReportDto;
+import org.camunda.bpm.engine.rest.dto.history.batch.CleanableHistoricBatchReportResultDto;
 import org.camunda.bpm.engine.rest.dto.history.batch.HistoricBatchDto;
 import org.camunda.bpm.engine.rest.dto.history.batch.HistoricBatchQueryDto;
 import org.camunda.bpm.engine.rest.history.HistoricBatchRestService;
@@ -40,17 +45,20 @@ public class HistoricBatchRestServiceImpl implements HistoricBatchRestService {
     this.processEngine = processEngine;
   }
 
+  @Override
   public HistoricBatchResource getHistoricBatch(String batchId) {
     return new HistoricBatchResourceImpl(processEngine, batchId);
   }
 
+  @SuppressWarnings("unchecked")
+  @Override
   public List<HistoricBatchDto> getHistoricBatches(UriInfo uriInfo, Integer firstResult, Integer maxResults) {
     HistoricBatchQueryDto queryDto = new HistoricBatchQueryDto(objectMapper, uriInfo.getQueryParameters());
     HistoricBatchQuery query = queryDto.toQuery(processEngine);
 
     List<HistoricBatch> matchingBatches;
     if (firstResult != null || maxResults != null) {
-      matchingBatches = executePaginatedQuery(query, firstResult, maxResults);
+      matchingBatches = (List<HistoricBatch>) executePaginatedQuery(query, firstResult, maxResults);
     }
     else {
       matchingBatches = query.list();
@@ -63,6 +71,7 @@ public class HistoricBatchRestServiceImpl implements HistoricBatchRestService {
     return batchResults;
   }
 
+  @Override
   public CountResultDto getHistoricBatchesCount(UriInfo uriInfo) {
     HistoricBatchQueryDto queryDto = new HistoricBatchQueryDto(objectMapper, uriInfo.getQueryParameters());
     HistoricBatchQuery query = queryDto.toQuery(processEngine);
@@ -71,7 +80,8 @@ public class HistoricBatchRestServiceImpl implements HistoricBatchRestService {
     return new CountResultDto(count);
   }
 
-  protected List<HistoricBatch> executePaginatedQuery(HistoricBatchQuery query, Integer firstResult, Integer maxResults) {
+  @SuppressWarnings("rawtypes")
+  protected List<?> executePaginatedQuery(Query query, Integer firstResult, Integer maxResults) {
     if (firstResult == null) {
       firstResult = 0;
     }
@@ -80,5 +90,34 @@ public class HistoricBatchRestServiceImpl implements HistoricBatchRestService {
     }
 
     return query.listPage(firstResult, maxResults);
+  }
+
+  @SuppressWarnings("unchecked")
+  @Override
+  public List<CleanableHistoricBatchReportResultDto> getCleanableHistoricBatchesReport(UriInfo uriInfo, Integer firstResult, Integer maxResults) {
+    CleanableHistoricBatchReportDto queryDto = new CleanableHistoricBatchReportDto(objectMapper, uriInfo.getQueryParameters());
+    CleanableHistoricBatchReport query = queryDto.toQuery(processEngine);
+
+    List<CleanableHistoricBatchReportResult> reportResult;
+    if (firstResult != null || maxResults != null) {
+      reportResult = (List<CleanableHistoricBatchReportResult>) executePaginatedQuery(query, firstResult, maxResults);
+    } else {
+      reportResult = query.list();
+    }
+
+    return CleanableHistoricBatchReportResultDto.convert(reportResult);
+  }
+
+  @Override
+  public CountResultDto getCleanableHistoricBatchesReportCount(UriInfo uriInfo) {
+    CleanableHistoricBatchReportDto queryDto = new CleanableHistoricBatchReportDto(objectMapper, uriInfo.getQueryParameters());
+    queryDto.setObjectMapper(objectMapper);
+    CleanableHistoricBatchReport query = queryDto.toQuery(processEngine);
+
+    long count = query.count();
+    CountResultDto result = new CountResultDto();
+    result.setCount(count);
+
+    return result;
   }
 }

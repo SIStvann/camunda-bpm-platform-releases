@@ -309,6 +309,73 @@ public class RuntimeServiceAsyncOperationsTest extends AbstractAsyncOperationsTe
   }
 
   @Test
+  public void testDeleteProcessInstancesAsyncWithSkipSubprocesses() {
+
+    // given
+    BpmnModelInstance callingInstance = ProcessModels.newModel(ONE_TASK_PROCESS)
+        .startEvent()
+          .callActivity()
+            .calledElement("called")
+        .endEvent()
+        .done();
+
+    BpmnModelInstance calledInstance = ProcessModels.newModel("called")
+        .startEvent()
+        .userTask()
+        .endEvent()
+        .done();
+
+    testRule.deploy(callingInstance, calledInstance);
+    List<String> processIds = startTestProcesses(1);
+
+    // when
+    Batch batch = runtimeService.deleteProcessInstancesAsync(processIds, null, TESTING_INSTANCE_DELETE, false, true);
+    executeSeedJob(batch);
+    executeBatchJobs(batch);
+
+    // then
+    ProcessInstance superInstance = runtimeService.createProcessInstanceQuery().processInstanceId(processIds.get(0)).singleResult();
+    assertNull(superInstance);
+
+    ProcessInstance subInstance = runtimeService.createProcessInstanceQuery().processDefinitionKey("called").singleResult();
+    assertNotNull(subInstance);
+  }
+
+  @Test
+  public void testDeleteProcessInstancesAsyncWithoutSkipSubprocesses() {
+
+    // given
+    BpmnModelInstance callingInstance = ProcessModels.newModel(ONE_TASK_PROCESS)
+        .startEvent()
+          .callActivity()
+            .calledElement("called")
+        .endEvent()
+        .done();
+
+    BpmnModelInstance calledInstance = ProcessModels.newModel("called")
+        .startEvent()
+        .userTask()
+        .endEvent()
+        .done();
+
+    testRule.deploy(callingInstance, calledInstance);
+    List<String> processIds = startTestProcesses(1);
+
+    // when
+    Batch batch = runtimeService.deleteProcessInstancesAsync(processIds, null, TESTING_INSTANCE_DELETE, false, false);
+    executeSeedJob(batch);
+    executeBatchJobs(batch);
+
+    // then
+    ProcessInstance superInstance = runtimeService.createProcessInstanceQuery().processInstanceId(processIds.get(0)).singleResult();
+    assertNull(superInstance);
+
+    ProcessInstance subInstance = runtimeService.createProcessInstanceQuery().processDefinitionKey("called").singleResult();
+    assertNull(subInstance);
+  }
+
+
+  @Test
   public void testInvokeListenersWhenDeletingProcessInstancesAsync() {
 
     // given

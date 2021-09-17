@@ -53,7 +53,6 @@ import org.camunda.bpm.engine.impl.history.event.HistoryEventProcessor;
 import org.camunda.bpm.engine.impl.history.event.HistoryEventTypes;
 import org.camunda.bpm.engine.impl.history.producer.HistoryEventProducer;
 import org.camunda.bpm.engine.impl.interceptor.AtomicOperationInvocation;
-import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.jobexecutor.MessageJobDeclaration;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerDeclarationImpl;
 import org.camunda.bpm.engine.impl.persistence.entity.util.FormPropertyStartContext;
@@ -503,7 +502,7 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
    */
   @Override
   public void destroy() {
-    super.destroy();
+
     ensureParentInitialized();
 
     // execute Output Mappings (if they exist).
@@ -513,7 +512,18 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
     }
 
     clearExecution();
+
+    super.destroy();
+
     removeEventSubscriptionsExceptCompensation();
+  }
+
+  public void removeAllTasks() {
+    // delete all the tasks
+    removeTasks(null);
+
+    // delete external tasks
+    removeExternalTasks();
   }
 
   protected void clearExecution() {
@@ -526,11 +536,8 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
     // delete all the variable instances
     removeVariablesLocalInternal();
 
-    // delete all the tasks
-    removeTasks(null);
-
-    // delete external tasks
-    removeExternalTasks();
+    // delete all the tasks and external tasks
+    removeAllTasks();
 
     // remove all jobs
     removeJobs();
@@ -1129,8 +1136,6 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
   }
 
   protected void moveTasksTo(ExecutionEntity other) {
-    CommandContext commandContext = Context.getCommandContext();
-
     // update the related tasks
     for (TaskEntity task : getTasksInternal()) {
       task.setExecution(other);
@@ -1911,4 +1916,5 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
   public ProcessEngineServices getProcessEngineServices() {
     return Context.getProcessEngineConfiguration().getProcessEngine();
   }
+
 }

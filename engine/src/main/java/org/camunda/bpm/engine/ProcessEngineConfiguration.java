@@ -19,6 +19,7 @@ import javax.sql.DataSource;
 
 import org.camunda.bpm.engine.authorization.Authorization;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
+import org.camunda.bpm.engine.impl.HistoryLevelSetupCommand;
 import org.camunda.bpm.engine.impl.SchemaOperationsProcessEngineBuild;
 import org.camunda.bpm.engine.impl.cfg.BeansConfigurationHelper;
 import org.camunda.bpm.engine.impl.cfg.StandaloneInMemProcessEngineConfiguration;
@@ -211,9 +212,11 @@ public abstract class ProcessEngineConfiguration {
   protected int jdbcPingConnectionNotUsedFor;
   protected DataSource dataSource;
   protected SchemaOperationsCommand schemaOperationsCommand = new SchemaOperationsProcessEngineBuild();
+  protected HistoryLevelSetupCommand historyLevelCommand = new HistoryLevelSetupCommand();
   protected boolean transactionsExternallyManaged = false;
   /** the number of seconds the jdbc driver will wait for a response from the database */
   protected Integer jdbcStatementTimeout;
+  protected boolean jdbcBatchProcessing = true;
 
   protected String jpaPersistenceUnitName;
   protected Object jpaEntityManagerFactory;
@@ -266,6 +269,15 @@ public abstract class ProcessEngineConfiguration {
   protected ValueTypeResolver valueTypeResolver;
 
   protected String authorizationCheckRevokes = AUTHORIZATION_CHECK_REVOKE_AUTO;
+
+  /**
+   * If the value of this flag is set <code>true</code> then the process engine
+   * throws {@link ProcessEngineException} when no catching boundary event was
+   * defined for an error event.
+   *
+   * <p>The default value is <code>false</code>.</p>
+   */
+  protected boolean enableExceptionsAfterUnhandledBpmnError = false;
 
   /** use one of the static createXxxx methods instead */
   protected ProcessEngineConfiguration() {
@@ -431,6 +443,14 @@ public abstract class ProcessEngineConfiguration {
     this.schemaOperationsCommand = schemaOperationsCommand;
   }
 
+  public HistoryLevelSetupCommand getHistoryLevelCommand() {
+    return historyLevelCommand;
+  }
+
+  public void setHistoryLevelCommand(HistoryLevelSetupCommand historyLevelCommand) {
+    this.historyLevelCommand = historyLevelCommand;
+  }
+
   public String getJdbcDriver() {
     return jdbcDriver;
   }
@@ -547,6 +567,15 @@ public abstract class ProcessEngineConfiguration {
   /** Sets the number of seconds the jdbc driver will wait for a response from the database. */
   public ProcessEngineConfiguration setJdbcStatementTimeout(Integer jdbcStatementTimeout) {
     this.jdbcStatementTimeout = jdbcStatementTimeout;
+    return this;
+  }
+
+  public boolean isJdbcBatchProcessing() {
+    return jdbcBatchProcessing;
+  }
+
+  public ProcessEngineConfiguration setJdbcBatchProcessing(boolean jdbcBatchProcessing) {
+    this.jdbcBatchProcessing = jdbcBatchProcessing;
     return this;
   }
 
@@ -739,5 +768,13 @@ public abstract class ProcessEngineConfiguration {
 
   public String getAuthorizationCheckRevokes() {
     return authorizationCheckRevokes;
+  }
+
+  public boolean isEnableExceptionsAfterUnhandledBpmnError() {
+    return enableExceptionsAfterUnhandledBpmnError;
+  }
+
+  public void setEnableExceptionsAfterUnhandledBpmnError(boolean enableExceptionsAfterUnhandledBpmnError) {
+    this.enableExceptionsAfterUnhandledBpmnError = enableExceptionsAfterUnhandledBpmnError;
   }
 }

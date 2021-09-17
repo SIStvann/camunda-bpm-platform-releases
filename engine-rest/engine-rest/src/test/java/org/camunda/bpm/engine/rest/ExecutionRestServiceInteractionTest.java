@@ -2,6 +2,7 @@ package org.camunda.bpm.engine.rest;
 
 import static com.jayway.restassured.RestAssured.given;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_ID;
+import static org.camunda.bpm.engine.rest.util.DateTimeUtils.DATE_FORMAT_WITH_TIMEZONE;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
@@ -19,7 +20,6 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -52,6 +52,7 @@ import org.camunda.bpm.engine.runtime.EventSubscription;
 import org.camunda.bpm.engine.runtime.EventSubscriptionQuery;
 import org.camunda.bpm.engine.runtime.Execution;
 import org.camunda.bpm.engine.runtime.ExecutionQuery;
+import org.camunda.bpm.engine.runtime.Incident;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.type.SerializableValueType;
 import org.camunda.bpm.engine.variable.type.ValueType;
@@ -81,6 +82,7 @@ public class ExecutionRestServiceInteractionTest extends AbstractRestServiceTest
   protected static final String SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL = SINGLE_EXECUTION_LOCAL_VARIABLE_URL + "/data";
   protected static final String MESSAGE_SUBSCRIPTION_URL = EXECUTION_URL + "/messageSubscriptions/{messageName}";
   protected static final String TRIGGER_MESSAGE_SUBSCRIPTION_URL = EXECUTION_URL + "/messageSubscriptions/{messageName}/trigger";
+  protected static final String CREATE_INCIDENT_URL = EXECUTION_URL + "/create-incident";
 
   private RuntimeServiceImpl runtimeServiceMock;
 
@@ -938,13 +940,12 @@ public class ExecutionRestServiceInteractionTest extends AbstractRestServiceTest
   @Test
   public void testPutSingleVariableWithTypeDate() throws Exception {
     Date now = new Date();
-    SimpleDateFormat pattern = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 
     String variableKey = "aVariableKey";
-    String variableValue = pattern.format(now);
+    String variableValue = DATE_FORMAT_WITH_TIMEZONE.format(now);
     String type = "Date";
 
-    Date expectedValue = pattern.parse(variableValue);
+    Date expectedValue = DATE_FORMAT_WITH_TIMEZONE.parse(variableValue);
 
     Map<String, Object> variableJson = VariablesBuilder.getVariableValueMap(variableValue, type);
 
@@ -1537,5 +1538,30 @@ public class ExecutionRestServiceInteractionTest extends AbstractRestServiceTest
       .body("message", is(message))
     .when()
       .post(TRIGGER_MESSAGE_SUBSCRIPTION_URL);
+  }
+
+  @Test
+  public void testCreateIncident() {
+    when(runtimeServiceMock.createIncident(anyString(), anyString(), anyString(), anyString())).thenReturn(mock(Incident.class));
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("incidentType", "incidentType");
+    json.put("configuration", "configuration");
+    json.put("message", "message");
+
+    given().pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID).contentType(ContentType.JSON).body(json).then().expect().statusCode(Status.OK.getStatusCode())
+        .when().post(CREATE_INCIDENT_URL);
+
+    verify(runtimeServiceMock).createIncident("incidentType", MockProvider.EXAMPLE_EXECUTION_ID, "configuration", "message");
+  }
+
+  @Test
+  public void testCreateIncidentWithNullIncidentType() {
+    doThrow(new BadUserRequestException()).when(runtimeServiceMock).createIncident(anyString(), anyString(), anyString(), anyString());
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("configuration", "configuration");
+    json.put("message", "message");
+
+    given().pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID).contentType(ContentType.JSON).body(json).then().expect()
+        .statusCode(Status.BAD_REQUEST.getStatusCode()).when().post(CREATE_INCIDENT_URL);
   }
 }

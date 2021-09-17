@@ -17,6 +17,7 @@ import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertThat;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -33,6 +34,7 @@ import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.TaskQueryImpl;
 import org.camunda.bpm.engine.impl.TaskQueryProperty;
 import org.camunda.bpm.engine.impl.TaskQueryVariableValue;
+import org.camunda.bpm.engine.impl.VariableOrderProperty;
 import org.camunda.bpm.engine.impl.json.JsonTaskQueryConverter;
 import org.camunda.bpm.engine.impl.persistence.entity.FilterEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
@@ -44,8 +46,11 @@ import org.camunda.bpm.engine.task.DelegationState;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.mock.Mocks;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.type.ValueType;
+import org.camunda.bpm.model.bpmn.Bpmn;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 
 /**
  * @author Sebastian Menski
@@ -93,6 +98,10 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
 
   @Override
   public void tearDown() {
+    processEngineConfiguration.setEnableExpressionsInAdhocQueries(false);
+
+    Mocks.reset();
+
     for (Filter filter : filterService.createTaskFilterQuery().list()) {
       filterService.deleteFilter(filter.getId());
     }
@@ -103,7 +112,9 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
       identityService.deleteUser(user.getId());
     }
     for (Task task : taskService.createTaskQuery().list()) {
-      taskService.deleteTask(task.getId(), true);
+      if (task.getProcessInstanceId() == null) {
+        taskService.deleteTask(task.getId(), true);
+      }
     }
   }
 
@@ -165,8 +176,10 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     query.processDefinitionName(testString);
     query.processDefinitionNameLike(testString);
     query.processInstanceBusinessKey(testString);
+    query.processInstanceBusinessKeyExpression(testString);
     query.processInstanceBusinessKeyIn(testKeys);
     query.processInstanceBusinessKeyLike(testString);
+    query.processInstanceBusinessKeyLikeExpression(testString);
 
     // variables
     query.taskVariableValueEquals(variableNames[0], variableValues[0]);
@@ -268,10 +281,12 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     assertEquals(testString, query.getProcessDefinitionName());
     assertEquals(testString, query.getProcessDefinitionNameLike());
     assertEquals(testString, query.getProcessInstanceBusinessKey());
+    assertEquals(testString, query.getExpressions().get("processInstanceBusinessKey"));
     for (int i = 0; i < query.getProcessInstanceBusinessKeys().length; i++) {
       assertEquals(testKeys[i], query.getProcessInstanceBusinessKeys()[i]);
     }
     assertEquals(testString, query.getProcessInstanceBusinessKeyLike());
+    assertEquals(testString, query.getExpressions().get("processInstanceBusinessKeyLike"));
 
     // variables
     List<TaskQueryVariableValue> variables = query.getVariables();
@@ -344,6 +359,110 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
             + "Actual filtering properties: " + actualRelationConditions);
       }
     }
+  }
+
+  public void testTaskQueryByBusinessKeyExpression() {
+    // given
+    String aBusinessKey = "business key";
+    Mocks.register("aBusinessKey", aBusinessKey);
+
+    createDeploymentWithBusinessKey(aBusinessKey);
+
+    // when
+    TaskQueryImpl extendedQuery = (TaskQueryImpl)taskService.createTaskQuery()
+      .processInstanceBusinessKeyExpression("${ " + Mocks.getMocks().keySet().toArray()[0] + " }");
+
+    Filter filter = filterService.newTaskFilter("aFilterName");
+    filter.setQuery(extendedQuery);
+    filterService.saveFilter(filter);
+
+    TaskQueryImpl filterQuery = filterService.getFilter(filter.getId()).getQuery();
+
+    // then
+    assertEquals(extendedQuery.getExpressions().get("processInstanceBusinessKey"),
+      filterQuery.getExpressions().get("processInstanceBusinessKey"));
+    assertEquals(1, filterService.list(filter.getId()).size());
+  }
+
+  public void testTaskQueryByBusinessKeyExpressionInAdhocQuery() {
+    // given
+    processEngineConfiguration.setEnableExpressionsInAdhocQueries(true);
+
+    String aBusinessKey = "business key";
+    Mocks.register("aBusinessKey", aBusinessKey);
+
+    createDeploymentWithBusinessKey(aBusinessKey);
+
+    // when
+    Filter filter = filterService.newTaskFilter("aFilterName");
+    filter.setQuery(taskService.createTaskQuery());
+    filterService.saveFilter(filter);
+
+    TaskQueryImpl extendingQuery = (TaskQueryImpl)taskService.createTaskQuery()
+      .processInstanceBusinessKeyExpression("${ " + Mocks.getMocks().keySet().toArray()[0] + " }");
+
+    // then
+    assertEquals(extendingQuery.getExpressions().get("processInstanceBusinessKey"),
+      "${ " + Mocks.getMocks().keySet().toArray()[0] + " }");
+    assertEquals(1, filterService.list(filter.getId(), extendingQuery).size());
+  }
+
+  public void testTaskQueryByBusinessKeyLikeExpression() {
+    // given
+    String aBusinessKey = "business key";
+    Mocks.register("aBusinessKeyLike", "%" + aBusinessKey.substring(5));
+
+    createDeploymentWithBusinessKey(aBusinessKey);
+
+    // when
+    TaskQueryImpl extendedQuery = (TaskQueryImpl)taskService.createTaskQuery()
+      .processInstanceBusinessKeyLikeExpression("${ " + Mocks.getMocks().keySet().toArray()[0] + " }");
+
+    Filter filter = filterService.newTaskFilter("aFilterName");
+    filter.setQuery(extendedQuery);
+    filterService.saveFilter(filter);
+
+    TaskQueryImpl filterQuery = filterService.getFilter(filter.getId()).getQuery();
+
+    // then
+    assertEquals(extendedQuery.getExpressions().get("processInstanceBusinessKeyLike"),
+      filterQuery.getExpressions().get("processInstanceBusinessKeyLike"));
+    assertEquals(1, filterService.list(filter.getId()).size());
+  }
+
+  public void testTaskQueryByBusinessKeyLikeExpressionInAdhocQuery() {
+    // given
+    processEngineConfiguration.setEnableExpressionsInAdhocQueries(true);
+
+    String aBusinessKey = "business key";
+    Mocks.register("aBusinessKeyLike", "%" + aBusinessKey.substring(5));
+
+    createDeploymentWithBusinessKey(aBusinessKey);
+
+    // when
+    Filter filter = filterService.newTaskFilter("aFilterName");
+    filter.setQuery(taskService.createTaskQuery());
+    filterService.saveFilter(filter);
+
+    TaskQueryImpl extendingQuery = (TaskQueryImpl)taskService.createTaskQuery()
+      .processInstanceBusinessKeyLikeExpression("${ " + Mocks.getMocks().keySet().toArray()[0] + " }");
+
+    // then
+    assertEquals(extendingQuery.getExpressions().get("processInstanceBusinessKeyLike"),
+      "${ " + Mocks.getMocks().keySet().toArray()[0] + " }");
+    assertEquals(1, filterService.list(filter.getId(), extendingQuery).size());
+  }
+
+  protected void createDeploymentWithBusinessKey(String aBusinessKey) {
+    BpmnModelInstance modelInstance = Bpmn.createExecutableProcess("aProcessDefinition")
+      .startEvent()
+        .userTask()
+      .endEvent()
+      .done();
+
+    deployment(modelInstance);
+
+    runtimeService.startProcessInstanceByKey("aProcessDefinition", aBusinessKey);
   }
 
   public void testTaskQueryByFollowUpBeforeOrNotExistent() {
@@ -683,6 +802,42 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     extendedQuery = extendedFilter.getQuery();
     assertEquals("${'test'}", extendedQuery.getExpressions().get("taskCandidateGroup"));
     assertTrue(extendedQuery.isIncludeAssignedTasks());
+  }
+
+  public void testExtendTaskQueryWithCandidateGroupInAndCandidateGroup() {
+    // create an query with candidate group in and save it as a filter
+    TaskQueryImpl candidateGroupInQuery = (TaskQueryImpl)taskService.createTaskQuery().taskCandidateGroupIn(Arrays.asList("testGroup", "testGroup2"));
+    assertEquals(2, candidateGroupInQuery.getCandidateGroups().size());
+    assertEquals("testGroup", candidateGroupInQuery.getCandidateGroups().get(0));
+    assertEquals("testGroup2", candidateGroupInQuery.getCandidateGroups().get(1));
+    Filter candidateGroupInFilter = filterService.newTaskFilter("Groups filter");
+    candidateGroupInFilter.setQuery(candidateGroupInQuery);
+
+    // create a query with candidate group
+    // and save it as filter
+    TaskQuery candidateGroupQuery = taskService.createTaskQuery().taskCandidateGroup("testGroup2");
+
+    // extend candidate group in filter by query with candidate group
+    Filter extendedFilter = candidateGroupInFilter.extend(candidateGroupQuery);
+    TaskQueryImpl extendedQuery = extendedFilter.getQuery();
+    assertEquals(1, extendedQuery.getCandidateGroups().size());
+    assertEquals("testGroup2", extendedQuery.getCandidateGroups().get(0));
+  }
+
+  public void testTaskQueryWithCandidateGroupInExpressionAndCandidateGroup() {
+    // create an query with candidate group in expression and candidate group at once
+    TaskQueryImpl candidateGroupInQuery = (TaskQueryImpl)taskService.createTaskQuery().taskCandidateGroupInExpression("${'test'}").taskCandidateGroup("testGroup");
+    assertEquals("${'test'}", candidateGroupInQuery.getExpressions().get("taskCandidateGroupIn"));
+    assertEquals("testGroup", candidateGroupInQuery.getCandidateGroup());
+  }
+
+  public void testTaskQueryWithCandidateGroupInAndCandidateGroupExpression() {
+    // create an query with candidate group in and candidate group expression
+    TaskQueryImpl candidateGroupInQuery = (TaskQueryImpl)taskService.createTaskQuery().taskCandidateGroupIn(Arrays.asList("testGroup", "testGroup2")).taskCandidateGroupExpression("${'test'}");
+    assertEquals("${'test'}", candidateGroupInQuery.getExpressions().get("taskCandidateGroup"));
+    assertEquals(2, candidateGroupInQuery.getCandidateGroups().size());
+    assertEquals("testGroup", candidateGroupInQuery.getCandidateGroups().get(0));
+    assertEquals("testGroup2", candidateGroupInQuery.getCandidateGroups().get(1));
   }
 
   public void testExtendTaskQueryWithCandidateGroupInExpressionAndIncludeAssignedTasks() {
@@ -1197,6 +1352,123 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     runtimeService.deleteProcessInstance(instance3.getId(), null);
   }
 
+  public void testExtendTaskQuery_ORInExtendingQuery() {
+    // given
+    createTasksForOrQueries();
+
+    // when
+    TaskQuery extendedQuery = taskService.createTaskQuery()
+      .taskName("taskForOr");
+
+    Filter extendedFilter = filterService.newTaskFilter("extendedOrFilter");
+    extendedFilter.setQuery(extendedQuery);
+    filterService.saveFilter(extendedFilter);
+
+    TaskQuery extendingQuery = taskService.createTaskQuery()
+      .or()
+        .taskDescription("aTaskDescription")
+        .taskOwner("aTaskOwner")
+      .endOr()
+      .or()
+        .taskPriority(3)
+        .taskAssignee("aTaskAssignee")
+      .endOr();
+
+    // then
+    assertEquals(4, extendedQuery.list().size());
+    assertEquals(4, filterService.list(extendedFilter.getId()).size());
+    assertEquals(6, extendingQuery.list().size());
+    assertEquals(3, filterService.list(extendedFilter.getId(), extendingQuery).size());
+  }
+
+  public void testExtendTaskQuery_ORInExtendedQuery() {
+    // given
+    createTasksForOrQueries();
+
+    // when
+    TaskQuery extendedQuery = taskService.createTaskQuery()
+      .or()
+        .taskDescription("aTaskDescription")
+        .taskOwner("aTaskOwner")
+      .endOr()
+      .or()
+        .taskPriority(3)
+        .taskAssignee("aTaskAssignee")
+      .endOr();
+
+    Filter extendedFilter = filterService.newTaskFilter("extendedOrFilter");
+    extendedFilter.setQuery(extendedQuery);
+    filterService.saveFilter(extendedFilter);
+
+    TaskQuery extendingQuery = taskService.createTaskQuery()
+      .taskName("taskForOr");
+
+    // then
+    assertEquals(6, extendedQuery.list().size());
+    assertEquals(6, filterService.list(extendedFilter.getId()).size());
+    assertEquals(4, extendingQuery.list().size());
+    assertEquals(3, filterService.list(extendedFilter.getId(), extendingQuery).size());
+  }
+
+  public void testExtendTaskQuery_ORInBothExtendedAndExtendingQuery() {
+    // given
+    createTasksForOrQueries();
+
+    // when
+    TaskQuery extendedQuery = taskService.createTaskQuery()
+      .or()
+        .taskName("taskForOr")
+        .taskDescription("aTaskDescription")
+      .endOr();
+
+    Filter extendedFilter = filterService.newTaskFilter("extendedOrFilter");
+    extendedFilter.setQuery(extendedQuery);
+    filterService.saveFilter(extendedFilter);
+
+    TaskQuery extendingQuery = taskService.createTaskQuery()
+      .or()
+        .tenantIdIn("aTenantId")
+        .taskOwner("aTaskOwner")
+      .endOr()
+      .or()
+        .taskPriority(3)
+        .taskAssignee("aTaskAssignee")
+      .endOr();
+
+    // then
+    assertEquals(6, extendedQuery.list().size());
+    assertEquals(6, filterService.list(extendedFilter.getId()).size());
+    assertEquals(4, extendingQuery.list().size());
+    assertEquals(3, filterService.list(extendedFilter.getId(), extendingQuery).size());
+  }
+
+  public void testOrderByVariables() {
+    // given
+    TaskQueryImpl query = (TaskQueryImpl) taskService.createTaskQuery()
+        .orderByProcessVariable("foo", ValueType.STRING).asc()
+        .orderByExecutionVariable("foo", ValueType.STRING).asc()
+        .orderByCaseInstanceVariable("foo", ValueType.STRING).asc()
+        .orderByCaseExecutionVariable("foo", ValueType.STRING).asc()
+        .orderByTaskVariable("foo", ValueType.STRING).asc();
+
+    Filter filter = filterService.newTaskFilter("extendedOrFilter");
+    filter.setQuery(query);
+    filterService.saveFilter(filter);
+
+    // when
+    filter = filterService.getFilter(filter.getId());
+
+    // then
+    List<QueryOrderingProperty> expectedOrderingProperties =
+        new ArrayList<QueryOrderingProperty>(query.getOrderingProperties());
+
+    verifyOrderingProperties(expectedOrderingProperties, ((TaskQueryImpl) filter.getQuery()).getOrderingProperties());
+
+    for (QueryOrderingProperty prop : ((TaskQueryImpl) filter.getQuery()).getOrderingProperties()) {
+      assertTrue(prop instanceof VariableOrderProperty);
+    }
+  }
+
   protected void saveQuery(Query query) {
     filter.setQuery(query);
     filterService.saveFilter(filter);
@@ -1224,6 +1496,50 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     task.setOwner(testUser.getId());
     task.setDelegationState(DelegationState.RESOLVED);
     taskService.saveTask(task);
+  }
+
+  protected void createTasksForOrQueries() {
+    Task task1 = taskService.newTask();
+    task1.setName("taskForOr");
+    task1.setDescription("aTaskDescription");
+    task1.setPriority(3);
+    taskService.saveTask(task1);
+
+    Task task2 = taskService.newTask();
+    task2.setName("taskForOr");
+    task2.setDescription("aTaskDescription");
+    task2.setAssignee("aTaskAssignee");
+    task2.setTenantId("aTenantId");
+    taskService.saveTask(task2);
+
+    Task task3 = taskService.newTask();
+    task3.setName("taskForOr");
+    task3.setOwner("aTaskOwner");
+    taskService.saveTask(task3);
+
+    Task task4 = taskService.newTask();
+    task4.setName("taskForOr");
+    task4.setOwner("aTaskOwner");
+    task4.setPriority(3);
+    taskService.saveTask(task4);
+
+    Task task5 = taskService.newTask();
+    task5.setDescription("aTaskDescription");
+    task5.setAssignee("aTaskAssignee");
+    taskService.saveTask(task5);
+
+    Task task6 = taskService.newTask();
+    task6.setDescription("aTaskDescription");
+    task6.setAssignee("aTaskAssignee");
+    task6.setTenantId("aTenantId");
+    taskService.saveTask(task6);
+
+    Task task7 = taskService.newTask();
+    task7.setTenantId("aTenantId");
+    task7.setOwner("aTaskOwner");
+    task7.setPriority(3);
+    task7.setAssignee("aTaskAssignee");
+    taskService.saveTask(task7);
   }
 
 }

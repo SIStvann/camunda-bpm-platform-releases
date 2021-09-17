@@ -9,9 +9,10 @@ import java.util.Set;
 import java.util.concurrent.Callable;
 
 import org.camunda.bpm.engine.BadUserRequestException;
-import org.camunda.bpm.engine.externaltask.ExternalTaskQuery;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.ExternalTaskQueryImpl;
+import org.camunda.bpm.engine.impl.HistoricProcessInstanceQueryImpl;
+import org.camunda.bpm.engine.impl.ProcessInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
@@ -19,36 +20,64 @@ import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 
 public abstract class AbstractSetExternalTaskRetriesCmd<T> implements Command<T> {
 
-  protected List<String> externalTaskIds;
-  protected ExternalTaskQuery externalTaskQuery;
-  protected int retries;
+  protected UpdateExternalTaskRetriesBuilderImpl builder;
 
-  public AbstractSetExternalTaskRetriesCmd(List<String> externalTaskIds, ExternalTaskQuery externalTaskQuery, int retries) {
-    this.externalTaskIds = externalTaskIds;
-    this.externalTaskQuery = externalTaskQuery;
-    this.retries = retries;
+  public AbstractSetExternalTaskRetriesCmd(UpdateExternalTaskRetriesBuilderImpl builder) {
+    this.builder = builder;
+  }
+
+  protected List<String> collectProcessInstanceIds() {
+
+    Set<String> collectedProcessInstanceIds = new HashSet<String>();
+
+    List<String> processInstanceIds = builder.getProcessInstanceIds();
+    if (processInstanceIds != null && !processInstanceIds.isEmpty()) {
+      collectedProcessInstanceIds.addAll(processInstanceIds);
+    }
+
+    ProcessInstanceQueryImpl processInstanceQuery = (ProcessInstanceQueryImpl) builder.getProcessInstanceQuery();
+    if (processInstanceQuery != null) {
+      collectedProcessInstanceIds.addAll(processInstanceQuery.listIds());
+    }
+
+    HistoricProcessInstanceQueryImpl historicProcessInstanceQuery = (HistoricProcessInstanceQueryImpl) builder.getHistoricProcessInstanceQuery();
+    if (historicProcessInstanceQuery != null) {
+      collectedProcessInstanceIds.addAll(historicProcessInstanceQuery.listIds());
+    }
+
+    return new ArrayList<String>(collectedProcessInstanceIds);
   }
 
   protected List<String> collectExternalTaskIds() {
 
-    Set<String> collectedIds = new HashSet<String>();
+    final Set<String> collectedIds = new HashSet<String>();
 
+    List<String> externalTaskIds = builder.getExternalTaskIds();
     if (externalTaskIds != null) {
       ensureNotContainsNull(BadUserRequestException.class, "External task id cannot be null", "externalTaskIds", externalTaskIds);
       collectedIds.addAll(externalTaskIds);
     }
 
+    ExternalTaskQueryImpl externalTaskQuery = (ExternalTaskQueryImpl) builder.getExternalTaskQuery();
     if (externalTaskQuery != null) {
-      List<String> ids = Context.getCommandContext().runWithoutAuthorization(new Callable<List<String>>(){
-
-        @Override
-        public List<String> call() throws Exception {
-          return ((ExternalTaskQueryImpl) externalTaskQuery).listIds();
-        }
-      });
-
-      collectedIds.addAll(ids);
+      collectedIds.addAll(externalTaskQuery.listIds());
     }
+
+    final List<String> collectedProcessInstanceIds = collectProcessInstanceIds();
+    if (!collectedProcessInstanceIds.isEmpty()) {
+
+      Context.getCommandContext().runWithoutAuthorization(new Callable<Void>() {
+
+        public Void call() throws Exception {
+          ExternalTaskQueryImpl query = new ExternalTaskQueryImpl();
+          query.processInstanceIdIn(collectedProcessInstanceIds.toArray(new String[collectedProcessInstanceIds.size()]));
+          collectedIds.addAll(query.listIds());
+          return null;
+        }
+
+      });
+    }
+
     return new ArrayList<String>(collectedIds);
   }
 

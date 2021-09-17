@@ -9,7 +9,6 @@ import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resources;
 import org.camunda.bpm.engine.batch.Batch;
-import org.camunda.bpm.engine.externaltask.ExternalTaskQuery;
 import org.camunda.bpm.engine.impl.batch.BatchEntity;
 import org.camunda.bpm.engine.impl.batch.BatchJobHandler;
 import org.camunda.bpm.engine.impl.batch.SetRetriesBatchConfiguration;
@@ -17,9 +16,9 @@ import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 
 public class SetExternalTasksRetriesBatchCmd extends AbstractSetExternalTaskRetriesCmd<Batch> {
-  
-  public SetExternalTasksRetriesBatchCmd(List<String> externalTaskIds, ExternalTaskQuery externalTaskQuery, int retries) {
-    super(externalTaskIds, externalTaskQuery, retries);
+
+  public SetExternalTasksRetriesBatchCmd(UpdateExternalTaskRetriesBuilderImpl builder) {
+    super(builder);
   }
 
   @Override
@@ -27,11 +26,11 @@ public class SetExternalTasksRetriesBatchCmd extends AbstractSetExternalTaskRetr
     List<String> externalTaskIds = collectExternalTaskIds();
 
     ensureNotEmpty(BadUserRequestException.class, "externalTaskIds", externalTaskIds);
-    
+
     commandContext.getAuthorizationManager().checkAuthorization(Permissions.CREATE, Resources.BATCH);
-    
+
     writeUserOperationLog(commandContext,
-        retries,
+        builder.getRetries(),
         externalTaskIds.size(),
         true);
 
@@ -47,13 +46,13 @@ public class SetExternalTasksRetriesBatchCmd extends AbstractSetExternalTaskRetr
 
     return batch;
   }
-  
+
   protected BatchEntity createBatch(CommandContext commandContext, Collection<String> processInstanceIds) {
     ProcessEngineConfigurationImpl processEngineConfiguration = commandContext.getProcessEngineConfiguration();
     BatchJobHandler<SetRetriesBatchConfiguration> batchJobHandler = getBatchJobHandler(processEngineConfiguration);
 
-    SetRetriesBatchConfiguration configuration = new SetRetriesBatchConfiguration(new ArrayList<String>(processInstanceIds), retries);
-    
+    SetRetriesBatchConfiguration configuration = new SetRetriesBatchConfiguration(new ArrayList<String>(processInstanceIds), builder.getRetries());
+
     BatchEntity batch = new BatchEntity();
     batch.setType(batchJobHandler.getType());
     batch.setTotalJobs(calculateSize(processEngineConfiguration, configuration));
@@ -64,7 +63,7 @@ public class SetExternalTasksRetriesBatchCmd extends AbstractSetExternalTaskRetr
 
     return batch;
   }
-  
+
   protected int calculateSize(ProcessEngineConfigurationImpl engineConfiguration, SetRetriesBatchConfiguration batchConfiguration) {
     int invocationsPerBatchJob = engineConfiguration.getInvocationsPerBatchJob();
     int processInstanceCount = batchConfiguration.getIds().size();

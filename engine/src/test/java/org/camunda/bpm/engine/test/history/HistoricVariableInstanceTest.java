@@ -29,6 +29,7 @@ import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.RequiredHistoryLevel;
+import org.camunda.bpm.engine.test.api.runtime.migration.models.ProcessModels;
 import org.camunda.bpm.engine.test.api.runtime.util.CustomSerializable;
 import org.camunda.bpm.engine.test.api.runtime.util.FailingSerializable;
 import org.camunda.bpm.engine.test.cmmn.decisiontask.TestPojo;
@@ -39,10 +40,13 @@ import org.camunda.bpm.engine.variable.value.ObjectValue;
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.junit.Assert;
+import org.junit.Test;
 
+import java.io.Serializable;
 import java.util.*;
 
 import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 
 
@@ -717,6 +721,44 @@ public class HistoricVariableInstanceTest extends PluggableProcessEngineTestCase
 
   }
 
+  public void testDisableCustomObjectDeserializationNativeQuery() {
+    // given
+    Task newTask = taskService.newTask();
+    taskService.saveTask(newTask);
+
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("customSerializable", new CustomSerializable());
+    variables.put("failingSerializable", new FailingSerializable());
+    taskService.setVariables(newTask.getId(), variables);
+
+    // when
+    List<HistoricVariableInstance> variableInstances = historyService.createNativeHistoricVariableInstanceQuery()
+      .sql("SELECT * from " + managementService.getTableName(HistoricVariableInstance.class))
+      .disableCustomObjectDeserialization()
+      .list();
+
+    // then
+    assertEquals(2, variableInstances.size());
+
+    for (HistoricVariableInstance variableInstance : variableInstances) {
+      assertNull(variableInstance.getErrorMessage());
+
+      ObjectValue typedValue = (ObjectValue) variableInstance.getTypedValue();
+      assertNotNull(typedValue);
+      assertFalse(typedValue.isDeserialized());
+      // cannot access the deserialized value
+      try {
+        typedValue.getValue();
+      }
+      catch(IllegalStateException e) {
+        assertTextPresent("Object is not deserialized", e.getMessage());
+      }
+      assertNotNull(typedValue.getValueSerialized());
+    }
+
+    taskService.deleteTask(newTask.getId(), true);
+  }
+
   public void testErrorMessage() {
 
     Task newTask = taskService.newTask();
@@ -933,6 +975,43 @@ public class HistoricVariableInstanceTest extends PluggableProcessEngineTestCase
 
       assertNotNull(value3);
       assertTrue(value3.isEmpty());
+    }
+  }
+
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testImplicitVariableUpdateAndScopeDestroyedInOneTransaction() {
+    deployment(Bpmn.createExecutableProcess("process1")
+      .startEvent("start")
+      .serviceTask("task1").camundaExpression("${var.setValue(\"newValue\")}")
+      .endEvent("end")
+      .done());
+
+    processEngine.getRuntimeService().startProcessInstanceByKey("process1", Variables.createVariables().putValue("var", new CustomVar("initialValue")));
+
+    final HistoricVariableInstance historicVariableInstance = processEngine.getHistoryService().createHistoricVariableInstanceQuery().list().get(0);
+    CustomVar var = (CustomVar) historicVariableInstance.getTypedValue().getValue();
+
+    assertEquals("newValue", var.getValue());
+
+    final List<HistoricDetail> historicDetails = processEngine.getHistoryService().createHistoricDetailQuery().orderPartiallyByOccurrence().desc().list();
+    HistoricDetail historicDetail = historicDetails.get(0);
+    final CustomVar typedValue = (CustomVar) ((HistoricVariableUpdate) historicDetail).getTypedValue().getValue();
+    assertEquals("newValue", typedValue.getValue());
+  }
+
+  public static class CustomVar implements Serializable {
+    private String value;
+
+    public CustomVar(String value) {
+      this.value = value;
+    }
+
+    public String getValue() {
+      return value;
+    }
+
+    public void setValue(String value) {
+      this.value = value;
     }
   }
 
@@ -2114,5 +2193,71 @@ public class HistoricVariableInstanceTest extends PluggableProcessEngineTestCase
       assertEquals(theStartActivityInstanceId, historicFormUpdate.getActivityInstanceId());
 
     }
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/twoTasksProcess.bpmn20.xml"})
+  public void testSetDifferentStates() {
+    //given
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("twoTasksProcess", Variables.createVariables().putValue("initial", "foo"));
+    Task task = taskService.createTaskQuery().singleResult();
+    taskService.setVariables(task.getId(), Variables.createVariables().putValue("bar", "abc"));
+    taskService.complete(task.getId());
+
+    //when
+    runtimeService.removeVariable(processInstance.getId(), "bar");
+
+    //then
+    List<HistoricVariableInstance> variables = historyService.createHistoricVariableInstanceQuery().includeDeleted().list();
+    Assert.assertEquals(2, variables.size());
+
+    int createdCounter = 0;
+    int deletedCounter = 0;
+
+    for (HistoricVariableInstance variable : variables) {
+      if (variable.getName().equals("initial")) {
+        Assert.assertEquals(HistoricVariableInstance.STATE_CREATED, variable.getState());
+        createdCounter += 1;
+      } else if (variable.getName().equals("bar")) {
+        Assert.assertEquals(HistoricVariableInstance.STATE_DELETED, variable.getState());
+        deletedCounter += 1;
+      }
+    }
+
+    Assert.assertEquals(1, createdCounter);
+    Assert.assertEquals(1, deletedCounter);
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/twoTasksProcess.bpmn20.xml"})
+  public void testQueryNotIncludeDeleted() {
+    //given
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("twoTasksProcess", Variables.createVariables().putValue("initial", "foo"));
+    Task task = taskService.createTaskQuery().singleResult();
+    taskService.setVariables(task.getId(), Variables.createVariables().putValue("bar", "abc"));
+    taskService.complete(task.getId());
+
+    //when
+    runtimeService.removeVariable(processInstance.getId(), "bar");
+
+    //then
+    HistoricVariableInstance variable = historyService.createHistoricVariableInstanceQuery().singleResult();
+    assertEquals(HistoricVariableInstance.STATE_CREATED, variable.getState());
+    assertEquals("initial", variable.getName());
+    assertEquals("foo", variable.getValue());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/twoTasksProcess.bpmn20.xml"})
+  public void testQueryByProcessDefinitionId() {
+    // given
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("twoTasksProcess",
+        Variables.createVariables().putValue("initial", "foo"));
+
+    // when
+    HistoricVariableInstance variable = historyService.createHistoricVariableInstanceQuery()
+        .processDefinitionId(processInstance.getProcessDefinitionId()).singleResult();
+
+    // then
+    assertNotNull(variable);
+    assertEquals("initial", variable.getName());
+    assertEquals("foo", variable.getValue());
   }
 }

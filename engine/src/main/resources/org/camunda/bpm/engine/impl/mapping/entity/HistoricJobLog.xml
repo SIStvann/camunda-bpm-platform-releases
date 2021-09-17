@@ -67,10 +67,12 @@
   </delete>
 
   <delete id="deleteHistoricJobLogByProcessInstanceIds">
-    delete from ${prefix}ACT_HI_JOB_LOG where PROCESS_INSTANCE_ID_ IN
-    <foreach item="processInstanceId" index="index" collection="list" open="(" separator="," close=")">
-       #{processInstanceId}
-    </foreach>
+    delete
+    from ${prefix}ACT_HI_JOB_LOG
+    where
+      <bind name="listOfIds" value="list"/>
+      <bind name="fieldName" value="'PROCESS_INSTANCE_ID_'"/>
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
   </delete>
 
   <delete id="deleteHistoricJobLogByProcessDefinitionId">
@@ -89,15 +91,35 @@
     delete from ${prefix}ACT_HI_JOB_LOG where JOB_DEF_ID_ = #{jobDefinitionId}
   </delete>
 
+  <delete id="deleteHistoricJobLogByBatchIds">
+    delete from ${prefix}ACT_HI_JOB_LOG
+    where
+      <bind name="listOfIds" value="list"/>
+      <bind name="fieldName" value="'JOB_DEF_CONFIGURATION_'"/>
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
+  </delete>
+
   <!-- BYTE ARRAY DELETE -->
 
   <delete id="deleteExceptionByteArraysByIds">
     delete
-    from
-        ${prefix}ACT_GE_BYTEARRAY
+    from ${prefix}ACT_GE_BYTEARRAY
     <where>
-        ID_ in (<include refid="selectExceptionByteArrayIds"/>)
+      ID_ in (
+        select J.JOB_EXCEPTION_STACK_ID_
+        from ${prefix}ACT_HI_JOB_LOG J
+        <where><include refid="selectExceptionByteArrayIds"/></where>
+      )
     </where>
+  </delete>
+
+  <delete id="deleteExceptionByteArraysByIds_mysql">
+    delete B
+    from
+      ${prefix}ACT_GE_BYTEARRAY B
+    inner join ${prefix}ACT_HI_JOB_LOG J
+      on B.ID_ = J.JOB_EXCEPTION_STACK_ID_
+    <include refid="selectExceptionByteArrayIds"/>
   </delete>
 
   <!-- RESULT MAP -->
@@ -125,51 +147,50 @@
     <result property="sequenceCounter" column="SEQUENCE_COUNTER_" jdbcType="BIGINT" />
   </resultMap>
 
-  <!-- SELECT -->
-
   <sql id="selectExceptionByteArrayIds">
-    select
-        JOB_EXCEPTION_STACK_ID_
-    from
-        ${prefix}ACT_HI_JOB_LOG
-    <where>
-        JOB_EXCEPTION_STACK_ID_ is not null
-        <if test="id != null">
-        and ID_ = #{id, jdbcType=VARCHAR}
-        </if>
-        <if test="jobId != null">
-        and JOB_ID_ = #{jobId, jdbcType=VARCHAR}
-        </if>
-        <if test="jobDefinitionId != null">
-        and JOB_DEF_ID_ = #{jobDefinitionId, jdbcType=VARCHAR}
-        </if>
-        <if test="executionId != null">
-        and EXECUTION_ID_ = #{executionId, jdbcType=VARCHAR}
-        </if>
-        <if test="processInstanceId != null">
-        and PROCESS_INSTANCE_ID_ = #{processInstanceId, jdbcType=VARCHAR}
-        </if>
-        <if test="processInstanceIdIn != null &amp;&amp; processInstanceIdIn.length > 0">
-            and PROCESS_INSTANCE_ID_ in
-            <foreach item="item" index="index" collection="processInstanceIdIn"
-                     open="(" separator="," close=")">
-                #{item}
-            </foreach>
-        </if>
-        <if test="processDefinitionId != null">
-        and PROCESS_DEF_ID_ = #{processDefinitionId, jdbcType=VARCHAR}
-        </if>
-        <if test="processDefinitionKey != null">
-        and PROCESS_DEF_KEY_ = #{processDefinitionKey, jdbcType=VARCHAR}
-        </if>
-        <if test="deploymentId != null">
-        and DEPLOYMENT_ID_ = #{deploymentId, jdbcType=VARCHAR}
-        </if>
-        <if test="jobDefinitionType != null">
-        and JOB_DEF_TYPE_ = #{jobDefinitionType, jdbcType=VARCHAR}
-        </if>
-    </where>
+    and J.JOB_EXCEPTION_STACK_ID_ is not null
+    <if test="id != null">
+      and J.ID_ = #{id, jdbcType=VARCHAR}
+    </if>
+    <if test="jobId != null">
+      and J.JOB_ID_ = #{jobId, jdbcType=VARCHAR}
+    </if>
+    <if test="jobDefinitionId != null">
+      and J.JOB_DEF_ID_ = #{jobDefinitionId, jdbcType=VARCHAR}
+    </if>
+    <if test="executionId != null">
+      and J.EXECUTION_ID_ = #{executionId, jdbcType=VARCHAR}
+    </if>
+    <if test="processInstanceId != null">
+      and J.PROCESS_INSTANCE_ID_ = #{processInstanceId, jdbcType=VARCHAR}
+    </if>
+    <if test="processInstanceIdIn != null &amp;&amp; processInstanceIdIn.length > 0">
+      and
+        <bind name="listOfIds" value="processInstanceIdIn"/>
+        <bind name="fieldName" value="'J.PROCESS_INSTANCE_ID_'"/>
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedArray"/>
+    </if>
+    <if test="processDefinitionId != null">
+      and J.PROCESS_DEF_ID_ = #{processDefinitionId, jdbcType=VARCHAR}
+    </if>
+    <if test="processDefinitionKey != null">
+      and J.PROCESS_DEF_KEY_ = #{processDefinitionKey, jdbcType=VARCHAR}
+    </if>
+    <if test="deploymentId != null">
+      and J.DEPLOYMENT_ID_ = #{deploymentId, jdbcType=VARCHAR}
+    </if>
+    <if test="jobDefinitionType != null">
+      and J.JOB_DEF_TYPE_ = #{jobDefinitionType, jdbcType=VARCHAR}
+    </if>
+    <if test="historicBatchIdIn != null &amp;&amp; historicBatchIdIn.size > 0">
+      and
+        <bind name="listOfIds" value="historicBatchIdIn"/>
+        <bind name="fieldName" value="'J.JOB_DEF_CONFIGURATION_'"/>
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
+    </if>
   </sql>
+
+  <!-- SELECT -->
 
   <select id="selectHistoricJobLog" resultMap="historicJobLogMap">
     select * from ${prefix}ACT_HI_JOB_LOG where ID_ = #{id}
@@ -178,7 +199,7 @@
   <select id="selectHistoricJobLogByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricJobLogQueryImpl" resultMap="historicJobLogMap">
     <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    select RES.*
+    select ${distinct} RES.*
     ${limitBetween}
     <include refid="selectHistoricJobLogByQueryCriteriaSql"/>
     ${orderBy}
@@ -186,23 +207,16 @@
   </select>
 
   <select id="selectHistoricJobLogCountByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricJobLogQueryImpl" resultType="long">
-    select count(RES.ID_)
+    select count(distinct RES.ID_)
     <include refid="selectHistoricJobLogByQueryCriteriaSql"/>
   </select>
 
   <sql id="selectHistoricJobLogByQueryCriteriaSql">
     from ${prefix}ACT_HI_JOB_LOG RES
 
-    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
-      LEFT JOIN (
-        SELECT
-            SELF.PROCESS_DEF_KEY_ AS KEY_
-        FROM
-            (SELECT DISTINCT DKEYS.PROCESS_DEF_KEY_ from ${prefix}ACT_HI_JOB_LOG DKEYS) SELF
-        WHERE
-            <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.querySingleAuthorizationCheck" />
-      ) AUTH
-      ON AUTH.KEY_ = RES.PROCESS_DEF_KEY_
+    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authCheckJoinWithoutOnClause"/>
+      AUTH ON (AUTH.RESOURCE_ID_ in (RES.PROCESS_DEF_KEY_, '*'))
     </if>
 
     <where>
@@ -269,7 +283,11 @@
 
       <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
         <!-- incident exists in context of a process definition -->
-        and ((RES.PROCESS_DEF_KEY_ is not null and AUTH.KEY_ is not null) or RES.PROCESS_DEF_KEY_ is null)
+        and (
+          (RES.PROCESS_DEF_KEY_ is not null
+          <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheck"/>
+          ) or RES.PROCESS_DEF_KEY_ is null
+        )
       </if>
 
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />

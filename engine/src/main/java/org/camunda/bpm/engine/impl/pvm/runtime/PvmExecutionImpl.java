@@ -17,10 +17,15 @@ import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.bpmn.helper.BpmnProperties;
 import org.camunda.bpm.engine.impl.cmmn.execution.CmmnExecution;
 import org.camunda.bpm.engine.impl.cmmn.model.CmmnCaseDefinition;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.core.instance.CoreExecution;
 import org.camunda.bpm.engine.impl.core.variable.event.VariableEvent;
 import org.camunda.bpm.engine.impl.core.variable.scope.AbstractVariableScope;
+import org.camunda.bpm.engine.impl.incident.DefaultIncidentHandler;
+import org.camunda.bpm.engine.impl.incident.IncidentContext;
+import org.camunda.bpm.engine.impl.incident.IncidentHandler;
 import org.camunda.bpm.engine.impl.persistence.entity.DelayedVariableEvent;
+import org.camunda.bpm.engine.impl.persistence.entity.IncidentEntity;
 import org.camunda.bpm.engine.impl.pvm.*;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityExecution;
 import org.camunda.bpm.engine.impl.pvm.delegate.CompositeActivityBehavior;
@@ -31,6 +36,7 @@ import org.camunda.bpm.engine.impl.pvm.runtime.operation.FoxAtomicOperationDelet
 import org.camunda.bpm.engine.impl.pvm.runtime.operation.PvmAtomicOperation;
 import org.camunda.bpm.engine.impl.tree.*;
 import org.camunda.bpm.engine.impl.util.EnsureUtil;
+import org.camunda.bpm.engine.runtime.Incident;
 
 import java.util.*;
 
@@ -255,6 +261,9 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   public void destroy() {
     LOG.destroying(this);
     setScope(false);
+  }
+
+  public void removeAllTasks() {
   }
 
   protected void removeEventScopes() {
@@ -537,22 +546,23 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   }
 
   public void deleteCascade(String deleteReason, boolean skipCustomListeners, boolean skipIoMappings) {
-    deleteCascade(deleteReason, skipCustomListeners, skipIoMappings, false);
+    deleteCascade(deleteReason, skipCustomListeners, skipIoMappings, false, false);
   }
 
-  public void deleteCascade(String deleteReason, boolean skipCustomListeners, boolean skipIoMappings, boolean externallyTerminated) {
+  public void deleteCascade(String deleteReason, boolean skipCustomListeners, boolean skipIoMappings, boolean externallyTerminated, boolean skipSubprocesses) {
     this.deleteReason = deleteReason;
-    this.deleteRoot = true;
+    setDeleteRoot(true);
     this.isEnded = true;
     this.skipCustomListeners = skipCustomListeners;
     this.skipIoMapping = skipIoMappings;
     this.externallyTerminated = externallyTerminated;
+    this.skipSubprocesses = skipSubprocesses;
     performOperation(PvmAtomicOperation.DELETE_CASCADE);
   }
 
   public void deleteCascade2(String deleteReason) {
     this.deleteReason = deleteReason;
-    this.deleteRoot = true;
+    setDeleteRoot(true);
     performOperation(new FoxAtomicOperationDeleteCascadeFireActivityEnd());
   }
 
@@ -678,6 +688,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     // activity instance id handling
     this.activityInstanceId = execution.getActivityInstanceId();
     this.isActive = execution.isActive;
+    this.deleteRoot = execution.deleteRoot;
 
     this.replacedBy = null;
     execution.replacedBy = this;
@@ -1564,10 +1575,15 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   /**
    * {@inheritDoc}
    */
-  public void setVariable(String variableName, Object value, String activityId) {
-    PvmExecutionImpl executionForFlowScope = this.findExecutionForFlowScope(activityId);
-    if (executionForFlowScope != null) {
-      executionForFlowScope.setVariableLocal(variableName, value);
+  public void setVariable(String variableName, Object value, String targetActivityId) {
+    String activityId = getActivityId();
+    if (activityId != null && activityId.equals(targetActivityId)) {
+      setVariableLocal(variableName, value);
+    } else {
+      PvmExecutionImpl executionForFlowScope = findExecutionForFlowScope(targetActivityId);
+      if (executionForFlowScope != null) {
+        executionForFlowScope.setVariableLocal(variableName, value);
+      }
     }
   }
 
@@ -1634,6 +1650,13 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
 
   public boolean isDeleteRoot() {
     return deleteRoot;
+  }
+
+  public void setDeleteRoot(boolean deleteRoot) {
+    if (getReplacedBy() != null) {
+      getReplacedBy().setDeleteRoot(deleteRoot);
+    }
+    this.deleteRoot = deleteRoot;
   }
 
   @Override
@@ -2091,4 +2114,59 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     }
   }
 
+  /**
+   * Returns the newest incident in this execution
+   *
+   * @param incidentType the type of new incident
+   * @param configuration configuration of the incident
+   * @return new incident
+   */
+  @Override
+  public Incident createIncident(String incidentType, String configuration) {
+    return createIncident(incidentType, configuration, null);
+  }
+
+  public Incident createIncident(String incidentType, String configuration, String message) {
+    IncidentContext incidentContext = new IncidentContext();
+
+    incidentContext.setTenantId(this.getTenantId());
+    incidentContext.setProcessDefinitionId(this.getProcessDefinitionId());
+    incidentContext.setExecutionId(this.getId());
+    incidentContext.setActivityId(this.getActivityId());
+    incidentContext.setConfiguration(configuration);
+
+    IncidentHandler incidentHandler = findIncidentHandler(incidentType);
+
+    if (incidentHandler == null) {
+      incidentHandler = new DefaultIncidentHandler(incidentType);
+    }
+    return incidentHandler.handleIncident(incidentContext, message);
+  }
+
+
+  /**
+   * Resolves an incident with given id.
+   *
+   * @param incidentId
+   */
+  @Override
+  public void resolveIncident(final String incidentId) {
+    IncidentEntity incident = (IncidentEntity) Context
+        .getCommandContext()
+        .getIncidentManager()
+        .findIncidentById(incidentId);
+
+    IncidentHandler incidentHandler = findIncidentHandler(incident.getIncidentType());
+
+    if (incidentHandler == null) {
+      incidentHandler = new DefaultIncidentHandler(incident.getIncidentType());
+    }
+    IncidentContext incidentContext = new IncidentContext(incident);
+    incidentHandler.resolveIncident(incidentContext);
+  }
+
+  public IncidentHandler findIncidentHandler(String incidentType) {
+    Map<String, IncidentHandler> incidentHandlers = Context.getProcessEngineConfiguration().getIncidentHandlers();
+    return incidentHandlers.get(incidentType);
+  }
 }

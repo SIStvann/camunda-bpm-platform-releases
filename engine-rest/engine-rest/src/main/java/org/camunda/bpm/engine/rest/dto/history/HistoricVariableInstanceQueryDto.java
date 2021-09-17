@@ -23,6 +23,7 @@ import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.history.HistoricVariableInstanceQuery;
 import org.camunda.bpm.engine.rest.dto.AbstractQueryDto;
 import org.camunda.bpm.engine.rest.dto.CamundaQueryParam;
+import org.camunda.bpm.engine.rest.dto.converter.BooleanConverter;
 import org.camunda.bpm.engine.rest.dto.converter.StringArrayConverter;
 import org.camunda.bpm.engine.rest.dto.converter.StringListConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
@@ -44,6 +45,7 @@ public class HistoricVariableInstanceQueryDto extends AbstractQueryDto<HistoricV
   }
 
   protected String processInstanceId;
+  protected String processDefinitionId;
   protected String caseInstanceId;
   protected String variableName;
   protected String variableNameLike;
@@ -56,6 +58,7 @@ public class HistoricVariableInstanceQueryDto extends AbstractQueryDto<HistoricV
   protected String[] caseActivityIdIn;
   protected String[] processInstanceIdIn;
   protected List<String> tenantIds;
+  protected boolean includeDeleted;
 
   public HistoricVariableInstanceQueryDto() {
   }
@@ -67,6 +70,11 @@ public class HistoricVariableInstanceQueryDto extends AbstractQueryDto<HistoricV
   @CamundaQueryParam("processInstanceId")
   public void setProcessInstanceId(String processInstanceId) {
     this.processInstanceId = processInstanceId;
+  }
+
+  @CamundaQueryParam("processDefinitionId")
+  public void setProcessDefinitionId(String processDefinitionId) {
+    this.processDefinitionId = processDefinitionId;
   }
 
   @CamundaQueryParam("caseInstanceId")
@@ -129,6 +137,15 @@ public class HistoricVariableInstanceQueryDto extends AbstractQueryDto<HistoricV
     this.tenantIds = tenantIds;
   }
 
+  public boolean isIncludeDeleted() {
+    return includeDeleted;
+  }
+
+  @CamundaQueryParam(value = "includeDeleted", converter = BooleanConverter.class)
+  public void setIncludeDeleted(boolean includeDeleted) {
+    this.includeDeleted = includeDeleted;
+  }
+
   @Override
   protected boolean isValidSortByValue(String value) {
     return VALID_SORT_BY_VALUES.contains(value);
@@ -143,6 +160,9 @@ public class HistoricVariableInstanceQueryDto extends AbstractQueryDto<HistoricV
   protected void applyFilters(HistoricVariableInstanceQuery query) {
     if (processInstanceId != null) {
       query.processInstanceId(processInstanceId);
+    }
+    if (processDefinitionId != null) {
+      query.processDefinitionId(processDefinitionId);
     }
     if (caseInstanceId != null) {
       query.caseInstanceId(caseInstanceId);
@@ -185,6 +205,9 @@ public class HistoricVariableInstanceQueryDto extends AbstractQueryDto<HistoricV
     }
     if (tenantIds != null && !tenantIds.isEmpty()) {
       query.tenantIdIn(tenantIds.toArray(new String[tenantIds.size()]));
+    }
+    if (includeDeleted) {
+      query.includeDeleted();
     }
   }
 

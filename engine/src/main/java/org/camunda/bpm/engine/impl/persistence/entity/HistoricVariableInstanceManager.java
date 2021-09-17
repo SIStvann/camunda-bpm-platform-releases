@@ -31,10 +31,6 @@ import org.camunda.bpm.engine.impl.persistence.AbstractHistoricManager;
  */
 public class HistoricVariableInstanceManager extends AbstractHistoricManager {
 
-  public void deleteHistoricVariableInstanceByProcessInstanceId(String historicProcessInstanceId) {
-    deleteHistoricVariableInstancesByProcessCaseInstanceId(historicProcessInstanceId, null);
-  }
-
   public void deleteHistoricVariableInstanceByProcessInstanceIds(List<String> historicProcessInstanceIds) {
     Map<String, Object> parameters = new HashMap<String, Object>();
     parameters.put("processInstanceIds", historicProcessInstanceIds);
@@ -54,12 +50,6 @@ public class HistoricVariableInstanceManager extends AbstractHistoricManager {
   public void deleteHistoricVariableInstancesByCaseInstanceIds(List<String> historicCaseInstanceIds) {
     Map<String, Object> parameters = new HashMap<String, Object>();
     parameters.put("caseInstanceIds", historicCaseInstanceIds);
-    deleteHistoricVariableInstances(parameters);
-  }
-
-  public void deleteHistoricVariableInstancesByTaskCaseInstanceIds(List<String> historicCaseInstanceIds) {
-    Map<String, Object> parameters = new HashMap<String, Object>();
-    parameters.put("taskCaseInstanceIds", historicCaseInstanceIds);
     deleteHistoricVariableInstances(parameters);
   }
 
@@ -130,6 +120,16 @@ public class HistoricVariableInstanceManager extends AbstractHistoricManager {
         ((HistoricVariableInstanceEntity) historicProcessVariable).delete();
       }
     }
+  }
+
+  @SuppressWarnings("unchecked")
+  public List<HistoricVariableInstance> findHistoricVariableInstancesByNativeQuery(Map<String, Object> parameterMap, int firstResult, int
+          maxResults) {
+    return getDbEntityManager().selectListWithRawParameter("selectHistoricVariableInstanceByNativeQuery", parameterMap, firstResult, maxResults);
+  }
+
+  public long findHistoricVariableInstanceCountByNativeQuery(Map<String, Object> parameterMap) {
+    return (Long) getDbEntityManager().selectOne("selectHistoricVariableInstanceCountByNativeQuery", parameterMap);
   }
 
   protected void configureQuery(HistoricVariableInstanceQueryImpl query) {

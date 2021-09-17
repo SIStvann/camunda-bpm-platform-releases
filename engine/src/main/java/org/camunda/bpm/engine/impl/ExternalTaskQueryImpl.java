@@ -30,7 +30,6 @@ import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
  */
 public class ExternalTaskQueryImpl extends AbstractQuery<ExternalTaskQuery, ExternalTask> implements ExternalTaskQuery   {
 
-
   private static final long serialVersionUID = 1L;
 
   protected String externalTaskId;
@@ -42,6 +41,7 @@ public class ExternalTaskQueryImpl extends AbstractQuery<ExternalTaskQuery, Exte
   protected Boolean notLocked;
   protected String executionId;
   protected String processInstanceId;
+  protected String[] processInstanceIdIn;
   protected String processDefinitionId;
   protected String activityId;
   protected String[] activityIdIn;
@@ -110,6 +110,12 @@ public class ExternalTaskQueryImpl extends AbstractQuery<ExternalTaskQuery, Exte
     return this;
   }
 
+  public ExternalTaskQuery processInstanceIdIn(String... processInstanceIdIn) {
+    ensureNotNull("processInstanceIdIn", (Object[]) processInstanceIdIn);
+    this.processInstanceIdIn = processInstanceIdIn;
+    return this;
+  }
+
   public ExternalTaskQuery processDefinitionId(String processDefinitionId) {
     ensureNotNull("processDefinitionId", processDefinitionId);
     this.processDefinitionId = processDefinitionId;
@@ -123,7 +129,7 @@ public class ExternalTaskQueryImpl extends AbstractQuery<ExternalTaskQuery, Exte
   }
 
   public ExternalTaskQuery activityIdIn(String... activityIdIn) {
-    ensureNotNull("activityIdIn", activityIdIn);
+    ensureNotNull("activityIdIn", (Object[]) activityIdIn);
     this.activityIdIn = activityIdIn;
     return this;
   }
@@ -159,7 +165,7 @@ public class ExternalTaskQueryImpl extends AbstractQuery<ExternalTaskQuery, Exte
     this.retriesLeft = Boolean.FALSE;
     return this;
   }
-    
+
   @Override
   protected boolean hasExcludingConditions() {
     return super.hasExcludingConditions()
@@ -195,7 +201,7 @@ public class ExternalTaskQueryImpl extends AbstractQuery<ExternalTaskQuery, Exte
   public ExternalTaskQuery orderByTenantId() {
     return orderBy(ExternalTaskQueryProperty.TENANT_ID);
   }
-  
+
   @Override
   public ExternalTaskQuery orderByPriority() {
     return orderBy(ExternalTaskQueryProperty.PRIORITY);

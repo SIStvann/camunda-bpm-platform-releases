@@ -104,8 +104,10 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   public static final String SORT_PARAMETERS_VALUE_TYPE = "type";
 
   private String processInstanceBusinessKey;
+  private String processInstanceBusinessKeyExpression;
   private String[] processInstanceBusinessKeyIn;
   private String processInstanceBusinessKeyLike;
+  private String processInstanceBusinessKeyLikeExpression;
   private String processDefinitionKey;
   private String[] processDefinitionKeyIn;
   private String processDefinitionId;
@@ -191,6 +193,8 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   private List<VariableQueryParameterDto> processVariables;
   private List<VariableQueryParameterDto> caseInstanceVariables;
 
+  private List<TaskQueryDto> orQueries;
+
   public TaskQueryDto() {
 
   }
@@ -199,9 +203,19 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     super(objectMapper, queryParameters);
   }
 
+  @CamundaQueryParam("orQueries")
+  public void setOrQueries(List<TaskQueryDto> orQueries) {
+    this.orQueries = orQueries;
+  }
+
   @CamundaQueryParam("processInstanceBusinessKey")
   public void setProcessInstanceBusinessKey(String businessKey) {
     this.processInstanceBusinessKey = businessKey;
+  }
+
+  @CamundaQueryParam("processInstanceBusinessKeyExpression")
+  public void setProcessInstanceBusinessKeyExpression(String businessKeyExpression) {
+    this.processInstanceBusinessKeyExpression = businessKeyExpression;
   }
 
   @CamundaQueryParam(value = "processInstanceBusinessKeyIn", converter = StringArrayConverter.class)
@@ -212,6 +226,11 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   @CamundaQueryParam("processInstanceBusinessKeyLike")
   public void setProcessInstanceBusinessKeyLike(String businessKeyLike) {
     this.processInstanceBusinessKeyLike = businessKeyLike;
+  }
+
+  @CamundaQueryParam("processInstanceBusinessKeyLikeExpression")
+  public void setProcessInstanceBusinessKeyLikeExpression(String businessKeyLikeExpression) {
+    this.processInstanceBusinessKeyLikeExpression = businessKeyLikeExpression;
   }
 
   @CamundaQueryParam("processDefinitionKey")
@@ -636,12 +655,20 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     return processInstanceBusinessKey;
   }
 
+  public String getProcessInstanceBusinessKeyExpression() {
+    return processInstanceBusinessKeyExpression;
+  }
+
   public String[] getProcessInstanceBusinessKeyIn() {
     return processInstanceBusinessKeyIn;
   }
 
   public String getProcessInstanceBusinessKeyLike() {
     return processInstanceBusinessKeyLike;
+  }
+
+  public String getProcessInstanceBusinessKeyLikeExpression() {
+    return processInstanceBusinessKeyLikeExpression;
   }
 
   public String getProcessDefinitionKey() {
@@ -761,7 +788,7 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   }
 
   public String getNameNotEqual() {
-    return name;
+    return nameNotEqual;
   }
 
   public String getNameLike() {
@@ -936,16 +963,34 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     return caseInstanceVariables;
   }
 
+  public List<TaskQueryDto> getOrQueries() {
+    return orQueries;
+  }
+
   @Override
   protected void applyFilters(TaskQuery query) {
+    if (orQueries != null) {
+      for (TaskQueryDto orQueryDto: orQueries) {
+        TaskQueryImpl orQuery = new TaskQueryImpl();
+        orQuery.setOrQueryActive();
+        orQueryDto.applyFilters(orQuery);
+        ((TaskQueryImpl) query).addOrQuery(orQuery);
+      }
+    }
     if (processInstanceBusinessKey != null) {
       query.processInstanceBusinessKey(processInstanceBusinessKey);
+    }
+    if (processInstanceBusinessKeyExpression != null) {
+      query.processInstanceBusinessKeyExpression(processInstanceBusinessKeyExpression);
     }
     if (processInstanceBusinessKeyIn != null && processInstanceBusinessKeyIn.length > 0) {
       query.processInstanceBusinessKeyIn(processInstanceBusinessKeyIn);
     }
     if (processInstanceBusinessKeyLike != null) {
       query.processInstanceBusinessKeyLike(processInstanceBusinessKeyLike);
+    }
+    if (processInstanceBusinessKeyLikeExpression != null) {
+      query.processInstanceBusinessKeyLikeExpression(processInstanceBusinessKeyLikeExpression);
     }
     if (processDefinitionKey != null) {
       query.processDefinitionKey(processDefinitionKey);
@@ -1340,9 +1385,22 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
   }
 
   public static TaskQueryDto fromQuery(Query<?, ?> query) {
+    return fromQuery(query, false);
+  }
+
+  public static TaskQueryDto fromQuery(Query<?, ?> query, boolean isOrQueryActive) {
     TaskQueryImpl taskQuery = (TaskQueryImpl) query;
 
     TaskQueryDto dto = new TaskQueryDto();
+
+    if (!isOrQueryActive) {
+      dto.orQueries = new ArrayList<TaskQueryDto>();
+      for (TaskQueryImpl orQuery: taskQuery.getQueries()) {
+        if (orQuery.isOrQueryActive()) {
+          dto.orQueries.add(fromQuery(orQuery, true));
+        }
+      }
+    }
 
     dto.activityInstanceIdIn = taskQuery.getActivityInstanceIdIn();
     dto.caseDefinitionId = taskQuery.getCaseDefinitionId();
@@ -1500,6 +1558,12 @@ public class TaskQueryDto extends AbstractQueryDto<TaskQuery> {
     }
     if (expressions.containsKey("followUpAfter")) {
       dto.setFollowUpAfterExpression(expressions.get("followUpAfter"));
+    }
+    if (expressions.containsKey("processInstanceBusinessKey")) {
+      dto.setProcessInstanceBusinessKeyExpression(expressions.get("processInstanceBusinessKey"));
+    }
+    if (expressions.containsKey("processInstanceBusinessKeyLike")) {
+      dto.setProcessInstanceBusinessKeyLikeExpression(expressions.get("processInstanceBusinessKeyLike"));
     }
 
     return dto;

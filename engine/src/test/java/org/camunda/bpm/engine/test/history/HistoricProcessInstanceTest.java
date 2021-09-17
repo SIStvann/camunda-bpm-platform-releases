@@ -22,10 +22,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.apache.commons.lang.time.DateUtils;
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.exception.NullValueException;
+import org.camunda.bpm.engine.history.HistoricActivityInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.impl.history.HistoryLevel;
@@ -38,8 +40,10 @@ import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.RequiredHistoryLevel;
+import org.camunda.bpm.engine.test.api.runtime.migration.models.ProcessModels;
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
+import org.junit.Assert;
 import org.junit.Test;
 import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.historicProcessInstanceByProcessDefinitionId;
 import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.historicProcessInstanceByProcessDefinitionKey;
@@ -47,6 +51,7 @@ import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.historicP
 import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.historicProcessInstanceByProcessDefinitionVersion;
 import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.historicProcessInstanceByProcessInstanceId;
 import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.verifySorting;
+import static org.hamcrest.CoreMatchers.containsString;
 
 /**
  * @author Tom Baeyens
@@ -167,6 +172,68 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
     assertNotNull(historicProcessInstance.getEndTime());
   }
 
+  public void testDeleteProcessInstanceWithoutSubprocessInstances() {
+    // given a process instance with subprocesses
+    BpmnModelInstance calling =
+        Bpmn.createExecutableProcess("calling")
+          .startEvent()
+          .callActivity()
+            .calledElement("called")
+          .endEvent("endA")
+          .done();
+
+    BpmnModelInstance called = Bpmn.createExecutableProcess("called")
+        .startEvent()
+        .userTask("Task1")
+        .endEvent()
+        .done();
+
+    deployment(calling, called);
+
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("calling");
+
+    // when the process instance is deleted and we do skip sub processes
+    String id = instance.getId();
+    runtimeService.deleteProcessInstance(id, "test_purposes", false, true, false, true);
+
+    // then
+    List<HistoricProcessInstance> historicSubprocessList = historyService.createHistoricProcessInstanceQuery().processDefinitionKey("called").list();
+    for (HistoricProcessInstance historicProcessInstance : historicSubprocessList) {
+      assertNull(historicProcessInstance.getSuperProcessInstanceId());
+    }
+  }
+
+  public void testDeleteProcessInstanceWithSubprocessInstances() {
+    // given a process instance with subprocesses
+    BpmnModelInstance calling =
+        Bpmn.createExecutableProcess("calling")
+          .startEvent()
+          .callActivity()
+            .calledElement("called")
+          .endEvent("endA")
+          .done();
+
+    BpmnModelInstance called = Bpmn.createExecutableProcess("called")
+        .startEvent()
+        .userTask("Task1")
+        .endEvent()
+        .done();
+
+    deployment(calling, called);
+
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("calling");
+
+    // when the process instance is deleted and we do not skip sub processes
+    String id = instance.getId();
+    runtimeService.deleteProcessInstance(id, "test_purposes", false, true, false, false);
+
+    // then
+    List<HistoricProcessInstance> historicSubprocessList = historyService.createHistoricProcessInstanceQuery().processDefinitionKey("called").list();
+    for (HistoricProcessInstance historicProcessInstance : historicSubprocessList) {
+      assertNotNull(historicProcessInstance.getSuperProcessInstanceId());
+    }
+  }
+
   @Deployment(resources = {"org/camunda/bpm/engine/test/history/oneTaskProcess.bpmn20.xml"})
   public void testHistoricProcessInstanceStartDate() {
     runtimeService.startProcessInstanceByKey("oneTaskProcess");
@@ -270,6 +337,9 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
 
     assertEquals(0, historyService.createHistoricProcessInstanceQuery().incidentMessage("Unknown message").count());
     assertEquals(0, historyService.createHistoricProcessInstanceQuery().incidentMessage("Unknown message").list().size());
+
+    assertEquals(1, historyService.createHistoricProcessInstanceQuery().incidentType("failedJob").count());
+    assertEquals(1, historyService.createHistoricProcessInstanceQuery().incidentType("failedJob").list().size());
   }
 
   @Deployment(resources = {"org/camunda/bpm/engine/test/api/mgmt/IncidentTest.testShouldDeleteIncidentAfterJobWasSuccessfully.bpmn"})
@@ -1307,4 +1377,139 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
     assertNull(historicProcessInstance);
   }
 
+  @Test
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testHistoricProcInstQueryWithExecutedActivityIds() {
+    // given
+    deployment(ProcessModels.TWO_TASKS_PROCESS);
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("Process");
+
+    Task task = taskService.createTaskQuery().active().singleResult();
+    taskService.complete(task.getId());
+
+    // assume
+    HistoricActivityInstance historicActivityInstance = historyService
+        .createHistoricActivityInstanceQuery()
+        .processInstanceId(processInstance.getId())
+        .activityId("userTask1")
+        .singleResult();
+    assertNotNull(historicActivityInstance);
+
+    // when
+    List<HistoricProcessInstance> result = historyService
+        .createHistoricProcessInstanceQuery()
+        .executedActivityIdIn(historicActivityInstance.getActivityId())
+        .list();
+
+    // then
+    assertNotNull(result);
+    assertEquals(1, result.size());
+    assertEquals(result.get(0).getId(), processInstance.getId());
+  }
+
+  @Test
+  public void testHistoricProcInstQueryWithExecutedActivityIdsNull() {
+    try {
+      historyService.createHistoricProcessInstanceQuery()
+      .executedActivityIdIn(null).list();
+      fail("exception expected");
+    } catch (BadUserRequestException e) {
+      Assert.assertThat(e.getMessage(), containsString("activity ids is null"));
+    }
+  }
+
+  @Test
+  public void testHistoricProcInstQueryWithExecutedActivityIdsContainNull() {
+    try {
+      historyService.createHistoricProcessInstanceQuery()
+      .executedActivityIdIn(null, "1").list();
+      fail("exception expected");
+    } catch (BadUserRequestException e) {
+      Assert.assertThat(e.getMessage(), containsString("activity ids contains null"));
+    }
+  }
+
+  @Test
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testHistoricProcInstQueryWithActiveActivityIds() {
+    // given
+    deployment(ProcessModels.TWO_TASKS_PROCESS);
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("Process");
+
+    // assume
+    HistoricActivityInstance historicActivityInstance = historyService
+        .createHistoricActivityInstanceQuery()
+        .activityId("userTask1")
+        .singleResult();
+    assertNotNull(historicActivityInstance);
+
+    // when
+    List<HistoricProcessInstance> result = historyService
+        .createHistoricProcessInstanceQuery()
+        .activeActivityIdIn(historicActivityInstance.getActivityId())
+        .list();
+
+    // then
+    assertNotNull(result);
+    assertEquals(1, result.size());
+    assertEquals(result.get(0).getId(), processInstance.getId());
+  }
+
+  @Test
+  public void testHistoricProcInstQueryWithActiveActivityIdsNull() {
+    try {
+      historyService.createHistoricProcessInstanceQuery()
+      .activeActivityIdIn(null).list();
+      fail("exception expected");
+    } catch (BadUserRequestException e) {
+      Assert.assertThat(e.getMessage(), containsString("activity ids is null"));
+    }
+  }
+
+  @Test
+  public void testHistoricProcInstQueryWithActiveActivityIdsContainNull() {
+    try {
+      historyService.createHistoricProcessInstanceQuery()
+      .activeActivityIdIn(null, "1").list();
+      fail("exception expected");
+    } catch (BadUserRequestException e) {
+      Assert.assertThat(e.getMessage(), containsString("activity ids contains null"));
+    }
+  }
+
+  @Test
+  public void testQueryByActiveActivityIdInAndProcessDefinitionKey() {
+    // given
+    deployment(ProcessModels.ONE_TASK_PROCESS);
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("Process");
+
+    // when
+    HistoricProcessInstance historicProcessInstance = historyService.createHistoricProcessInstanceQuery()
+      .processDefinitionKey("Process")
+      .activeActivityIdIn("userTask")
+      .singleResult();
+
+    // then
+    assertNotNull(historicProcessInstance);
+    assertEquals(processInstance.getId(), historicProcessInstance.getId());
+  }
+
+  @Test
+  public void testQueryByExecutedActivityIdInAndProcessDefinitionKey() {
+    // given
+    deployment(ProcessModels.ONE_TASK_PROCESS);
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("Process");
+
+    Task task = taskService.createTaskQuery().singleResult();
+    taskService.complete(task.getId());
+
+    HistoricProcessInstance historicProcessInstance = historyService.createHistoricProcessInstanceQuery()
+      .processDefinitionKey("Process")
+      .executedActivityIdIn("userTask")
+      .singleResult();
+
+    // then
+    assertNotNull(historicProcessInstance);
+    assertEquals(processInstance.getId(), historicProcessInstance.getId());
+  }
 }

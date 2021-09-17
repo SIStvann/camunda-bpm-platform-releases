@@ -23,6 +23,7 @@ import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_PAREN
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_USER_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.NON_EXISTING_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.createMockHistoricTaskInstance;
+import static org.camunda.bpm.engine.rest.util.DateTimeUtils.withTimezone;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
@@ -68,12 +69,14 @@ import org.camunda.bpm.ProcessApplicationService;
 import org.camunda.bpm.application.ProcessApplicationInfo;
 import org.camunda.bpm.container.RuntimeContainerDelegate;
 import org.camunda.bpm.engine.AuthorizationException;
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.FormService;
 import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.ManagementService;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.TaskService;
+import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.form.TaskFormData;
 import org.camunda.bpm.engine.history.HistoricTaskInstance;
@@ -139,6 +142,7 @@ public class TaskRestServiceInteractionTest extends
   protected static final String TASK_IDENTITY_LINKS_URL = SINGLE_TASK_URL + "/identity-links";
 
   protected static final String TASK_FORM_URL = SINGLE_TASK_URL + "/form";
+  protected static final String DEPLOYED_TASK_FORM_URL = SINGLE_TASK_URL + "/deployed-form";
   protected static final String RENDERED_FORM_URL = SINGLE_TASK_URL + "/rendered-form";
   protected static final String SUBMIT_FORM_URL = SINGLE_TASK_URL + "/submit-form";
 
@@ -2672,8 +2676,8 @@ public class TaskRestServiceInteractionTest extends
     json.put("assignee", "demo");
     json.put("owner", "mary");
     json.put("delegationState", "PENDING");
-    json.put("due", "2014-01-01T00:00:00");
-    json.put("followUp", "2014-01-01T00:00:00");
+    json.put("due", withTimezone("2014-01-01T00:00:00"));
+    json.put("followUp", withTimezone("2014-01-01T00:00:00"));
     json.put("parentTaskId", "aParentTaskId");
     json.put("caseInstanceId", "aCaseInstanceId");
     json.put("tenantId", MockProvider.EXAMPLE_TENANT_ID);
@@ -2713,7 +2717,7 @@ public class TaskRestServiceInteractionTest extends
     json.put("description", "Some description");
     json.put("assignee", "demo");
     json.put("owner", "mary");
-    json.put("due", "2014-01-01T00:00:00");
+    json.put("due", withTimezone("2014-01-01T00:00:00"));
     json.put("parentTaskId", "aParentTaskId");
 
     Task newTask = mock(Task.class);
@@ -2911,8 +2915,8 @@ public class TaskRestServiceInteractionTest extends
     json.put("assignee", "demo");
     json.put("owner", "mary");
     json.put("delegationState", "PENDING");
-    json.put("due", "2014-01-01T00:00:00");
-    json.put("followUp", "2014-01-01T00:00:00");
+    json.put("due", withTimezone("2014-01-01T00:00:00"));
+    json.put("followUp", withTimezone("2014-01-01T00:00:00"));
     json.put("parentTaskId", "aParentTaskId");
     json.put("caseInstanceId", "aCaseInstanceId");
     json.put("tenantId", MockProvider.EXAMPLE_TENANT_ID);
@@ -2949,7 +2953,7 @@ public class TaskRestServiceInteractionTest extends
     json.put("description", "Some description");
     json.put("assignee", "demo");
     json.put("owner", "mary");
-    json.put("due", "2014-01-01T00:00:00");
+    json.put("due", withTimezone("2014-01-01T00:00:00"));
     json.put("parentTaskId", "aParentTaskId");
 
     given()
@@ -3101,6 +3105,67 @@ public class TaskRestServiceInteractionTest extends
       .body("message", equalTo(message))
     .when()
       .put(SINGLE_TASK_URL);
+  }
+
+  @Test
+  public void testGetDeployedTaskForm() {
+    InputStream deployedFormMock = new ByteArrayInputStream("Test".getBytes());
+    when(formServiceMock.getDeployedTaskForm(anyString())).thenReturn(deployedFormMock);
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_TASK_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .body(equalTo("Test"))
+    .when()
+      .get(DEPLOYED_TASK_FORM_URL);
+
+    verify(formServiceMock).getDeployedTaskForm(MockProvider.EXAMPLE_TASK_ID);
+  }
+
+  @Test
+  public void testGetDeployedTaskFormWithoutAuthorization() {
+    String message = "unauthorized";
+    when(formServiceMock.getDeployedTaskForm(anyString()))
+        .thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_TASK_ID)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .body("message", equalTo(message))
+    .when()
+      .get(DEPLOYED_TASK_FORM_URL);
+  }
+
+  @Test
+  public void testGetDeployedTaskFormWithWrongFormKey() {
+    String message = "wrong key format";
+    when(formServiceMock.getDeployedTaskForm(anyString()))
+        .thenThrow(new BadUserRequestException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_TASK_ID)
+    .then().expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .body("message", equalTo(message))
+    .when()
+    .get(DEPLOYED_TASK_FORM_URL);
+  }
+
+  @Test
+  public void testGetDeployedTaskFormWithUnexistingForm() {
+    String message = "not found";
+    when(formServiceMock.getDeployedTaskForm(anyString()))
+        .thenThrow(new NotFoundException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_TASK_ID)
+    .then().expect()
+      .statusCode(Status.NOT_FOUND.getStatusCode())
+      .body("message",equalTo(message))
+    .when()
+      .get(DEPLOYED_TASK_FORM_URL);
   }
 
   @SuppressWarnings({ "rawtypes", "unchecked" })

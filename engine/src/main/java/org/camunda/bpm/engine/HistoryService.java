@@ -31,6 +31,10 @@ import org.camunda.bpm.engine.history.HistoricDecisionInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricDetailQuery;
 import org.camunda.bpm.engine.history.HistoricExternalTaskLogQuery;
+import org.camunda.bpm.engine.history.CleanableHistoricBatchReport;
+import org.camunda.bpm.engine.history.CleanableHistoricCaseInstanceReport;
+import org.camunda.bpm.engine.history.CleanableHistoricDecisionInstanceReport;
+import org.camunda.bpm.engine.history.CleanableHistoricProcessInstanceReport;
 import org.camunda.bpm.engine.history.HistoricExternalTaskLog;
 import org.camunda.bpm.engine.history.HistoricIdentityLinkLog;
 import org.camunda.bpm.engine.history.HistoricIdentityLinkLogQuery;
@@ -52,6 +56,7 @@ import org.camunda.bpm.engine.history.NativeHistoricCaseInstanceQuery;
 import org.camunda.bpm.engine.history.NativeHistoricDecisionInstanceQuery;
 import org.camunda.bpm.engine.history.NativeHistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.history.NativeHistoricTaskInstanceQuery;
+import org.camunda.bpm.engine.history.NativeHistoricVariableInstanceQuery;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.history.UserOperationLogQuery;
 import org.camunda.bpm.engine.history.HistoricDecisionInstanceStatisticsQuery;
@@ -166,8 +171,10 @@ public interface HistoryService {
   void deleteHistoricProcessInstancesBulk(List<String> processInstanceIds);
 
   /**
-   * Schedules history cleanup job at batch window start time. The job will delete historic data for finished processes
-   * taking into account {@link ProcessDefinition#getHistoryTimeToLive()} value.
+   * Schedules history cleanup job at batch window start time. The job will delete historic data for
+   * finished process, decision and case instances, and batch operations taking into account {@link ProcessDefinition#getHistoryTimeToLive()},
+   * {@link DecisionDefinition#getHistoryTimeToLive()}, {@link CaseDefinition#getHistoryTimeToLive()}, {@link ProcessEngineConfigurationImpl#getBatchOperationHistoryTimeToLive()}
+   * and {@link ProcessEngineConfigurationImpl#getBatchOperationsForHistoryCleanup()} values.
    *
    * @throws AuthorizationException
    *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}
@@ -176,8 +183,10 @@ public interface HistoryService {
   Job cleanUpHistoryAsync();
 
   /**
-   * Schedules history cleanup job. The job will delete historic data for finished processes
-   * taking into account {@link ProcessDefinition#getHistoryTimeToLive()} value.
+   * Schedules history cleanup job at batch window start time. The job will delete historic data for
+   * finished process, decision and case instances, and batch operations taking into account {@link ProcessDefinition#getHistoryTimeToLive()},
+   * {@link DecisionDefinition#getHistoryTimeToLive()}, {@link CaseDefinition#getHistoryTimeToLive()}, {@link ProcessEngineConfigurationImpl#getBatchOperationHistoryTimeToLive()}
+   * and {@link ProcessEngineConfigurationImpl#getBatchOperationsForHistoryCleanup()} values.
    *
    * @param immediatelyDue must be true if cleanup must be scheduled at once, otherwise is will be scheduled according to configured batch window
    * @throws AuthorizationException
@@ -335,6 +344,11 @@ public interface HistoryService {
   NativeHistoricDecisionInstanceQuery createNativeHistoricDecisionInstanceQuery();
 
   /**
+   * creates a native query to search for {@link HistoricVariableInstance}s via SQL
+   */
+  NativeHistoricVariableInstanceQuery createNativeHistoricVariableInstanceQuery();
+
+  /**
    * Creates a new programmatic query to search for {@link HistoricJobLog historic job logs}.
    *
    * @since 7.3
@@ -369,6 +383,34 @@ public interface HistoryService {
    * @since 7.6
    */
   HistoricTaskInstanceReport createHistoricTaskInstanceReport();
+
+  /**
+   * Creates a new programmatic query to create a cleanable historic process instance report.
+   *
+   * @since 7.8
+   */
+  CleanableHistoricProcessInstanceReport createCleanableHistoricProcessInstanceReport();
+
+  /**
+   * Creates a new programmatic query to create a cleanable historic decision instance report.
+   *
+   * @since 7.8
+   */
+  CleanableHistoricDecisionInstanceReport createCleanableHistoricDecisionInstanceReport();
+
+  /**
+   * Creates a new programmatic query to create a cleanable historic case instance report.
+   *
+   * @since 7.8
+   */
+  CleanableHistoricCaseInstanceReport createCleanableHistoricCaseInstanceReport();
+
+  /**
+   * Creates a new programmatic query to create a cleanable historic batch report.
+   *
+   * @since 7.8
+   */
+  CleanableHistoricBatchReport createCleanableHistoricBatchReport();
 
   /**
    * Creates a query to search for {@link org.camunda.bpm.engine.batch.history.HistoricBatch} instances.

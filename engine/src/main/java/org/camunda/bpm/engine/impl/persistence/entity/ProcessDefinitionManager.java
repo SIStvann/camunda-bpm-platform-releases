@@ -159,6 +159,25 @@ public class ProcessDefinitionManager extends AbstractManager implements Abstrac
     return getDbEntityManager().selectList("selectProcessDefinitionByKeyIn", keys);
   }
 
+  @SuppressWarnings("unchecked")
+  public List<ProcessDefinition> findDefinitionsByKeyAndTenantId(String processDefinitionKey, String tenantId, boolean isTenantIdSet) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("processDefinitionKey", processDefinitionKey);
+    parameters.put("isTenantIdSet", isTenantIdSet);
+    parameters.put("tenantId", tenantId);
+
+    return getDbEntityManager().selectList("selectProcessDefinitions", parameters);
+  }
+
+  @SuppressWarnings("unchecked")
+  public List<ProcessDefinition> findDefinitionsByIds(List<String> processDefinitionIds) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("processDefinitionIds", processDefinitionIds);
+    parameters.put("isTenantIdSet", false);
+
+    return getDbEntityManager().selectList("selectProcessDefinitions", parameters);
+  }
+
   // update ///////////////////////////////////////////////////////////
 
   public void updateProcessDefinitionSuspensionStateById(String processDefinitionId, SuspensionState suspensionState) {

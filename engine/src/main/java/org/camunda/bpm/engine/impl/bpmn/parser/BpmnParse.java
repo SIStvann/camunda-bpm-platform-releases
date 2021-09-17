@@ -56,6 +56,7 @@ import org.camunda.bpm.engine.impl.task.listener.DelegateExpressionTaskListener;
 import org.camunda.bpm.engine.impl.task.listener.ExpressionTaskListener;
 import org.camunda.bpm.engine.impl.task.listener.ScriptTaskListener;
 import org.camunda.bpm.engine.impl.util.DecisionEvaluationUtil;
+import org.camunda.bpm.engine.impl.util.ParseUtil;
 import org.camunda.bpm.engine.impl.util.ReflectUtil;
 import org.camunda.bpm.engine.impl.util.ScriptUtil;
 import org.camunda.bpm.engine.impl.util.StringUtil;
@@ -535,10 +536,15 @@ public class BpmnParse extends Parse {
     processDefinition.setDeploymentId(deployment.getId());
     processDefinition.setProperty(PROPERTYNAME_JOB_PRIORITY, parsePriority(processElement, PROPERTYNAME_JOB_PRIORITY));
     processDefinition.setProperty(PROPERTYNAME_TASK_PRIORITY, parsePriority(processElement, PROPERTYNAME_TASK_PRIORITY));
-    processDefinition.setVersionTag(
-      processElement.attributeNS(CAMUNDA_BPMN_EXTENSIONS_NS, "versionTag")
-    );
-    parseHistoryTimeToLive(processElement, processDefinition);
+    processDefinition.setVersionTag(processElement.attributeNS(CAMUNDA_BPMN_EXTENSIONS_NS, "versionTag"));
+
+    try {
+      String historyTimeToLive = processElement.attributeNS(CAMUNDA_BPMN_EXTENSIONS_NS, "historyTimeToLive");
+      processDefinition.setHistoryTimeToLive(ParseUtil.parseHistoryTimeToLive(historyTimeToLive));
+    }
+    catch (Exception e) {
+      addError(new BpmnParseException(e.getMessage(), processElement, e));
+    }
 
     LOG.parsingElement("process", processDefinition.getKey());
 
@@ -560,16 +566,6 @@ public class BpmnParse extends Parse {
       activity.setDelegateAsyncBeforeUpdate(null);
     }
     return processDefinition;
-  }
-
-  protected void parseHistoryTimeToLive(Element processElement, ProcessDefinitionEntity processDefinition) {
-    final Integer historyTimeToLive = parseIntegerAttribute(processElement, "historyTimeToLive",
-        processElement.attributeNS(CAMUNDA_BPMN_EXTENSIONS_NS, "historyTimeToLive"), false);
-    if (historyTimeToLive == null || historyTimeToLive >= 0) {
-      processDefinition.setHistoryTimeToLive(historyTimeToLive);
-    } else {
-      addError("Cannot parse historyTimeToLive: negative value is not allowed", processElement);
-    }
   }
 
   protected void parseLaneSets(Element parentElement, ProcessDefinitionEntity processDefinition) {
@@ -2858,8 +2854,10 @@ public class BpmnParse extends Parse {
         if (isServiceTaskLike(messageEventDefinitionElement)) {
 
           // CAM-436 same behaviour as service task
+          ActivityImpl act = parseServiceTaskLike(ActivityTypes.END_EVENT_MESSAGE, messageEventDefinitionElement, scope);
           activity.getProperties().set(BpmnProperties.TYPE, ActivityTypes.END_EVENT_MESSAGE);
-          activity.setActivityBehavior(parseServiceTaskLike(ActivityTypes.END_EVENT_MESSAGE, messageEventDefinitionElement, scope).getActivityBehavior());
+          activity.setActivityBehavior(act.getActivityBehavior());
+          scope.getActivities().remove(act);
         } else {
           // default to non behavior if no service task
           // properties have been specified
@@ -2948,6 +2946,7 @@ public class BpmnParse extends Parse {
 
       // create the boundary event activity
       ActivityImpl boundaryEventActivity = createActivityOnScope(boundaryEventElement, flowScope);
+      parseAsynchronousContinuation(boundaryEventElement, boundaryEventActivity);
 
       ActivityImpl attachedActivity = flowScope.findActivityAtLevelOfSubprocess(attachedToRef);
       if (attachedActivity == null) {
@@ -4322,21 +4321,6 @@ public class BpmnParse extends Parse {
       }
     }
     return -1.0;
-  }
-
-  public Integer parseIntegerAttribute(Element element, String attributeName, String integerText, boolean required) {
-    if (required && (integerText == null || integerText.isEmpty())) {
-      addError(attributeName + " is required", element);
-    } else {
-      if (integerText != null && !integerText.isEmpty()) {
-        try {
-          return Integer.parseInt(integerText);
-        } catch (NumberFormatException e) {
-          addError("Cannot parse " + attributeName + ": " + e.getMessage(), element);
-        }
-      }
-    }
-    return null;
   }
 
   protected boolean isExclusive(Element element) {

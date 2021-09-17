@@ -19,6 +19,7 @@ import static org.camunda.bpm.engine.variable.Variables.objectValue;
 import static org.camunda.bpm.engine.variable.Variables.serializedObjectValue;
 import static org.camunda.bpm.engine.variable.Variables.stringValue;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -30,7 +31,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.form.FormField;
 import org.camunda.bpm.engine.form.FormProperty;
 import org.camunda.bpm.engine.form.StartFormData;
@@ -46,10 +49,12 @@ import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.api.runtime.migration.models.ProcessModels;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.type.ValueType;
 import org.camunda.bpm.engine.variable.value.ObjectValue;
+import org.camunda.commons.utils.IoUtil;
 
 /**
  * @author Joram Barrez
@@ -1035,5 +1040,184 @@ public class FormServiceTest extends PluggableProcessEngineTestCase {
     List<VariableInstance> result = runtimeService.createVariableInstanceQuery().list();
     assertEquals(1, result.size());
     assertTrue(result.get(0).getName().equals("secondParam"));
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/form/DeployedFormsProcess.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/form/start.form",
+      "org/camunda/bpm/engine/test/api/form/task.form" })
+  public void testGetDeployedStartForm() {
+    // given
+    String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
+
+    // when
+    InputStream deployedStartForm = formService.getDeployedStartForm(procDefId);
+
+    // then
+    assertNotNull(deployedStartForm);
+    String fileAsString = IoUtil.fileAsString("org/camunda/bpm/engine/test/api/form/start.form");
+    String deployedStartFormAsString = IoUtil.inputStreamAsString(deployedStartForm);
+    assertEquals(deployedStartFormAsString, fileAsString);
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/form/EmbeddedDeployedFormsProcess.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/form/start.form",
+      "org/camunda/bpm/engine/test/api/form/task.form" })
+  public void testGetEmbeddedDeployedStartForm() {
+    // given
+    String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
+
+    // when
+    InputStream deployedStartForm = formService.getDeployedStartForm(procDefId);
+
+    // then
+    assertNotNull(deployedStartForm);
+    String fileAsString = IoUtil.fileAsString("org/camunda/bpm/engine/test/api/form/start.form");
+    String deployedStartFormAsString = IoUtil.inputStreamAsString(deployedStartForm);
+    assertEquals(deployedStartFormAsString, fileAsString);
+  }
+
+  public void testGetDeployedStartFormWithNullProcDefId() {
+    try {
+      formService.getDeployedStartForm(null);
+      fail("Exception expected");
+    } catch (BadUserRequestException e) {
+      assertEquals("Process definition id cannot be null: processDefinitionId is null", e.getMessage());
+    }
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/form/DeployedFormsProcess.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/form/start.form",
+      "org/camunda/bpm/engine/test/api/form/task.form" })
+  public void testGetDeployedTaskForm() {
+    // given
+    runtimeService.startProcessInstanceByKey("FormsProcess");
+    String taskId = taskService.createTaskQuery().singleResult().getId();
+
+    // when
+    InputStream deployedTaskForm = formService.getDeployedTaskForm(taskId);
+
+    // then
+    assertNotNull(deployedTaskForm);
+    String fileAsString = IoUtil.fileAsString("org/camunda/bpm/engine/test/api/form/task.form");
+    String deployedStartFormAsString = IoUtil.inputStreamAsString(deployedTaskForm);
+    assertEquals(deployedStartFormAsString, fileAsString);
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/form/EmbeddedDeployedFormsProcess.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/form/start.form",
+      "org/camunda/bpm/engine/test/api/form/task.form" })
+  public void testGetEmbeddedDeployedTaskForm() {
+    // given
+    runtimeService.startProcessInstanceByKey("FormsProcess");
+    String taskId = taskService.createTaskQuery().singleResult().getId();
+
+    // when
+    InputStream deployedTaskForm = formService.getDeployedTaskForm(taskId);
+
+    // then
+    assertNotNull(deployedTaskForm);
+    String fileAsString = IoUtil.fileAsString("org/camunda/bpm/engine/test/api/form/task.form");
+    String deployedStartFormAsString = IoUtil.inputStreamAsString(deployedTaskForm);
+    assertEquals(deployedStartFormAsString, fileAsString);
+  }
+
+  public void testGetDeployedTaskFormWithNullTaskId() {
+    try {
+      formService.getDeployedTaskForm(null);
+      fail("Exception expected");
+    } catch (BadUserRequestException e) {
+      assertEquals("Task id cannot be null: taskId is null", e.getMessage());
+    }
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/form/DeployedFormsProcess.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/form/task.form" })
+  public void testGetDeployedStartForm_DeploymentNotFound() {
+    // given
+    String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
+
+    try {
+      // when
+      formService.getDeployedStartForm(procDefId);
+      fail("Exception expected");
+    } catch (NotFoundException e) {
+      // then
+      assertTextPresent("The form with the resource name 'org/camunda/bpm/engine/test/api/form/start.form' cannot be found in deployment.", e.getMessage());
+    }
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/form/DeployedFormsProcess.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/form/start.form" })
+  public void testGetDeployedTaskForm_DeploymentNotFound() {
+    // given
+    runtimeService.startProcessInstanceByKey("FormsProcess");
+    String taskId = taskService.createTaskQuery().singleResult().getId();
+
+    try {
+      // when
+      formService.getDeployedTaskForm(taskId);
+      fail("Exception expected");
+    } catch (NotFoundException e) {
+      // then
+      assertTextPresent("The form with the resource name 'org/camunda/bpm/engine/test/api/form/task.form' cannot be found in deployment.", e.getMessage());
+    }
+  }
+
+  public void testGetDeployedStartForm_FormKeyNotSet() {
+    // given
+    deployment(ProcessModels.ONE_TASK_PROCESS);
+    String processDefinitionId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
+
+    // when
+    try {
+      formService.getDeployedStartForm(processDefinitionId);
+      fail("Exception expected");
+    } catch (BadUserRequestException e) {
+      // then
+      assertTextPresent("The form key is not set.", e.getMessage());
+    }
+  }
+
+  public void testGetDeployedTaskForm_FormKeyNotSet() {
+    // given
+    deployment(ProcessModels.ONE_TASK_PROCESS);
+    runtimeService.startProcessInstanceByKey("Process");
+    String taskId = taskService.createTaskQuery().singleResult().getId();
+
+    // when
+    try {
+      formService.getDeployedTaskForm(taskId);
+      fail("Exception expected");
+    } catch (BadUserRequestException e) {
+      // then
+      assertTextPresent("The form key is not set.", e.getMessage());
+    }
+  }
+
+  @Deployment(resources = {
+      "org/camunda/bpm/engine/test/api/form/FormServiceTest.testGetDeployedStartFormWithWrongKeyFormat.bpmn20.xml" })
+  public void testGetDeployedStartFormWithWrongKeyFormat() {
+    String processDefinitionId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
+
+    try {
+      formService.getDeployedStartForm(processDefinitionId);
+      fail("Exception expected");
+    } catch (BadUserRequestException e) {
+      assertTextPresent("The form key 'formKey' does not reference a deployed form.", e.getMessage());
+    }
+  }
+
+  @Deployment(resources = {
+      "org/camunda/bpm/engine/test/api/form/FormServiceTest.testGetDeployedTaskFormWithWrongKeyFormat.bpmn20.xml" })
+  public void testGetDeployedTaskFormWithWrongKeyFormat() {
+    runtimeService.startProcessInstanceByKey("FormsProcess");
+    String taskId = taskService.createTaskQuery().singleResult().getId();
+
+    try {
+      formService.getDeployedTaskForm(taskId);
+      fail("Exception expected");
+    } catch (BadUserRequestException e) {
+      assertTextPresent("The form key 'formKey' does not reference a deployed form.", e.getMessage());
+    }
   }
 }

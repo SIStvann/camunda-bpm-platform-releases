@@ -20,6 +20,9 @@ values ('deployment.lock', '0', 1);
 insert into ACT_GE_PROPERTY
 values ('history.cleanup.job.lock', '0', 1);
 
+insert into ACT_GE_PROPERTY
+values ('startup.lock', '0', 1);
+
 create table ACT_GE_BYTEARRAY (
     ID_ NVARCHAR2(64),
     REV_ INTEGER,
@@ -220,7 +223,7 @@ create table ACT_RU_AUTHORIZATION (
   GROUP_ID_ NVARCHAR2(255),
   USER_ID_ NVARCHAR2(255),
   RESOURCE_TYPE_ integer not null,
-  RESOURCE_ID_ NVARCHAR2(64),
+  RESOURCE_ID_ NVARCHAR2(255),
   PERMS_ integer,
   primary key (ID_)
 );

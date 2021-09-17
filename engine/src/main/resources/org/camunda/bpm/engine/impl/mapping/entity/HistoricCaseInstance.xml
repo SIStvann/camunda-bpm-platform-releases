@@ -18,6 +18,17 @@
 
 <mapper namespace="org.camunda.bpm.engine.impl.persistence.entity.HistoricCaseInstanceEntity">
 
+  <resultMap id="finishedReportResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.CleanableHistoricCaseInstanceReportResultEntity">
+    <result property="cleanableCaseInstanceCount" column="CLEANABLE_" jdbcType="BIGINT" />
+    <result property="finishedCaseInstanceCount" column="FINISHED_" jdbcType="BIGINT" />
+    <result property="caseDefinitionId" column="ID_" jdbcType="VARCHAR" />
+    <result property="caseDefinitionKey" column="KEY_" jdbcType="VARCHAR" />
+    <result property="caseDefinitionName" column="NAME_" jdbcType="VARCHAR" />
+    <result property="caseDefinitionVersion" column="VERSION_" jdbcType="VARCHAR" />
+    <result property="historyTimeToLive" column="HISTORY_TTL_" jdbcType="BIGINT" />
+    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR"/>
+  </resultMap>
+
   <!-- HISTORIC CASE INSTANCE INSERT -->
 
   <insert id="insertHistoricCaseInstanceEvent" parameterType="org.camunda.bpm.engine.impl.history.event.HistoricCaseInstanceEventEntity">
@@ -74,15 +85,13 @@
 
   <!-- HISTORIC CASE INSTANCE DELETE -->
 
-  <delete id="deleteHistoricCaseInstance">
-    delete from ${prefix}ACT_HI_CASEINST where CASE_INST_ID_ = #{caseInstanceId}
-  </delete>
-
   <delete id="deleteHistoricCaseInstancesByIds">
-    delete from ${prefix}ACT_HI_CASEINST where CASE_INST_ID_ IN
-    <foreach item="caseInstanceId" index="index" collection="list" open="(" separator="," close=")">
-      #{caseInstanceId}
-    </foreach>
+    delete
+    from ${prefix}ACT_HI_CASEINST
+    where
+      <bind name="listOfIds" value="list"/>
+      <bind name="fieldName" value="'CASE_INST_ID_'"/>
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
   </delete>
 
   <!-- HISTORIC CASE INSTANCE RESULT MAP -->
@@ -293,53 +302,107 @@
   </sql>
 
   <select id="selectHistoricCaseInstanceIdsForCleanup" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
+    <bind name="days" value="'cd.HISTORY_TTL_'"/>
+    <bind name="date" value="'ci.CLOSE_TIME_'"/>
+    <bind name="currentTimestamp" value="parameter"/>
     ${limitBefore}
-    SELECT ci.ID_
-    <include refid="selectHistoricCaseInstanceIdsForCleanupSql"/>
-    AND DATEDIFF(day, ci.CLOSE_TIME_ , #{parameter}) &gt;= cd.HISTORY_TTL_
-    ORDER BY DATEDIFF(day, ci.CLOSE_TIME_ , #{parameter}) DESC
+    SELECT DISTINCT RES.*
+    ${limitBetween}
+    FROM (
+      SELECT ci.ID_, ci.CLOSE_TIME_
+      <include refid="selectHistoricCaseInstanceIdsForCleanupSql"/>
+      AND ${dayComparator}
+    ) RES
+    ${orderBy}
     ${limitAfter}
   </select>
 
-  <select id="selectHistoricCaseInstanceIdsForCleanup_mssql" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
-    SELECT TOP (#{maxResults}) ci.ID_
-    <include refid="selectHistoricCaseInstanceIdsForCleanupSql"/>
-    AND DATEDIFF(day, ci.CLOSE_TIME_, #{parameter}) &gt;= cd.HISTORY_TTL_
-    ORDER BY DATEDIFF(day, ci.CLOSE_TIME_, #{parameter}) DESC
+  <!-- Select History Cleanup Report Entities -->
+  <select id="selectFinishedCaseInstancesReportEntitiesCount" parameterType="org.camunda.bpm.engine.impl.CleanableHistoricCaseInstanceReportImpl" resultType="long">
+    SELECT COUNT(DISTINCT RES.ID_)
+    <include refid="selectFinishedCaseInstancesReportEntitiesSql" />
   </select>
 
-  <select id="selectHistoricCaseInstanceIdsForCleanup_db2" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
-    SELECT ID_
-    FROM (SELECT ci.ID_, ROW_NUMBER() OVER(ORDER BY #{parameter} - ci.CLOSE_TIME_ DESC) as rownumber
-    <include refid="selectHistoricCaseInstanceIdsForCleanupSql"/>
-    AND ci.CLOSE_TIME_ + cd.HISTORY_TTL_ DAYS &lt;= #{parameter}) as SUB
-    where rownumber between 1 and #{maxResults}
-  </select>
-
-  <select id="selectHistoricCaseInstanceIdsForCleanup_oracle" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
+  <select id="selectFinishedCaseInstancesReportEntities" parameterType="org.camunda.bpm.engine.impl.CleanableHistoricCaseInstanceReportImpl" resultMap="finishedReportResultMap">
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    SELECT ci.ID_
-    <include refid="selectHistoricCaseInstanceIdsForCleanupSql"/>
-    AND ci.CLOSE_TIME_ + cd.HISTORY_TTL_ &lt;= #{parameter}
-    ORDER BY #{parameter} - ci.CLOSE_TIME_ DESC
+    SELECT ${distinct} RES.*
+    ${limitBetween}
+    <include refid="selectFinishedCaseInstancesReportEntitiesSql" />
+    ${orderBy}
     ${limitAfter}
   </select>
 
-  <select id="selectHistoricCaseInstanceIdsForCleanup_postgres" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
-    ${limitBefore}
-    SELECT ci.ID_
-    <include refid="selectHistoricCaseInstanceIdsForCleanupSql"/>
-    AND extract (day from #{parameter} - ci.CLOSE_TIME_) &gt;= cd.HISTORY_TTL_
-    ORDER BY #{parameter} - ci.CLOSE_TIME_ DESC
-    ${limitAfter}
-  </select>
+  <sql id="selectFinishedCaseInstancesReportEntitiesSql">
+    <bind name="days" value="'RES.HISTORY_TTL_'"/>
+    <bind name="date" value="'CI.CLOSE_TIME_'"/>
 
-  <select id="selectHistoricCaseInstanceIdsForCleanup_mysql" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
-    ${limitBefore}
-    SELECT ci.ID_
-    <include refid="selectHistoricCaseInstanceIdsForCleanupSql"/>
-    AND DATEDIFF(#{parameter}, ci.CLOSE_TIME_) &gt;= cd.HISTORY_TTL_
-    ORDER BY DATEDIFF(#{parameter}, ci.CLOSE_TIME_) DESC
-    ${limitAfter}
-  </select>
+    FROM (
+      SELECT RES.ID_,
+        RES.KEY_,
+        RES.NAME_,
+        RES.VERSION_,
+        RES.HISTORY_TTL_,
+        RES.TENANT_ID_,
+        F.FINISHED_,
+        SUM(CASE WHEN CI.CLOSE_TIME_ is not null and ${dayComparator} THEN 1 ELSE 0 END) AS CLEANABLE_
+      FROM ${prefix}ACT_RE_CASE_DEF RES
+      LEFT JOIN ${prefix}ACT_HI_CASEINST CI
+      ON CI.CASE_DEF_ID_ = RES.ID_
+      LEFT JOIN (
+        SELECT COUNT(CI.ID_) AS FINISHED_
+            ,CI.CASE_DEF_ID_
+        FROM ${prefix}ACT_HI_CASEINST CI
+        WHERE CI.CLOSE_TIME_ IS NOT NULL
+        GROUP BY CI.CASE_DEF_ID_
+        ) F ON F.CASE_DEF_ID_ = CI.CASE_DEF_ID_
+      <where>
+
+        <if test="caseDefinitionIdIn != null &amp;&amp; caseDefinitionIdIn.length > 0">
+          RES.ID_ IN
+          <foreach item="caseInstanceId" index="index" collection="caseDefinitionIdIn" open="(" separator="," close=")">
+              #{caseInstanceId}
+          </foreach>
+        </if>
+
+        <if test="caseDefinitionKeyIn != null &amp;&amp; caseDefinitionKeyIn.length > 0">
+          and RES.KEY_ IN
+          <foreach item="caseInstanceKey" index="index" collection="caseDefinitionKeyIn" open="(" separator="," close=")">
+              #{caseInstanceKey}
+          </foreach>
+        </if>
+
+        <if test="isTenantIdSet">
+          <if test="tenantIdIn != null &amp;&amp; tenantIdIn.length > 0">
+            and RES.TENANT_ID_ in
+            <foreach item="tenantId" index="index" collection="tenantIdIn"
+                     open="(" separator="," close=")">
+              #{tenantId}
+            </foreach>
+          </if>
+          <if test="tenantIdIn == null">
+            and RES.TENANT_ID_ is null
+          </if>
+        </if>
+
+        <if test="isCompact">
+          and F.FINISHED_ > 0
+        </if>
+
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
+
+      </where>
+      GROUP BY RES.ID_,
+        RES.KEY_,
+        RES.NAME_,
+        RES.VERSION_,
+        RES.HISTORY_TTL_,
+        RES.TENANT_ID_,
+        F.FINISHED_
+
+    ) RES
+
+  </sql>
+
 </mapper>

@@ -13,16 +13,11 @@
 package org.camunda.bpm.engine.impl;
 
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
-import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.SchemaOperationsCommand;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
-import org.camunda.bpm.engine.impl.cmd.DetermineHistoryLevelCmd;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.db.PersistenceSession;
-import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
-import org.camunda.bpm.engine.impl.history.HistoryLevel;
-import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.PropertyEntity;
 
@@ -57,11 +52,8 @@ public final class SchemaOperationsProcessEngineBuild implements SchemaOperation
       persistenceSession.dbSchemaUpdate();
     }
 
-
-    DbEntityManager entityManager = commandContext.getSession(DbEntityManager.class);
-    checkHistoryLevel(entityManager);
-    checkDeploymentLockExists(entityManager);
-    checkHistoryCleanupLockExists(entityManager);
+    checkDeploymentLockExists(commandContext);
+    checkHistoryCleanupLockExists(commandContext);
 
     //create history cleanup job
     if (Context.getProcessEngineConfiguration().getManagementService().getTableMetaData("ACT_RU_JOB") != null) {
@@ -71,78 +63,15 @@ public final class SchemaOperationsProcessEngineBuild implements SchemaOperation
     return null;
   }
 
-  public static void dbCreateHistoryLevel(DbEntityManager entityManager) {
-    ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
-    HistoryLevel configuredHistoryLevel = processEngineConfiguration.getHistoryLevel();
-    PropertyEntity property = new PropertyEntity("historyLevel", Integer.toString(configuredHistoryLevel.getId()));
-    entityManager.insert(property);
-    LOG.creatingHistoryLevelPropertyInDatabase(configuredHistoryLevel);
-  }
-
-  /**
-   *
-   * @param entityManager entoty manager for db query
-   * @return Integer value representing the history level or <code>null</code> if none found
-   */
-  public static Integer databaseHistoryLevel(DbEntityManager entityManager) {
-
-    try {
-      PropertyEntity historyLevelProperty = entityManager.selectById(PropertyEntity.class, "historyLevel");
-      return historyLevelProperty != null ? new Integer(historyLevelProperty.getValue()) : null;
-    }
-    catch (Exception e) {
-      LOG.couldNotSelectHistoryLevel(e.getMessage());
-      return null;
-    }
-
-  }
-
-  public void checkHistoryLevel(DbEntityManager entityManager) {
-    ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
-
-
-    HistoryLevel databaseHistoryLevel = new DetermineHistoryLevelCmd(processEngineConfiguration.getHistoryLevels())
-      .execute(Context.getCommandContext());
-    determineAutoHistoryLevel(processEngineConfiguration, databaseHistoryLevel);
-
-    HistoryLevel configuredHistoryLevel = processEngineConfiguration.getHistoryLevel();
-
-    if (databaseHistoryLevel == null) {
-      LOG.noHistoryLevelPropertyFound();
-      dbCreateHistoryLevel(entityManager);
-    } else {
-      if (!((Integer) configuredHistoryLevel.getId()).equals(databaseHistoryLevel.getId())) {
-        throw new ProcessEngineException("historyLevel mismatch: configuration says " + configuredHistoryLevel
-            + " and database says " + databaseHistoryLevel);
-      }
-    }
-  }
-
-  protected void determineAutoHistoryLevel(ProcessEngineConfigurationImpl engineConfiguration, HistoryLevel databaseHistoryLevel) {
-    HistoryLevel configuredHistoryLevel = engineConfiguration.getHistoryLevel();
-
-    if (configuredHistoryLevel == null
-        && ProcessEngineConfiguration.HISTORY_AUTO.equals(engineConfiguration.getHistory())) {
-
-      // automatically determine history level or use default AUDIT
-      if (databaseHistoryLevel != null) {
-        engineConfiguration.setHistoryLevel(databaseHistoryLevel);
-      }
-      else {
-        engineConfiguration.setHistoryLevel(engineConfiguration.getDefaultHistoryLevel());
-      }
-    }
-  }
-
-  public void checkDeploymentLockExists(DbEntityManager entityManager) {
-    PropertyEntity deploymentLockProperty = entityManager.selectById(PropertyEntity.class, "deployment.lock");
+  public void checkDeploymentLockExists(CommandContext commandContext) {
+    PropertyEntity deploymentLockProperty = commandContext.getPropertyManager().findPropertyById("deployment.lock");
     if (deploymentLockProperty == null) {
       LOG.noDeploymentLockPropertyFound();
     }
   }
 
-  public void checkHistoryCleanupLockExists(DbEntityManager entityManager) {
-    PropertyEntity historyCleanupLockProperty = entityManager.selectById(PropertyEntity.class, "history.cleanup.job.lock");
+  public void checkHistoryCleanupLockExists(CommandContext commandContext) {
+    PropertyEntity historyCleanupLockProperty = commandContext.getPropertyManager().findPropertyById("history.cleanup.job.lock");
     if (historyCleanupLockProperty == null) {
       LOG.noHistoryCleanupLockPropertyFound();
     }

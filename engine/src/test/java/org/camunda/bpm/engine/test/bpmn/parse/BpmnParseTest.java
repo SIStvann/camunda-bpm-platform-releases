@@ -526,6 +526,18 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
     assertEquals(BoundaryConditionalEventActivityBehavior.class, conditionalBoundaryEvent.getActivityBehavior().getClass());
   }
 
+  @Deployment
+  public void testParseAsyncBoundaryEvent() {
+    ActivityImpl conditionalBoundaryEvent1 = findActivityInDeployedProcessDefinition("conditionalBoundaryEvent1");
+    ActivityImpl conditionalBoundaryEvent2 = findActivityInDeployedProcessDefinition("conditionalBoundaryEvent2");
+
+    assertTrue(conditionalBoundaryEvent1.isAsyncAfter());
+    assertTrue(conditionalBoundaryEvent1.isAsyncBefore());
+
+    assertFalse(conditionalBoundaryEvent2.isAsyncAfter());
+    assertFalse(conditionalBoundaryEvent2.isAsyncBefore());
+  }
+
   public void testParseInvalidIntermediateConditionalEvent() {
     parseInvalidConditionalEvent("testParseInvalidIntermediateConditionalEvent");
   }
@@ -764,6 +776,27 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
     Integer timeToLive = processDefinitions.get(0).getHistoryTimeToLive();
     assertNotNull(timeToLive);
     assertEquals(5, timeToLive.intValue());
+  }
+
+  @Deployment
+  public void testParseProcessDefinitionStringTtl() {
+    List<ProcessDefinition> processDefinitions = repositoryService.createProcessDefinitionQuery().list();
+    assertNotNull(processDefinitions);
+    assertEquals(1, processDefinitions.size());
+
+    Integer timeToLive = processDefinitions.get(0).getHistoryTimeToLive();
+    assertNotNull(timeToLive);
+    assertEquals(5, timeToLive.intValue());
+  }
+
+  public void testParseProcessDefinitionMalformedStringTtl() {
+    try {
+      String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), "testParseProcessDefinitionMalformedStringTtl");
+      repositoryService.createDeployment().name(resource).addClasspathResource(resource).deploy();
+      fail("Exception expected: Process definition historyTimeToLive value can not be parsed.");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("Cannot parse historyTimeToLive", e.getMessage());
+    }
   }
 
   @Deployment

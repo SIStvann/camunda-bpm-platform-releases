@@ -9,7 +9,7 @@
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-database-settings</artifactId>
     <relativePath>../database</relativePath>
-    <version>7.7.0</version>
+    <version>7.8.0</version>
   </parent>
 
   <dependencies>
@@ -215,6 +215,7 @@
     <history.level>full</history.level>
     <mail.server.port>5025</mail.server.port>
     <authorizationCheckRevokes>auto</authorizationCheckRevokes>
+    <jdbcBatchProcessing>true</jdbcBatchProcessing>
 
     <camunda.artifact>
       org.camunda.bpm
@@ -436,6 +437,13 @@
       <id>cfgAuthorizationCheckRevokesAlways</id>
       <properties>
         <authorizationCheckRevokes>always</authorizationCheckRevokes>
+      </properties>
+    </profile>
+
+    <profile>
+      <id>cfgJdbcBatchProcessingOff</id>
+      <properties>
+        <jdbcBatchProcessing>false</jdbcBatchProcessing>
       </properties>
     </profile>
 

@@ -95,15 +95,15 @@
           <bind name="newOrderBy" value="@org.camunda.bpm.engine.impl.db.sql.MybatisJoinHelper@orderBy(orderingProperty, index)" />
 
           <if test="index == 0">
-            <bind name="orderBy" value="newOrderBy"/>
+            <bind name="internalOrderBy" value="newOrderBy"/>
           </if>
           <if test="index > 0">
-            <bind name="orderBy" value="orderBy + ', ' + newOrderBy"/>
+            <bind name="internalOrderBy" value="internalOrderBy + ', ' + newOrderBy"/>
           </if>
         </foreach>
       </when>
       <otherwise>
-        <bind name="orderBy" value="'RES.ID_ asc'"/>
+        <bind name="internalOrderBy" value="'RES.ID_ asc'"/>
       </otherwise>
     </choose>
 
@@ -142,5 +142,35 @@
         </if>
       </foreach>
     </if>
+  </sql>
+
+  <!-- Input: "sizeOfIds": size of ID containing list;
+              "listOfIds": a list of IDs;
+              "fieldName": the field name that should be used before IN clause -->
+  <!-- Output: a conjunction of IN clauses -->
+  <!-- Example Output: PROC_INST_ID_ IN ( "1", "2" ..... "1000") or IN ("1000", "1001") -->
+  <sql id="applyInForPaginatedSql">
+	( ${fieldName} IN
+	<foreach item="id" index="index" collection="listOfIds" open = "(" separator="" close=")">
+	  #{id}
+	  <choose>
+	  <when test="index != 0 &amp;&amp; (index+1)%1000 == 0 &amp;&amp; (index+1) &lt; sizeOfIds">
+		) or ${fieldName} IN (
+	  </when>
+	  <when test="index == sizeOfIds -1"></when>
+	  <otherwise> ,</otherwise>
+	  </choose>
+	</foreach>
+	)
+  </sql>
+
+  <sql id="applyInForPaginatedCollection">
+    <bind name="sizeOfIds" value="listOfIds.size" />
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedSql" />
+  </sql>
+
+  <sql id="applyInForPaginatedArray">
+    <bind name="sizeOfIds" value="listOfIds.length" />
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedSql" />
   </sql>
 </mapper>

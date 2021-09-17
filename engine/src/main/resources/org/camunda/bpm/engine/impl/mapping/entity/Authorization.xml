@@ -580,14 +580,21 @@
     )
     <if test="authCheck.permissionChecks.atomicChecks != null &amp;&amp; authCheck.permissionChecks.atomicChecks.size() > 0">
       AND (
-      <foreach item="permCheck" index="index" collection="authCheck.permissionChecks.atomicChecks" open="(" separator="OR" close=")">
-        A.RESOURCE_TYPE_ = #{permCheck.resourceType, jdbcType=INTEGER} AND ${bitand1}A.PERMS_${bitand2}#{permCheck.perms, jdbcType=INTEGER}${bitand3} = #{permCheck.perms,  jdbcType=INTEGER}
-      </foreach>
+      <if test="authCheck.permissionChecks.disjunctive">
+        <foreach item="permCheck" index="index" collection="authCheck.permissionChecks.atomicChecks" open="(" separator="OR" close=")">
+          A.RESOURCE_TYPE_ = #{permCheck.resourceType, jdbcType=INTEGER} AND ${bitand1}A.PERMS_${bitand2}#{permCheck.perms, jdbcType=INTEGER}${bitand3} = #{permCheck.perms,  jdbcType=INTEGER}
+        </foreach>
+      </if>
+      <if test="!authCheck.permissionChecks.disjunctive">
+        <foreach item="permCheck" index="index" collection="authCheck.permissionChecks.atomicChecks" open="(" separator="AND" close=")">
+          A.RESOURCE_TYPE_ = #{permCheck.resourceType, jdbcType=INTEGER} AND ${bitand1}A.PERMS_${bitand2}#{permCheck.perms, jdbcType=INTEGER}${bitand3} = #{permCheck.perms,  jdbcType=INTEGER}
+        </foreach>
+      </if>
       )
     </if>  
     )
   </sql>
-  
+
   <!-- 
    input: "permissionChecks": an instance of CompositePermissionCheck
   -->

@@ -13,6 +13,7 @@
 
 package org.camunda.bpm.engine;
 
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.Map;
 
@@ -246,5 +247,31 @@ public interface FormService {
    *          If the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   String getTaskFormKey(String processDefinitionId, String taskDefinitionKey);
+
+  /**
+   * Retrieves a deployed start form for a process definition with a given id.
+   *
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#READ} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws NotFoundException
+   *          If the start form cannot be found.
+   * @throws BadUserRequestException
+   *          If the start form key has wrong format ("embedded:deployment:<path>" or "deployment:<path>" required).
+   */
+  InputStream getDeployedStartForm(String processDefinitionId);
+
+  /**
+   * Retrieves a deployed task form for a task with a given id.
+   *
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#READ} permission on {@link Resources#TASK}.
+   * @throws NotFoundException
+   *          If the task form cannot be found.
+   * @throws BadUserRequestException
+   *          If the task form key has wrong format ("embedded:deployment:<path>" or "deployment:<path>" required).
+   */
+  InputStream getDeployedTaskForm(String taskId);
 
 }

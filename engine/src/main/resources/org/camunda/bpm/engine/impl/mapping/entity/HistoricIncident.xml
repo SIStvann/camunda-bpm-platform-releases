@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?> 
+<?xml version="1.0" encoding="UTF-8" ?>
 
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd"> 
 
@@ -75,10 +75,11 @@
   </delete>
 
   <delete id="deleteHistoricIncidentsByProcessInstanceIds">
-    delete from ${prefix}ACT_HI_INCIDENT where PROC_INST_ID_ IN
-    <foreach item="processInstanceId" index="index" collection="list" open="(" separator="," close=")">
-      #{processInstanceId}
-    </foreach>
+    delete from ${prefix}ACT_HI_INCIDENT
+    where
+      <bind name="listOfIds" value="list"/>
+      <bind name="fieldName" value="'PROC_INST_ID_'"/>
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
   </delete>
 
   <delete id="deleteHistoricIncidentsByProcessDefinitionId">
@@ -87,6 +88,17 @@
 
   <delete id="deleteHistoricIncidentsByJobDefinitionId">
     delete from ${prefix}ACT_HI_INCIDENT where JOB_DEF_ID_ = #{jobDefinitionId}
+  </delete>
+
+  <delete id="deleteHistoricIncidentsByBatchIds">
+    delete from ${prefix}ACT_HI_INCIDENT
+    where ID_
+    in (<include refid="selectHistoricIncidentsByBatchIds" />)
+  </delete>
+
+  <delete id="deleteHistoricIncidentsByBatchIds_mysql">
+    delete HI.*
+    <include refid="selectHistoricIncidentsByBatchIdsSql" />
   </delete>
 
   <!-- HISTORIC INCIDENT RESULTMAP -->
@@ -115,7 +127,7 @@
   <select id="selectHistoricIncidentByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricIncidentQueryImpl" resultMap="historicIncidentResultMap">
     <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    select RES.*
+    select ${distinct} RES.*
     ${limitBetween}
     <include refid="selectHistoricIncidentByQueryCriteriaSql"/>
     ${orderBy}
@@ -123,23 +135,16 @@
   </select>
 
   <select id="selectHistoricIncidentCountByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricIncidentQueryImpl" resultType="long">
-    select count(RES.ID_)
+    select count(distinct RES.ID_)
     <include refid="selectHistoricIncidentByQueryCriteriaSql"/>
   </select>
 
   <sql id="selectHistoricIncidentByQueryCriteriaSql">
     from ${prefix}ACT_HI_INCIDENT RES
 
-    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
-      LEFT JOIN (
-        SELECT
-            SELF.PROC_DEF_KEY_ AS KEY_
-        FROM
-            (SELECT DISTINCT DKEYS.PROC_DEF_KEY_ from ${prefix}ACT_HI_INCIDENT DKEYS) SELF
-        WHERE
-            <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.querySingleAuthorizationCheck" />
-      ) AUTH
-      ON AUTH.KEY_ = RES.PROC_DEF_KEY_
+    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authCheckJoinWithoutOnClause"/>
+      AUTH ON (AUTH.RESOURCE_ID_ in (RES.PROC_DEF_KEY_, '*'))
     </if>
 
     <where>
@@ -193,12 +198,35 @@
 
       <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
         <!-- incident exists in context of a process definition -->
-        and ((RES.PROC_DEF_ID_ is not null and AUTH.KEY_ is not null) or RES.PROC_DEF_ID_ is null)
+        and (
+          (RES.PROC_DEF_ID_ is not null
+          <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheck"/>
+          ) or RES.PROC_DEF_ID_ is null
+        )
       </if>
 
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
 
     </where>
+  </sql>
+
+  <sql id="selectHistoricIncidentsByBatchIds">
+    select distinct HI.ID_
+    <include refid="selectHistoricIncidentsByBatchIdsSql" />
+  </sql>
+
+  <sql id="selectHistoricIncidentsByBatchIdsSql">
+    from ${prefix}ACT_HI_INCIDENT HI
+    inner join ${prefix}ACT_HI_BATCH HB
+    on HI.JOB_DEF_ID_ in
+      (HB.SEED_JOB_DEF_ID_,
+       HB.MONITOR_JOB_DEF_ID_,
+       HB.BATCH_JOB_DEF_ID_)
+    where
+      <bind name="listOfIds" value="list"/>
+      <bind name="fieldName" value="'HB.ID_'"/>
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
+      and HI.JOB_DEF_ID_ is not null
   </sql>
 
 </mapper>

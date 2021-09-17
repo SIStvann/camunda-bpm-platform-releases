@@ -31,6 +31,9 @@ public interface HistoricVariableInstanceQuery extends Query<HistoricVariableIns
   /** Only select historic process variables with the given process instance. */
   HistoricVariableInstanceQuery processInstanceId(String processInstanceId);
 
+  /** Only select historic process variables for the given process definition */
+  HistoricVariableInstanceQuery processDefinitionId(String processDefinitionId);
+
   /** Only select historic case variables with the given case instance. */
   HistoricVariableInstanceQuery caseInstanceId(String caseInstanceId);
 
@@ -95,5 +98,10 @@ public interface HistoricVariableInstanceQuery extends Query<HistoricVariableIns
    * Independent of this setting, variable serialized values are accessible.
    */
   HistoricVariableInstanceQuery disableCustomObjectDeserialization();
+
+  /**
+   * Include variables that has been already deleted during the execution
+   */
+  HistoricVariableInstanceQuery includeDeleted();
 
 }

@@ -41,7 +41,8 @@
       DOUBLE_,
       LONG_,
       TEXT_,
-      TEXT2_
+      TEXT2_,
+      STATE_
     ) values (
       #{id, jdbcType=VARCHAR},
       #{processDefinitionKey, jdbcType=VARCHAR},
@@ -62,7 +63,8 @@
       #{doubleValue, jdbcType=DOUBLE},
       #{longValue, jdbcType=BIGINT},
       #{textValue, jdbcType=VARCHAR},
-      #{textValue2, jdbcType=VARCHAR}
+      #{textValue2, jdbcType=VARCHAR},
+      #{state, jdbcType=VARCHAR}
     )
   </insert>
 
@@ -78,7 +80,8 @@
       DOUBLE_ = #{doubleValue, jdbcType=DOUBLE},
       LONG_ = #{longValue, jdbcType=BIGINT},
       TEXT_ = #{textValue, jdbcType=VARCHAR},
-      TEXT2_ = #{textValue2, jdbcType=VARCHAR}
+      TEXT2_ = #{textValue2, jdbcType=VARCHAR},
+      STATE_ = #{state, jdbcType=VARCHAR}
     where ID_ = #{id, jdbcType=VARCHAR}
       and REV_ = #{revision, jdbcType=INTEGER}
   </update>
@@ -95,17 +98,43 @@
 
   <delete id="deleteHistoricVariableInstanceByIds" parameterType="java.util.Map">
     delete from ${prefix}ACT_HI_VARINST
-    <include refid="selectHistoricVariableInstanceByIdsSql"/>
+    <where>
+      <include refid="selectHistoricVariableProcessAndCaseInstanceByIdsSql"/>
+      <include refid="selectHistoricVariableTaskInstanceByIdsSql"/>
+    </where>
   </delete>
 
-  <select id="deleteHistoricVariableInstanceByteArraysByIds" parameterType="java.util.Map">
+  <delete id="deleteHistoricVariableInstanceByIds_mysql" parameterType="java.util.Map">
+    delete V from ${prefix}ACT_HI_VARINST V
+    <include refid="selectHistoricVariableTaskInstanceByIdsSql_mysql"/>
+    <where>
+      <include refid="selectHistoricVariableProcessAndCaseInstanceByIdsSql"/>
+    </where>
+  </delete>
+
+  <delete id="deleteHistoricVariableInstanceByteArraysByIds" parameterType="java.util.Map">
     delete from ${prefix}ACT_GE_BYTEARRAY
-    where ID_ in
-      (select DISTINCT BYTEARRAY_ID_
+    where ID_ in (
+      select DISTINCT BYTEARRAY_ID_
       from ${prefix}ACT_HI_VARINST RES
-        <include refid="selectHistoricVariableInstanceByIdsSql"/>
-        and BYTEARRAY_ID_ is not NULL)
-  </select>
+        <where>
+          <include refid="selectHistoricVariableProcessAndCaseInstanceByIdsSql"/>
+          <include refid="selectHistoricVariableTaskInstanceByIdsSql"/>
+          and BYTEARRAY_ID_ is not NULL
+        </where>
+    )
+  </delete>
+
+  <delete id="deleteHistoricVariableInstanceByteArraysByIds_mysql" parameterType="java.util.Map">
+    delete B from ${prefix}ACT_GE_BYTEARRAY B
+    inner join ${prefix}ACT_HI_VARINST V
+      on B.ID_ = V.BYTEARRAY_ID_
+      <include refid="selectHistoricVariableTaskInstanceByIdsSql_mysql"/>
+      <where>
+        <include refid="selectHistoricVariableProcessAndCaseInstanceByIdsSql"/>
+        and V.BYTEARRAY_ID_ is not NULL
+      </where>
+  </delete>
 
   <!-- HISTORIC PROCESS VARIABLE RESULTMAP -->
   <resultMap id="historicVariableInstanceResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.HistoricVariableInstanceEntity">
@@ -129,6 +158,7 @@
     <result property="textValue" column="TEXT_" jdbcType="VARCHAR" />
     <result property="textValue2" column="TEXT2_" jdbcType="VARCHAR" />
     <result property="longValue" column="LONG_" jdbcType="BIGINT" />
+    <result property="state" column="STATE_" jdbcType="VARCHAR" />
   </resultMap>
 
   <resultMap id="historicVariableInstanceResultMap_postgres" type="org.camunda.bpm.engine.impl.persistence.entity.HistoricVariableInstanceEntity">
@@ -152,6 +182,7 @@
     <result property="textValue" column="TEXT_" jdbcType="VARCHAR" />
     <result property="textValue2" column="TEXT2_" jdbcType="VARCHAR" />
     <result property="longValue" column="LONG_" jdbcType="BIGINT" />
+    <result property="state" column="STATE_" jdbcType="VARCHAR" />
   </resultMap>
 
   <!-- HISTORIC VARIABLE SELECT -->
@@ -169,7 +200,7 @@
   <select id="selectHistoricVariableInstanceByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricVariableInstanceQueryImpl" resultMap="historicVariableInstanceResultMap">
   	<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    select RES.*
+    select ${distinct} RES.*
     ${limitBetween}
     <include refid="selectHistoricVariableInstanceByQueryCriteriaSql"/>
     ${orderBy}
@@ -177,34 +208,17 @@
   </select>
 
   <select id="selectHistoricVariableInstanceCountByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricVariableInstanceQueryImpl" resultType="long">
-    select count(*)
+    select count(distinct RES.ID_)
     <include refid="selectHistoricVariableInstanceByQueryCriteriaSql"/>
-  </select>
-
-  <select id="selectHistoricVariableInstanceByQueryCriteria_postgres" parameterType="org.camunda.bpm.engine.impl.HistoricVariableInstanceQueryImpl" resultMap="historicVariableInstanceResultMap_postgres">
-    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
-    ${limitBefore}
-    select RES.*
-    ${limitBetween}
-    <include refid="selectHistoricVariableInstanceByQueryCriteriaSql"/>
-    ${orderBy}
-    ${limitAfter}
   </select>
 
   <sql id="selectHistoricVariableInstanceByQueryCriteriaSql">
     <bind name="escapeChar" value="'\\'"/>
     from ${prefix}ACT_HI_VARINST RES
 
-    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
-      LEFT JOIN (
-        SELECT
-            SELF.PROC_DEF_KEY_ AS KEY_
-        FROM
-            (SELECT DISTINCT DKEYS.PROC_DEF_KEY_ from ${prefix}ACT_HI_VARINST DKEYS) SELF
-        WHERE
-            <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.querySingleAuthorizationCheck" />
-      ) AUTH
-      ON AUTH.KEY_ = RES.PROC_DEF_KEY_
+    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authCheckJoinWithoutOnClause"/>
+        AUTH ON (AUTH.RESOURCE_ID_ in (RES.PROC_DEF_KEY_, '*'))
     </if>
 
     <if test="caseActivityIds != null &amp;&amp; caseActivityIds.length > 0">
@@ -222,11 +236,17 @@
       <if test="caseInstanceId != null">
         RES.CASE_INST_ID_ = #{caseInstanceId}
       </if>
+       <if test="processDefinitionId != null">
+        and RES.PROC_DEF_ID_ = #{processDefinitionId}
+      </if>
       <if test="variableName != null">
         and RES.NAME_ = #{variableName}
       </if>
       <if test="variableNameLike != null">
         and RES.NAME_ like #{variableNameLike} ESCAPE #{escapeChar}
+      </if>
+      <if test="includeDeleted == false">
+        and (RES.STATE_ != 'DELETED' or RES.STATE_ is null)
       </if>
 
       <!-- processInstanceIds -->
@@ -311,7 +331,11 @@
       </if>
 
       <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
-        and ((RES.EXECUTION_ID_ is not null and AUTH.KEY_ is not null) or RES.EXECUTION_ID_ is null)
+        and (
+        (RES.EXECUTION_ID_ is not null
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheck"/>
+        ) or RES.EXECUTION_ID_ is null
+        )
       </if>
 
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
@@ -327,38 +351,85 @@
     select * from ${prefix}ACT_HI_VARINST where ID_ = #{variableInstanceId}
   </select>
 
-  <sql id="selectHistoricVariableInstanceByIdsSql">
-    where
+  <sql id="selectHistoricVariableProcessAndCaseInstanceByIdsSql">
     <if test="processInstanceIds != null &amp;&amp; processInstanceIds.size() > 0">
-      PROC_INST_ID_ IN
-      <foreach item="processInstanceId" index="index" collection="processInstanceIds" open="(" separator="," close=")">
-        #{processInstanceId}
-      </foreach>
+      and
+        <bind name="listOfIds" value="processInstanceIds"/>
+        <bind name="fieldName" value="'PROC_INST_ID_'"/>
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
     </if>
     <if test="caseInstanceIds != null &amp;&amp; caseInstanceIds.size() > 0">
-      CASE_INST_ID_ IN
-      <foreach item="caseInstanceId" index="index" collection="caseInstanceIds" open="(" separator="," close=")">
-        #{caseInstanceId}
-      </foreach>
+      and CASE_INST_ID_ IN
+        <foreach item="caseInstanceId" index="index" collection="caseInstanceIds" open="(" separator="," close=")">
+          #{caseInstanceId}
+        </foreach>
     </if>
+  </sql>
+
+  <sql id="selectHistoricVariableTaskInstanceByIdsSql">
     <if test="taskProcessInstanceIds != null &amp;&amp; taskProcessInstanceIds.size() > 0">
-      TASK_ID_ IN
-      (select distinct ID_ from ${prefix}ACT_HI_TASKINST
-      where PROC_INST_ID_ in
-      <foreach item="processInstanceId" index="index" collection="taskProcessInstanceIds" open="(" separator="," close=")">
-        #{processInstanceId}
-      </foreach>
+      and TASK_ID_ in (
+        select ID_
+        from ${prefix}ACT_HI_TASKINST
+        where
+          <bind name="listOfIds" value="taskProcessInstanceIds"/>
+          <bind name="fieldName" value="'PROC_INST_ID_'"/>
+          <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
       )
     </if>
     <if test="taskCaseInstanceIds != null &amp;&amp; taskCaseInstanceIds.size() > 0">
-      TASK_ID_ IN
-      (select distinct ID_ from ${prefix}ACT_HI_TASKINST
-      where CASE_INST_ID_ in
-      <foreach item="caseInstanceId" index="index" collection="taskCaseInstanceIds" open="(" separator="," close=")">
-        #{caseInstanceId}
-      </foreach>
+      and TASK_ID_ in (
+        select ID_
+        from ${prefix}ACT_HI_TASKINST
+        where
+          <bind name="listOfIds" value="taskCaseInstanceIds"/>
+          <bind name="fieldName" value="'CASE_INST_ID_'"/>
+          <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
       )
     </if>
   </sql>
+
+  <sql id="selectHistoricVariableTaskInstanceByIdsSql_mysql">
+    <if test="taskProcessInstanceIds != null &amp;&amp; taskProcessInstanceIds.size() > 0">
+      inner join ${prefix}ACT_HI_TASKINST T
+        on TASK_ID_ = T.ID_
+        and T.PROC_INST_ID_ in
+          <foreach item="processInstanceId" index="index" collection="taskProcessInstanceIds" open="(" separator="," close=")">
+            #{processInstanceId}
+          </foreach>
+    </if>
+    <if test="taskCaseInstanceIds != null &amp;&amp; taskCaseInstanceIds.size() > 0">
+      inner join ${prefix}ACT_HI_TASKINST T
+        on TASK_ID_ = T.ID_
+        and T.CASE_INST_ID_ in
+          <foreach item="caseInstanceId" index="index" collection="taskCaseInstanceIds" open="(" separator="," close=")">
+            #{caseInstanceId}
+          </foreach>
+    </if>
+  </sql>
+
+  <select id="selectHistoricVariableInstanceByNativeQuery" parameterType="java.util.Map" resultMap="historicVariableInstanceResultMap">
+    <if test="resultType == 'LIST_PAGE'">
+      ${limitBefore}
+    </if>
+    ${sql}
+    <if test="resultType == 'LIST_PAGE'">
+      ${limitAfter}
+    </if>
+  </select>
+
+  <select id="selectHistoricVariableInstanceByNativeQuery_mssql_or_db2" parameterType="java.util.Map" resultMap="historicVariableInstanceResultMap">
+    <if test="resultType == 'LIST_PAGE'">
+      ${limitBeforeNativeQuery}
+    </if>
+    ${sql}
+    <if test="resultType == 'LIST_PAGE'">
+      ${limitAfter}
+    </if>
+  </select>
+
+  <select id="selectHistoricVariableInstanceCountByNativeQuery" parameterType="java.util.Map" resultType="long">
+    ${sql}
+  </select>
 
 </mapper>

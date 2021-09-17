@@ -111,6 +111,7 @@ public class JsonTaskQueryConverter extends JsonObjectConverter<TaskQuery> {
   public static final String TENANT_IDS = "tenantIds";
   public static final String WITHOUT_TENANT_ID = "withoutTenantId";
   public static final String ORDERING_PROPERTIES = "orderingProperties";
+  public static final String OR_QUERIES = "orQueries";
 
   /**
    * Exists for backwards compatibility with 7.2; deprecated since 7.3
@@ -122,6 +123,10 @@ public class JsonTaskQueryConverter extends JsonObjectConverter<TaskQuery> {
 
   @Override
   public JSONObject toJsonObject(TaskQuery taskQuery) {
+    return toJsonObject(taskQuery, false);
+  }
+
+  public JSONObject toJsonObject(TaskQuery taskQuery, boolean isOrQueryActive) {
     JSONObject json = new JSONObject();
     TaskQueryImpl query = (TaskQueryImpl) taskQuery;
 
@@ -187,6 +192,18 @@ public class JsonTaskQueryConverter extends JsonObjectConverter<TaskQuery> {
     addField(json, CASE_INSTANCE_BUSINESS_KEY_LIKE, query.getCaseInstanceBusinessKeyLike());
     addField(json, CASE_EXECUTION_ID, query.getCaseExecutionId());
     addTenantIdFields(json, query);
+
+    if (query.getQueries().size() > 1 && !isOrQueryActive) {
+      JSONArray orQueries = new JSONArray();
+
+      for (TaskQueryImpl orQuery: query.getQueries()) {
+        if (orQuery != null && orQuery.isOrQueryActive()) {
+          orQueries.put(toJsonObject(orQuery, true));
+        }
+      }
+
+      addField(json, OR_QUERIES, orQueries);
+    }
 
     if (query.getOrderingProperties() != null && !query.getOrderingProperties().isEmpty()) {
       addField(json, ORDERING_PROPERTIES,
@@ -254,6 +271,11 @@ public class JsonTaskQueryConverter extends JsonObjectConverter<TaskQuery> {
   public TaskQuery toObject(JSONObject json) {
     TaskQueryImpl query = new TaskQueryImpl();
 
+    if (json.has(OR_QUERIES)) {
+      for (int i = 0; i < json.getJSONArray(OR_QUERIES).length(); i++) {
+        query.addOrQuery((TaskQueryImpl) toObject(json.getJSONArray(OR_QUERIES).getJSONObject(i)));
+      }
+    }
     if (json.has(TASK_ID)) {
       query.taskId(json.getString(TASK_ID));
     }

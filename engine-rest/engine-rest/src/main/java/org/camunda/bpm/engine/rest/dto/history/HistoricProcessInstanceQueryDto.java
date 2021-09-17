@@ -73,6 +73,7 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   private Boolean finished;
   private Boolean unfinished;
   private Boolean withIncidents;
+  private String incidentType;
   private String incidentStatus;
   private String incidentMessage;
   private String incidentMessageLike;
@@ -91,6 +92,8 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   private String subCaseInstanceId;
   private String caseInstanceId;
   private List<String> tenantIds;
+  private List<String> executedActivityIdIn;
+  private List<String> activeActivityIdIn;
 
   private List<VariableQueryParameterDto> variables;
 
@@ -108,6 +111,10 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   @CamundaQueryParam(value = "processInstanceIds", converter = StringSetConverter.class)
   public void setProcessInstanceIds(Set<String> processInstanceIds) {
     this.processInstanceIds = processInstanceIds;
+  }
+
+  public String getProcessDefinitionId() {
+    return processDefinitionId;
   }
 
   @CamundaQueryParam("processDefinitionId")
@@ -230,6 +237,15 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     this.variables = variables;
   }
 
+  public String getIncidentType() {
+    return incidentType;
+  }
+
+  @CamundaQueryParam(value = "incidentType")
+  public void setIncidentType(String incidentType) {
+    this.incidentType = incidentType;
+  }
+
   @CamundaQueryParam(value = "tenantIdIn", converter = StringListConverter.class)
   public void setTenantIdIn(List<String> tenantIds) {
     this.tenantIds = tenantIds;
@@ -240,9 +256,19 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     this.executedActivityAfter = executedActivityAfter;
   }
 
+  @CamundaQueryParam(value = "executedActivityIdIn", converter = StringListConverter.class)
+  public void setExecutedActivityIdIn(List<String> executedActivityIds) {
+    this.executedActivityIdIn = executedActivityIds;
+  }
+
   @CamundaQueryParam(value = "executedActivityBefore", converter = DateConverter.class)
   public void setExecutedActivityBefore(Date executedActivityBefore) {
     this.executedActivityBefore = executedActivityBefore;
+  }
+
+  @CamundaQueryParam(value = "activeActivityIdIn", converter = StringListConverter.class)
+  public void setActiveActivityIdIn(List<String> activeActivityIdIn) {
+    this.activeActivityIdIn = activeActivityIdIn;
   }
 
   @CamundaQueryParam(value = "executedJobAfter", converter = DateConverter.class)
@@ -306,6 +332,9 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     }
     if (incidentStatus != null) {
       query.incidentStatus(incidentStatus);
+    }
+    if (incidentType != null) {
+      query.incidentType(incidentType);
     }
     if(incidentMessage != null) {
       query.incidentMessage(incidentMessage);
@@ -379,6 +408,14 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
 
     if (executedActivityBefore != null) {
       query.executedActivityBefore(executedActivityBefore);
+    }
+
+    if (executedActivityIdIn != null && !executedActivityIdIn.isEmpty()) {
+      query.executedActivityIdIn(executedActivityIdIn.toArray(new String[executedActivityIdIn.size()]));
+    }
+
+    if (activeActivityIdIn != null && !activeActivityIdIn.isEmpty()) {
+      query.activeActivityIdIn(activeActivityIdIn.toArray(new String[activeActivityIdIn.size()]));
     }
 
     if (executedJobAfter != null) {

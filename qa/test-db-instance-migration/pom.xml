@@ -10,7 +10,7 @@
   <parent>
     <groupId>org.camunda.bpm.qa</groupId>
     <artifactId>camunda-qa</artifactId>
-    <version>7.7.0</version>
+    <version>7.8.0</version>
   </parent>
 
   <modules>
@@ -20,6 +20,7 @@
     <module>test-fixture-75</module>
     <module>test-fixture-76</module>
     <module>test-fixture-77</module>
+    <module>test-fixture-78</module>
     <module>test-migration</module>
   </modules>
   <build>

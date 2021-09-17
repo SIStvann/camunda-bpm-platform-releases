@@ -12,13 +12,13 @@
  */
 package org.camunda.bpm.engine.rest.impl.history;
 
-import org.camunda.bpm.engine.rest.dto.runtime.JobDto;
 import org.camunda.bpm.engine.rest.history.HistoricActivityInstanceRestService;
-import org.camunda.bpm.engine.rest.history.HistoricActivityStatisticsRestService;
+import org.camunda.bpm.engine.rest.history.HistoricProcessDefinitionRestService;
 import org.camunda.bpm.engine.rest.history.HistoricBatchRestService;
 import org.camunda.bpm.engine.rest.history.HistoricCaseActivityInstanceRestService;
-import org.camunda.bpm.engine.rest.history.HistoricCaseActivityStatisticsRestService;
+import org.camunda.bpm.engine.rest.history.HistoricCaseDefinitionRestService;
 import org.camunda.bpm.engine.rest.history.HistoricCaseInstanceRestService;
+import org.camunda.bpm.engine.rest.history.HistoricDecisionDefinitionRestService;
 import org.camunda.bpm.engine.rest.history.HistoricDecisionInstanceRestService;
 import org.camunda.bpm.engine.rest.history.HistoricDecisionStatisticsRestService;
 import org.camunda.bpm.engine.rest.history.HistoricDetailRestService;
@@ -29,11 +29,11 @@ import org.camunda.bpm.engine.rest.history.HistoricJobLogRestService;
 import org.camunda.bpm.engine.rest.history.HistoricProcessInstanceRestService;
 import org.camunda.bpm.engine.rest.history.HistoricTaskInstanceRestService;
 import org.camunda.bpm.engine.rest.history.HistoricVariableInstanceRestService;
+import org.camunda.bpm.engine.rest.history.HistoryCleanupRestService;
 import org.camunda.bpm.engine.rest.history.HistoryRestService;
 import org.camunda.bpm.engine.rest.history.UserOperationLogRestService;
 
 import org.camunda.bpm.engine.rest.impl.AbstractRestProcessEngineAware;
-import org.camunda.bpm.engine.runtime.Job;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -63,16 +63,20 @@ public class HistoryRestServiceImpl extends AbstractRestProcessEngineAware imple
     return new HistoricVariableInstanceRestServiceImpl(getObjectMapper(), getProcessEngine());
   }
 
-  public HistoricActivityStatisticsRestService getActivityStatisticsService() {
-    return new HistoricActivityStatisticsRestServiceImpl(getProcessEngine());
+  public HistoricProcessDefinitionRestService getProcessDefinitionService() {
+    return new HistoricProcessDefinitionRestServiceImpl(getObjectMapper(), getProcessEngine());
+  }
+
+  public HistoricDecisionDefinitionRestService getDecisionDefinitionService() {
+    return new HistoricDecisionDefinitionRestServiceImpl(getObjectMapper(), getProcessEngine());
   }
 
   public HistoricDecisionStatisticsRestService getDecisionStatisticsService() {
     return new HistoricDecisionStatisticsRestServiceImpl(getProcessEngine());
   }
 
-  public HistoricCaseActivityStatisticsRestService getCaseActivityStatisticsService() {
-    return new HistoricCaseActivityStatisticsRestServiceImpl(getProcessEngine());
+  public HistoricCaseDefinitionRestService getCaseDefinitionService() {
+    return new HistoricCaseDefinitionRestServiceImpl(getObjectMapper(), getProcessEngine());
   }
 
   public UserOperationLogRestService getUserOperationLogRestService() {
@@ -113,8 +117,7 @@ public class HistoryRestServiceImpl extends AbstractRestProcessEngineAware imple
   }
 
   @Override
-  public JobDto cleanupAsync(boolean immediatelyDue) {
-    Job job = processEngine.getHistoryService().cleanUpHistoryAsync(immediatelyDue);
-    return JobDto.fromJob(job);
+  public HistoryCleanupRestService getHistoryCleanupRestService() {
+    return new HistoryCleanupRestServiceImpl(getObjectMapper(), getProcessEngine());
   }
 }

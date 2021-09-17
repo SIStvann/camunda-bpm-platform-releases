@@ -26,6 +26,10 @@ import org.camunda.bpm.engine.history.HistoricDecisionInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricDecisionInstanceStatisticsQuery;
 import org.camunda.bpm.engine.history.HistoricDetailQuery;
 import org.camunda.bpm.engine.history.HistoricExternalTaskLogQuery;
+import org.camunda.bpm.engine.history.CleanableHistoricBatchReport;
+import org.camunda.bpm.engine.history.CleanableHistoricCaseInstanceReport;
+import org.camunda.bpm.engine.history.CleanableHistoricDecisionInstanceReport;
+import org.camunda.bpm.engine.history.CleanableHistoricProcessInstanceReport;
 import org.camunda.bpm.engine.history.HistoricIncidentQuery;
 import org.camunda.bpm.engine.history.HistoricJobLogQuery;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
@@ -39,15 +43,14 @@ import org.camunda.bpm.engine.history.NativeHistoricCaseInstanceQuery;
 import org.camunda.bpm.engine.history.NativeHistoricDecisionInstanceQuery;
 import org.camunda.bpm.engine.history.NativeHistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.history.NativeHistoricTaskInstanceQuery;
+import org.camunda.bpm.engine.history.NativeHistoricVariableInstanceQuery;
 import org.camunda.bpm.engine.history.UserOperationLogQuery;
 import org.camunda.bpm.engine.impl.batch.history.DeleteHistoricBatchCmd;
 import org.camunda.bpm.engine.impl.batch.history.HistoricBatchQueryImpl;
-import org.camunda.bpm.engine.impl.cmd.DeleteHistoricProcessInstancesBulkCmd;
 import org.camunda.bpm.engine.impl.cmd.FindHistoryCleanupJobCmd;
 import org.camunda.bpm.engine.impl.cmd.HistoryCleanupCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteHistoricCaseInstanceCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteHistoricCaseInstancesBulkCmd;
-import org.camunda.bpm.engine.impl.cmd.DeleteHistoricProcessInstanceCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteHistoricProcessInstancesCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteHistoricTaskInstanceCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteUserOperationLogEntryCmd;
@@ -59,6 +62,7 @@ import org.camunda.bpm.engine.impl.dmn.cmd.DeleteHistoricDecisionInstanceByDefin
 import org.camunda.bpm.engine.impl.dmn.cmd.DeleteHistoricDecisionInstancesBulkCmd;
 import org.camunda.bpm.engine.runtime.Job;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -125,7 +129,7 @@ public class HistoryServiceImpl extends ServiceImpl implements HistoryService {
   }
 
   public void deleteHistoricProcessInstance(String processInstanceId) {
-    commandExecutor.execute(new DeleteHistoricProcessInstanceCmd(processInstanceId));
+    deleteHistoricProcessInstances(Arrays.asList(processInstanceId));
   }
 
   public void deleteHistoricProcessInstances(List<String> processInstanceIds) {
@@ -133,7 +137,7 @@ public class HistoryServiceImpl extends ServiceImpl implements HistoryService {
   }
 
   public void deleteHistoricProcessInstancesBulk(List<String> processInstanceIds){
-    commandExecutor.execute(new DeleteHistoricProcessInstancesBulkCmd(processInstanceIds));
+    deleteHistoricProcessInstances(processInstanceIds);
   }
 
   public Job cleanUpHistoryAsync() {
@@ -214,6 +218,10 @@ public class HistoryServiceImpl extends ServiceImpl implements HistoryService {
     return new NativeHistoryDecisionInstanceQueryImpl(commandExecutor);
   }
 
+  public NativeHistoricVariableInstanceQuery createNativeHistoricVariableInstanceQuery() {
+    return new NativeHistoricVariableInstanceQueryImpl(commandExecutor);
+  }
+
   public HistoricJobLogQuery createHistoricJobLogQuery() {
     return new HistoricJobLogQueryImpl(commandExecutor);
   }
@@ -228,6 +236,22 @@ public class HistoryServiceImpl extends ServiceImpl implements HistoryService {
 
   public HistoricTaskInstanceReport createHistoricTaskInstanceReport() {
     return new HistoricTaskInstanceReportImpl(commandExecutor);
+  }
+
+  public CleanableHistoricProcessInstanceReport createCleanableHistoricProcessInstanceReport() {
+    return new CleanableHistoricProcessInstanceReportImpl(commandExecutor);
+  }
+
+  public CleanableHistoricDecisionInstanceReport createCleanableHistoricDecisionInstanceReport() {
+    return new CleanableHistoricDecisionInstanceReportImpl(commandExecutor);
+  }
+
+  public CleanableHistoricCaseInstanceReport createCleanableHistoricCaseInstanceReport() {
+    return new CleanableHistoricCaseInstanceReportImpl(commandExecutor);
+  }
+
+  public CleanableHistoricBatchReport createCleanableHistoricBatchReport() {
+    return new CleanableHistoricBatchReportImpl(commandExecutor);
   }
 
   public HistoricBatchQuery createHistoricBatchQuery() {

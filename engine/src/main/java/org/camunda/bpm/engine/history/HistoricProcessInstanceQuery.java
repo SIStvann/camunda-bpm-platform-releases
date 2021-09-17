@@ -87,11 +87,16 @@ public interface HistoricProcessInstanceQuery extends Query<HistoricProcessInsta
 
   /** Only select historic process instances with incident status either 'open' or 'resolved'.
    * To get all process instances with incidents, use {@link HistoricProcessInstanceQuery#withIncidents()}.
-   *  
+   *
    * @param status indicates the incident status, which is either 'open' or 'resolved'
    * @return {@link HistoricProcessInstanceQuery}
    */
   HistoricProcessInstanceQuery incidentStatus(String status);
+
+  /**
+   * Only selects process instances with the given incident type.
+   */
+  HistoricProcessInstanceQuery incidentType(String incidentType);
 
   /**
    * Only select historic process instances with the given incident message.
@@ -283,6 +288,12 @@ public interface HistoricProcessInstanceQuery extends Query<HistoricProcessInsta
 
   /** Only select historic process instances that executed an activity before the given date. */
   HistoricProcessInstanceQuery executedActivityBefore(Date date);
+
+  /** Only select historic process instances that executed activities with given ids. */
+  HistoricProcessInstanceQuery executedActivityIdIn(String... ids);
+
+  /** Only select historic process instances that have active activities with given ids. */
+  HistoricProcessInstanceQuery activeActivityIdIn(String... ids);
 
   /** Only select historic process instances that executed an job after the given date. */
   HistoricProcessInstanceQuery executedJobAfter(Date date);

@@ -12,12 +12,15 @@
  */
 package org.camunda.bpm.engine.test.standalone.interceptor;
 
+import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
-
+import org.camunda.bpm.engine.test.RequiredHistoryLevel;
+import org.camunda.bpm.model.bpmn.Bpmn;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 
 /**
  * @author Tom Baeyens
@@ -86,6 +89,39 @@ public class CommandContextInterceptorTest extends PluggableProcessEngineTestCas
     });
   }
 
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_ACTIVITY)
+  public void testCommandContextNestedFailingCommandsNotExceptions() {
+    final BpmnModelInstance modelInstance =
+      Bpmn.createExecutableProcess("processThrowingThrowable")
+        .startEvent()
+          .serviceTask()
+          .camundaClass(ThrowErrorJavaDelegate.class)
+        .endEvent().done();
+
+    deployment(modelInstance);
+
+    boolean errorThrown = false;
+    try {
+      processEngineConfiguration.getCommandExecutorTxRequired().execute(new Command<Object>() {
+        public Object execute(CommandContext commandContext) {
+
+          runtimeService.startProcessInstanceByKey("processThrowingThrowable");
+          return null;
+        }
+      });
+      fail("Exception expected");
+    } catch (StackOverflowError t) {
+      //OK
+      errorThrown = true;
+    }
+
+    assertTrue(ThrowErrorJavaDelegate.executed);
+    assertTrue(errorThrown);
+
+    // Check data base consistency
+    assertEquals(0, historyService.createHistoricProcessInstanceQuery().count());
+  }
+
   protected class ExceptionThrowingCmd implements Command<Void> {
 
     protected boolean executed;
@@ -112,4 +148,5 @@ public class CommandContextInterceptorTest extends PluggableProcessEngineTestCas
       this.id = id;
     }
   }
+
 }

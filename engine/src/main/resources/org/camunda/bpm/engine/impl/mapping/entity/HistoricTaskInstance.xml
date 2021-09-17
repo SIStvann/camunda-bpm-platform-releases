@@ -114,17 +114,21 @@
   </delete>
 
   <delete id="deleteHistoricTaskInstanceByProcessInstanceIds">
-    delete from ${prefix}ACT_HI_TASKINST where PROC_INST_ID_ IN
-    <foreach item="processInstanceId" index="index" collection="list" open="(" separator="," close=")">
-      #{processInstanceId}
-    </foreach>
+    delete
+    from ${prefix}ACT_HI_TASKINST
+    where
+      <bind name="listOfIds" value="list"/>
+      <bind name="fieldName" value="'PROC_INST_ID_'"/>
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
   </delete>
 
   <delete id="deleteHistoricTaskInstanceByCaseInstanceIds">
-    delete from ${prefix}ACT_HI_TASKINST where CASE_INST_ID_ IN
-    <foreach item="caseInstanceId" index="index" collection="list" open="(" separator="," close=")">
-      #{caseInstanceId}
-    </foreach>
+    delete
+    from ${prefix}ACT_HI_TASKINST
+    where
+      <bind name="listOfIds" value="list"/>
+      <bind name="fieldName" value="'CASE_INST_ID_'"/>
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
   </delete>
 
   <!-- HISTORIC TASK INSTANCE RESULT MAP -->
@@ -162,29 +166,10 @@
     select * from ${prefix}ACT_HI_TASKINST where ID_ = #{historicTaskInstanceId}
   </select>
 
-  <select id="selectHistoricTaskInstanceIdsByParameters" resultType="string" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
-    select ID_
-    from ${prefix}ACT_HI_TASKINST
-    <where>
-      <if test="parameter.processInstanceId != null">
-        PROC_INST_ID_ = #{parameter.processInstanceId, jdbcType=VARCHAR}
-      </if>
-      <if test="parameter.processDefinitionId != null">
-        and PROC_DEF_ID_ = #{parameter.processDefinitionId, jdbcType=VARCHAR}
-      </if>
-      <if test="parameter.caseInstanceId != null">
-        and CASE_INST_ID_ = #{parameter.caseInstanceId, jdbcType=VARCHAR}
-      </if>
-      <if test="parameter.caseDefinitionId != null">
-        and CASE_DEF_ID_ = #{parameter.caseDefinitionId, jdbcType=VARCHAR}
-      </if>
-    </where>
-  </select>
-
   <select id="selectHistoricTaskInstancesByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricTaskInstanceQueryImpl" resultMap="historicTaskInstanceResultMap">
   	<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    select RES.*
+    select ${distinct} RES.*
     ${limitBetween}
     <include refid="selectHistoricTaskInstancesByQueryCriteriaSql"/>
     ${orderBy}
@@ -192,7 +177,7 @@
   </select>
 
   <select id="selectHistoricTaskInstanceCountByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricTaskInstanceQueryImpl" resultType="long">
-    select count(*)
+    select count(distinct RES.ID_)
     <include refid="selectHistoricTaskInstancesByQueryCriteriaSql"/>
   </select>
 
@@ -200,19 +185,13 @@
     <bind name="escapeChar" value="'\\'"/>
     from ${prefix}ACT_HI_TASKINST RES
 
-    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
-      LEFT JOIN (
-        SELECT
-            SELF.PROC_DEF_KEY_ AS KEY_
-        FROM
-            (SELECT DISTINCT DKEYS.PROC_DEF_KEY_ from ${prefix}ACT_HI_TASKINST DKEYS) SELF
-        WHERE
-            <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.querySingleAuthorizationCheck" />
-      ) AUTH
-      ON AUTH.KEY_ = RES.PROC_DEF_KEY_
+    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authCheckJoinWithoutOnClause" />
+      AUTH ON (AUTH.RESOURCE_ID_ in (RES.PROC_DEF_KEY_, '*'))
     </if>
 
-    <if test="processFinished || processUnfinished">
+    <if test="processFinished || processUnfinished || processInstanceBusinessKey != null || processInstanceBusinessKeyLike != null ||
+              (processInstanceBusinessKeys != null &amp;&amp; processInstanceBusinessKeys.length > 0)">
       inner join ${prefix}ACT_HI_PROCINST HPI ON RES.PROC_INST_ID_ = HPI.ID_
     </if>
     <if test="processDefinitionKey != null || processDefinitionName != null">
@@ -271,6 +250,19 @@
       </if>
       <if test="processInstanceId != null">
         and RES.PROC_INST_ID_ = #{processInstanceId}
+      </if>
+      <if test="processInstanceBusinessKey != null">
+        and HPI.BUSINESS_KEY_ = #{processInstanceBusinessKey}
+      </if>
+      <if test="processInstanceBusinessKeys != null &amp;&amp; processInstanceBusinessKeys.length > 0">
+        and HPI.BUSINESS_KEY_ in
+        <foreach item="item" index="index" collection="processInstanceBusinessKeys"
+                 open="(" separator="," close=")">
+          #{item}
+        </foreach>
+      </if>
+      <if test="processInstanceBusinessKeyLike != null">
+        HPI.BUSINESS_KEY_ like #{processInstanceBusinessKeyLike} ESCAPE #{escapeChar}
       </if>
       <if test="taskDefinitionKeys != null &amp;&amp; taskDefinitionKeys.length > 0">
         and RES.TASK_DEF_KEY_ in
@@ -358,6 +350,18 @@
       <if test="processUnfinished">
         and HPI.END_TIME_ is null
       </if>
+      <if test="startedAfter != null">
+        and RES.START_TIME_ &gt;= #{startedAfter}
+      </if>
+      <if test="startedBefore != null">
+        and RES.START_TIME_ &lt;= #{startedBefore}
+      </if>
+      <if test="finishedBefore != null">
+        and RES.END_TIME_ &lt;= #{finishedBefore}
+      </if>
+      <if test="finishedAfter != null">
+        and RES.END_TIME_ &gt;= #{finishedAfter}
+      </if>
       <if test="dueDate != null">
         and RES.DUE_DATE_ = #{dueDate}
       </if>
@@ -416,7 +420,11 @@
       </foreach>
 
       <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
-        and ((RES.EXECUTION_ID_ is not null and AUTH.KEY_ is not null) or RES.EXECUTION_ID_ is null)
+        and (
+        (RES.EXECUTION_ID_ is not null
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheck"/>
+        ) or RES.EXECUTION_ID_ is null
+        )
       </if>
 
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />

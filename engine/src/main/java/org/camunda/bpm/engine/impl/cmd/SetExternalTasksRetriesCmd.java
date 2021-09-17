@@ -8,8 +8,8 @@ import org.camunda.bpm.engine.impl.util.EnsureUtil;
 
 public class SetExternalTasksRetriesCmd extends AbstractSetExternalTaskRetriesCmd<Void> {
 
-  public SetExternalTasksRetriesCmd(List<String> externalTaskIds, int retries) {
-    super(externalTaskIds, null, retries);
+  public SetExternalTasksRetriesCmd(UpdateExternalTaskRetriesBuilderImpl builder) {
+    super(builder);
   }
 
   @Override
@@ -17,6 +17,7 @@ public class SetExternalTasksRetriesCmd extends AbstractSetExternalTaskRetriesCm
     List<String> collectedIds = collectExternalTaskIds();
     EnsureUtil.ensureNotEmpty(BadUserRequestException.class, "externalTaskIds", collectedIds);
 
+    int retries = builder.getRetries();
     writeUserOperationLog(commandContext,
         retries,
         collectedIds.size(),
@@ -28,4 +29,5 @@ public class SetExternalTasksRetriesCmd extends AbstractSetExternalTaskRetriesCm
 
     return null;
   }
+
 }

@@ -128,6 +128,28 @@
 
   </select>
 
+  <select id="selectProcessDefinitions" parameterType="map" resultMap="processDefinitionResultMap">
+    select *
+    from ${prefix}ACT_RE_PROCDEF
+    where
+      <if test="parameter.processDefinitionKey != null">
+        KEY_ = #{parameter.processDefinitionKey}
+      </if>
+      <if test="parameter.processDefinitionIds != null">
+        <bind name="listOfIds" value="parameter.processDefinitionIds"/>
+        <bind name="fieldName" value="'ID_'"/>
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
+      </if>
+      <if test="parameter.isTenantIdSet">
+        <if test="parameter.tenantId != null">
+          and TENANT_ID_ = #{parameter.tenantId}
+        </if>
+        <if test="parameter.tenantId == null">
+          and TENANT_ID_ is null
+        </if>
+      </if>
+  </select>
+
   <select id="selectPreviousProcessDefinitionId" parameterType="map" resultType="string">
     select distinct RES.*
       from ${prefix}ACT_RE_PROCDEF RES
@@ -212,7 +234,8 @@
         and RES.NAME_ = #{name}
       </if>
       <if test="nameLike != null">
-        and RES.NAME_ like #{nameLike} ESCAPE #{escapeChar}
+        <!-- based on CAM-8014 compare name like case-insensitive -->
+        and UPPER(RES.NAME_) like UPPER(#{nameLike}) ESCAPE #{escapeChar}
       </if>
       <if test="key != null">
         and RES.KEY_ = #{key}

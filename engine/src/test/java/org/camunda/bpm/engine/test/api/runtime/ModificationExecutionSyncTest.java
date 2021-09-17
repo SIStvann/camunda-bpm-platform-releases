@@ -16,9 +16,12 @@ import java.util.List;
 
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.RuntimeService;
+import org.camunda.bpm.engine.batch.Batch;
+import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.repository.DeploymentWithDefinitions;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
+import org.camunda.bpm.engine.runtime.Execution;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.ProcessEngineRule;
 import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
@@ -288,4 +291,111 @@ public class ModificationExecutionSyncTest {
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
     assertThat(updatedTree).hasStructure(describeActivityInstanceTree(definition.getId()).activity("user1").activity("user3").done());
   }
+
+  @Test
+  public void testCancelWithoutFlag() {
+    // given
+    this.instance = Bpmn.createExecutableProcess("process1")
+        .startEvent("start")
+        .serviceTask("ser").camundaExpression("${true}")
+        .userTask("user")
+        .endEvent("end")
+        .done();
+
+    ProcessDefinition processDefinition = testRule.deployAndGetDefinition(instance);
+
+    List<String> processInstanceIds = helper.startInstances("process1", 1);
+
+    // when
+    runtimeService.createModification(processDefinition.getId())
+      .startBeforeActivity("ser")
+      .cancelAllForActivity("user")
+      .processInstanceIds(processInstanceIds)
+      .execute();
+
+    // then
+    assertEquals(0, runtimeService.createExecutionQuery().list().size());
+  }
+
+  @Test
+  public void testCancelWithoutFlag2() {
+    // given
+    this.instance = Bpmn.createExecutableProcess("process1")
+        .startEvent("start")
+        .serviceTask("ser").camundaExpression("${true}")
+        .userTask("user")
+        .endEvent("end")
+        .done();
+
+    ProcessDefinition processDefinition = testRule.deployAndGetDefinition(instance);
+
+    List<String> processInstanceIds = helper.startInstances("process1", 1);
+
+    // when
+    runtimeService.createModification(processDefinition.getId())
+      .startBeforeActivity("ser")
+      .cancelAllForActivity("user", false)
+      .processInstanceIds(processInstanceIds)
+      .execute();
+
+    // then
+    assertEquals(0, runtimeService.createExecutionQuery().list().size());
+  }
+
+  @Test
+  public void testCancelWithFlag() {
+    // given
+    this.instance = Bpmn.createExecutableProcess("process1")
+        .startEvent("start")
+        .serviceTask("ser").camundaExpression("${true}")
+        .userTask("user")
+        .endEvent("end")
+        .done();
+
+    ProcessDefinition processDefinition = testRule.deployAndGetDefinition(instance);
+
+    List<String> processInstanceIds = helper.startInstances("process1", 1);
+
+    // when
+    runtimeService.createModification(processDefinition.getId())
+      .startBeforeActivity("ser")
+      .cancelAllForActivity("user", true)
+      .processInstanceIds(processInstanceIds)
+      .execute();
+
+    // then
+    ExecutionEntity execution = (ExecutionEntity) runtimeService.createExecutionQuery().singleResult();
+    assertNotNull(execution);
+    assertEquals("user", execution.getActivityId());
+  }
+
+  @Test
+  public void testCancelWithFlagForManyInstances() {
+    // given
+    this.instance = Bpmn.createExecutableProcess("process1")
+        .startEvent("start")
+        .serviceTask("ser").camundaExpression("${true}")
+        .userTask("user")
+        .endEvent("end")
+        .done();
+
+    ProcessDefinition processDefinition = testRule.deployAndGetDefinition(instance);
+
+    List<String> processInstanceIds = helper.startInstances("process1", 10);
+
+    // when
+    runtimeService.createModification(processDefinition.getId())
+      .startBeforeActivity("ser")
+      .cancelAllForActivity("user", true)
+      .processInstanceIds(processInstanceIds)
+      .execute();
+
+    // then
+    for (String processInstanceId : processInstanceIds) {
+      Execution execution = runtimeService.createExecutionQuery().processInstanceId(processInstanceId).singleResult();
+      assertNotNull(execution);
+      assertEquals("user", ((ExecutionEntity) execution).getActivityId());
+    }
+  }
+
 }

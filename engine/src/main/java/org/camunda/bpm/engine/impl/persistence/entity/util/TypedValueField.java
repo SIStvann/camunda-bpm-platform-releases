@@ -137,7 +137,7 @@ public class TypedValueField implements DbEntityLifecycleAware, CommandContextLi
 
   @SuppressWarnings("unchecked")
   protected boolean isMutableValue(TypedValue value) {
-    return((TypedValueSerializer<TypedValue>) serializer).isMutableValue(value);
+    return((TypedValueSerializer<TypedValue>) getSerializer()).isMutableValue(value);
   }
 
   protected boolean isValuedImplicitlyUpdated() {
@@ -157,11 +157,15 @@ public class TypedValueField implements DbEntityLifecycleAware, CommandContextLi
 
   @SuppressWarnings("unchecked")
   protected void writeValue(TypedValue value, ValueFields valueFields) {
-    ((TypedValueSerializer<TypedValue>) serializer).writeValue(value, valueFields);
+    ((TypedValueSerializer<TypedValue>) getSerializer()).writeValue(value, valueFields);
   }
 
   @Override
   public void onCommandContextClose(CommandContext commandContext) {
+    notifyImplicitValueUpdate();
+  }
+
+  public void notifyImplicitValueUpdate() {
     if (isValuedImplicitlyUpdated()) {
       for (TypedValueUpdateListener typedValueImplicitUpdateListener : updateListeners) {
         typedValueImplicitUpdateListener.onImplicitValueUpdate(cachedValue);
@@ -280,8 +284,6 @@ public class TypedValueField implements DbEntityLifecycleAware, CommandContextLi
 
   @Override
   public void postLoad() {
-    // make sure the serializer is initialized
-    ensureSerializerInitialized();
   }
 
   public void clear() {

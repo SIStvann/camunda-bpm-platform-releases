@@ -13,7 +13,6 @@
 package org.camunda.bpm.engine.impl.migration.instance.parser;
 
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -69,7 +68,7 @@ public class EventSubscriptionInstanceHandler implements MigratingDependentInsta
     }
 
     if (owningInstance.migrates()) {
-      addEmergingEventSubscriptions(owningInstance, targetDeclarations.values());
+      addEmergingEventSubscriptions(owningInstance, targetDeclarations);
     }
   }
 
@@ -83,10 +82,13 @@ public class EventSubscriptionInstanceHandler implements MigratingDependentInsta
     return new HashMap<String, EventSubscriptionDeclaration>(declarations);
   }
 
-  protected void addEmergingEventSubscriptions(MigratingActivityInstance owningInstance, Collection<EventSubscriptionDeclaration> emergingDeclarations) {
-    for (EventSubscriptionDeclaration eventSubscriptionDeclaration : emergingDeclarations) {
+  protected void addEmergingEventSubscriptions(MigratingActivityInstance owningInstance, Map<String, EventSubscriptionDeclaration> targetDeclarations) {
+    for (String key : targetDeclarations.keySet()) {
       // the event subscription will be created
-      owningInstance.addEmergingDependentInstance(new MigratingEventSubscriptionInstance(eventSubscriptionDeclaration));
+      EventSubscriptionDeclaration declaration = targetDeclarations.get(key);
+      if (!declaration.isStartEvent()) {
+        owningInstance.addEmergingDependentInstance(new MigratingEventSubscriptionInstance(declaration));
+      }
     }
   }
 

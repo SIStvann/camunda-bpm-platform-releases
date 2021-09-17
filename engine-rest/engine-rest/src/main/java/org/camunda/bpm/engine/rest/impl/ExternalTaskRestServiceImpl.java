@@ -28,6 +28,8 @@ import org.camunda.bpm.engine.externaltask.ExternalTaskQuery;
 import org.camunda.bpm.engine.externaltask.ExternalTaskQueryBuilder;
 import org.camunda.bpm.engine.externaltask.ExternalTaskQueryTopicBuilder;
 import org.camunda.bpm.engine.externaltask.LockedExternalTask;
+import org.camunda.bpm.engine.externaltask.UpdateExternalTaskRetriesBuilder;
+import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.rest.ExternalTaskRestService;
 import org.camunda.bpm.engine.rest.dto.CountResultDto;
 import org.camunda.bpm.engine.rest.dto.batch.BatchDto;
@@ -35,6 +37,8 @@ import org.camunda.bpm.engine.rest.dto.externaltask.ExternalTaskDto;
 import org.camunda.bpm.engine.rest.dto.externaltask.ExternalTaskQueryDto;
 import org.camunda.bpm.engine.rest.dto.externaltask.FetchExternalTasksDto;
 import org.camunda.bpm.engine.rest.dto.externaltask.FetchExternalTasksDto.FetchExternalTaskTopicDto;
+import org.camunda.bpm.engine.rest.dto.history.HistoricProcessInstanceQueryDto;
+import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceQueryDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
 import org.camunda.bpm.engine.rest.dto.externaltask.LockedExternalTaskDto;
@@ -43,6 +47,7 @@ import org.camunda.bpm.engine.rest.sub.externaltask.ExternalTaskResource;
 import org.camunda.bpm.engine.rest.sub.externaltask.impl.ExternalTaskResourceImpl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
 
 /**
  * @author Thorben Lindhauer
@@ -146,23 +151,71 @@ public class ExternalTaskRestServiceImpl extends AbstractRestProcessEngineAware 
   @Override
   public BatchDto setRetriesAsync(SetRetriesForExternalTasksDto retriesDto) {
 
-    ExternalTaskService externalTaskService = getProcessEngine().getExternalTaskService();
-    ExternalTaskQueryDto externalTaskQueryDto = retriesDto.getExternalTaskQuery();
-    ExternalTaskQuery externalTaskQuery = null;
-
-    if (externalTaskQueryDto != null) {
-      externalTaskQuery = externalTaskQueryDto.toQuery(getProcessEngine());
-    }
-    Batch batch = null;
+    UpdateExternalTaskRetriesBuilder builder = updateRetries(retriesDto);
+    int retries = retriesDto.getRetries();
 
     try {
-      batch = externalTaskService.setRetriesAsync(retriesDto.getExternalTaskIds(), externalTaskQuery, retriesDto.getRetries());
-    } catch (NotFoundException e) {
+      Batch batch = builder.setAsync(retries);
+      return BatchDto.fromBatch(batch);
+    }
+    catch (NotFoundException e) {
       throw new InvalidRequestException(Status.NOT_FOUND, e.getMessage());
-    } catch (BadUserRequestException e) {
+    }
+    catch (BadUserRequestException e) {
       throw new InvalidRequestException(Status.BAD_REQUEST, e.getMessage());
     }
 
-    return BatchDto.fromBatch(batch);
   }
+
+  @Override
+  public void setRetries(SetRetriesForExternalTasksDto retriesDto){
+
+    UpdateExternalTaskRetriesBuilder builder = updateRetries(retriesDto);
+    int retries = retriesDto.getRetries();
+
+    try {
+      builder.set(retries);
+    }
+    catch (NotFoundException e) {
+      throw new InvalidRequestException(Status.NOT_FOUND, e.getMessage());
+    }
+    catch (BadUserRequestException e) {
+      throw new InvalidRequestException(Status.BAD_REQUEST, e.getMessage());
+    }
+  }
+
+  protected UpdateExternalTaskRetriesBuilder updateRetries(SetRetriesForExternalTasksDto retriesDto) {
+
+    ExternalTaskService externalTaskService = getProcessEngine().getExternalTaskService();
+
+    List<String> externalTaskIds = retriesDto.getExternalTaskIds();
+    List<String> processInstanceIds = retriesDto.getProcessInstanceIds();
+
+    ExternalTaskQuery externalTaskQuery = null;
+    ProcessInstanceQuery processInstanceQuery = null;
+    HistoricProcessInstanceQuery historicProcessInstanceQuery = null;
+
+    ExternalTaskQueryDto externalTaskQueryDto = retriesDto.getExternalTaskQuery();
+    if (externalTaskQueryDto != null) {
+      externalTaskQuery = externalTaskQueryDto.toQuery(getProcessEngine());
+    }
+
+    ProcessInstanceQueryDto processInstanceQueryDto = retriesDto.getProcessInstanceQuery();
+    if (processInstanceQueryDto != null) {
+      processInstanceQuery = processInstanceQueryDto.toQuery(getProcessEngine());
+    }
+
+    HistoricProcessInstanceQueryDto historicProcessInstanceQueryDto = retriesDto.getHistoricProcessInstanceQuery();
+    if (historicProcessInstanceQueryDto != null) {
+      historicProcessInstanceQuery = historicProcessInstanceQueryDto.toQuery(getProcessEngine());
+    }
+
+    return externalTaskService.updateRetries()
+      .externalTaskIds(externalTaskIds)
+      .processInstanceIds(processInstanceIds)
+      .externalTaskQuery(externalTaskQuery)
+      .processInstanceQuery(processInstanceQuery)
+      .historicProcessInstanceQuery(historicProcessInstanceQuery);
+  }
+
 }

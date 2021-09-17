@@ -43,6 +43,7 @@ import org.apache.ibatis.builder.xml.XMLConfigBuilder;
 import org.apache.ibatis.datasource.pooled.PooledDataSource;
 import org.apache.ibatis.mapping.Environment;
 import org.apache.ibatis.session.Configuration;
+import org.apache.ibatis.session.ExecutorType;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.ibatis.session.defaults.DefaultSqlSessionFactory;
 import org.apache.ibatis.transaction.TransactionFactory;
@@ -94,10 +95,12 @@ import org.camunda.bpm.engine.impl.batch.deletion.DeleteHistoricProcessInstances
 import org.camunda.bpm.engine.impl.batch.deletion.DeleteProcessInstancesJobHandler;
 import org.camunda.bpm.engine.impl.batch.externaltask.SetExternalTaskRetriesJobHandler;
 import org.camunda.bpm.engine.impl.batch.job.SetJobRetriesJobHandler;
+import org.camunda.bpm.engine.impl.batch.update.UpdateProcessInstancesSuspendStateJobHandler;
 import org.camunda.bpm.engine.impl.bpmn.behavior.ExternalTaskActivityBehavior;
 import org.camunda.bpm.engine.impl.bpmn.deployer.BpmnDeployer;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParseListener;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParser;
+import org.camunda.bpm.engine.impl.bpmn.parser.DefaultFailedJobParseListener;
 import org.camunda.bpm.engine.impl.calendar.BusinessCalendarManager;
 import org.camunda.bpm.engine.impl.calendar.CycleBusinessCalendar;
 import org.camunda.bpm.engine.impl.calendar.DueDateBusinessCalendar;
@@ -119,6 +122,7 @@ import org.camunda.bpm.engine.impl.cmmn.transformer.CmmnTransformFactory;
 import org.camunda.bpm.engine.impl.cmmn.transformer.CmmnTransformListener;
 import org.camunda.bpm.engine.impl.cmmn.transformer.CmmnTransformer;
 import org.camunda.bpm.engine.impl.cmmn.transformer.DefaultCmmnTransformFactory;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.DbIdGenerator;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManagerFactory;
 import org.camunda.bpm.engine.impl.db.entitymanager.cache.DbEntityCacheKeyMapping;
@@ -186,10 +190,10 @@ import org.camunda.bpm.engine.impl.interceptor.CommandInterceptor;
 import org.camunda.bpm.engine.impl.interceptor.DelegateInterceptor;
 import org.camunda.bpm.engine.impl.interceptor.SessionFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.AsyncContinuationJobHandler;
-import org.camunda.bpm.engine.impl.jobexecutor.DefaultFailedJobCommandFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.DefaultJobExecutor;
 import org.camunda.bpm.engine.impl.jobexecutor.DefaultJobPriorityProvider;
 import org.camunda.bpm.engine.impl.jobexecutor.FailedJobCommandFactory;
+import org.camunda.bpm.engine.impl.jobexecutor.DefaultFailedJobCommandFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.JobDeclaration;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
 import org.camunda.bpm.engine.impl.jobexecutor.JobHandler;
@@ -300,6 +304,7 @@ import org.camunda.bpm.engine.impl.scripting.engine.VariableScopeResolverFactory
 import org.camunda.bpm.engine.impl.scripting.env.ScriptEnvResolver;
 import org.camunda.bpm.engine.impl.scripting.env.ScriptingEnvironment;
 import org.camunda.bpm.engine.impl.util.IoUtil;
+import org.camunda.bpm.engine.impl.util.ParseUtil;
 import org.camunda.bpm.engine.impl.util.ReflectUtil;
 import org.camunda.bpm.engine.impl.variable.ValueTypeResolverImpl;
 import org.camunda.bpm.engine.impl.variable.serializer.BooleanValueSerializer;
@@ -691,6 +696,10 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   private Date historyCleanupBatchWindowStartTimeAsDate;
   private Date historyCleanupBatchWindowEndTimeAsDate;
 
+  protected String batchOperationHistoryTimeToLive;
+  protected Map<String, String> batchOperationsForHistoryCleanup;
+  protected Map<String, Integer> parsedBatchOperationsForHistoryCleanup;
+
   /**
    * Size of batch in which history cleanup data will be deleted. {@link HistoryCleanupBatch#MAX_BATCH_SIZE} must be respected.
    */
@@ -700,7 +709,11 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
    */
   private int historyCleanupBatchThreshold = 10;
 
+  private boolean historyCleanupMetricsEnabled = true;
+
   private int failedJobListenerMaxRetries = DEFAULT_FAILED_JOB_LISTENER_MAX_RETRIES;
+
+  protected String failedJobRetryTimeCycle;
 
   // buildProcessEngine ///////////////////////////////////////////////////////
 
@@ -736,6 +749,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     initCommandExecutors();
     initServices();
     initIdGenerator();
+    initFailedJobCommandFactory();
     initDeployers();
     initJobProvider();
     initExternalTaskPriorityProvider();
@@ -751,7 +765,6 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     initJpa();
     initDelegateInterceptor();
     initEventHandlers();
-    initFailedJobCommandFactory();
     initProcessApplicationManager();
     initCorrelationHandler();
     initIncidentHandlers();
@@ -775,9 +788,58 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
       initHistoryCleanupBatchWindowEndTime();
     }
 
-    if (historyCleanupBatchSize > HistoryCleanupBatch.MAX_BATCH_SIZE) {
+    if (historyCleanupBatchSize > HistoryCleanupBatch.MAX_BATCH_SIZE || historyCleanupBatchSize <= 0) {
       throw LOG.invalidPropertyValue("historyCleanupBatchSize", String.valueOf(historyCleanupBatchSize),
-        String.format("maximum value for batch size is %s", HistoryCleanupBatch.MAX_BATCH_SIZE));
+          String.format("value for batch size should be between 1 and %s", HistoryCleanupBatch.MAX_BATCH_SIZE));
+    }
+
+    if (historyCleanupBatchThreshold < 0) {
+      throw LOG.invalidPropertyValue("historyCleanupBatchThreshold", String.valueOf(historyCleanupBatchThreshold),
+          "History cleanup batch threshold cannot be negative.");
+    }
+
+    initBatchOperationsHistoryTimeToLive();
+  }
+
+  protected void initBatchOperationsHistoryTimeToLive() {
+    try {
+      ParseUtil.parseHistoryTimeToLive(batchOperationHistoryTimeToLive);
+    } catch (Exception e) {
+      throw LOG.invalidPropertyValue("batchOperationHistoryTimeToLive", batchOperationHistoryTimeToLive, e);
+    }
+
+    if (batchOperationsForHistoryCleanup == null) {
+      batchOperationsForHistoryCleanup = new HashMap<String, String>();
+    } else {
+      for (String batchOperation : batchOperationsForHistoryCleanup.keySet()) {
+        String timeToLive = batchOperationsForHistoryCleanup.get(batchOperation);
+        if (!batchHandlers.keySet().contains(batchOperation)) {
+          LOG.invalidBatchOperation(batchOperation, timeToLive);
+        }
+
+        try {
+          ParseUtil.parseHistoryTimeToLive(timeToLive);
+        } catch (Exception e) {
+          throw LOG.invalidPropertyValue("history time to live for " + batchOperation + " batch operations", timeToLive, e);
+        }
+      }
+    }
+
+    if (batchHandlers != null && batchOperationHistoryTimeToLive != null) {
+
+      for (String batchOperation : batchHandlers.keySet()) {
+        if (!batchOperationsForHistoryCleanup.containsKey(batchOperation)) {
+          batchOperationsForHistoryCleanup.put(batchOperation, batchOperationHistoryTimeToLive);
+        }
+      }
+    }
+
+    parsedBatchOperationsForHistoryCleanup = new HashMap<String, Integer>();
+    if (batchOperationsForHistoryCleanup != null) {
+      for (String operation : batchOperationsForHistoryCleanup.keySet()) {
+        Integer historyTimeToLive = ParseUtil.parseHistoryTimeToLive(batchOperationsForHistoryCleanup.get(operation));
+        parsedBatchOperationsForHistoryCleanup.put(operation, historyTimeToLive);
+      }
     }
   }
 
@@ -823,6 +885,11 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     if (failedJobCommandFactory == null) {
       failedJobCommandFactory = new DefaultFailedJobCommandFactory();
     }
+    if (postParseListeners == null) {
+      postParseListeners = new ArrayList<BpmnParseListener>();
+    }
+    postParseListeners.add(new DefaultFailedJobParseListener());
+
   }
 
   // incident handlers /////////////////////////////////////////////////////////////
@@ -870,6 +937,9 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
       RestartProcessInstancesJobHandler restartProcessInstancesJobHandler = new RestartProcessInstancesJobHandler();
       batchHandlers.put(restartProcessInstancesJobHandler.getType(), restartProcessInstancesJobHandler);
+
+      UpdateProcessInstancesSuspendStateJobHandler suspendProcessInstancesJobHandler = new UpdateProcessInstancesSuspendStateJobHandler();
+      batchHandlers.put(suspendProcessInstancesJobHandler.getType(), suspendProcessInstancesJobHandler);
     }
 
     if (customBatchJobHandlers != null) {
@@ -1175,6 +1245,10 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
           configuration.setDefaultStatementTimeout(jdbcStatementTimeout);
 
+          if (isJdbcBatchProcessing()) {
+            configuration.setDefaultExecutorType(ExecutorType.BATCH);
+          }
+
           sqlSessionFactory = new DefaultSqlSessionFactory(configuration);
 
           if (isUseSharedSqlSessionFactory) {
@@ -1216,6 +1290,8 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
       properties.put("dbSpecificDummyTable", DbSqlSessionFactory.databaseSpecificDummyTable.get(databaseType));
       properties.put("dbSpecificIfNullFunction", DbSqlSessionFactory.databaseSpecificIfNull.get(databaseType));
+
+      properties.put("dayComparator", DbSqlSessionFactory.databaseSpecificDaysComparator.get(databaseType));
 
       Map<String, String> constants = DbSqlSessionFactory.dbSpecificConstants.get(databaseType);
       for (Entry<String, String> entry : constants.entrySet()) {
@@ -3712,6 +3788,38 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     this.historyCleanupBatchThreshold = historyCleanupBatchThreshold;
   }
 
+  public boolean isHistoryCleanupMetricsEnabled() {
+    return historyCleanupMetricsEnabled;
+  }
+
+  public void setHistoryCleanupMetricsEnabled(boolean historyCleanupMetricsEnabled) {
+    this.historyCleanupMetricsEnabled = historyCleanupMetricsEnabled;
+  }
+
+  public String getBatchOperationHistoryTimeToLive() {
+    return batchOperationHistoryTimeToLive;
+  }
+
+  public void setBatchOperationHistoryTimeToLive(String batchOperationHistoryTimeToLive) {
+    this.batchOperationHistoryTimeToLive = batchOperationHistoryTimeToLive;
+  }
+
+  public Map<String, String> getBatchOperationsForHistoryCleanup() {
+    return batchOperationsForHistoryCleanup;
+  }
+
+  public void setBatchOperationsForHistoryCleanup(Map<String, String> batchOperationsForHistoryCleanup) {
+    this.batchOperationsForHistoryCleanup = batchOperationsForHistoryCleanup;
+  }
+
+  public Map<String, Integer> getParsedBatchOperationsForHistoryCleanup() {
+    return parsedBatchOperationsForHistoryCleanup;
+  }
+
+  public void setParsedBatchOperationsForHistoryCleanup(Map<String, Integer> parsedBatchOperationsForHistoryCleanup) {
+    this.parsedBatchOperationsForHistoryCleanup = parsedBatchOperationsForHistoryCleanup;
+  }
+
   public int getFailedJobListenerMaxRetries() {
     return failedJobListenerMaxRetries;
   }
@@ -3719,4 +3827,13 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   public void setFailedJobListenerMaxRetries(int failedJobListenerMaxRetries) {
     this.failedJobListenerMaxRetries = failedJobListenerMaxRetries;
   }
+
+  public String getFailedJobRetryTimeCycle() {
+    return failedJobRetryTimeCycle;
+  }
+
+  public void setFailedJobRetryTimeCycle(String failedJobRetryTimeCycle) {
+    this.failedJobRetryTimeCycle = failedJobRetryTimeCycle;
+  }
+
 }

@@ -36,12 +36,6 @@ public class HistoricIncidentManager extends AbstractHistoricManager {
     return getDbEntityManager().selectList("selectHistoricIncidentByQueryCriteria", query, page);
   }
 
-  public void deleteHistoricIncidentsByProcessInstanceId(String processInstanceId) {
-    if (isHistoryLevelFullEnabled()) {
-      getDbEntityManager().delete(HistoricIncidentEntity.class, "deleteHistoricIncidentsByProcessInstanceId", processInstanceId);
-    }
-  }
-
   public void deleteHistoricIncidentsByProcessInstanceIds(List<String> processInstanceIds) {
     getDbEntityManager().deletePreserveOrder(HistoricIncidentEntity.class, "deleteHistoricIncidentsByProcessInstanceIds", processInstanceIds);
   }
@@ -55,6 +49,12 @@ public class HistoricIncidentManager extends AbstractHistoricManager {
   public void deleteHistoricIncidentsByJobDefinitionId(String jobDefinitionId) {
     if (isHistoryLevelFullEnabled()) {
       getDbEntityManager().delete(HistoricIncidentEntity.class, "deleteHistoricIncidentsByJobDefinitionId", jobDefinitionId);
+    }
+  }
+
+  public void deleteHistoricIncidentsByBatchId(List<String> historicBatchIds) {
+    if (isHistoryLevelFullEnabled()) {
+      getDbEntityManager().delete(HistoricIncidentEntity.class, "deleteHistoricIncidentsByBatchIds", historicBatchIds);
     }
   }
 

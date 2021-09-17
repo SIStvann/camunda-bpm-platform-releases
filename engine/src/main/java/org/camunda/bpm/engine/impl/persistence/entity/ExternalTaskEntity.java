@@ -16,6 +16,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.EntityTypes;
 import org.camunda.bpm.engine.delegate.BpmnError;
 import org.camunda.bpm.engine.externaltask.ExternalTask;
@@ -468,5 +469,11 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
   protected void produceHistoricExternalTaskDeletedEvent() {
     CommandContext commandContext = Context.getCommandContext();
     commandContext.getHistoricExternalTaskLogManager().fireExternalTaskDeletedEvent(this);
+  }
+
+  public void extendLock(long newLockExpirationTime) {
+    ensureActive();
+    long newTime = ClockUtil.getCurrentTime().getTime() + newLockExpirationTime;
+    this.lockExpirationTime = new Date(newTime);
   }
 }

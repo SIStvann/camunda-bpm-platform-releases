@@ -367,7 +367,7 @@ public class UserOperationLogDeploymentTest extends AbstractUserOperationLogTest
     assertEquals(1, query.count());
 
     // when
-    repositoryService.deleteProcessDefinition(procDef.getId(), true);
+    repositoryService.deleteProcessDefinition(procDef.getId());
 
     // then
     assertEquals(1, query.count());
@@ -406,7 +406,7 @@ public class UserOperationLogDeploymentTest extends AbstractUserOperationLogTest
     assertEquals(UserOperationLogEntry.OPERATION_TYPE_DELETE, log.getOperationType());
 
     assertEquals("cascade", log.getProperty());
-    assertNull(log.getOrgValue());
+    assertFalse(Boolean.valueOf(log.getOrgValue()));
     assertFalse(Boolean.valueOf(log.getNewValue()));
 
     assertEquals(USER_ID, log.getUserId());
@@ -450,7 +450,7 @@ public class UserOperationLogDeploymentTest extends AbstractUserOperationLogTest
     assertEquals(UserOperationLogEntry.OPERATION_TYPE_DELETE, log.getOperationType());
 
     assertEquals("cascade", log.getProperty());
-    assertNull(log.getOrgValue());
+    assertFalse(Boolean.valueOf(log.getOrgValue()));
     assertTrue(Boolean.valueOf(log.getNewValue()));
 
     assertEquals(USER_ID, log.getUserId());

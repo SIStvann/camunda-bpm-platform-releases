@@ -359,6 +359,18 @@ public class AuthorizationManager extends AbstractManager {
     }
   }
 
+  public void configureQueryHistoricFinishedInstanceReport(ListQueryParameterObject query, Resource resource) {
+    configureQuery(query);
+
+    CompositePermissionCheck compositePermissionCheck = new PermissionCheckBuilder()
+      .conjunctive()
+        .atomicCheck(resource, "RES.KEY_", READ)
+        .atomicCheck(resource, "RES.KEY_", READ_HISTORY)
+      .build();
+
+    query.getAuthCheck().setPermissionChecks(compositePermissionCheck);
+  }
+
   public void enableQueryAuthCheck(AuthorizationCheck authCheck) {
     List<String> authGroupIds = authCheck.getAuthGroupIds();
     String authUserId = authCheck.getAuthUserId();
@@ -587,59 +599,59 @@ public class AuthorizationManager extends AbstractManager {
   // historic activity instance query /////////////////////////////////
 
   public void configureHistoricActivityInstanceQuery(HistoricActivityInstanceQueryImpl query) {
-    configureQuery(query, PROCESS_DEFINITION, "SELF.PROC_DEF_KEY_", READ_HISTORY);
+    configureQuery(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_HISTORY);
   }
 
   // historic task instance query ////////////////////////////////////
 
   public void configureHistoricTaskInstanceQuery(HistoricTaskInstanceQueryImpl query) {
-    configureQuery(query, PROCESS_DEFINITION, "SELF.PROC_DEF_KEY_", READ_HISTORY);
+    configureQuery(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_HISTORY);
   }
 
   // historic variable instance query ////////////////////////////////
 
   public void configureHistoricVariableInstanceQuery(HistoricVariableInstanceQueryImpl query) {
-    configureQuery(query, PROCESS_DEFINITION, "SELF.PROC_DEF_KEY_", READ_HISTORY);
+    configureQuery(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_HISTORY);
   }
 
   // historic detail query ////////////////////////////////
 
   public void configureHistoricDetailQuery(HistoricDetailQueryImpl query) {
-    configureQuery(query, PROCESS_DEFINITION, "SELF.PROC_DEF_KEY_", READ_HISTORY);
+    configureQuery(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_HISTORY);
   }
 
   // historic job log query ////////////////////////////////
 
   public void configureHistoricJobLogQuery(HistoricJobLogQueryImpl query) {
-    configureQuery(query, PROCESS_DEFINITION, "SELF.PROCESS_DEF_KEY_", READ_HISTORY);
+    configureQuery(query, PROCESS_DEFINITION, "RES.PROCESS_DEF_KEY_", READ_HISTORY);
   }
 
   // historic incident query ////////////////////////////////
 
   public void configureHistoricIncidentQuery(HistoricIncidentQueryImpl query) {
-    configureQuery(query, PROCESS_DEFINITION, "SELF.PROC_DEF_KEY_", READ_HISTORY);
+    configureQuery(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_HISTORY);
   }
 
   //historic identity link query ////////////////////////////////
 
   public void configureHistoricIdentityLinkQuery(HistoricIdentityLinkLogQueryImpl query) {
-   configureQuery(query, PROCESS_DEFINITION, "SELF.PROC_DEF_KEY_", READ_HISTORY);
+   configureQuery(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_HISTORY);
   }
 
   public void configureHistoricDecisionInstanceQuery(HistoricDecisionInstanceQueryImpl query) {
-    configureQuery(query, DECISION_DEFINITION, "SELF.DEC_DEF_KEY_", READ_HISTORY);
+    configureQuery(query, DECISION_DEFINITION, "RES.DEC_DEF_KEY_", READ_HISTORY);
   }
 
   // historic external task log query /////////////////////////////////
 
   public void configureHistoricExternalTaskLogQuery(HistoricExternalTaskLogQueryImpl query) {
-    configureQuery(query, PROCESS_DEFINITION, "SELF.PROC_DEF_KEY_", READ_HISTORY);
+    configureQuery(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_HISTORY);
   }
 
   // user operation log query ///////////////////////////////
 
   public void configureUserOperationLogQuery(UserOperationLogQueryImpl query) {
-    configureQuery(query, PROCESS_DEFINITION, "SELF.PROC_DEF_KEY_", READ_HISTORY);
+    configureQuery(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_HISTORY);
   }
 
   // batch

@@ -61,11 +61,11 @@ public class PvmAtomicOperationTransitionDestroyScope implements PvmAtomicOperat
         }
         else {
           propagatingExecution = execution.getParent();
+          LOG.debugDestroyScope(execution, propagatingExecution);
+          execution.destroy();
           propagatingExecution.setActivity(execution.getActivity());
           propagatingExecution.setTransition(execution.getTransition());
           propagatingExecution.setActive(true);
-          LOG.debugDestroyScope(execution, propagatingExecution);
-          execution.destroy();
           execution.remove();
         }
       }

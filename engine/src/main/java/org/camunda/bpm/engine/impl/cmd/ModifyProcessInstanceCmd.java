@@ -15,6 +15,7 @@ package org.camunda.bpm.engine.impl.cmd;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.Callable;
 
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
@@ -25,6 +26,7 @@ import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
+import org.camunda.bpm.engine.runtime.ActivityInstance;
 
 /**
  * @author Thorben Lindhauer
@@ -62,7 +64,9 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
 
     List<AbstractProcessInstanceModificationCommand> instructions = builder.getModificationOperations();
 
+    checkCancellation(commandContext);
     for (int i = 0; i < instructions.size(); i++) {
+
       AbstractProcessInstanceModificationCommand instruction = instructions.get(i);
       LOG.debugModificationInstruction(processInstanceId, i + 1, instruction.describe());
 
@@ -74,10 +78,10 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     processInstance = executionManager.findExecutionById(processInstanceId);
 
     if (!processInstance.hasChildren()) {
-      if (processInstance.getActivity() == null) {
+      if (!(processInstance.getActivity() != null && !processInstance.getId().equals(processInstance.getActivityInstanceId()))) {
         // process instance was cancelled
         checkDeleteProcessInstance(processInstance, commandContext);
-        processInstance.deleteCascade("Cancellation due to process instance modification", builder.isSkipCustomListeners(), builder.isSkipIoMappings());
+        deletePropagate(processInstance,"Cancellation due to process instance modifcation", builder.isSkipCustomListeners(), builder.isSkipIoMappings());
       }
       else if (processInstance.isEnded()) {
         // process instance has ended regularly
@@ -94,6 +98,21 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     }
 
     return null;
+  }
+
+  private void checkCancellation(final CommandContext commandContext) {
+    for (final AbstractProcessInstanceModificationCommand instruction : builder.getModificationOperations()) {
+      if (instruction instanceof ActivityCancellationCmd
+          && ((ActivityCancellationCmd) instruction).cancelCurrentActiveActivityInstances) {
+        ActivityInstance activityInstanceTree = commandContext.runWithoutAuthorization(new Callable<ActivityInstance>() {
+          @Override
+          public ActivityInstance call() throws Exception {
+            return new GetActivityInstanceCmd(((ActivityCancellationCmd) instruction).processInstanceId).execute(commandContext);
+          }
+        });
+        ((ActivityCancellationCmd) instruction).setActivityInstanceTreeToCancel(activityInstanceTree);
+      }
+    }
   }
 
   protected void ensureProcessInstanceExist(String processInstanceId, ExecutionEntity processInstance) {
@@ -116,5 +135,17 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
     for(CommandChecker checker : commandContext.getProcessEngineConfiguration().getCommandCheckers()) {
       checker.checkDeleteProcessInstance(execution);
     }
+  }
+
+  protected void deletePropagate(ExecutionEntity processInstance, String deleteReason, boolean skipCustomListeners, boolean skipIoMappings) {
+    ExecutionEntity topmostDeletableExecution = processInstance;
+    ExecutionEntity parentScopeExecution = (ExecutionEntity) topmostDeletableExecution.getParentScopeExecution(true);
+
+    while (parentScopeExecution != null && (parentScopeExecution.getNonEventScopeExecutions().size() <= 1)) {
+        topmostDeletableExecution = parentScopeExecution;
+        parentScopeExecution = (ExecutionEntity) topmostDeletableExecution.getParentScopeExecution(true);
+    }
+
+    topmostDeletableExecution.deleteCascade(deleteReason, skipCustomListeners, skipIoMappings);
   }
 }

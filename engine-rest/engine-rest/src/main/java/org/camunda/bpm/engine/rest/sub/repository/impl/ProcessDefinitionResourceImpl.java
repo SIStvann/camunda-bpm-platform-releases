@@ -24,6 +24,7 @@ import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.exception.NotFoundException;
+import org.camunda.bpm.engine.exception.NullValueException;
 import org.camunda.bpm.engine.form.StartFormData;
 import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.management.ActivityStatistics;
@@ -390,8 +391,12 @@ public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource 
   private RestartProcessInstanceBuilder createRestartProcessInstanceBuilder(RestartProcessInstanceDto restartProcessInstanceDto) {
     RuntimeService runtimeService = engine.getRuntimeService();
     RestartProcessInstanceBuilder builder = runtimeService
-        .restartProcessInstances(processDefinitionId)
-        .processInstanceIds(restartProcessInstanceDto.getProcessInstanceIds());
+        .restartProcessInstances(processDefinitionId);
+
+    if (restartProcessInstanceDto.getProcessInstanceIds() != null) {
+      builder.processInstanceIds(restartProcessInstanceDto.getProcessInstanceIds());
+    }
+
     if (restartProcessInstanceDto.getHistoricProcessInstanceQuery() != null) {
       builder.historicProcessInstanceQuery(restartProcessInstanceDto.getHistoricProcessInstanceQuery().toQuery(engine));
     }
@@ -413,5 +418,21 @@ public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource 
     }
     restartProcessInstanceDto.applyTo(builder, engine, objectMapper);
     return builder;
+  }
+
+  public Response getDeployedStartForm() {
+    InputStream deployedStartForm = null;
+    try {
+      deployedStartForm = engine.getFormService().getDeployedStartForm(processDefinitionId);
+    } catch (NotFoundException e) {
+      throw new InvalidRequestException(Status.NOT_FOUND, e.getMessage());
+    } catch (NullValueException e) {
+      throw new InvalidRequestException(Status.BAD_REQUEST, e.getMessage());
+    } catch (AuthorizationException e) {
+      throw new InvalidRequestException(Status.FORBIDDEN, e.getMessage());
+    } catch (BadUserRequestException e) {
+      throw new InvalidRequestException(Status.BAD_REQUEST, e.getMessage());
+    }
+    return Response.ok(deployedStartForm, MediaType.APPLICATION_XHTML_XML).build();
   }
 }

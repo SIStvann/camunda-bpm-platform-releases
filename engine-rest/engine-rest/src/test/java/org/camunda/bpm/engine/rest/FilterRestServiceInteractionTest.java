@@ -52,6 +52,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertEquals;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Matchers.anyListOf;
@@ -111,6 +112,7 @@ import org.junit.ClassRule;
 import org.junit.Test;
 
 import com.jayway.restassured.response.Response;
+import org.mockito.ArgumentCaptor;
 
 /**
  * @author Sebastian Menski
@@ -129,6 +131,8 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
 
   public static final TaskQuery extendingQuery = new TaskQueryImpl().taskName(MockProvider.EXAMPLE_TASK_NAME);
   public static final TaskQueryDto extendingQueryDto = TaskQueryDto.fromQuery(extendingQuery);
+  public static final TaskQuery extendingOrQuery = new TaskQueryImpl().or().taskDescription(MockProvider.EXAMPLE_TASK_DESCRIPTION).endOr().or().taskName(MockProvider.EXAMPLE_TASK_NAME).endOr();
+  public static final TaskQueryDto extendingOrQueryDto = TaskQueryDto.fromQuery(extendingOrQuery);
   public static final String invalidExtendingQuery = "abc";
 
   public static final String PROCESS_INSTANCE_A_ID = "processInstanceA";
@@ -920,6 +924,24 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
 
     verify(filterServiceMock).singleResult(eq(EXAMPLE_FILTER_ID),
         argThat(hasName(MockProvider.EXAMPLE_TASK_NAME)));
+  }
+
+  @Test
+  public void testExecuteSingleResultWithExtendingOrQuery() {
+    given()
+      .header(ACCEPT_JSON_HEADER)
+      .pathParam("id", EXAMPLE_FILTER_ID)
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(extendingOrQueryDto)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(EXECUTE_SINGLE_RESULT_FILTER_URL);
+
+    ArgumentCaptor<TaskQueryImpl> argument = ArgumentCaptor.forClass(TaskQueryImpl.class);
+    verify(filterServiceMock).singleResult(eq(EXAMPLE_FILTER_ID), argument.capture());
+    assertEquals(MockProvider.EXAMPLE_TASK_DESCRIPTION, argument.getValue().getQueries().get(1).getDescription());
+    assertEquals(MockProvider.EXAMPLE_TASK_NAME, argument.getValue().getQueries().get(2).getName());
   }
 
   @Test

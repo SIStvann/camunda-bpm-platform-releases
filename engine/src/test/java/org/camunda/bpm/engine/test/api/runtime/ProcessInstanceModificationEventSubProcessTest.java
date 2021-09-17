@@ -37,6 +37,7 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
   protected static final String NON_INTERRUPTING_EVENT_SUBPROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.nonInterruptingEventSubProcess.bpmn20.xml";
   protected static final String INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.interruptingEventSubProcessInsideSubProcess.bpmn20.xml";
   protected static final String NON_INTERRUPTING_EVENT_SUBPROCESS_INSIDE_SUBPROCESS = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationTest.nonInterruptingEventSubProcessInsideSubProcess.bpmn20.xml";
+  protected static final String CANCEL_AND_RESTART = "org/camunda/bpm/engine/test/api/runtime/ProcessInstanceModificationEventSubProcessTest.testCancelAndRestart.bpmn20.xml";
 
   @Deployment(resources = INTERRUPTING_EVENT_SUBPROCESS)
   public void testStartBeforeTaskInsideEventSubProcess() {
@@ -803,6 +804,28 @@ public class ProcessInstanceModificationEventSubProcessTest extends PluggablePro
     assertEquals(timerJob.getId(), remainingTimerJob.getId());
     assertEquals(timerJob.getDuedate(), remainingTimerJob.getDuedate());
 
+  }
+
+
+  @Deployment(resources = CANCEL_AND_RESTART)
+  public void testProcessInstanceModificationInEventSubProcessCancellationAndRestart() {
+    // given
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("ProcessWithEventSubProcess");
+
+    // assume
+    Task task = taskService.createTaskQuery()
+        .processInstanceId(processInstance.getId())
+        .taskDefinitionKey("UserTaskEventSubProcess")
+        .singleResult();
+    assertNotNull(task);
+
+    // when
+    runtimeService.createProcessInstanceModification(processInstance.getId())
+      .cancelAllForActivity("UserTaskEventSubProcess")
+      .startAfterActivity("UserTaskEventSubProcess")
+      .execute();
+
+    assertNull(runtimeService.createProcessInstanceQuery().singleResult());
   }
 
   protected String getInstanceIdForActivity(ActivityInstance activityInstance, String activityId) {

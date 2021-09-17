@@ -33,6 +33,8 @@ public class ModificationInstructionBuilder {
   protected String transitionInstanceId;
   protected String ancestorActivityInstanceId;
   protected String transitionId;
+  protected boolean isFlagSet;
+  protected boolean cancelCurrentActiveActivityInstances;
 
   public static ModificationInstructionBuilder cancellation() {
     return new ModificationInstructionBuilder("cancel");
@@ -80,6 +82,13 @@ public class ModificationInstructionBuilder {
     return this;
   }
 
+  public ModificationInstructionBuilder cancelCurrentActiveActivityInstances(
+      boolean cancelCurrentActiveActivityInstances) {
+    isFlagSet = true;
+    this.cancelCurrentActiveActivityInstances = cancelCurrentActiveActivityInstances;
+    return this;
+  }
+
   public Map<String, Object> getJson() {
     Map<String, Object> json = new HashMap<String, Object>();
 
@@ -91,6 +100,9 @@ public class ModificationInstructionBuilder {
     json.put("variables", variables);
     json.put("transitionId", transitionId);
 
+    if (type.equals("cancel") && isFlagSet) {
+      json.put("cancelCurrentActiveActivityInstances", cancelCurrentActiveActivityInstances);
+    }
     return json;
   }
 }

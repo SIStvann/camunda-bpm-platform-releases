@@ -14,6 +14,7 @@ package org.camunda.bpm.engine.rest;
 
 import static com.jayway.restassured.RestAssured.given;
 import static com.jayway.restassured.path.json.JsonPath.from;
+import static org.camunda.bpm.engine.rest.util.DateTimeUtils.withTimezone;
 import static org.fest.assertions.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -159,13 +160,14 @@ public class ExternalTaskRestServiceQueryTest extends AbstractRestServiceTest {
 
     parameters.put("externalTaskId", "someExternalTaskId");
     parameters.put("activityId", "someActivityId");
-    parameters.put("lockExpirationBefore", "2013-01-23T14:42:42");
-    parameters.put("lockExpirationAfter", "2013-01-23T15:52:52");
+    parameters.put("lockExpirationBefore", withTimezone("2013-01-23T14:42:42"));
+    parameters.put("lockExpirationAfter", withTimezone("2013-01-23T15:52:52"));
     parameters.put("topicName", "someTopic");
     parameters.put("locked", "true");
     parameters.put("notLocked", "true");
     parameters.put("executionId", "someExecutionId");
     parameters.put("processInstanceId", "someProcessInstanceId");
+    parameters.put("processInstanceIdIn", "aProcessInstanceId,anotherProcessInstanceId");
     parameters.put("processDefinitionId", "someProcessDefinitionId");
     parameters.put("active", "true");
     parameters.put("suspended", "true");
@@ -183,13 +185,14 @@ public class ExternalTaskRestServiceQueryTest extends AbstractRestServiceTest {
 
     verify(mockQuery).externalTaskId("someExternalTaskId");
     verify(mockQuery).activityId("someActivityId");
-    verify(mockQuery).lockExpirationBefore(DateTimeUtil.parseDate("2013-01-23T14:42:42"));
-    verify(mockQuery).lockExpirationAfter(DateTimeUtil.parseDate("2013-01-23T15:52:52"));
+    verify(mockQuery).lockExpirationBefore(DateTimeUtil.parseDate(withTimezone("2013-01-23T14:42:42")));
+    verify(mockQuery).lockExpirationAfter(DateTimeUtil.parseDate(withTimezone("2013-01-23T15:52:52")));
     verify(mockQuery).topicName("someTopic");
     verify(mockQuery).locked();
     verify(mockQuery).notLocked();
     verify(mockQuery).executionId("someExecutionId");
     verify(mockQuery).processInstanceId("someProcessInstanceId");
+    verify(mockQuery).processInstanceIdIn("aProcessInstanceId", "anotherProcessInstanceId");
     verify(mockQuery).processDefinitionId("someProcessDefinitionId");
     verify(mockQuery).active();
     verify(mockQuery).suspended();
@@ -202,17 +205,18 @@ public class ExternalTaskRestServiceQueryTest extends AbstractRestServiceTest {
 
   @Test
   public void testCompletePOSTQuery() {
-    Map<String, String> parameters = new HashMap<String, String>();
+    Map<String, Object> parameters = new HashMap<String, Object>();
 
     parameters.put("externalTaskId", "someExternalTaskId");
     parameters.put("activityId", "someActivityId");
-    parameters.put("lockExpirationBefore", "2013-01-23T14:42:42");
-    parameters.put("lockExpirationAfter", "2013-01-23T15:52:52");
+    parameters.put("lockExpirationBefore", withTimezone("2013-01-23T14:42:42"));
+    parameters.put("lockExpirationAfter", withTimezone("2013-01-23T15:52:52"));
     parameters.put("topicName", "someTopic");
     parameters.put("locked", "true");
     parameters.put("notLocked", "true");
     parameters.put("executionId", "someExecutionId");
     parameters.put("processInstanceId", "someProcessInstanceId");
+    parameters.put("processInstanceIdIn", Arrays.asList("aProcessInstanceId", "anotherProcessInstanceId"));
     parameters.put("processDefinitionId", "someProcessDefinitionId");
     parameters.put("active", "true");
     parameters.put("suspended", "true");
@@ -231,13 +235,14 @@ public class ExternalTaskRestServiceQueryTest extends AbstractRestServiceTest {
 
     verify(mockQuery).externalTaskId("someExternalTaskId");
     verify(mockQuery).activityId("someActivityId");
-    verify(mockQuery).lockExpirationBefore(DateTimeUtil.parseDate("2013-01-23T14:42:42"));
-    verify(mockQuery).lockExpirationAfter(DateTimeUtil.parseDate("2013-01-23T15:52:52"));
+    verify(mockQuery).lockExpirationBefore(DateTimeUtil.parseDate(withTimezone("2013-01-23T14:42:42")));
+    verify(mockQuery).lockExpirationAfter(DateTimeUtil.parseDate(withTimezone("2013-01-23T15:52:52")));
     verify(mockQuery).topicName("someTopic");
     verify(mockQuery).locked();
     verify(mockQuery).notLocked();
     verify(mockQuery).executionId("someExecutionId");
     verify(mockQuery).processInstanceId("someProcessInstanceId");
+    verify(mockQuery).processInstanceIdIn("aProcessInstanceId", "anotherProcessInstanceId");
     verify(mockQuery).processDefinitionId("someProcessDefinitionId");
     verify(mockQuery).active();
     verify(mockQuery).suspended();
@@ -315,7 +320,7 @@ public class ExternalTaskRestServiceQueryTest extends AbstractRestServiceTest {
     executeAndVerifyGETSorting("tenantId", "asc", Status.OK);
     inOrder.verify(mockQuery).orderByTenantId();
     inOrder.verify(mockQuery).asc();
-    
+
     inOrder = Mockito.inOrder(mockQuery);
     executeAndVerifyGETSorting("taskPriority", "asc", Status.OK);
     inOrder.verify(mockQuery).orderByPriority();
@@ -524,7 +529,7 @@ public class ExternalTaskRestServiceQueryTest extends AbstractRestServiceTest {
         MockProvider.mockExternalTask().buildExternalTask(),
         MockProvider.mockExternalTask().activityId(MockProvider.ANOTHER_EXAMPLE_ACTIVITY_ID).buildExternalTask());
   }
-  
+
   @Test
   public void testQueryByPriorityListGet() {
     mockQuery = setUpMockExternalTaskQuery(createMockedExternalTasksWithPriorities());
@@ -532,7 +537,7 @@ public class ExternalTaskRestServiceQueryTest extends AbstractRestServiceTest {
     Map<String, Object> queryParameters = new HashMap<String, Object>();
     queryParameters.put("priorityHigherThanOrEquals", "3");
     queryParameters.put("priorityLowerThanOrEquals", "4");
-    
+
     Response response = given()
         .queryParameters(queryParameters)
     .expect()
@@ -562,7 +567,7 @@ public class ExternalTaskRestServiceQueryTest extends AbstractRestServiceTest {
     Map<String, Object> queryParameters = new HashMap<String, Object>();
     queryParameters.put("priorityHigherThanOrEquals", "3");
     queryParameters.put("priorityLowerThanOrEquals", "4");
-    
+
     Response response = given()
         .contentType(POST_JSON_CONTENT_TYPE)
         .body(queryParameters)
@@ -584,9 +589,9 @@ public class ExternalTaskRestServiceQueryTest extends AbstractRestServiceTest {
 
     assertThat(prio1).isEqualTo(EXTERNAL_TASK_LOW_BOUND_PRIORITY);
     assertThat(prio2).isEqualTo(EXTERNAL_TASK_HIGH_BOUND_PRIORITY);
-  }  
-  
-  
+  }
+
+
   private List<ExternalTask> createMockedExternalTasksWithPriorities() {
     return Arrays.asList(
         MockProvider.mockExternalTask().priority(EXTERNAL_TASK_LOW_BOUND_PRIORITY).buildExternalTask(),

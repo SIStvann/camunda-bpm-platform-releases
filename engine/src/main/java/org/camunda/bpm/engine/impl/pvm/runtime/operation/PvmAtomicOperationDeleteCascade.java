@@ -30,25 +30,35 @@ public class PvmAtomicOperationDeleteCascade implements PvmAtomicOperation {
   }
 
   public void execute(PvmExecutionImpl execution) {
-    PvmExecutionImpl firstLeaf = findFirstLeaf(execution);
+    PvmExecutionImpl nextLeaf;
+    do {
+      nextLeaf = findNextLeaf(execution);
 
-    // propagate skipCustomListeners property
-    PvmExecutionImpl deleteRoot = getDeleteRoot(execution);
-    if(deleteRoot != null) {
-      firstLeaf.setSkipCustomListeners(deleteRoot.isSkipCustomListeners());
-      firstLeaf.setSkipIoMappings(deleteRoot.isSkipIoMappings());
-    }
+      // propagate skipCustomListeners property
+      PvmExecutionImpl deleteRoot = getDeleteRoot(execution);
+      if (deleteRoot != null) {
+        nextLeaf.setSkipCustomListeners(deleteRoot.isSkipCustomListeners());
+        nextLeaf.setSkipIoMappings(deleteRoot.isSkipIoMappings());
+      }
 
-    if (firstLeaf.getSubProcessInstance()!=null) {
-      firstLeaf.getSubProcessInstance().deleteCascade(execution.getDeleteReason(), firstLeaf.isSkipCustomListeners(), firstLeaf.isSkipIoMappings());
-    }
+      PvmExecutionImpl subProcessInstance = nextLeaf.getSubProcessInstance();
+      if (subProcessInstance != null) {
+        if (deleteRoot.isSkipSubprocesses()) {
+          subProcessInstance.setSuperExecution(null);
+        } else {
+          subProcessInstance.deleteCascade(execution.getDeleteReason(), nextLeaf.isSkipCustomListeners(), nextLeaf.isSkipIoMappings());
+        }
+      }
 
-    firstLeaf.performOperation(DELETE_CASCADE_FIRE_ACTIVITY_END);
+      nextLeaf.performOperation(DELETE_CASCADE_FIRE_ACTIVITY_END);
+
+    } while (!nextLeaf.isDeleteRoot());
+
   }
 
-  protected PvmExecutionImpl findFirstLeaf(PvmExecutionImpl execution) {
+  protected PvmExecutionImpl findNextLeaf(PvmExecutionImpl execution) {
     if (execution.hasChildren()) {
-      return findFirstLeaf(execution.getExecutions().get(0));
+      return findNextLeaf(execution.getExecutions().get(0));
     }
     return execution;
   }

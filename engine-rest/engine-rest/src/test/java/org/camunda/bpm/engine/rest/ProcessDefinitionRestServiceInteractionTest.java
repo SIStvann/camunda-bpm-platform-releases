@@ -12,6 +12,8 @@ import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
 import org.camunda.bpm.engine.impl.digest._apacheCommonsCodec.Base64;
 import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.impl.util.ReflectUtil;
+import org.camunda.bpm.engine.repository.DeleteProcessDefinitionsBuilder;
+import org.camunda.bpm.engine.repository.DeleteProcessDefinitionsSelectBuilder;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinitionQuery;
 import org.camunda.bpm.engine.rest.dto.HistoryTimeToLiveDto;
@@ -77,6 +79,8 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
 
   protected static final String START_FORM_URL = SINGLE_PROCESS_DEFINITION_URL + "/startForm";
   protected static final String START_FORM_BY_KEY_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_URL + "/startForm";
+  protected static final String DEPLOYED_START_FORM_URL = SINGLE_PROCESS_DEFINITION_URL + "/deployed-start-form";
+  protected static final String DEPLOYED_START_FORM_BY_KEY_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_URL + "/deployed-start-form";
   protected static final String RENDERED_FORM_URL = SINGLE_PROCESS_DEFINITION_URL + "/rendered-form";
   protected static final String RENDERED_FORM_BY_KEY_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_URL + "/rendered-form";
   protected static final String SUBMIT_FORM_URL = SINGLE_PROCESS_DEFINITION_URL + "/submit-form";
@@ -88,6 +92,8 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
   protected static final String SINGLE_PROCESS_DEFINITION_BY_KEY_SUSPENDED_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_URL + "/suspended";
   protected static final String SINGLE_PROCESS_DEFINITION_HISTORY_TIMETOLIVE_URL = SINGLE_PROCESS_DEFINITION_URL + "/history-time-to-live";
   protected static final String PROCESS_DEFINITION_SUSPENDED_URL = PROCESS_DEFINITION_URL + "/suspended";
+  protected static final String SINGLE_PROCESS_DEFINITION_BY_KEY_DELETE_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_URL + "/delete";
+  protected static final String SINGLE_PROCESS_DEFINITION_BY_KEY_AND_TENANT_ID_DELETE_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_AND_TENANT_ID_URL + "/delete";
 
   private RuntimeService runtimeServiceMock;
   private RepositoryService repositoryServiceMock;
@@ -136,6 +142,9 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
     when(processEngine.getRepositoryService()).thenReturn(repositoryServiceMock);
     when(repositoryServiceMock.getProcessDefinition(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))).thenReturn(mockDefinition);
     when(repositoryServiceMock.getProcessModel(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))).thenReturn(createMockProcessDefinionBpmn20Xml());
+
+    DeleteProcessDefinitionsSelectBuilder deleteProcessDefinitionsSelectBuilder = mock(DeleteProcessDefinitionsSelectBuilder.class, RETURNS_DEEP_STUBS);
+    when(repositoryServiceMock.deleteProcessDefinitions()).thenReturn(deleteProcessDefinitionsSelectBuilder);
 
     setUpMockDefinitionQuery(mockDefinition);
 
@@ -1552,6 +1561,185 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
       .body("message", is(message))
     .when()
       .delete(SINGLE_PROCESS_DEFINITION_URL);
+  }
+
+  @Test
+  public void testDeleteDefinitionsByKey() {
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_BY_KEY_DELETE_URL);
+
+    DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
+      .byKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY);
+
+    verify(builder).delete();
+  }
+
+  @Test
+  public void testDeleteDefinitionsByKeyCascade() {
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .queryParam("cascade", true)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_BY_KEY_DELETE_URL);
+
+    DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
+      .byKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .cascade();
+
+    verify(builder).delete();
+  }
+
+  @Test
+  public void testDeleteDefinitionsByKeySkipCustomListeners() {
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .queryParam("skipCustomListeners", true)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_BY_KEY_DELETE_URL);
+
+    DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
+      .byKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .skipCustomListeners();
+
+    verify(builder).delete();
+  }
+
+  @Test
+  public void testDeleteDefinitionsByKeySkipCustomListenersAndCascade() {
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .queryParam("cascade", true)
+      .queryParam("skipCustomListeners", true)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_BY_KEY_DELETE_URL);
+
+    DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
+      .byKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .skipCustomListeners()
+      .cascade();
+
+    verify(builder).delete();
+  }
+
+  @Test
+  public void testDeleteDefinitionsByKeyNotExistingKey() {
+    DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
+      .byKey("NOT_EXISTING_KEY");
+
+    doThrow(new NotFoundException("No process definition found with key 'NOT_EXISTING_KEY'")).when(builder).delete();
+
+    given()
+      .pathParam("key", "NOT_EXISTING_KEY")
+    .expect()
+      .statusCode(Status.NOT_FOUND.getStatusCode())
+      .body(containsString("No process definition found with key 'NOT_EXISTING_KEY'"))
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_BY_KEY_DELETE_URL);
+  }
+
+  @Test
+  public void testDeleteDefinitionsByKeyWithTenantId() {
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .pathParam("tenant-id", MockProvider.EXAMPLE_TENANT_ID)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_BY_KEY_AND_TENANT_ID_DELETE_URL);
+
+    DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
+      .byKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .withTenantId(MockProvider.EXAMPLE_TENANT_ID);
+
+    verify(builder).delete();
+  }
+
+
+  @Test
+  public void testDeleteDefinitionsByKeyCascadeWithTenantId() {
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .pathParam("tenant-id", MockProvider.EXAMPLE_TENANT_ID)
+      .queryParam("cascade", true)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_BY_KEY_AND_TENANT_ID_DELETE_URL);
+
+    DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
+      .byKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .withTenantId(MockProvider.EXAMPLE_TENANT_ID)
+      .cascade();
+
+    verify(builder).delete();
+  }
+
+  @Test
+  public void testDeleteDefinitionsByKeySkipCustomListenersWithTenantId() {
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .pathParam("tenant-id", MockProvider.EXAMPLE_TENANT_ID)
+      .queryParam("skipCustomListeners", true)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_BY_KEY_AND_TENANT_ID_DELETE_URL);
+
+    DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
+      .byKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .withTenantId(MockProvider.EXAMPLE_TENANT_ID)
+      .skipCustomListeners();
+
+    verify(builder).delete();
+  }
+
+  @Test
+  public void testDeleteDefinitionsByKeySkipCustomListenersAndCascadeWithTenantId() {
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .queryParam("skipCustomListeners", true)
+      .queryParam("cascade", true)
+      .pathParam("tenant-id", MockProvider.EXAMPLE_TENANT_ID)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_BY_KEY_AND_TENANT_ID_DELETE_URL);
+
+    DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
+      .byKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .withTenantId(MockProvider.EXAMPLE_TENANT_ID)
+      .skipCustomListeners()
+      .cascade();
+
+    verify(builder).delete();
+  }
+
+  @Test
+  public void testDeleteDefinitionsByKeyNoPermissions() {
+    DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
+      .byKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .withTenantId(MockProvider.EXAMPLE_TENANT_ID);
+
+    doThrow(new AuthorizationException("No permission to delete process definitions")).when(builder).delete();
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .pathParam("tenant-id", MockProvider.EXAMPLE_TENANT_ID)
+    .expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .body(containsString("No permission to delete process definitions"))
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_BY_KEY_AND_TENANT_ID_DELETE_URL);
   }
 
   @Test
@@ -3605,6 +3793,85 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
       .body("message", equalTo(message))
     .when()
       .get(START_FORM_VARIABLES_BY_KEY_URL);
+  }
+
+  @Test
+  public void testGetDeployedStartForm_ByKey() {
+    InputStream deployedStartFormMock = new ByteArrayInputStream("Test".getBytes());
+    when(formServiceMock.getDeployedStartForm(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))
+        .thenReturn(deployedStartFormMock);
+
+    given()
+    .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+    .then().expect()
+    .statusCode(Status.OK.getStatusCode())
+    .body(equalTo("Test"))
+    .when()
+    .get(DEPLOYED_START_FORM_BY_KEY_URL);
+
+    verify(formServiceMock).getDeployedStartForm(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID);
+  }
+
+  @Test
+  public void testGetDeployedStartForm() {
+    InputStream deployedStartFormMock = new ByteArrayInputStream("Test".getBytes());
+    when(formServiceMock.getDeployedStartForm(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))
+        .thenReturn(deployedStartFormMock);
+
+    given()
+    .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+    .then().expect()
+    .statusCode(Status.OK.getStatusCode())
+    .body(equalTo("Test"))
+    .when()
+    .get(DEPLOYED_START_FORM_URL);
+
+    verify(formServiceMock).getDeployedStartForm(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID);
+  }
+
+  @Test
+  public void testGetDeployedStartFormWithoutAuthorization() {
+    String message = "unauthorized";
+    when(formServiceMock.getDeployedStartForm(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))
+        .thenThrow(new AuthorizationException(message));
+
+    given()
+    .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+    .then().expect()
+    .statusCode(Status.FORBIDDEN.getStatusCode())
+    .body("message", equalTo(message))
+    .when()
+    .get(DEPLOYED_START_FORM_URL);
+  }
+
+  @Test
+  public void testGetDeployedStartFormWithWrongFormKeyFormat() {
+    String message = "wrong key format";
+    when(formServiceMock.getDeployedStartForm(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))
+        .thenThrow(new BadUserRequestException(message));
+
+    given()
+    .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+    .then().expect()
+    .statusCode(Status.BAD_REQUEST.getStatusCode())
+    .body("message", equalTo(message))
+    .when()
+    .get(DEPLOYED_START_FORM_URL);
+  }
+
+  @Test
+  public void testGetDeployedStartFormWithUnexistingForm() {
+    String message = "not found";
+    when(formServiceMock.getDeployedStartForm(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))
+        .thenThrow(new NotFoundException(message));
+
+    given()
+    .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+    .then().expect()
+    .statusCode(Status.NOT_FOUND.getStatusCode())
+    .body("message", equalTo(message))
+    .when()
+    .get(DEPLOYED_START_FORM_URL);
   }
 
 }

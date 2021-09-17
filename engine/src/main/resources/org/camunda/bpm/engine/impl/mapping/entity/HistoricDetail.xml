@@ -127,16 +127,41 @@
 
   <delete id="deleteHistoricDetailsByIds" parameterType="java.util.Map">
     delete from ${prefix}ACT_HI_DETAIL
-    <include refid="selectHistoricDetailsByIdsSql"/>
+    <where>
+      <include refid="selectHistoricDetailsProcessAndCaseInstanceByIdsSql"/>
+      <include refid="selectHistoricDetailsTaskProcessAndCaseInstanceByIdsSql"/>
+    </where>
+  </delete>
+
+  <delete id="deleteHistoricDetailsByIds_mysql" parameterType="java.util.Map">
+    delete D from ${prefix}ACT_HI_DETAIL D
+    <include refid="selectHistoricDetailsTaskProcessAndCaseInstanceByIdsSql_mysql"/>
+    <where>
+      <include refid="selectHistoricDetailsProcessAndCaseInstanceByIdsSql"/>
+    </where>
   </delete>
 
   <delete id="deleteHistoricDetailByteArraysByIds" parameterType="java.util.Map">
     delete from ${prefix}ACT_GE_BYTEARRAY
     where ID_ in
-    (select DISTINCT BYTEARRAY_ID_
-    from ${prefix}ACT_HI_DETAIL RES
-    <include refid="selectHistoricDetailsByIdsSql"/>
-    and BYTEARRAY_ID_ is not NULL)
+      (select DISTINCT BYTEARRAY_ID_
+      from ${prefix}ACT_HI_DETAIL
+      <where>
+        <include refid="selectHistoricDetailsProcessAndCaseInstanceByIdsSql"/>
+        <include refid="selectHistoricDetailsTaskProcessAndCaseInstanceByIdsSql"/>
+        and BYTEARRAY_ID_ is not NULL
+      </where>)
+  </delete>
+
+  <delete id="deleteHistoricDetailByteArraysByIds_mysql" parameterType="java.util.Map">
+    delete B from ${prefix}ACT_GE_BYTEARRAY B
+    inner join ${prefix}ACT_HI_DETAIL D
+      on B.ID_ = D.BYTEARRAY_ID_
+      <include refid="selectHistoricDetailsTaskProcessAndCaseInstanceByIdsSql_mysql"/>
+      <where>
+        <include refid="selectHistoricDetailsProcessAndCaseInstanceByIdsSql"/>
+        and D.BYTEARRAY_ID_ is not NULL
+      </where>
   </delete>
 
   <!-- HISTORIC DETAILS RESULTMAP -->
@@ -181,16 +206,6 @@
 
   <!-- HISTORIC VARIABLE UPDATE SELECT -->
 
-  <select id="selectHistoricDetailsByProcessInstanceId" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="historicDetailResultMap">
-    select * from ${prefix}ACT_HI_DETAIL
-    where PROC_INST_ID_ = #{parameter, jdbcType=VARCHAR}
-  </select>
-
-  <select id="selectHistoricDetailsByCaseInstanceId" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="historicDetailResultMap">
-    select * from ${prefix}ACT_HI_DETAIL
-    where CASE_INST_ID_ = #{parameter, jdbcType=VARCHAR}
-  </select>
-
   <select id="selectHistoricDetailsByTaskId" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="historicDetailResultMap">
     select * from ${prefix}ACT_HI_DETAIL
     where TASK_ID_ = #{parameter, jdbcType=VARCHAR}
@@ -199,7 +214,7 @@
   <select id="selectHistoricDetailsByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricDetailQueryImpl" resultMap="historicDetailResultMap">
   	<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    select RES.*
+    select ${distinct} RES.*
     ${limitBetween}
     <include refid="selectHistoricDetailsByQueryCriteriaSql"/>
     ${orderBy}
@@ -207,23 +222,16 @@
   </select>
 
   <select id="selectHistoricDetailCountByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricDetailQueryImpl" resultType="long">
-    select count(*)
+    select count(distinct RES.ID_)
     <include refid="selectHistoricDetailsByQueryCriteriaSql"/>
   </select>
 
   <sql id="selectHistoricDetailsByQueryCriteriaSql">
     from ${prefix}ACT_HI_DETAIL RES
 
-    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
-      LEFT JOIN (
-        SELECT
-            SELF.PROC_DEF_KEY_ AS KEY_
-        FROM
-            (SELECT DISTINCT DKEYS.PROC_DEF_KEY_ from ${prefix}ACT_HI_DETAIL DKEYS) SELF
-        WHERE
-            <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.querySingleAuthorizationCheck" />
-      ) AUTH
-      ON AUTH.KEY_ = RES.PROC_DEF_KEY_
+    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authCheckJoinWithoutOnClause" />
+      AUTH ON (AUTH.RESOURCE_ID_ in (RES.PROC_DEF_KEY_, '*'))
     </if>
 
     <where>
@@ -283,7 +291,11 @@
       </if>
 
       <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
-        and ((RES.EXECUTION_ID_ is not null and AUTH.KEY_ is not null) or RES.EXECUTION_ID_ is null)
+        and (
+        (RES.EXECUTION_ID_ is not null
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheck"/>
+        ) or RES.EXECUTION_ID_ is null
+        )
       </if>
 
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
@@ -291,37 +303,60 @@
     </where>
   </sql>
 
-  <sql id="selectHistoricDetailsByIdsSql">
-    WHERE
+  <sql id="selectHistoricDetailsProcessAndCaseInstanceByIdsSql">
     <if test="processInstanceIds != null &amp;&amp; processInstanceIds.size() > 0">
-      PROC_INST_ID_ IN
-      <foreach item="processInstanceId" index="index" collection="processInstanceIds" open="(" separator="," close=")">
-        #{processInstanceId}
-      </foreach>
+      and
+        <bind name="listOfIds" value="processInstanceIds"/>
+        <bind name="fieldName" value="'PROC_INST_ID_'"/>
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
     </if>
     <if test="caseInstanceIds != null &amp;&amp; caseInstanceIds.size() > 0">
-      CASE_INST_ID_ IN
-      <foreach item="caseInstanceId" index="index" collection="caseInstanceIds" open="(" separator="," close=")">
-        #{caseInstanceId}
-      </foreach>
+      and
+        <bind name="listOfIds" value="caseInstanceIds"/>
+        <bind name="fieldName" value="'CASE_INST_ID_'"/>
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
     </if>
+  </sql>
+
+  <sql id="selectHistoricDetailsTaskProcessAndCaseInstanceByIdsSql">
     <if test="taskProcessInstanceIds != null &amp;&amp; taskProcessInstanceIds.size() > 0">
-      TASK_ID_ IN
-      (select distinct ID_ from ${prefix}ACT_HI_TASKINST
-      where PROC_INST_ID_ in
-      <foreach item="processInstanceId" index="index" collection="taskProcessInstanceIds" open="(" separator="," close=")">
-        #{processInstanceId}
-      </foreach>
+      and TASK_ID_ in (
+        select ID_
+        from ${prefix}ACT_HI_TASKINST
+        where
+          <bind name="listOfIds" value="taskProcessInstanceIds"/>
+          <bind name="fieldName" value="'PROC_INST_ID_'"/>
+          <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
       )
     </if>
     <if test="taskCaseInstanceIds != null &amp;&amp; taskCaseInstanceIds.size() > 0">
-      TASK_ID_ IN
-      (select distinct ID_ from ${prefix}ACT_HI_TASKINST
-      where CASE_INST_ID_ in
-      <foreach item="caseInstanceId" index="index" collection="taskCaseInstanceIds" open="(" separator="," close=")">
-        #{caseInstanceId}
-      </foreach>
+      and TASK_ID_ in (
+        select ID_
+        from ${prefix}ACT_HI_TASKINST
+        where
+          <bind name="listOfIds" value="taskCaseInstanceIds"/>
+          <bind name="fieldName" value="'CASE_INST_ID_'"/>
+          <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
       )
+    </if>
+  </sql>
+
+  <sql id="selectHistoricDetailsTaskProcessAndCaseInstanceByIdsSql_mysql">
+    <if test="taskProcessInstanceIds != null &amp;&amp; taskProcessInstanceIds.size() > 0">
+      inner join ${prefix}ACT_HI_TASKINST T
+        on TASK_ID_ = T.ID_
+        and
+          <bind name="listOfIds" value="taskProcessInstanceIds"/>
+          <bind name="fieldName" value="'T.PROC_INST_ID_'"/>
+          <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
+    </if>
+    <if test="taskCaseInstanceIds != null &amp;&amp; taskCaseInstanceIds.size() > 0">
+      inner join ${prefix}ACT_HI_TASKINST T
+        on TASK_ID_ = T.ID_
+        and
+          <bind name="listOfIds" value="taskCaseInstanceIds"/>
+          <bind name="fieldName" value="'T.CASE_INST_ID_'"/>
+          <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
     </if>
   </sql>
 

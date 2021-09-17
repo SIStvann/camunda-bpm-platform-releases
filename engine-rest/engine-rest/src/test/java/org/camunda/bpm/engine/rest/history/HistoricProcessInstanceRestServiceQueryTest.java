@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import com.jayway.restassured.http.ContentType;
 import com.jayway.restassured.response.Response;
+
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
@@ -41,12 +42,15 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+
 public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestServiceTest {
 
   protected static final String QUERY_PARAM_EXECUTED_JOB_BEFORE = "executedJobBefore";
   protected static final String QUERY_PARAM_EXECUTED_JOB_AFTER = "executedJobAfter";
   protected static final String QUERY_PARAM_EXECUTED_ACTIVITY_BEFORE = "executedActivityBefore";
   protected static final String QUERY_PARAM_EXECUTED_ACTIVITY_AFTER = "executedActivityAfter";
+  protected static final String QUERY_PARAM_EXECUTED_ACTIVITY_IDS = "executedActivityIdIn";
+  protected static final String QUERY_PARAM_ACTIVE_ACTIVITY_IDS = "activeActivityIdIn";
 
   @ClassRule
   public static TestContainerRule rule = new TestContainerRule();
@@ -469,6 +473,7 @@ public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestSer
     parameters.put("subCaseInstanceId", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_SUB_CASE_INSTANCE_ID);
     parameters.put("caseInstanceId", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_CASE_INSTANCE_ID);
     parameters.put("state", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_STATE);
+    parameters.put("incidentType", MockProvider.EXAMPLE_INCIDENT_TYPE);
 
     return parameters;
   }
@@ -489,6 +494,7 @@ public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestSer
     verify(mockedQuery).superCaseInstanceId(stringQueryParameters.get("superCaseInstanceId"));
     verify(mockedQuery).subCaseInstanceId(stringQueryParameters.get("subCaseInstanceId"));
     verify(mockedQuery).caseInstanceId(stringQueryParameters.get("caseInstanceId"));
+    verify(mockedQuery).incidentType(stringQueryParameters.get("incidentType"));
 
     verify(mockedQuery).list();
   }
@@ -891,6 +897,40 @@ public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestSer
 
     verify(mockedQuery).count();
     verify(mockedQuery).incidentStatus("resolved");
+  }
+
+  @Test
+  public void testQueryIncidentType() {
+    given()
+      .queryParam("incidentType", MockProvider.EXAMPLE_INCIDENT_TYPE)
+      .then()
+      .expect()
+      .statusCode(Status.OK.getStatusCode())
+      .when()
+      .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    InOrder inOrder = inOrder(mockedQuery);
+    inOrder.verify(mockedQuery).incidentType(MockProvider.EXAMPLE_INCIDENT_TYPE);
+    inOrder.verify(mockedQuery).list();
+  }
+
+  @Test
+  public void testQueryIncidentTypeAsPost() {
+    Map<String, String> body = new HashMap<String, String>();
+    body.put("incidentType", MockProvider.EXAMPLE_INCIDENT_TYPE);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(body)
+      .then()
+      .expect()
+      .statusCode(Status.OK.getStatusCode())
+      .when()
+      .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    InOrder inOrder = inOrder(mockedQuery);
+    inOrder.verify(mockedQuery).incidentType(MockProvider.EXAMPLE_INCIDENT_TYPE);
+    inOrder.verify(mockedQuery).list();
   }
 
   @Test
@@ -1402,6 +1442,64 @@ public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestSer
       .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
 
     verifyStringExecutedJobParameterQueryInvocations();
+  }
+
+  @Test
+  public void testExecutedActivityIdIn() {
+
+    given()
+      .queryParameter(QUERY_PARAM_EXECUTED_ACTIVITY_IDS, "1,2")
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).executedActivityIdIn("1", "2");
+  }
+
+  @Test
+  public void testExecutedActivityIdInAsPost() {
+    Map<String, List<String>> parameters = new HashMap<String, List<String>>();
+    parameters.put(QUERY_PARAM_EXECUTED_ACTIVITY_IDS, Arrays.asList("1", "2"));
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(parameters)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).executedActivityIdIn("1", "2");
+  }
+
+  @Test
+  public void testActiveActivityIdIn() {
+
+    given()
+      .queryParameter(QUERY_PARAM_ACTIVE_ACTIVITY_IDS, "1,2")
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).activeActivityIdIn("1", "2");
+  }
+
+  @Test
+  public void testActiveActivityIdInAsPost() {
+    Map<String, List<String>> parameters = new HashMap<String, List<String>>();
+    parameters.put(QUERY_PARAM_ACTIVE_ACTIVITY_IDS, Arrays.asList("1", "2"));
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(parameters)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).activeActivityIdIn("1", "2");
   }
 
   private void verifyExecutedJobParameterQueryInvocations() {

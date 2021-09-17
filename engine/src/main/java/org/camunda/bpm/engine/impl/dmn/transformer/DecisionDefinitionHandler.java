@@ -17,8 +17,8 @@ import org.camunda.bpm.dmn.engine.impl.DmnDecisionImpl;
 import org.camunda.bpm.dmn.engine.impl.spi.transform.DmnElementTransformContext;
 import org.camunda.bpm.dmn.engine.impl.transform.DmnDecisionTransformHandler;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
+import org.camunda.bpm.engine.impl.util.ParseUtil;
 import org.camunda.bpm.model.dmn.instance.Decision;
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureGreaterThanOrEqual;
 
 public class DecisionDefinitionHandler extends DmnDecisionTransformHandler {
 
@@ -33,18 +33,10 @@ public class DecisionDefinitionHandler extends DmnDecisionTransformHandler {
 
     String category = context.getModelInstance().getDefinitions().getNamespace();
     decisionDefinition.setCategory(category);
-
-    final Integer historyTimeToLive = decision.getCamundaHistoryTimeToLive();
-    validateHistoryTimeToLive(historyTimeToLive);
-    decisionDefinition.setHistoryTimeToLive(historyTimeToLive);
+    decisionDefinition.setHistoryTimeToLive(ParseUtil.parseHistoryTimeToLive(decision.getCamundaHistoryTimeToLiveString()));
+    decisionDefinition.setVersionTag(decision.getVersionTag());
 
     return decisionDefinition;
-  }
-
-  private void validateHistoryTimeToLive(Integer historyTimeToLive) {
-    if (historyTimeToLive != null) {
-      ensureGreaterThanOrEqual("", "historyTimeToLive", historyTimeToLive, 0);
-    }
   }
 
 }

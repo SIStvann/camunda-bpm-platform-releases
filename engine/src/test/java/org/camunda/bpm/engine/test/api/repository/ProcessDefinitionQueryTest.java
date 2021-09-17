@@ -133,6 +133,17 @@ public class ProcessDefinitionQueryTest extends AbstractDefinitionQueryTest {
     verifyQueryResults(query, 0);
   }
 
+  /**
+   * CAM-8014
+   *
+   * Verify that search by name like returns results with case-insensitive
+   */
+  public void testQueryByNameLikeCaseInsensitive() {
+    ProcessDefinitionQuery queryCaseInsensitive = repositoryService.createProcessDefinitionQuery()
+      .processDefinitionNameLike("%OnE%");
+    verifyQueryResults(queryCaseInsensitive, 2);
+  }
+
   public void testQueryByKey() {
     // process one
     ProcessDefinitionQuery query = repositoryService.createProcessDefinitionQuery().processDefinitionKey("one");

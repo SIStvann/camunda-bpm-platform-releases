@@ -13,11 +13,17 @@
 
 package org.camunda.bpm.engine.impl.history.event;
 
+import org.camunda.bpm.engine.authorization.Resources;
 import org.camunda.bpm.engine.history.HistoricDecisionInputInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionOutputInstance;
+import org.camunda.bpm.engine.history.CleanableHistoricDecisionInstanceReportResult;
+import org.camunda.bpm.engine.impl.CleanableHistoricDecisionInstanceReportImpl;
+import org.camunda.bpm.engine.impl.Direction;
 import org.camunda.bpm.engine.impl.HistoricDecisionInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.Page;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
+import org.camunda.bpm.engine.impl.QueryPropertyImpl;
 import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
 import org.camunda.bpm.engine.impl.persistence.AbstractHistoricManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayEntity;
@@ -44,7 +50,7 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
     if (isHistoryEnabled()) {
       List<HistoricDecisionInstanceEntity> decisionInstances = findHistoricDecisionInstancesByDecisionDefinitionId(decisionDefinitionId);
 
-      Set<String> decisionInstanceIds = new HashSet<String>();
+      List<String> decisionInstanceIds = new ArrayList<String>();
       for(HistoricDecisionInstanceEntity decisionInstance : decisionInstances) {
         decisionInstanceIds.add(decisionInstance.getId());
         // delete decision instance
@@ -52,9 +58,7 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
       }
 
       if(!decisionInstanceIds.isEmpty()) {
-        deleteHistoricDecisionInputInstancesByDecisionInstanceIds(decisionInstanceIds);
-
-        deleteHistoricDecisionOutputInstancesByDecisionInstanceIds(decisionInstanceIds);
+        deleteHistoricDecisionInstanceByIds(decisionInstanceIds);
       }
     }
   }
@@ -64,44 +68,12 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
     return getDbEntityManager().selectList("selectHistoricDecisionInstancesByDecisionDefinitionId", configureParameterizedQuery(decisionDefinitionId));
   }
 
-  protected void deleteHistoricDecisionInputInstancesByDecisionInstanceIds(Set<String> decisionInstanceIds) {
-    List<HistoricDecisionInputInstanceEntity> decisionInputInstances = findHistoricDecisionInputInstancesByDecisionInstanceIds(decisionInstanceIds);
-    for (HistoricDecisionInputInstanceEntity decisionInputInstance : decisionInputInstances) {
-      // delete input instance and byte array value if exists
-      decisionInputInstance.delete();
-    }
-  }
-
-  protected void deleteHistoricDecisionOutputInstancesByDecisionInstanceIds(Set<String> decisionInstanceIds) {
-    List<HistoricDecisionOutputInstanceEntity> decisionOutputInstances = findHistoricDecisionOutputInstancesByDecisionInstanceIds(decisionInstanceIds);
-    for (HistoricDecisionOutputInstanceEntity decisionOutputInstance : decisionOutputInstances) {
-      // delete output instance and byte array value if exists
-      decisionOutputInstance.delete();
-    }
-  }
-
-  public void deleteHistoricHistoricInstanceByInstanceId(String historicDecisionInstanceId) {
-    HistoricDecisionInstanceEntity decisionInstance = findHistoricDecisionInstance(historicDecisionInstanceId);
-    boolean foundHistoricDecisionInstance = decisionInstance != null;
-    if (foundHistoricDecisionInstance) {
-      decisionInstance.delete();
-      deleteHistoricDecisionInputAndOutputInstances(historicDecisionInstanceId);
-    }
-  }
-
   public void deleteHistoricDecisionInstanceByIds(List<String> decisionInstanceIds) {
     getDbEntityManager().deletePreserveOrder(ByteArrayEntity.class, "deleteHistoricDecisionInputInstanceByteArraysByDecisionInstanceIds", decisionInstanceIds);
     getDbEntityManager().deletePreserveOrder(ByteArrayEntity.class, "deleteHistoricDecisionOutputInstanceByteArraysByDecisionInstanceIds", decisionInstanceIds);
     getDbEntityManager().deletePreserveOrder(HistoricDecisionInputInstanceEntity.class, "deleteHistoricDecisionInputInstanceByDecisionInstanceIds", decisionInstanceIds);
     getDbEntityManager().deletePreserveOrder(HistoricDecisionOutputInstanceEntity.class, "deleteHistoricDecisionOutputInstanceByDecisionInstanceIds", decisionInstanceIds);
     getDbEntityManager().deletePreserveOrder(HistoricDecisionInstanceEntity.class, "deleteHistoricDecisionInstanceByIds", decisionInstanceIds);
-  }
-
-  protected void deleteHistoricDecisionInputAndOutputInstances(String historicDecisionInstanceId) {
-    Set<String> decisionInstanceIds = new HashSet<String>();
-    decisionInstanceIds.add(historicDecisionInstanceId);
-    deleteHistoricDecisionInputInstancesByDecisionInstanceIds(decisionInstanceIds);
-    deleteHistoricDecisionOutputInstancesByDecisionInstanceIds(decisionInstanceIds);
   }
 
   public void insertHistoricDecisionInstances(HistoricDecisionEvaluationEvent event) {
@@ -169,9 +141,11 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
     }
   }
 
+  @SuppressWarnings("unchecked")
   public List<String> findHistoricDecisionInstanceIdsForCleanup(Integer batchSize) {
     ListQueryParameterObject parameterObject = new ListQueryParameterObject();
     parameterObject.setParameter(ClockUtil.getCurrentTime());
+    parameterObject.getOrderingProperties().add(new QueryOrderingProperty(new QueryPropertyImpl("EVAL_TIME_"), Direction.ASCENDING));
     parameterObject.setFirstResult(0);
     parameterObject.setMaxResults(batchSize);
     return (List<String>) getDbEntityManager().selectList("selectHistoricDecisionInstanceIdsForCleanup", parameterObject);
@@ -291,6 +265,21 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
 
   protected ListQueryParameterObject configureParameterizedQuery(Object parameter) {
     return getTenantManager().configureQuery(parameter);
+  }
+
+  @SuppressWarnings("unchecked")
+  public List<CleanableHistoricDecisionInstanceReportResult> findCleanableHistoricDecisionInstancesReportByCriteria( CleanableHistoricDecisionInstanceReportImpl query, Page page) {
+    query.setCurrentTimestamp(ClockUtil.getCurrentTime());
+    getAuthorizationManager().configureQueryHistoricFinishedInstanceReport(query, Resources.DECISION_DEFINITION);
+    getTenantManager().configureQuery(query);
+    return getDbEntityManager().selectList("selectFinishedDecisionInstancesReportEntities", query, page);
+  }
+
+  public long findCleanableHistoricDecisionInstancesReportCountByCriteria(CleanableHistoricDecisionInstanceReportImpl query) {
+    query.setCurrentTimestamp(ClockUtil.getCurrentTime());
+    getAuthorizationManager().configureQueryHistoricFinishedInstanceReport(query, Resources.DECISION_DEFINITION);
+    getTenantManager().configureQuery(query);
+    return (Long) getDbEntityManager().selectOne("selectFinishedDecisionInstancesReportEntitiesCount", query);
   }
 
 }

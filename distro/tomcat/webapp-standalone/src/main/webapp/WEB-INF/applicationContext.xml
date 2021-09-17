@@ -29,9 +29,6 @@
     <property name="jobExecutorActivate" value="false" />
     <property name="deploymentResources" value="classpath*:bpmn/*.bpmn" />
     <property name="authorizationEnabled" value="true" />
-    <property name="failedJobCommandFactory">
-      <bean class="org.camunda.bpm.engine.impl.jobexecutor.FoxFailedJobCommandFactory" />
-    </property>
     <property name="idGenerator">
       <bean class="org.camunda.bpm.engine.impl.persistence.StrongUuidGenerator" />
     </property>
@@ -43,6 +40,7 @@
         <bean id="connectPlugin" class="org.camunda.connect.plugin.impl.ConnectProcessEnginePlugin" />
       </list>
     </property>
+    <property name="historyCleanupBatchWindowStartTime" value="00:01" />
   </bean>
 
   <!-- ldap identity provider (deactivated, uncomment plugin in processEngineConfiguration to activate) -->

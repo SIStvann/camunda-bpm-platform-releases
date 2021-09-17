@@ -32,6 +32,18 @@ public interface HistoricTaskInstanceQuery  extends Query<HistoricTaskInstanceQu
   /** Only select historic task instances for the given process instance. */
   HistoricTaskInstanceQuery processInstanceId(String processInstanceId);
 
+  /** Only select historic tasks for the given process instance business key */
+  HistoricTaskInstanceQuery processInstanceBusinessKey(String processInstanceBusinessKey);
+
+  /**
+   * Only select historic tasks for any of the given the given process instance business keys.
+   */
+  HistoricTaskInstanceQuery processInstanceBusinessKeyIn(String... processInstanceBusinessKeys);
+
+  /** Only select historic tasks matching the given process instance business key.
+   *  The syntax is that of SQL: for example usage: nameLike(%camunda%)*/
+  HistoricTaskInstanceQuery processInstanceBusinessKeyLike(String processInstanceBusinessKey);
+
   /** Only select historic task instances for the given execution. */
   HistoricTaskInstanceQuery executionId(String executionId);
 
@@ -271,6 +283,26 @@ public interface HistoricTaskInstanceQuery  extends Query<HistoricTaskInstanceQu
   HistoricTaskInstanceQuery tenantIdIn(String... tenantIds);
 
   /**
+   * Only select tasks where end time is after given date
+   */
+  HistoricTaskInstanceQuery finishedAfter(Date date);
+
+  /**
+   * Only select tasks where end time is before given date
+   */
+  HistoricTaskInstanceQuery finishedBefore(Date date);
+
+  /**
+   * Only select tasks where started after given date
+   */
+  HistoricTaskInstanceQuery startedAfter(Date date);
+
+  /**
+   * Only select tasks where started before given date
+   */
+  HistoricTaskInstanceQuery startedBefore(Date date);
+
+  /**
    * Order by tenant id (needs to be followed by {@link #asc()} or {@link #desc()}).
    * Note that the ordering of historic task instances without tenant id is database-specific.
    */
@@ -338,4 +370,5 @@ public interface HistoricTaskInstanceQuery  extends Query<HistoricTaskInstanceQu
 
   /** Order by case execution id (needs to be followed by {@link #asc()} or {@link #desc()}). */
   HistoricTaskInstanceQuery orderByCaseExecutionId();
+
 }

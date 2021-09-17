@@ -93,6 +93,9 @@ public class HistoricTaskInstanceQueryDto extends AbstractQueryDto<HistoricTaskI
   protected String taskId;
   protected String taskParentTaskId;
   protected String processInstanceId;
+  protected String processInstanceBusinessKey;
+  protected String[] processInstanceBusinessKeyIn;
+  protected String processInstanceBusinessKeyLike;
   protected String executionId;
   protected String[] activityInstanceIdIn;
   protected String processDefinitionId;
@@ -124,6 +127,11 @@ public class HistoricTaskInstanceQueryDto extends AbstractQueryDto<HistoricTaskI
   protected Date taskFollowUpDateBefore;
   protected Date taskFollowUpDateAfter;
   private List<String> tenantIds;
+
+  protected Date startedBefore;
+  protected Date startedAfter;
+  protected Date finishedBefore;
+  protected Date finishedAfter;
 
   protected String caseDefinitionId;
   protected String caseDefinitionKey;
@@ -158,6 +166,21 @@ public class HistoricTaskInstanceQueryDto extends AbstractQueryDto<HistoricTaskI
   @CamundaQueryParam("processInstanceId")
   public void setProcessInstanceId(String processInstanceId) {
     this.processInstanceId = processInstanceId;
+  }
+
+  @CamundaQueryParam("processInstanceBusinessKey")
+  public void setProcessInstanceBusinessKey(String businessKey) {
+    this.processInstanceBusinessKey = businessKey;
+  }
+
+  @CamundaQueryParam(value = "processInstanceBusinessKeyIn", converter = StringArrayConverter.class)
+  public void setProcessInstanceBusinessKeyIn(String[] processInstanceBusinessKeyIn) {
+    this.processInstanceBusinessKeyIn = processInstanceBusinessKeyIn;
+  }
+
+  @CamundaQueryParam("processInstanceBusinessKeyLike")
+  public void setProcessInstanceBusinessKeyLike(String businessKeyLike) {
+    this.processInstanceBusinessKeyLike = businessKeyLike;
   }
 
   @CamundaQueryParam("executionId")
@@ -380,6 +403,26 @@ public class HistoricTaskInstanceQueryDto extends AbstractQueryDto<HistoricTaskI
     this.withoutCandidateGroups = withoutCandidateGroups;
   }
 
+  @CamundaQueryParam(value="startedBefore", converter=DateConverter.class)
+  public void setStartedBefore(Date startedBefore) {
+    this.startedBefore = startedBefore;
+  }
+
+  @CamundaQueryParam(value="startedAfter", converter=DateConverter.class)
+  public void setStartedAfter(Date startedAfter) {
+    this.startedAfter = startedAfter;
+  }
+
+  @CamundaQueryParam(value="finishedBefore", converter=DateConverter.class)
+  public void setFinishedBefore(Date finishedBefore) {
+    this.finishedBefore = finishedBefore;
+  }
+
+  @CamundaQueryParam(value="finishedAfter", converter=DateConverter.class)
+  public void setFinishedAfter(Date finishedAfter) {
+    this.finishedAfter = finishedAfter;
+  }
+
   @Override
   protected boolean isValidSortByValue(String value) {
     return VALID_SORT_BY_VALUES.contains(value);
@@ -400,6 +443,15 @@ public class HistoricTaskInstanceQueryDto extends AbstractQueryDto<HistoricTaskI
     }
     if (processInstanceId != null) {
       query.processInstanceId(processInstanceId);
+    }
+    if (processInstanceBusinessKey != null) {
+      query.processInstanceBusinessKey(processInstanceBusinessKey);
+    }
+    if (processInstanceBusinessKeyIn != null && processInstanceBusinessKeyIn.length > 0) {
+      query.processInstanceBusinessKeyIn(processInstanceBusinessKeyIn);
+    }
+    if (processInstanceBusinessKeyLike != null) {
+      query.processInstanceBusinessKeyLike(processInstanceBusinessKeyLike);
     }
     if (executionId != null) {
       query.executionId(executionId);
@@ -527,6 +579,23 @@ public class HistoricTaskInstanceQueryDto extends AbstractQueryDto<HistoricTaskI
     if (withoutCandidateGroups != null) {
       query.withoutCandidateGroups();
     }
+
+    if (finishedAfter != null) {
+      query.finishedAfter(finishedAfter);
+    }
+
+    if (finishedBefore != null) {
+      query.finishedBefore(finishedBefore);
+    }
+
+    if (startedAfter != null) {
+      query.startedAfter(startedAfter);
+    }
+
+    if (startedBefore != null) {
+      query.startedBefore(startedBefore);
+    }
+
     if (taskVariables != null) {
       for (VariableQueryParameterDto variableQueryParam : taskVariables) {
         String variableName = variableQueryParam.getName();

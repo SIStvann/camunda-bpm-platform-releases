@@ -39,6 +39,9 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
   protected String processDefinitionKey;
   protected String processDefinitionName;
   protected String processInstanceId;
+  protected String processInstanceBusinessKey;
+  protected String[] processInstanceBusinessKeys;
+  protected String processInstanceBusinessKeyLike;
   protected String executionId;
   protected String[] activityInstanceIds;
   protected String taskId;
@@ -82,6 +85,11 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
   protected String caseInstanceId;
   protected String caseExecutionId;
 
+  protected Date finishedAfter;
+  protected Date finishedBefore;
+  protected Date startedAfter;
+  protected Date startedBefore;
+
   public HistoricTaskInstanceQueryImpl() {
   }
 
@@ -110,6 +118,24 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
 
   public HistoricTaskInstanceQueryImpl processInstanceId(String processInstanceId) {
     this.processInstanceId = processInstanceId;
+    return this;
+  }
+
+  public HistoricTaskInstanceQuery processInstanceBusinessKey(String processInstanceBusinessKey) {
+    this.processInstanceBusinessKey = processInstanceBusinessKey;
+    return this;
+  }
+
+  @Override
+  public HistoricTaskInstanceQuery processInstanceBusinessKeyIn(String... processInstanceBusinessKeys) {
+    ensureNotNull("processInstanceBusinessKeys", (Object[]) processInstanceBusinessKeys);
+    this.processInstanceBusinessKeys = processInstanceBusinessKeys;
+    return this;
+  }
+
+  @Override
+  public HistoricTaskInstanceQuery processInstanceBusinessKeyLike(String processInstanceBusinessKey) {
+    this.processInstanceBusinessKeyLike = processInstanceBusinessKey;
     return this;
   }
 
@@ -352,12 +378,41 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
   }
 
   @Override
+  public HistoricTaskInstanceQuery finishedAfter(Date date) {
+    finished = true;
+    this.finishedAfter = date;
+    return this;
+  }
+
+  @Override
+  public HistoricTaskInstanceQuery finishedBefore(Date date) {
+    finished = true;
+    this.finishedBefore = date;
+    return this;
+  }
+
+  @Override
+  public HistoricTaskInstanceQuery startedAfter(Date date) {
+    this.startedAfter = date;
+    return this;
+  }
+
+  @Override
+  public HistoricTaskInstanceQuery startedBefore(Date date) {
+    this.startedBefore = date;
+    return this;
+  }
+
+  @Override
   protected boolean hasExcludingConditions() {
     return super.hasExcludingConditions()
       || (finished && unfinished)
       ||(processFinished && processUnfinished)
+      || CompareUtil.areNotInAscendingOrder(startedAfter, startedBefore)
+      || CompareUtil.areNotInAscendingOrder(finishedAfter, finishedBefore)
       || CompareUtil.areNotInAscendingOrder(dueAfter, dueDate, dueBefore)
-      || CompareUtil.areNotInAscendingOrder(followUpAfter, followUpDate, followUpBefore);
+      || CompareUtil.areNotInAscendingOrder(followUpAfter, followUpDate, followUpBefore)
+      || CompareUtil.elementIsNotContainedInArray(processInstanceBusinessKey, processInstanceBusinessKeys);
   }
 
   // ordering /////////////////////////////////////////////////////////////////
@@ -472,6 +527,18 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
     return processInstanceId;
   }
 
+  public String getProcessInstanceBusinessKey() {
+    return processInstanceBusinessKey;
+  }
+
+  public String[] getProcessInstanceBusinessKeys() {
+    return processInstanceBusinessKeys;
+  }
+
+  public String getProcessInstanceBusinessKeyLike() {
+    return processInstanceBusinessKeyLike;
+  }
+
   public String getExecutionId() {
     return executionId;
   }
@@ -584,4 +651,19 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
     return caseExecutionId;
   }
 
+  public Date getFinishedAfter() {
+    return finishedAfter;
+  }
+
+  public Date getFinishedBefore() {
+    return finishedBefore;
+  }
+
+  public Date getStartedAfter() {
+    return startedAfter;
+  }
+
+  public Date getStartedBefore() {
+    return startedBefore;
+  }
 }

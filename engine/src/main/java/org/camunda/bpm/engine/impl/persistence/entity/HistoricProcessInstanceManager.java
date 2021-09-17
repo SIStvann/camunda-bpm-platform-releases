@@ -17,9 +17,15 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import org.camunda.bpm.engine.authorization.Resources;
+import org.camunda.bpm.engine.history.CleanableHistoricProcessInstanceReportResult;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
+import org.camunda.bpm.engine.impl.CleanableHistoricProcessInstanceReportImpl;
+import org.camunda.bpm.engine.impl.Direction;
 import org.camunda.bpm.engine.impl.HistoricProcessInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.Page;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
+import org.camunda.bpm.engine.impl.QueryPropertyImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
 import org.camunda.bpm.engine.impl.history.event.HistoricProcessInstanceEventEntity;
@@ -52,39 +58,9 @@ public class HistoricProcessInstanceManager extends AbstractHistoricManager {
       List<String> historicProcessInstanceIds = getDbEntityManager()
         .selectList("selectHistoricProcessInstanceIdsByProcessDefinitionId", processDefinitionId);
 
-      for (String historicProcessInstanceId: historicProcessInstanceIds) {
-        deleteHistoricProcessInstanceById(historicProcessInstanceId);
+      if (!historicProcessInstanceIds.isEmpty()) {
+        deleteHistoricProcessInstanceByIds(historicProcessInstanceIds);
       }
-    }
-  }
-
-  public void deleteHistoricProcessInstanceById(String historicProcessInstanceId) {
-    if (isHistoryEnabled()) {
-      CommandContext commandContext = Context.getCommandContext();
-
-      getHistoricDetailManager()
-        .deleteHistoricDetailsByProcessInstanceId(historicProcessInstanceId);
-
-      getHistoricVariableInstanceManager()
-        .deleteHistoricVariableInstanceByProcessInstanceId(historicProcessInstanceId);
-
-      getHistoricActivityInstanceManager()
-        .deleteHistoricActivityInstancesByProcessInstanceId(historicProcessInstanceId);
-
-      getHistoricTaskInstanceManager()
-        .deleteHistoricTaskInstancesByProcessInstanceId(historicProcessInstanceId);
-
-      getHistoricIncidentManager()
-        .deleteHistoricIncidentsByProcessInstanceId(historicProcessInstanceId);
-
-      getHistoricJobLogManager()
-        .deleteHistoricJobLogsByProcessInstanceId(historicProcessInstanceId);
-
-      getHistoricExternalTaskLogManager()
-        .deleteHistoricExternalTaskLogsByProcessInstanceId(historicProcessInstanceId);
-
-      commandContext.getDbEntityManager().delete(HistoricProcessInstanceEntity.class, "deleteHistoricProcessInstance", historicProcessInstanceId);
-
     }
   }
 
@@ -135,9 +111,11 @@ public class HistoricProcessInstanceManager extends AbstractHistoricManager {
     getTenantManager().configureQuery(query);
   }
 
+  @SuppressWarnings("unchecked")
   public List<String> findHistoricProcessInstanceIdsForCleanup(Integer batchSize) {
     ListQueryParameterObject parameterObject = new ListQueryParameterObject();
     parameterObject.setParameter(ClockUtil.getCurrentTime());
+    parameterObject.getOrderingProperties().add(new QueryOrderingProperty(new QueryPropertyImpl("END_TIME_"), Direction.ASCENDING));
     parameterObject.setFirstResult(0);
     parameterObject.setMaxResults(batchSize);
     return (List<String>) getDbEntityManager().selectList("selectHistoricProcessInstanceIdsForCleanup", parameterObject);
@@ -149,8 +127,27 @@ public class HistoricProcessInstanceManager extends AbstractHistoricManager {
     return (Long) getDbEntityManager().selectOne("selectHistoricProcessInstanceIdsForCleanupCount", parameterObject);
   }
 
+  @SuppressWarnings("unchecked")
   public List<String> findHistoricProcessInstanceIds(HistoricProcessInstanceQueryImpl historicProcessInstanceQuery) {
     configureQuery(historicProcessInstanceQuery);
     return (List<String>) getDbEntityManager().selectList("selectHistoricProcessInstanceIdsByQueryCriteria", historicProcessInstanceQuery);
   }
+
+  @SuppressWarnings("unchecked")
+  public List<CleanableHistoricProcessInstanceReportResult> findCleanableHistoricProcessInstancesReportByCriteria(CleanableHistoricProcessInstanceReportImpl query, Page page) {
+    query.setCurrentTimestamp(ClockUtil.getCurrentTime());
+
+    getAuthorizationManager().configureQueryHistoricFinishedInstanceReport(query, Resources.PROCESS_DEFINITION);
+    getTenantManager().configureQuery(query);
+    return getDbEntityManager().selectList("selectFinishedProcessInstancesReportEntities", query, page);
+  }
+
+  public long findCleanableHistoricProcessInstancesReportCountByCriteria(CleanableHistoricProcessInstanceReportImpl query) {
+    query.setCurrentTimestamp(ClockUtil.getCurrentTime());
+
+    getAuthorizationManager().configureQueryHistoricFinishedInstanceReport(query, Resources.PROCESS_DEFINITION);
+    getTenantManager().configureQuery(query);
+    return (Long) getDbEntityManager().selectOne("selectFinishedProcessInstancesReportEntitiesCount", query);
+  }
+
 }

@@ -33,6 +33,8 @@ import org.camunda.bpm.engine.runtime.TransitionInstance;
 public class ActivityCancellationCmd extends AbstractProcessInstanceModificationCommand {
 
   protected String activityId;
+  protected boolean cancelCurrentActiveActivityInstances;
+  protected ActivityInstance activityInstanceTree;
 
   public ActivityCancellationCmd(String activityId) {
     this(null, activityId);
@@ -45,28 +47,10 @@ public class ActivityCancellationCmd extends AbstractProcessInstanceModification
 
   @Override
   public Void execute(final CommandContext commandContext) {
-    ActivityInstance activityInstanceTree = commandContext.runWithoutAuthorization(new Callable<ActivityInstance>() {
-      @Override
-      public ActivityInstance call() throws Exception {
-        return new GetActivityInstanceCmd(processInstanceId).execute(commandContext);
-      }
-    });
+    ActivityInstance activityInstanceTree = getActivityInstanceTree(commandContext);
+    List<AbstractInstanceCancellationCmd> commands = createActivityInstanceCancellations(activityInstanceTree, commandContext);
 
-    ExecutionEntity processInstance = commandContext.getExecutionManager().findExecutionById(processInstanceId);
-    ProcessDefinitionImpl processDefinition = processInstance.getProcessDefinition();
-    Set<String> parentScopeIds = collectParentScopeIdsForActivity(processDefinition, activityId);
-
-    List<ActivityInstance> childrenForActivity = getActivityInstancesForActivity(activityInstanceTree, parentScopeIds);
-    for (ActivityInstance instance : childrenForActivity) {
-      ActivityInstanceCancellationCmd cmd = new ActivityInstanceCancellationCmd(processInstanceId, instance.getId());
-      cmd.setSkipCustomListeners(skipCustomListeners);
-      cmd.setSkipIoMappings(skipIoMappings);
-      cmd.execute(commandContext);
-    }
-
-    List<TransitionInstance> transitionInstancesForActivity = getTransitionInstancesForActivity(activityInstanceTree, parentScopeIds);
-    for (TransitionInstance instance : transitionInstancesForActivity) {
-      TransitionInstanceCancellationCmd cmd = new TransitionInstanceCancellationCmd(processInstanceId, instance.getId());
+    for (AbstractInstanceCancellationCmd cmd : commands) {
       cmd.setSkipCustomListeners(skipCustomListeners);
       cmd.setSkipIoMappings(skipIoMappings);
       cmd.execute(commandContext);
@@ -128,12 +112,53 @@ public class ActivityCancellationCmd extends AbstractProcessInstanceModification
     return instances;
   }
 
+  public ActivityInstance getActivityInstanceTree(final CommandContext commandContext) {
+    return commandContext.runWithoutAuthorization(new Callable<ActivityInstance>() {
+      @Override
+      public ActivityInstance call() throws Exception {
+        return new GetActivityInstanceCmd(processInstanceId).execute(commandContext);
+      }
+    });
+  }
+
   public String getActivityId() {
     return activityId;
+  }
+
+  public void setActivityInstanceTreeToCancel(ActivityInstance activityInstanceTreeToCancel) {
+    this.activityInstanceTree = activityInstanceTreeToCancel;
   }
 
   @Override
   protected String describe() {
     return "Cancel all instances of activity '" + activityId + "'";
+  }
+
+  public List<AbstractInstanceCancellationCmd> createActivityInstanceCancellations(ActivityInstance activityInstanceTree, CommandContext commandContext) {
+    List<AbstractInstanceCancellationCmd> commands = new ArrayList<AbstractInstanceCancellationCmd>();
+
+    ExecutionEntity processInstance = commandContext.getExecutionManager().findExecutionById(processInstanceId);
+    ProcessDefinitionImpl processDefinition = processInstance.getProcessDefinition();
+    Set<String> parentScopeIds = collectParentScopeIdsForActivity(processDefinition, activityId);
+
+    List<ActivityInstance> childrenForActivity = getActivityInstancesForActivity(activityInstanceTree, parentScopeIds);
+    for (ActivityInstance instance : childrenForActivity) {
+      commands.add(new ActivityInstanceCancellationCmd(processInstanceId, instance.getId()));
+    }
+
+    List<TransitionInstance> transitionInstancesForActivity = getTransitionInstancesForActivity(activityInstanceTree, parentScopeIds);
+    for (TransitionInstance instance : transitionInstancesForActivity) {
+      commands.add(new TransitionInstanceCancellationCmd(processInstanceId, instance.getId()));
+    }
+    return commands;
+
+  }
+
+  public boolean isCancelCurrentActiveActivityInstances() {
+    return cancelCurrentActiveActivityInstances;
+  }
+
+  public void setCancelCurrentActiveActivityInstances(boolean cancelCurrentActiveActivityInstances) {
+    this.cancelCurrentActiveActivityInstances = cancelCurrentActiveActivityInstances;
   }
 }

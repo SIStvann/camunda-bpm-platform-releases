@@ -2,6 +2,8 @@ package org.camunda.bpm.engine.rest;
 
 import static com.jayway.restassured.RestAssured.given;
 import static com.jayway.restassured.path.json.JsonPath.from;
+import static junit.framework.TestCase.assertEquals;
+import static org.camunda.bpm.engine.rest.util.DateTimeUtils.withTimezone;
 import static org.camunda.bpm.engine.rest.util.QueryParamUtils.arrayAsCommaSeperatedList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -30,10 +32,12 @@ import org.camunda.bpm.application.ProcessApplicationInfo;
 import org.camunda.bpm.container.RuntimeContainerDelegate;
 import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.identity.UserQuery;
+import org.camunda.bpm.engine.impl.TaskQueryImpl;
 import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.CaseDefinitionQuery;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinitionQuery;
+import org.camunda.bpm.engine.rest.dto.task.TaskQueryDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.hal.Hal;
 import org.camunda.bpm.engine.rest.helper.EqualsList;
@@ -50,6 +54,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
@@ -71,7 +76,7 @@ public class TaskRestServiceQueryTest extends AbstractRestServiceTest {
   }
 
   private TaskQuery setUpMockTaskQuery(List<Task> mockedTasks) {
-    TaskQuery sampleTaskQuery = mock(TaskQuery.class);
+    TaskQuery sampleTaskQuery = mock(TaskQueryImpl.class);
     when(sampleTaskQuery.list()).thenReturn(mockedTasks);
     when(sampleTaskQuery.count()).thenReturn((long) mockedTasks.size());
     when(sampleTaskQuery.taskCandidateGroup(anyString())).thenReturn(sampleTaskQuery);
@@ -587,9 +592,9 @@ public class TaskRestServiceQueryTest extends AbstractRestServiceTest {
   @Test
   public void testDeprecatedDateParameters() {
     Map<String, String> queryParameters = new HashMap<String, String>();
-    queryParameters.put("due", "2013-01-23T14:42:44");
-    queryParameters.put("created", "2013-01-23T14:42:47");
-    queryParameters.put("followUp", "2013-01-23T14:42:50");
+    queryParameters.put("due", withTimezone("2013-01-23T14:42:44"));
+    queryParameters.put("created", withTimezone("2013-01-23T14:42:47"));
+    queryParameters.put("followUp", withTimezone("2013-01-23T14:42:50"));
 
     given()
       .queryParams(queryParameters)
@@ -606,16 +611,16 @@ public class TaskRestServiceQueryTest extends AbstractRestServiceTest {
 
   private Map<String, String> getDateParameters() {
     Map<String, String> parameters = new HashMap<String, String>();
-    parameters.put("dueAfter", "2013-01-23T14:42:42");
-    parameters.put("dueBefore", "2013-01-23T14:42:43");
-    parameters.put("dueDate", "2013-01-23T14:42:44");
-    parameters.put("createdAfter", "2013-01-23T14:42:45");
-    parameters.put("createdBefore", "2013-01-23T14:42:46");
-    parameters.put("createdOn", "2013-01-23T14:42:47");
-    parameters.put("followUpAfter", "2013-01-23T14:42:48");
-    parameters.put("followUpBefore", "2013-01-23T14:42:49");
-    parameters.put("followUpBeforeOrNotExistent", "2013-01-23T14:42:49");
-    parameters.put("followUpDate", "2013-01-23T14:42:50");
+    parameters.put("dueAfter", withTimezone("2013-01-23T14:42:42"));
+    parameters.put("dueBefore", withTimezone("2013-01-23T14:42:43"));
+    parameters.put("dueDate", withTimezone("2013-01-23T14:42:44"));
+    parameters.put("createdAfter", withTimezone("2013-01-23T14:42:45"));
+    parameters.put("createdBefore", withTimezone("2013-01-23T14:42:46"));
+    parameters.put("createdOn", withTimezone("2013-01-23T14:42:47"));
+    parameters.put("followUpAfter", withTimezone("2013-01-23T14:42:48"));
+    parameters.put("followUpBefore", withTimezone("2013-01-23T14:42:49"));
+    parameters.put("followUpBeforeOrNotExistent", withTimezone("2013-01-23T14:42:49"));
+    parameters.put("followUpDate", withTimezone("2013-01-23T14:42:50"));
     return parameters;
   }
 
@@ -1438,6 +1443,8 @@ public class TaskRestServiceQueryTest extends AbstractRestServiceTest {
     params.put("followUpBeforeExpression", generator.getValue("followUpBeforeExpression"));
     params.put("followUpDateExpression", generator.getValue("followUpDateExpression"));
     params.put("followUpAfterExpression", generator.getValue("followUpAfterExpression"));
+    params.put("processInstanceBusinessKeyExpression", generator.getValue("processInstanceBusinessKeyExpression"));
+    params.put("processInstanceBusinessKeyLikeExpression", generator.getValue("processInstanceBusinessKeyLikeExpression"));
 
     // get
     given()
@@ -1484,6 +1491,8 @@ public class TaskRestServiceQueryTest extends AbstractRestServiceTest {
     verify(mockQuery).followUpBeforeExpression(generator.getValue("followUpBeforeExpression"));
     verify(mockQuery).followUpDateExpression(generator.getValue("followUpDateExpression"));
     verify(mockQuery).followUpAfterExpression(generator.getValue("followUpAfterExpression"));
+    verify(mockQuery).processInstanceBusinessKeyExpression(generator.getValue("processInstanceBusinessKeyExpression"));
+    verify(mockQuery).processInstanceBusinessKeyLikeExpression(generator.getValue("processInstanceBusinessKeyLikeExpression"));
 
   }
 
@@ -1545,6 +1554,29 @@ public class TaskRestServiceQueryTest extends AbstractRestServiceTest {
     .when().get(TASK_QUERY_URL);
 
     verify(mockQuery, never()).withoutCandidateGroups();
+  }
+
+  @Test
+  public void testOrQuery() {
+    TaskQueryDto queryDto = TaskQueryDto.fromQuery(new TaskQueryImpl()
+      .or()
+        .taskName(MockProvider.EXAMPLE_TASK_NAME)
+        .taskDescription(MockProvider.EXAMPLE_TASK_DESCRIPTION)
+      .endOr());
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .header(ACCEPT_JSON_HEADER)
+      .body(queryDto)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(TASK_QUERY_URL);
+
+    ArgumentCaptor<TaskQueryImpl> argument = ArgumentCaptor.forClass(TaskQueryImpl.class);
+    verify(((TaskQueryImpl) mockQuery)).addOrQuery(argument.capture());
+    assertEquals(MockProvider.EXAMPLE_TASK_NAME, argument.getValue().getName());
+    assertEquals(MockProvider.EXAMPLE_TASK_DESCRIPTION, argument.getValue().getDescription());
   }
 
 }

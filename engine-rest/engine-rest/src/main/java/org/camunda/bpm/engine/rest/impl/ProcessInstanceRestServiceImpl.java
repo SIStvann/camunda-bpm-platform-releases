@@ -125,6 +125,18 @@ public class ProcessInstanceRestServiceImpl extends AbstractRestProcessEngineAwa
   }
 
   @Override
+  public BatchDto updateSuspensionStateAsync(ProcessInstanceSuspensionStateDto dto){
+    Batch batch = null;
+    try {
+      batch = dto.updateSuspensionStateAsync(getProcessEngine());
+      return BatchDto.fromBatch(batch);
+
+    } catch (BadUserRequestException e) {
+      throw new InvalidRequestException(Status.BAD_REQUEST, e.getMessage());
+    }
+  }
+
+  @Override
   public BatchDto deleteAsync(DeleteProcessInstancesDto dto) {
     RuntimeService runtimeService = getProcessEngine().getRuntimeService();
 
@@ -141,7 +153,8 @@ public class ProcessInstanceRestServiceImpl extends AbstractRestProcessEngineAwa
         dto.getProcessInstanceIds(),
         processInstanceQuery,
         dto.getDeleteReason(),
-        dto.isSkipCustomListeners());
+        dto.isSkipCustomListeners(),
+        dto.isSkipSubprocesses());
 
       return BatchDto.fromBatch(batch);
     }
@@ -174,7 +187,8 @@ public class ProcessInstanceRestServiceImpl extends AbstractRestProcessEngineAwa
         processInstanceIds,
         null,
         deleteProcessInstancesDto.getDeleteReason(),
-        deleteProcessInstancesDto.isSkipCustomListeners());
+        deleteProcessInstancesDto.isSkipCustomListeners(),
+        deleteProcessInstancesDto.isSkipSubprocesses());
 
       return BatchDto.fromBatch(batch);
     } catch (BadUserRequestException e) {
@@ -229,6 +243,7 @@ public class ProcessInstanceRestServiceImpl extends AbstractRestProcessEngineAwa
       ManagementService managementService = getProcessEngine().getManagementService();
       Batch batch = managementService.setJobRetriesAsync(
         processInstanceIds,
+        (ProcessInstanceQuery) null,
         setJobRetriesDto.getRetries());
 
       return BatchDto.fromBatch(batch);

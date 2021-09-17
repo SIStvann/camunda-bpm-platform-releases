@@ -13,13 +13,15 @@
 
 package org.camunda.bpm.engine.impl;
 
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
+
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
-import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.util.CompareUtil;
@@ -45,6 +47,7 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   protected boolean finished = false;
   protected boolean unfinished = false;
   protected boolean withIncidents = false;
+  protected String incidentType;
   protected String incidentStatus;
   protected String incidentMessage;
   protected String incidentMessageLike;
@@ -65,6 +68,8 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   protected String processDefinitionKey;
   protected Set<String> processInstanceIds;
   protected String[] tenantIds;
+  protected String[] executedActivityIds;
+  protected String[] activeActivityIds;
 
   protected String caseInstanceId;
 
@@ -129,6 +134,12 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   public HistoricProcessInstanceQuery withIncidents() {
     this.withIncidents = true;
 
+    return this;
+  }
+
+  public HistoricProcessInstanceQuery incidentType(String incidentType) {
+    ensureNotNull("incident type", incidentType);
+    this.incidentType = incidentType;
     return this;
   }
 
@@ -367,6 +378,10 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
     return caseInstanceId;
   }
 
+  public String getIncidentType() {
+    return incidentType;
+  }
+
   public String getIncidentMessage() {
     return this.incidentMessage;
   }
@@ -469,4 +484,21 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
     this.executedJobBefore = date;
     return this;
   }
+
+  @Override
+  public HistoricProcessInstanceQuery executedActivityIdIn(String... ids) {
+    ensureNotNull(BadUserRequestException.class, "activity ids", (Object[]) ids);
+    ensureNotContainsNull(BadUserRequestException.class, "activity ids", Arrays.asList(ids));
+    this.executedActivityIds = ids;
+    return this;
+  }
+
+  @Override
+  public HistoricProcessInstanceQuery activeActivityIdIn(String... ids) {
+    ensureNotNull(BadUserRequestException.class, "activity ids", (Object[]) ids);
+    ensureNotContainsNull(BadUserRequestException.class, "activity ids", Arrays.asList(ids));
+    this.activeActivityIds = ids;
+    return this;
+  }
+
 }

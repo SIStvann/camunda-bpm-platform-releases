@@ -10,7 +10,7 @@
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-database-settings</artifactId>
     <relativePath>../database</relativePath>
-    <version>7.7.0</version>
+    <version>7.8.0</version>
   </parent>
 
   <profiles>
@@ -74,7 +74,7 @@
           <dependency>
             <groupId>org.jboss.weld</groupId>
             <artifactId>weld-core-bom</artifactId>
-            <version>1.1.5.Final</version>
+            <version>1.1.11.Final</version>
             <type>pom</type>
             <scope>import</scope>
           </dependency>

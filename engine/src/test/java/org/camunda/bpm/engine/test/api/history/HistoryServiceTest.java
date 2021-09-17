@@ -13,10 +13,12 @@
 
 package org.camunda.bpm.engine.test.api.history;
 
+import org.apache.tools.ant.filters.LineContains.Contains;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
+import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.impl.util.CollectionUtil;
@@ -27,6 +29,7 @@ import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.RequiredHistoryLevel;
 import org.camunda.bpm.engine.test.api.runtime.ProcessInstanceQueryTest;
 import org.camunda.bpm.engine.variable.Variables;
+import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.slf4j.Logger;
 
@@ -447,6 +450,26 @@ public class HistoryServiceTest extends PluggableProcessEngineTestCase {
     assertEquals(1, historyService.createNativeHistoricActivityInstanceQuery().sql("SELECT * FROM " + managementService.getTableName(HistoricProcessInstance.class)).listPage(0, 1).size());
   }
 
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml"})
+  public void testNativeHistoricVariableInstanceTest() {
+    Date date = Calendar.getInstance().getTime();
+    Map<String, Object> vars = new HashMap<String, Object>();
+    vars.put("stringVar", "abcdef");
+    vars.put("dateVar", date);
+    runtimeService.startProcessInstanceByKey(ONE_TASK_PROCESS, vars);
+
+    assertEquals(2, historyService.createNativeHistoricVariableInstanceQuery().sql("SELECT count(*) FROM " + managementService.getTableName(HistoricVariableInstance.class)).count());
+    assertEquals(1, historyService.createNativeHistoricVariableInstanceQuery().sql("SELECT * FROM " + managementService.getTableName(HistoricVariableInstance.class)).listPage(0, 1).size());
+
+    List<HistoricVariableInstance> variables = historyService.createNativeHistoricVariableInstanceQuery().sql("SELECT * FROM " + managementService.getTableName(HistoricVariableInstance.class)).list();
+    assertEquals(2, variables.size());
+    for (HistoricVariableInstance variable : variables) {
+      assertTrue(vars.containsKey(variable.getName()));
+      assertEquals(vars.get(variable.getName()), variable.getValue());
+      vars.remove(variable.getName());
+    }
+  }
+
   @Deployment(resources = "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml")
   public void testProcessVariableValueEqualsNumber() throws Exception {
     // long
@@ -517,7 +540,7 @@ public class HistoryServiceTest extends PluggableProcessEngineTestCase {
 
   public void testDeleteProcessInstanceUnexistingId() {
     try {
-      historyService.deleteHistoricProcessInstance("enexistingInstanceId");
+      historyService.deleteHistoricProcessInstance("unexistingInstanceId");
       fail("ProcessEngineException expected");
     } catch (ProcessEngineException ae) {
       assertTextPresent("No historic process instance found with id", ae.getMessage());
@@ -530,6 +553,19 @@ public class HistoryServiceTest extends PluggableProcessEngineTestCase {
       fail("ProcessEngineException expected");
     } catch (ProcessEngineException ae) {
       assertTextPresent("processInstanceId is null", ae.getMessage());
+    }
+  }
+
+  @Deployment(resources = {
+  "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml"})
+  public void testDeleteProcessInstancesWithOneUnexistingId() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey(ONE_TASK_PROCESS);
+    runtimeService.deleteProcessInstance(processInstance.getId(), "test");
+    try {
+      historyService.deleteHistoricProcessInstances(Arrays.asList(processInstance.getId(), "unexistingId"));
+      fail("ProcessEngineException expected");
+    } catch (ProcessEngineException ae) {
+      Assert.assertThat(ae.getMessage(), CoreMatchers.containsString("No historic process instances found with ids [unexistingId]"));
     }
   }
 

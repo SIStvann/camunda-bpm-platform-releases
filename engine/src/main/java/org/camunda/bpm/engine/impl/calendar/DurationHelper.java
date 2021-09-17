@@ -24,7 +24,6 @@ import java.util.List;
 import javax.xml.datatype.DatatypeFactory;
 import javax.xml.datatype.Duration;
 
-import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.impl.util.EngineUtilLogger;
@@ -95,6 +94,10 @@ public class DurationHelper {
 
   public int getTimes() {
     return times;
+  }
+
+  public boolean isRepeat() {
+    return isRepeat;
   }
 
   private Date getDateAfterRepeat(Date date) {
