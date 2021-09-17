@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -42,6 +45,7 @@ import org.camunda.bpm.engine.repository.Resource;
  */
 public class DeploymentAuthorizationTest extends AuthorizationTest {
 
+  private static final String REQUIRED_ADMIN_AUTH_EXCEPTION = "ENGINE-03029 Required admin authenticated group or user.";
   protected static final String FIRST_RESOURCE = "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml";
   protected static final String SECOND_RESOURCE = "org/camunda/bpm/engine/test/api/authorization/messageBoundaryEventProcess.bpmn20.xml";
 
@@ -534,7 +538,7 @@ public class DeploymentAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       //then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
 
     }
 
@@ -575,7 +579,7 @@ public class DeploymentAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       //then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
 
     }
 
@@ -616,7 +620,7 @@ public class DeploymentAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       //then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
 
     }
 
@@ -654,7 +658,7 @@ public class DeploymentAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       //then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
 
     }
 
@@ -689,7 +693,7 @@ public class DeploymentAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       //then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
 
     }
 
@@ -724,7 +728,7 @@ public class DeploymentAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       //then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
 
     }
 

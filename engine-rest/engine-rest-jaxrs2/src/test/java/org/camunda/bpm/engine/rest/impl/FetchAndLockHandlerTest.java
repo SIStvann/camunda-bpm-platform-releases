@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -126,7 +129,7 @@ public class FetchAndLockHandlerTest {
     // then
     verify(asyncResponse).resume(argThat(IsCollectionWithSize.hasSize(1)));
     assertThat(handler.getPendingRequests().size(), is(0));
-    verify(handler).suspend(Long.MAX_VALUE - ClockUtil.getCurrentTime().getTime());
+    verify(handler).suspend(Long.MAX_VALUE);
   }
 
   @Test
@@ -171,7 +174,7 @@ public class FetchAndLockHandlerTest {
     // then
     verify(asyncResponse).resume(argThat(IsCollectionWithSize.hasSize(1)));
     assertThat(handler.getPendingRequests().size(), is(0));
-    verify(handler).suspend(Long.MAX_VALUE - ClockUtil.getCurrentTime().getTime());
+    verify(handler).suspend(Long.MAX_VALUE);
   }
 
   @Test
@@ -197,7 +200,7 @@ public class FetchAndLockHandlerTest {
     // then
     verify(asyncResponse).resume(argThat(IsCollectionWithSize.hasSize(0)));
     assertThat(handler.getPendingRequests().size(), is(0));
-    verify(handler).suspend(Long.MAX_VALUE - ClockUtil.getCurrentTime().getTime());
+    verify(handler).suspend(Long.MAX_VALUE);
   }
 
   @Test
@@ -224,7 +227,7 @@ public class FetchAndLockHandlerTest {
     // then
     verify(asyncResponse, times(2)).resume(Collections.emptyList());
     assertThat(handler.getPendingRequests().size(), is(0));
-    verify(handler).suspend(Long.MAX_VALUE - ClockUtil.getCurrentTime().getTime());
+    verify(handler).suspend(Long.MAX_VALUE);
   }
 
   @Test
@@ -261,7 +264,7 @@ public class FetchAndLockHandlerTest {
 
     // then
     assertThat(handler.getPendingRequests().size(), is(0));
-    verify(handler).suspend(Long.MAX_VALUE - ClockUtil.getCurrentTime().getTime());
+    verify(handler).suspend(Long.MAX_VALUE);
     verify(asyncResponse).resume(any(ProcessEngineException.class));
   }
 
@@ -274,7 +277,7 @@ public class FetchAndLockHandlerTest {
 
     // when
     AsyncResponse asyncResponse = mock(AsyncResponse.class);
-    handler.addPendingRequest(createDto(FetchAndLockHandlerImpl.MAX_TIMEOUT + 1), asyncResponse, processEngine);
+    handler.addPendingRequest(createDto(FetchAndLockHandlerImpl.MAX_REQUEST_TIMEOUT + 1), asyncResponse, processEngine);
 
     // then
     verify(handler, never()).suspend(anyLong());
@@ -283,7 +286,33 @@ public class FetchAndLockHandlerTest {
     ArgumentCaptor<InvalidRequestException> argumentCaptor = ArgumentCaptor.forClass(InvalidRequestException.class);
     verify(asyncResponse).resume(argumentCaptor.capture());
     assertThat(argumentCaptor.getValue().getMessage(), is("The asynchronous response timeout cannot " +
-      "be set to a value greater than " + FetchAndLockHandlerImpl.MAX_TIMEOUT +  " milliseconds"));
+      "be set to a value greater than " + FetchAndLockHandlerImpl.MAX_REQUEST_TIMEOUT +  " milliseconds"));
+  }
+
+  @Test
+  public void shouldPollPeriodicallyWhenRequestPending() {
+    // given
+    doReturn(Collections.emptyList()).when(fetchTopicBuilder).execute();
+
+    // when
+    AsyncResponse asyncResponse = mock(AsyncResponse.class);
+    handler.addPendingRequest(createDto(FetchAndLockHandlerImpl.MAX_REQUEST_TIMEOUT), asyncResponse, processEngine);
+    handler.acquire();
+
+    // then
+    verify(handler).suspend(FetchAndLockHandlerImpl.PENDING_REQUEST_FETCH_INTERVAL);
+  }
+
+  @Test
+  public void shouldNotPollPeriodicallyWhenNotRequestsPending() {
+    // given
+    doReturn(Collections.emptyList()).when(fetchTopicBuilder).execute();
+
+    // when
+    handler.acquire();
+
+    // then
+    verify(handler).suspend(FetchAndLockHandlerImpl.MAX_BACK_OFF_TIME);
   }
 
   @Test
@@ -313,7 +342,7 @@ public class FetchAndLockHandlerTest {
 
     // then
     assertThat(handler.getPendingRequests().size(), is(0));
-    verify(handler).suspend(Long.MAX_VALUE - ClockUtil.getCurrentTime().getTime());
+    verify(handler).suspend(Long.MAX_VALUE);
   }
 
   @Test

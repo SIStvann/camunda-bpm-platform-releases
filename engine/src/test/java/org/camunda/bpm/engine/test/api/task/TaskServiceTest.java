@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.task;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,6 +46,7 @@ import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.impl.TaskServiceImpl;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricDetailVariableInstanceUpdateEntity;
+import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.runtime.CaseExecution;
 import org.camunda.bpm.engine.runtime.CaseInstance;
@@ -62,6 +66,7 @@ import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
 import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -109,6 +114,8 @@ public class TaskServiceTest {
   private IdentityService identityService;
   private ProcessEngineConfigurationImpl processEngineConfiguration;
 
+  private static final SimpleDateFormat SDF = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss.SSS");
+
   @Before
   public void init() {
     runtimeService = engineRule.getRuntimeService();
@@ -118,6 +125,11 @@ public class TaskServiceTest {
     caseService = engineRule.getCaseService();
     identityService = engineRule.getIdentityService();
     processEngineConfiguration = engineRule.getProcessEngineConfiguration();
+  }
+
+  @After
+  public void tearDown() {
+    ClockUtil.setCurrentTime(new Date());
   }
 
   @Test
@@ -1615,7 +1627,10 @@ public class TaskServiceTest {
   }
 
   @Test
-  public void testTaskAttachmentByTaskIdAndAttachmentId() {
+  public void testTaskAttachmentByTaskIdAndAttachmentId() throws ParseException {
+    Date fixedDate = SDF.parse("01/01/2001 01:01:01.000");
+    ClockUtil.setCurrentTime(fixedDate);
+
     int historyLevel = processEngineConfiguration.getHistoryLevel().getId();
     if (historyLevel> ProcessEngineConfigurationImpl.HISTORYLEVEL_NONE) {
       // create and save task
@@ -1637,6 +1652,7 @@ public class TaskServiceTest {
       assertEquals("someprocessinstanceid", attachment.getProcessInstanceId());
       assertEquals("http://weather.com", attachment.getUrl());
       assertNull(taskService.getAttachmentContent(attachment.getId()));
+      assertThat(attachment.getCreateTime(), is(fixedDate));
 
       // delete attachment for taskId and attachmentId
       taskService.deleteTaskAttachment(taskId, attachmentId);
@@ -1704,13 +1720,16 @@ public class TaskServiceTest {
       "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml"})
   @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_AUDIT)
   @Test
-  public void testCreateTaskAttachmentWithNullTaskId() {
+  public void testCreateTaskAttachmentWithNullTaskId() throws ParseException {
+    Date fixedDate = SDF.parse("01/01/2001 01:01:01.000");
+    ClockUtil.setCurrentTime(fixedDate);
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
     Attachment attachment = taskService.createAttachment("web page", null, processInstance.getId(), "weatherforcast", "temperatures and more", new ByteArrayInputStream("someContent".getBytes()));
     Attachment fetched = taskService.getAttachment(attachment.getId());
     assertThat(fetched,is(notNullValue()));
     assertThat(fetched.getTaskId(), is(nullValue()));
     assertThat(fetched.getProcessInstanceId(),is(notNullValue()));
+    assertThat(fetched.getCreateTime(), is(fixedDate));
     taskService.deleteAttachment(attachment.getId());
   }
 

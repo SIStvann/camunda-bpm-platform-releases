@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,6 +16,8 @@
 package org.camunda.bpm.engine.impl.history.producer;
 
 import org.camunda.bpm.engine.delegate.DelegateTask;
+import org.camunda.bpm.engine.impl.batch.BatchEntity;
+import org.camunda.bpm.engine.impl.batch.history.HistoricBatchEntity;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.history.event.*;
@@ -83,6 +88,20 @@ public class CacheAwareHistoryEventProducer extends DefaultHistoryEventProducer 
 
     } else {
       return newIncidentEventEntity(incident);
+
+    }
+  }
+
+  protected HistoricBatchEntity loadBatchEntity(BatchEntity batch) {
+    String batchId = batch.getId();
+
+    HistoricBatchEntity cachedEntity = findInCache(HistoricBatchEntity.class, batchId);
+
+    if(cachedEntity != null) {
+      return cachedEntity;
+
+    } else {
+      return newBatchEventEntity(batch);
 
     }
   }

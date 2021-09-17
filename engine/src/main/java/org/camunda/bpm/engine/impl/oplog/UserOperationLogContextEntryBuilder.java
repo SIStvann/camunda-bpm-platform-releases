@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,7 +29,6 @@ import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
 import org.camunda.bpm.engine.impl.repository.ResourceDefinitionEntity;
-import org.camunda.bpm.engine.runtime.ProcessInstance;
 
 public class UserOperationLogContextEntryBuilder {
 
@@ -44,6 +46,11 @@ public class UserOperationLogContextEntryBuilder {
     entry.setProcessDefinitionId(job.getProcessDefinitionId());
     entry.setProcessDefinitionKey(job.getProcessDefinitionKey());
     entry.setDeploymentId(job.getDeploymentId());
+
+    ExecutionEntity execution = job.getExecution();
+    if (execution != null) {
+      entry.setRootProcessInstanceId(execution.getRootProcessInstanceId());
+    }
 
     return this;
   }
@@ -66,6 +73,7 @@ public class UserOperationLogContextEntryBuilder {
 
   public UserOperationLogContextEntryBuilder inContextOf(ExecutionEntity execution) {
     entry.setProcessInstanceId(execution.getProcessInstanceId());
+    entry.setRootProcessInstanceId(execution.getRootProcessInstanceId());
     entry.setProcessDefinitionId(execution.getProcessDefinitionId());
 
     ProcessDefinitionEntity processDefinition = (ProcessDefinitionEntity) execution.getProcessDefinition();
@@ -109,6 +117,11 @@ public class UserOperationLogContextEntryBuilder {
     entry.setCaseExecutionId(task.getCaseExecutionId());
     entry.setTaskId(task.getId());
 
+    ExecutionEntity execution = task.getExecution();
+    if (execution != null) {
+      entry.setRootProcessInstanceId(execution.getRootProcessInstanceId());
+    }
+
     return this;
   }
 
@@ -120,6 +133,7 @@ public class UserOperationLogContextEntryBuilder {
       }
     }
     entry.setPropertyChanges(propertyChanges);
+    entry.setRootProcessInstanceId(processInstance.getRootProcessInstanceId());
     entry.setProcessInstanceId(processInstance.getProcessInstanceId());
     entry.setProcessDefinitionId(processInstance.getProcessDefinitionId());
     entry.setExecutionId(processInstance.getId());

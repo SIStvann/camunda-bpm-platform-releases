@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,8 +15,8 @@
  */
 package org.camunda.bpm.engine.rest;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.rest.dto.converter.TaskReportResultToCsvConverter;
 import org.camunda.bpm.engine.rest.util.container.TestContainerRule;
@@ -27,8 +30,8 @@ import org.junit.Test;
 import javax.ws.rs.core.Response.Status;
 import java.util.List;
 
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_GROUP_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_COUNT_BY_CANDIDATE_GROUP;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.createMockTaskCountByCandidateGroupReport;

@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -37,6 +40,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.util.TypedValueField;
 import org.camunda.bpm.engine.impl.persistence.entity.util.TypedValueUpdateListener;
 import org.camunda.bpm.engine.impl.variable.serializer.TypedValueSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.ValueFields;
+import org.camunda.bpm.engine.repository.ResourceTypes;
 import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
@@ -68,7 +72,7 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
   protected String textValue;
   protected String textValue2;
 
-  protected ByteArrayField byteArrayField = new ByteArrayField(this);
+  protected ByteArrayField byteArrayField = new ByteArrayField(this, ResourceTypes.RUNTIME);
 
   protected TypedValueField typedValueField = new TypedValueField(this, true);
 
@@ -265,10 +269,6 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
   }
 
   public void setValue(TypedValue value) {
-    if(isTransient()) {
-      throw LOG.updateTransientVariableException(getName());
-    }
-
     // clear value fields
     clearValueFields();
 

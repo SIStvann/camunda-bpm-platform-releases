@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl;
 
 import java.util.Arrays;
@@ -20,11 +22,13 @@ import java.util.List;
 import java.util.Set;
 
 import org.camunda.bpm.engine.BadUserRequestException;
+import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.util.CompareUtil;
+
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsEmptyString;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsNull;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotEmpty;
@@ -53,6 +57,7 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   protected String incidentMessage;
   protected String incidentMessageLike;
   protected String startedBy;
+  protected boolean isRootProcessInstances;
   protected String superProcessInstanceId;
   protected String subProcessInstanceId;
   protected String superCaseInstanceId;
@@ -69,6 +74,7 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   protected String processDefinitionKey;
   protected Set<String> processInstanceIds;
   protected String[] tenantIds;
+  protected boolean isTenantIdSet;
   protected String[] executedActivityIds;
   protected String[] activeActivityIds;
   protected String state;
@@ -204,9 +210,23 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
     return this;
   }
 
+  public HistoricProcessInstanceQuery rootProcessInstances() {
+    if (superProcessInstanceId != null) {
+      throw new BadUserRequestException("Invalid query usage: cannot set both rootProcessInstances and superProcessInstanceId");
+    }
+    if (superCaseInstanceId != null) {
+      throw new BadUserRequestException("Invalid query usage: cannot set both rootProcessInstances and superCaseInstanceId");
+    }
+    isRootProcessInstances = true;
+    return this;
+  }
+
   public HistoricProcessInstanceQuery superProcessInstanceId(String superProcessInstanceId) {
-	 this.superProcessInstanceId = superProcessInstanceId;
-	 return this;
+    if (isRootProcessInstances) {
+      throw new BadUserRequestException("Invalid query usage: cannot set both rootProcessInstances and superProcessInstanceId");
+    }
+    this.superProcessInstanceId = superProcessInstanceId;
+    return this;
   }
 
   public HistoricProcessInstanceQuery subProcessInstanceId(String subProcessInstanceId) {
@@ -215,6 +235,9 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   }
 
   public HistoricProcessInstanceQuery superCaseInstanceId(String superCaseInstanceId) {
+    if (isRootProcessInstances) {
+      throw new BadUserRequestException("Invalid query usage: cannot set both rootProcessInstances and superCaseInstanceId");
+    }
     this.superCaseInstanceId = superCaseInstanceId;
     return this;
   }
@@ -232,6 +255,13 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   public HistoricProcessInstanceQuery tenantIdIn(String... tenantIds) {
     ensureNotNull("tenantIds", (Object[]) tenantIds);
     this.tenantIds = tenantIds;
+    this.isTenantIdSet = true;
+    return this;
+  }
+
+  public HistoricProcessInstanceQuery withoutTenantId() {
+    tenantIds = null;
+    isTenantIdSet = true;
     return this;
   }
 
@@ -458,6 +488,10 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
     cal.set(Calendar.MINUTE, 0);
     cal.set(Calendar.HOUR, 0);
     return cal.getTime();
+  }
+
+  public boolean isRootProcessInstances() {
+    return isRootProcessInstances;
   }
 
   public String getSubProcessInstanceId() {

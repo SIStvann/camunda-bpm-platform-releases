@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  * 
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.persistence.entity;
 
 import java.io.Serializable;
@@ -20,6 +22,7 @@ import java.util.List;
 import java.util.StringTokenizer;
 
 import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.impl.db.HistoricEntity;
 import org.camunda.bpm.engine.task.Comment;
 import org.camunda.bpm.engine.task.Event;
 
@@ -27,7 +30,7 @@ import org.camunda.bpm.engine.task.Event;
 /**
  * @author Tom Baeyens
  */
-public class CommentEntity implements Comment, Event, DbEntity, Serializable {
+public class CommentEntity implements Comment, Event, DbEntity, HistoricEntity, Serializable {
   
   private static final long serialVersionUID = 1L;
   
@@ -47,7 +50,9 @@ public class CommentEntity implements Comment, Event, DbEntity, Serializable {
   protected String message;
   protected String fullMessage;
   protected String tenantId;
-  
+  protected String rootProcessInstanceId;
+  protected Date removalTime;
+
   public Object getPersistentState() {
     return CommentEntity.class;
   }
@@ -178,6 +183,22 @@ public class CommentEntity implements Comment, Event, DbEntity, Serializable {
     this.tenantId = tenantId;
   }
 
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+
+  public void setRootProcessInstanceId(String rootProcessInstanceId) {
+    this.rootProcessInstanceId = rootProcessInstanceId;
+  }
+
+  public Date getRemovalTime() {
+    return removalTime;
+  }
+
+  public void setRemovalTime(Date removalTime) {
+    this.removalTime = removalTime;
+  }
+
   @Override
   public String toString() {
     return this.getClass().getSimpleName()
@@ -187,6 +208,8 @@ public class CommentEntity implements Comment, Event, DbEntity, Serializable {
            + ", time=" + time
            + ", taskId=" + taskId
            + ", processInstanceId=" + processInstanceId
+           + ", rootProcessInstanceId=" + rootProcessInstanceId
+           + ", removalTime=" + removalTime
            + ", action=" + action
            + ", message=" + message
            + ", fullMessage=" + fullMessage

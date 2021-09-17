@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.repository;
 
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -19,6 +21,8 @@ import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinitionQuery;
 import org.camunda.bpm.engine.runtime.Incident;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.model.bpmn.Bpmn;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 
 import java.util.List;
 
@@ -716,5 +720,91 @@ public class ProcessDefinitionQueryTest extends AbstractDefinitionQueryTest {
     assertEquals("ver_tag_2", processDefinitionList.get(1).getVersionTag());
   }
 
+  public void testQueryByStartableInTasklist() {
+    assertEquals(4, repositoryService.createProcessDefinitionQuery().startableInTasklist().count());
+  }
 
+  public void testQueryByStartableInTasklistNestedProcess() {
+    // given
+    // startable super process
+    // non-startable subprocess
+    BpmnModelInstance[] nestedProcess = setupNestedProcess(false);
+    String dplmntId = deployment(nestedProcess);
+
+    // when
+    ProcessDefinition actualStartable = repositoryService.createProcessDefinitionQuery()
+        .deploymentId(dplmntId)
+        .startableInTasklist()
+        .singleResult();
+
+    ProcessDefinition actualNotStartable = repositoryService.createProcessDefinitionQuery()
+        .deploymentId(dplmntId)
+        .notStartableInTasklist()
+        .singleResult();
+
+    // then
+
+    assertEquals("calling", actualStartable.getKey());
+    assertEquals("called", actualNotStartable.getKey());
+
+    // cleanup
+    repositoryService.deleteDeployment(dplmntId);
+  }
+
+  public void testQueryByStartableInTasklistNestedProcessDeployedSecondTime() {
+    // given
+    // startable super process & subprocess
+    BpmnModelInstance[] nestedProcess = setupNestedProcess(true);
+    String dplmntId1 = deployment(nestedProcess);
+
+    // assume
+    long processes = repositoryService.createProcessDefinitionQuery()
+        .deploymentId(dplmntId1)
+        .notStartableInTasklist()
+        .count();
+    assertEquals(0, processes);
+
+    // deploy second version
+    // startable super process
+    // non-startable subprocess
+    nestedProcess = setupNestedProcess(false);
+    String dplmntId2 = deployment(nestedProcess);
+
+    // when
+    ProcessDefinition startable = repositoryService.createProcessDefinitionQuery()
+        .deploymentId(dplmntId2)
+        .startableInTasklist()
+        .singleResult();
+    ProcessDefinition notStartable = repositoryService.createProcessDefinitionQuery()
+        .deploymentId(dplmntId2)
+        .notStartableInTasklist()
+        .singleResult();
+
+    // then
+    assertEquals("calling", startable.getKey());
+    assertEquals("called", notStartable.getKey());
+
+    // cleanup
+    repositoryService.deleteDeployment(dplmntId1);
+    repositoryService.deleteDeployment(dplmntId2);
+  }
+
+  protected BpmnModelInstance[] setupNestedProcess(boolean isStartableSubprocess) {
+    BpmnModelInstance[] result = new BpmnModelInstance[2];
+    result[0] = Bpmn.createExecutableProcess("calling")
+        .startEvent()
+        .callActivity()
+          .calledElement("called")
+        .endEvent()
+        .done();
+
+    result[1] = Bpmn.createExecutableProcess("called")
+        .camundaStartableInTasklist(isStartableSubprocess)
+        .startEvent()
+        .userTask()
+        .endEvent()
+        .done();
+
+    return result;
+  }
 }

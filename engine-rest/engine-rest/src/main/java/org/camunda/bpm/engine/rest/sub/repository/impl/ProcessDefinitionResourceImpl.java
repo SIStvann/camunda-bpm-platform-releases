@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,6 +29,7 @@ import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.exception.NullValueException;
 import org.camunda.bpm.engine.form.StartFormData;
+import org.camunda.bpm.engine.impl.form.validator.FormFieldValidationException;
 import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.management.ActivityStatistics;
 import org.camunda.bpm.engine.management.ActivityStatisticsQuery;
@@ -101,11 +105,11 @@ public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource 
   }
 
   @Override
-  public Response deleteProcessDefinition(boolean cascade, boolean skipCustomListeners) {
+  public Response deleteProcessDefinition(boolean cascade, boolean skipCustomListeners, boolean skipIoMappings) {
     RepositoryService repositoryService = engine.getRepositoryService();
 
     try {
-      repositoryService.deleteProcessDefinition(processDefinitionId, cascade, skipCustomListeners);
+      repositoryService.deleteProcessDefinition(processDefinitionId, cascade, skipCustomListeners, skipIoMappings);
     } catch (NotFoundException nfe) {
       throw new InvalidRequestException(Status.NOT_FOUND, nfe, nfe.getMessage());
     }
@@ -185,6 +189,10 @@ public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource 
 
     } catch (AuthorizationException e) {
       throw e;
+
+    } catch (FormFieldValidationException e) {
+      String errorMessage = String.format("Cannot instantiate process definition %s: %s", processDefinitionId, e.getMessage());
+      throw new RestException(Status.BAD_REQUEST, e, errorMessage);
 
     } catch (ProcessEngineException e) {
       String errorMessage = String.format("Cannot instantiate process definition %s: %s", processDefinitionId, e.getMessage());

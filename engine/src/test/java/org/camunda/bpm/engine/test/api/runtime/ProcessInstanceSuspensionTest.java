@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -280,6 +283,31 @@ public class ProcessInstanceSuspensionTest extends PluggableProcessEngineTestCas
     for (Task task : tasks) {
       assertFalse(task.isSuspended());
     }
+  }
+
+  /**
+   * See https://app.camunda.com/jira/browse/CAM-9505
+   */
+  @Deployment(resources={"org/camunda/bpm/engine/test/api/runtime/oneTaskProcess.bpmn20.xml"})
+  public void testPreserveCreateTimeOnUpdatedTask() {
+    // given
+    ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery().singleResult();
+    runtimeService.startProcessInstanceByKey(processDefinition.getKey());
+    ProcessInstance processInstance = runtimeService.createProcessInstanceQuery().singleResult();
+
+    Task taskBeforeSuspension = taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult();
+    Date createTime = taskBeforeSuspension.getCreateTime();
+
+    // when
+    runtimeService.suspendProcessInstanceById(processInstance.getId());
+
+    Task task = taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult();
+
+    // assume
+    assertTrue(task.isSuspended());
+
+    // then
+    assertEquals(createTime, task.getCreateTime());
   }
 
   @Deployment(resources={"org/camunda/bpm/engine/test/api/runtime/oneTaskProcess.bpmn20.xml"})

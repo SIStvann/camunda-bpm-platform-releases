@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -176,7 +179,15 @@ public enum HistoryEventTypes implements HistoryEventType {
    *
    * @since 7.7
    */
-  EXTERNAL_TASK_DELETE("external-task", "delete");
+  EXTERNAL_TASK_DELETE("external-task", "delete"),
+
+
+  /**
+   * fired when used operation log is created.
+   *
+   * @since 7.10, 7.9.1, 7.8.7
+   */
+  USER_OPERATION_LOG("user-operation-log", "create");
 
   private HistoryEventTypes(String entityType, String eventName) {
     this.entityType = entityType;

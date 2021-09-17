@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +26,7 @@ public class CorrelationMessageDto {
   private Map<String, VariableValueDto> correlationKeys;
   private Map<String, VariableValueDto> localCorrelationKeys;
   private Map<String, VariableValueDto> processVariables;
+  private Map<String, VariableValueDto> processVariablesLocal;
   private String tenantId;
   private boolean withoutTenantId;
   private String processInstanceId;
@@ -68,6 +72,14 @@ public class CorrelationMessageDto {
 
   public void setProcessVariables(Map<String, VariableValueDto> processVariables) {
     this.processVariables = processVariables;
+  }
+
+  public Map<String, VariableValueDto> getProcessVariablesLocal() {
+    return processVariablesLocal;
+  }
+
+  public void setProcessVariablesLocal(Map<String, VariableValueDto> processVariablesLocal) {
+    this.processVariablesLocal = processVariablesLocal;
   }
 
   public boolean isAll() {

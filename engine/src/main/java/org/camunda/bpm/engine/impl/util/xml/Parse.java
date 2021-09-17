@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -42,6 +45,7 @@ public class Parse extends DefaultHandler {
   private static final String JAXP_SCHEMA_SOURCE = "http://java.sun.com/xml/jaxp/properties/schemaSource";
   private static final String JAXP_SCHEMA_LANGUAGE = "http://java.sun.com/xml/jaxp/properties/schemaLanguage";
   private static final String W3C_XML_SCHEMA = "http://www.w3.org/2001/XMLSchema";
+  private static final String XXE_PROCESSING = "http://xml.org/sax/features/external-general-entities";
 
   private static final String NEW_LINE = System.getProperty("line.separator");
 
@@ -52,6 +56,7 @@ public class Parse extends DefaultHandler {
   protected List<Problem> errors = new ArrayList<Problem>();
   protected List<Problem> warnings = new ArrayList<Problem>();
   protected String schemaResource;
+  protected boolean enableXxeProcessing = true;
 
   public Parse(Parser parser) {
     this.parser = parser;
@@ -106,6 +111,11 @@ public class Parse extends DefaultHandler {
     return this;
   }
 
+  public Parse xxeProcessing(boolean enable) {
+    setEnableXxeProcessing(enable);
+    return this;
+  }
+
   protected void setStreamSource(StreamSource streamSource) {
     if (this.streamSource!=null) {
       throw LOG.multipleSourcesException(this.streamSource, streamSource);
@@ -113,9 +123,15 @@ public class Parse extends DefaultHandler {
     this.streamSource = streamSource;
   }
 
+  public void setEnableXxeProcessing(boolean enableXxeProcessing) {
+    this.enableXxeProcessing = enableXxeProcessing;
+  }
+
   public Parse execute() {
     try {
       InputStream inputStream = streamSource.getInputStream();
+
+      parser.getSaxParserFactory().setFeature(XXE_PROCESSING, enableXxeProcessing);
 
       if (schemaResource == null) { // must be done before parser is created
         parser.getSaxParserFactory().setNamespaceAware(false);
@@ -203,5 +219,4 @@ public class Parse extends DefaultHandler {
     }
     this.schemaResource = schemaResource;
   }
-
 }

@@ -1,4 +1,7 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -10,19 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.util;
 
 import java.lang.reflect.Constructor;
 import java.util.Collection;
 import java.util.Map;
+import java.util.regex.Pattern;
 
+import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.authorization.Authorization;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.exception.NullValueException;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 
 /**
  * @author Sebastian Menski
@@ -335,6 +340,37 @@ public final class EnsureUtil {
     }
   }
 
+  public static void ensureWhitelistedResourceId(CommandContext commandContext, String resourceType, String resourceId) {
+    String resourcePattern = determineResourceWhitelistPattern(commandContext.getProcessEngineConfiguration(), resourceType);
+    Pattern PATTERN = Pattern.compile(resourcePattern);
+
+    if (!PATTERN.matcher(resourceId).matches()) {
+      throw generateException(ProcessEngineException.class, resourceType + " has an invalid id", "'" + resourceId + "'", "is not a valid resource identifier.");
+    }
+  }
+
+  protected static String determineResourceWhitelistPattern(ProcessEngineConfiguration processEngineConfiguration, String resourceType) {
+    String resourcePattern = null;
+
+    if (resourceType.equals("User")) {
+      resourcePattern = processEngineConfiguration.getUserResourceWhitelistPattern();
+    }
+
+    if (resourceType.equals("Group")) {
+      resourcePattern =  processEngineConfiguration.getGroupResourceWhitelistPattern();
+    }
+
+    if (resourceType.equals("Tenant")) {
+      resourcePattern =  processEngineConfiguration.getTenantResourceWhitelistPattern();
+    }
+
+    if (resourcePattern != null && !resourcePattern.isEmpty()) {
+      return resourcePattern;
+    }
+
+    return processEngineConfiguration.getGeneralResourceWhitelistPattern();
+  }
+
   protected static <T extends ProcessEngineException> T generateException(Class<T> exceptionClass, String message, String variableName, String description) {
     String formattedMessage = formatMessage(message, variableName, description);
 
@@ -368,5 +404,4 @@ public final class EnsureUtil {
       throw LOG.notInsideCommandContext(operation);
     }
   }
-
 }

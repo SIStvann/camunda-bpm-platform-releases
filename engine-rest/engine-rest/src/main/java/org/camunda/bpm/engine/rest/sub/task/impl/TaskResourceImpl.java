@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -56,6 +59,7 @@ import org.camunda.bpm.engine.rest.util.EncodingUtil;
 import org.camunda.bpm.engine.task.IdentityLink;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.variable.VariableMap;
+import org.camunda.bpm.engine.impl.form.validator.FormFieldValidationException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -102,6 +106,10 @@ public class TaskResourceImpl implements TaskResource {
     } catch (AuthorizationException e) {
       throw e;
 
+    } catch (FormFieldValidationException e) {
+      String errorMessage = String.format("Cannot complete task %s: %s", taskId, e.getMessage());
+      throw new RestException(Status.BAD_REQUEST, e, errorMessage);
+
     } catch (ProcessEngineException e) {
       String errorMessage = String.format("Cannot complete task %s: %s", taskId, e.getMessage());
       throw new RestException(Status.INTERNAL_SERVER_ERROR, e, errorMessage);
@@ -121,6 +129,10 @@ public class TaskResourceImpl implements TaskResource {
 
     } catch (AuthorizationException e) {
       throw e;
+    
+    } catch (FormFieldValidationException e) {
+      String errorMessage = String.format("Cannot submit task form %s: %s", taskId, e.getMessage());
+      throw new RestException(Status.BAD_REQUEST, e, errorMessage);
 
     } catch (ProcessEngineException e) {
       String errorMessage = String.format("Cannot submit task form %s: %s", taskId, e.getMessage());

@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
+<!--
+
+    Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogEntity">
@@ -22,12 +40,14 @@
             JOB_DEF_CONFIGURATION_,
             ACT_ID_,
             EXECUTION_ID_,
+            ROOT_PROC_INST_ID_,
             PROCESS_INSTANCE_ID_,
             PROCESS_DEF_ID_,
             PROCESS_DEF_KEY_,
             DEPLOYMENT_ID_,
             TENANT_ID_,
-            SEQUENCE_COUNTER_
+            SEQUENCE_COUNTER_,
+            REMOVAL_TIME_
           )
     values (#{id, jdbcType=VARCHAR},
             #{timestamp, jdbcType=TIMESTAMP},
@@ -43,14 +63,52 @@
             #{jobDefinitionConfiguration, jdbcType=VARCHAR},
             #{activityId, jdbcType=VARCHAR},
             #{executionId, jdbcType=VARCHAR},
+            #{rootProcessInstanceId, jdbcType=VARCHAR},
             #{processInstanceId, jdbcType=VARCHAR},
             #{processDefinitionId, jdbcType=VARCHAR},
             #{processDefinitionKey, jdbcType=VARCHAR},
             #{deploymentId, jdbcType=VARCHAR},
             #{tenantId, jdbcType=VARCHAR},
-            #{sequenceCounter, jdbcType=BIGINT}
+            #{sequenceCounter, jdbcType=BIGINT},
+            #{removalTime, jdbcType=TIMESTAMP}
     )
   </insert>
+
+  <!-- UPDATE -->
+
+  <update id="updateJobLogByRootProcessInstanceId"
+          parameterType="java.util.Map">
+      update ${prefix}ACT_HI_JOB_LOG set
+      REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+
+      where ROOT_PROC_INST_ID_ = #{rootProcessInstanceId, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateJobLogByRootProcessInstanceId_mysql"
+          parameterType="java.util.Map">
+      update ${prefix}ACT_HI_JOB_LOG set
+      REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP},
+      TIMESTAMP_ = TIMESTAMP_
+
+      where ROOT_PROC_INST_ID_ = #{rootProcessInstanceId, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateJobLogByBatchId"
+          parameterType="java.util.Map">
+      update ${prefix}ACT_HI_JOB_LOG set
+      REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+
+      where JOB_DEF_CONFIGURATION_ = #{batchId, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateJobLogByBatchId_mysql"
+          parameterType="java.util.Map">
+      update ${prefix}ACT_HI_JOB_LOG set
+      REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP},
+      TIMESTAMP_ = TIMESTAMP_
+
+      where JOB_DEF_CONFIGURATION_ = #{batchId, jdbcType=VARCHAR}
+  </update>
 
   <!-- DELETE -->
 
@@ -60,10 +118,6 @@
 
   <delete id="deleteHistoricJobLogByJobId">
     delete from ${prefix}ACT_HI_JOB_LOG where JOB_ID_ = #{jobId}
-  </delete>
-
-  <delete id="deleteHistoricJobLogByProcessInstanceId">
-    delete from ${prefix}ACT_HI_JOB_LOG where PROCESS_INSTANCE_ID_ = #{processInstanceId}
   </delete>
 
   <delete id="deleteHistoricJobLogByProcessInstanceIds">
@@ -97,6 +151,52 @@
       <bind name="listOfIds" value="list"/>
       <bind name="fieldName" value="'JOB_DEF_CONFIGURATION_'"/>
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
+  </delete>
+
+  <sql id="andWhereMinuteInDateBetweenSql">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart2}${date}${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <sql id="andWhereMinuteInDateBetweenSql_oracle">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}${date}${datepart2}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <delete id="deleteJobLogByRemovalTime"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_JOB_LOG
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteJobLogByRemovalTime_oracle"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_JOB_LOG
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql_oracle"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteJobLogByRemovalTime_postgres_or_db2"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_JOB_LOG
+    where ID_ IN
+      (SELECT ID_
+       FROM ${prefix}ACT_HI_JOB_LOG
+       WHERE REMOVAL_TIME_ &lt;= #{parameter.removalTime} <include refid="andWhereMinuteInDateBetweenSql"/>
+       ${limitAfterWithoutOffset})
   </delete>
 
   <!-- BYTE ARRAY DELETE -->
@@ -138,6 +238,7 @@
     <result property="jobDefinitionConfiguration" column="JOB_DEF_CONFIGURATION_" jdbcType="VARCHAR" />
     <result property="activityId" column="ACT_ID_" jdbcType="VARCHAR" />
     <result property="executionId" column="EXECUTION_ID_" jdbcType="VARCHAR" />
+    <result property="rootProcessInstanceId" column="ROOT_PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="processInstanceId" column="PROCESS_INSTANCE_ID_" jdbcType="VARCHAR" />
     <result property="processDefinitionId" column="PROCESS_DEF_ID_" jdbcType="VARCHAR" />
     <result property="processDefinitionKey" column="PROCESS_DEF_KEY_" jdbcType="VARCHAR" />
@@ -145,6 +246,7 @@
     <result property="state" column="JOB_STATE_" jdbcType="INTEGER" />
     <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
     <result property="sequenceCounter" column="SEQUENCE_COUNTER_" jdbcType="BIGINT" />
+    <result property="removalTime" column="REMOVAL_TIME_" jdbcType="TIMESTAMP"/>
   </resultMap>
 
   <sql id="selectExceptionByteArrayIds">

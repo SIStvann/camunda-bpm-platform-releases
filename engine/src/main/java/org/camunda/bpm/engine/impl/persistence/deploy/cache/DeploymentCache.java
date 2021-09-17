@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.persistence.deploy.cache;
 
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionEntity;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionEntity;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionQueryImpl;
@@ -305,8 +308,12 @@ public class DeploymentCache {
 
   public void removeDeployment(String deploymentId) {
     bpmnModelInstanceCache.removeAllDefinitionsByDeploymentId(deploymentId);
-    cmmnModelInstanceCache.removeAllDefinitionsByDeploymentId(deploymentId);
-    dmnModelInstanceCache.removeAllDefinitionsByDeploymentId(deploymentId);
+    if(Context.getProcessEngineConfiguration().isCmmnEnabled()) {
+      cmmnModelInstanceCache.removeAllDefinitionsByDeploymentId(deploymentId);
+    }
+    if(Context.getProcessEngineConfiguration().isDmnEnabled()) {
+      dmnModelInstanceCache.removeAllDefinitionsByDeploymentId(deploymentId);
+    }
     removeAllDecisionRequirementsDefinitionsByDeploymentId(deploymentId);
   }
 

@@ -1,3 +1,18 @@
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.test.concurrency;
 
 import org.camunda.bpm.engine.ProcessEngine;
@@ -16,6 +31,8 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 
+import static org.camunda.bpm.engine.ProcessEngineConfiguration.HISTORY_CLEANUP_STRATEGY_END_TIME_BASED;
+
 /**
  * <p>Tests a concurrent attempt of a bootstrapping Process Engine to reconfigure
  * the HistoryCleanupJob while the JobExecutor tries to execute it.</p>
@@ -33,6 +50,8 @@ public class ConcurrentProcessEngineJobExecutorHistoryCleanupJobTest extends Con
     Calendar timeOfDay = Calendar.getInstance();
     timeOfDay.set(Calendar.HOUR_OF_DAY, 17);
     ClockUtil.setCurrentTime(timeOfDay.getTime());
+
+    processEngineConfiguration.setHistoryCleanupStrategy(HISTORY_CLEANUP_STRATEGY_END_TIME_BASED);
 
     super.setUp();
   }

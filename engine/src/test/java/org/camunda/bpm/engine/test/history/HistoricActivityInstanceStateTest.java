@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -320,8 +323,8 @@ public class HistoricActivityInstanceStateTest extends PluggableProcessEngineTes
     assertNonCompletingActivityInstance(allInstances, "userTask");
 
     // fails due to CAM-4527: end execution listeners are executed twice for the signal end event
-//    assertIsCanceledActivityInstances(allInstances, "signalEnd", 1);
-//    assertNonCompletingActivityInstance(allInstances, "signalEnd");
+    assertIsCanceledActivityInstances(allInstances, "signalEnd", 1);
+    assertNonCompletingActivityInstance(allInstances, "signalEnd");
 
     assertNonCanceledActivityInstance(allInstances, "eventSubprocessStart");
     assertNonCompletingActivityInstance(allInstances, "eventSubprocessStart");
@@ -453,10 +456,6 @@ public class HistoricActivityInstanceStateTest extends PluggableProcessEngineTes
     assertIsCanceledActivityInstances(allInstances, "subprocess", 1);
     assertNonCompletingActivityInstance(allInstances, "subprocess");
 
-  }
-
-  private void assertIsCanceledActivityInstances(List<HistoricActivityInstance> allInstances, String activityId) {
-    assertIsCanceledActivityInstances(allInstances, activityId, -1);
   }
 
   private void assertIsCanceledActivityInstances(List<HistoricActivityInstance> allInstances, String activityId, int count) {

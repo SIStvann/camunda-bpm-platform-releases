@@ -9,7 +9,7 @@
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-database-settings</artifactId>
     <relativePath>../database</relativePath>
-    <version>7.9.0</version>
+    <version>7.10.0</version>
   </parent>
 
   <dependencies>
@@ -58,12 +58,6 @@
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-email</artifactId>
-    </dependency>
-    <dependency>
-      <!-- required for building with JDK 5 -->
-      <groupId>org.livetribe</groupId>
-      <artifactId>livetribe-jsr223</artifactId>
-      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.mybatis</groupId>
@@ -705,6 +699,11 @@
                      the same except for the whole unit test suite -->
                 <exclude>**/DatabaseTablePrefixTest.java</exclude>
                 <exclude>**/DeploymentTest.java</exclude>
+                <exclude>**/CustomHistoryLevelUserOperationLogTest.java</exclude>
+                <exclude>**/CustomHistoryLevelWithoutUserOperationLogTest.java</exclude>
+                <exclude>**/CustomHistoryLevelIncidentTest.java</exclude>
+                <exclude>**/CustomHistoryLevelIdentityLinkTest.java</exclude>
+                <exclude>**/removaltime/cleanup/HistoryCleanupScheduler*Test.java</exclude>
               </excludes>
             </configuration>
           </plugin>

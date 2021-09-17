@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -51,6 +54,12 @@ public class AdministratorAuthorizationPlugin extends AbstractProcessEnginePlugi
 
   public void postInit(ProcessEngineConfigurationImpl processEngineConfiguration) {
     authorizationEnabled = processEngineConfiguration.isAuthorizationEnabled();
+    if (administratorGroupName != null && administratorGroupName.length() > 0) {
+      processEngineConfiguration.getAdminGroups().add(administratorGroupName);
+    }
+    if (administratorUserName != null && administratorUserName.length() > 0) {
+      processEngineConfiguration.getAdminUsers().add(administratorUserName);
+    }
   }
 
   public void postProcessEngineBuild(ProcessEngine processEngine) {

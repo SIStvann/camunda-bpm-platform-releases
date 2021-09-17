@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -69,6 +72,12 @@ public interface HistoricIncident {
   public String getActivityId();
 
   /**
+   * Returns the specific root process instance id of the process instance
+   * on which this incident has happened.
+   */
+  String getRootProcessInstanceId();
+
+  /**
    * Returns the specific process instance on which this
    * incident has happened.
    */
@@ -132,5 +141,8 @@ public interface HistoricIncident {
    * if the incident belongs to no job definition.
    */
   String getJobDefinitionId();
+
+  /** The time the historic incident will be removed. */
+  Date getRemovalTime();
 
 }

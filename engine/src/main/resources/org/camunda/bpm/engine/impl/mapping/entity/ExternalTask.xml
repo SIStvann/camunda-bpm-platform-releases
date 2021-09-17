@@ -1,4 +1,22 @@
-<?xml version="1.0" encoding="UTF-8" ?> 
+<?xml version="1.0" encoding="UTF-8" ?>
+
+<!--
+
+    Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
 
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
@@ -183,8 +201,40 @@
         and
         <foreach collection="parameter.topics" open="(" close=")" separator="or" item="topicFilters">
           RES.TOPIC_NAME_ like #{topicFilters.topicName}
-          <if test="parameter.businessKeyFilter">
+          <if test="topicFilters.businessKey">
             and PI.BUSINESS_KEY_ = #{topicFilters.businessKey}
+          </if>
+          <if test="topicFilters.processDefinitionId != null">
+            and RES.PROC_DEF_ID_ = #{topicFilters.processDefinitionId}
+          </if>
+          <if test="topicFilters.processDefinitionIds != null &amp;&amp; topicFilters.processDefinitionIds.length > 0">
+            and RES.PROC_DEF_ID_ in
+            <foreach item="item" index="index" collection="topicFilters.processDefinitionIds"
+                     open="(" separator="," close=")">
+              #{item}
+            </foreach>
+          </if>
+          <if test="topicFilters.processDefinitionKey != null">
+            and RES.PROC_DEF_KEY_ = #{topicFilters.processDefinitionKey}
+          </if>
+          <if test="topicFilters.processDefinitionKeys != null &amp;&amp; topicFilters.processDefinitionKeys.length > 0">
+            and RES.PROC_DEF_KEY_ in
+            <foreach item="item" index="index" collection="topicFilters.processDefinitionKeys"
+                     open="(" separator="," close=")">
+              #{item}
+            </foreach>
+          </if>
+          <if test="topicFilters.isTenantIdSet">
+            <if test="topicFilters.tenantIds == null" >
+              and RES.TENANT_ID_ is null
+            </if>
+            <if test="topicFilters.tenantIds != null &amp;&amp; topicFilters.tenantIds.length > 0">
+              and RES.TENANT_ID_ in
+              <foreach item="tenantId" index="index" collection="topicFilters.tenantIds"
+                       open="(" separator="," close=")">
+                #{tenantId}
+              </foreach>
+            </if>
           </if>
           <if test="topicFilters.filterVariables.size() > 0">
             and RES.PROC_INST_ID_ in (

@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,6 +18,8 @@ package org.camunda.bpm.engine.rest.dto.externaltask;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.externaltask.ExternalTaskQueryBuilder;
 import org.camunda.bpm.engine.externaltask.ExternalTaskQueryTopicBuilder;
+
+import static java.lang.Boolean.TRUE;
 
 import java.util.HashMap;
 import java.util.List;
@@ -60,11 +65,18 @@ public class FetchExternalTasksDto {
   public static class FetchExternalTaskTopicDto {
     protected String topicName;
     protected String businessKey;
+    protected String processDefinitionId;
+    protected String[] processDefinitionIdIn;
+    protected String processDefinitionKey;
+    protected String[] processDefinitionKeyIn;
     protected long lockDuration;
     protected List<String> variables;
     protected HashMap<String, Object> processVariables;
     protected boolean deserializeValues = false;
     protected boolean localVariables = false;
+
+    protected boolean withoutTenantId;
+    protected String[] tenantIdIn;
 
     public String getTopicName() {
       return topicName;
@@ -77,6 +89,30 @@ public class FetchExternalTasksDto {
     }
     public void setBusinessKey(String businessKey) {
       this.businessKey = businessKey;
+    }
+    public String getProcessDefinitionId() {
+      return processDefinitionId;
+    }
+    public void setProcessDefinitionId(String processDefinitionId) {
+      this.processDefinitionId = processDefinitionId;
+    }
+    public String[] getProcessDefinitionIdIn() {
+      return processDefinitionIdIn;
+    }
+    public void setProcessDefinitionIdIn(String[] processDefinitionIds) {
+      this.processDefinitionIdIn = processDefinitionIds;
+    }
+    public String getProcessDefinitionKey() {
+      return processDefinitionKey;
+    }
+    public void setProcessDefinitionKey(String processDefinitionKey) {
+      this.processDefinitionKey = processDefinitionKey;
+    }
+    public String[] getProcessDefinitionKeyIn() {
+      return processDefinitionKeyIn;
+    }
+    public void setProcessDefinitionKeyIn(String[] processDefinitionKeys) {
+      this.processDefinitionKeyIn = processDefinitionKeys;
     }
     public long getLockDuration() {
       return lockDuration;
@@ -103,10 +139,22 @@ public class FetchExternalTasksDto {
       this.deserializeValues = deserializeValues;
     }
     public boolean isLocalVariables() {
-	  return localVariables;
+      return localVariables;
     }
     public void setLocalVariables(boolean localVariables) {
       this.localVariables = localVariables;
+    }
+    public boolean isWithoutTenantId() {
+      return withoutTenantId;
+    }
+    public void setWithoutTenantId(boolean withoutTenantId) {
+      this.withoutTenantId = withoutTenantId;
+    }
+    public String[] getTenantIdIn() {
+      return tenantIdIn;
+    }
+    public void setTenantIdIn(String[] tenantIdIn) {
+      this.tenantIdIn = tenantIdIn;
     }
   }
 
@@ -124,6 +172,22 @@ public class FetchExternalTasksDto {
           topicFetchBuilder = topicFetchBuilder.businessKey(topicDto.getBusinessKey());
         }
 
+        if (topicDto.getProcessDefinitionId() != null) {
+          topicFetchBuilder.processDefinitionId(topicDto.getProcessDefinitionId());
+        }
+
+        if (topicDto.getProcessDefinitionIdIn() != null) {
+          topicFetchBuilder.processDefinitionIdIn(topicDto.getProcessDefinitionIdIn());
+        }
+
+        if (topicDto.getProcessDefinitionKey() != null) {
+          topicFetchBuilder.processDefinitionKey(topicDto.getProcessDefinitionKey());
+        }
+
+        if (topicDto.getProcessDefinitionKeyIn() != null) {
+          topicFetchBuilder.processDefinitionKeyIn(topicDto.getProcessDefinitionKeyIn());
+        }
+
         if (topicDto.getVariables() != null) {
           topicFetchBuilder = topicFetchBuilder.variables(topicDto.getVariables());
         }
@@ -138,6 +202,14 @@ public class FetchExternalTasksDto {
 
         if (topicDto.isLocalVariables()) {
           topicFetchBuilder = topicFetchBuilder.localVariables();
+        }
+
+        if (TRUE.equals(topicDto.isWithoutTenantId())) {
+          topicFetchBuilder = topicFetchBuilder.withoutTenantId();
+        }
+
+        if (topicDto.getTenantIdIn() != null) {
+          topicFetchBuilder = topicFetchBuilder.tenantIdIn(topicDto.getTenantIdIn());
         }
 
         fetchBuilder = topicFetchBuilder;

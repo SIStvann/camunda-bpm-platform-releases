@@ -1,4 +1,7 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -10,11 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.camunda.bpm.engine.authorization.Authorization.ANY;
 import static org.camunda.bpm.engine.authorization.Permissions.DELETE;
 import static org.camunda.bpm.engine.authorization.Permissions.READ;
@@ -111,7 +113,7 @@ import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import com.jayway.restassured.response.Response;
+import io.restassured.response.Response;
 import org.mockito.ArgumentCaptor;
 
 /**
@@ -1523,6 +1525,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
     verify(variableInstanceQueryMock, never()).variableScopeIdIn((String) anyVararg());
     verify(variableInstanceQueryMock, never()).variableNameIn((String) anyVararg());
     verify(variableInstanceQueryMock, never()).list();
+
   }
 
   @Test
@@ -1582,6 +1585,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
     verify(variableInstanceQueryMock, times(1)).variableNameIn((String) anyVararg());
     verify(variableInstanceQueryMock).variableNameIn("foo", "bar");
     verify(variableInstanceQueryMock, times(1)).list();
+    verify(identityServiceMock, times(1)).clearAuthentication();
   }
 
   @Test
@@ -1626,6 +1630,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
     verify(variableInstanceQueryMock, times(1)).list();
     verify(variableInstanceQueryMock, times(1)).disableBinaryFetching();
     verify(variableInstanceQueryMock, times(1)).disableCustomObjectDeserialization();
+    verify(identityServiceMock, times(1)).clearAuthentication();
 
     String content = response.asString();
     List<Map<String, Object>> variables = from(content).getJsonObject("_embedded.variable");
@@ -1694,6 +1699,7 @@ public class FilterRestServiceInteractionTest extends AbstractRestServiceTest {
     verify(variableInstanceQueryMock, times(1)).variableNameIn((String) anyVararg());
     verify(variableInstanceQueryMock).variableNameIn("foo", "bar");
     verify(variableInstanceQueryMock, times(1)).list();
+    verify(identityServiceMock, times(1)).clearAuthentication();
 
     String content = response.asString();
     List<Map<String, Object>> taskList = from(content).getList("_embedded.task");

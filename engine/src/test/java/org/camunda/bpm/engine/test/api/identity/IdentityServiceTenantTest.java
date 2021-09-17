@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,16 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.identity;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.IdentityService;
+import org.camunda.bpm.engine.ProcessEngine;
+import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.ProcessEngines;
+import org.camunda.bpm.engine.authorization.Authorization;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.GroupQuery;
 import org.camunda.bpm.engine.identity.Tenant;
@@ -45,6 +53,8 @@ public class IdentityServiceTenantTest {
   protected static final String TENANT_ONE = "tenant1";
   protected static final String TENANT_TWO = "tenant2";
 
+  private final String INVALID_ID_MESSAGE = "%s has an invalid id: '%s' is not a valid resource identifier.";
+
   @Rule
   public ProcessEngineRule engineRule = new ProvidedProcessEngineRule();
 
@@ -52,6 +62,7 @@ public class IdentityServiceTenantTest {
   public ExpectedException thrown = ExpectedException.none();
 
   protected IdentityService identityService;
+  protected ProcessEngine processEngine;
 
   @Before
   public void initService() {
@@ -68,6 +79,19 @@ public class IdentityServiceTenantTest {
 
     identityService.deleteUser(USER_ONE);
     identityService.deleteUser(USER_TWO);
+
+    if (processEngine != null) {
+      for (Tenant deleteTenant : processEngine.getIdentityService().createTenantQuery().list()) {
+        processEngine.getIdentityService().deleteTenant(deleteTenant.getId());
+      }
+      for (Authorization authorization : processEngine.getAuthorizationService().createAuthorizationQuery().list()) {
+        processEngine.getAuthorizationService().deleteAuthorization(authorization.getId());
+      }
+
+      processEngine.close();
+      ProcessEngines.unregister(processEngine);
+      processEngine = null;
+    }
   }
 
   @Test
@@ -80,6 +104,25 @@ public class IdentityServiceTenantTest {
     assertThat(tenant, is(notNullValue()));
     assertThat(tenant.getId(), is(TENANT_ONE));
     assertThat(tenant.getName(), is("Tenant"));
+  }
+
+  @Test
+  public void createExistingTenant() {
+    Tenant tenant = identityService.newTenant(TENANT_ONE);
+    tenant.setName("Tenant");
+    identityService.saveTenant(tenant);
+
+    Tenant secondTenant = identityService.newTenant(TENANT_ONE);
+    secondTenant.setName("Tenant");
+    try {
+      identityService.saveTenant(secondTenant);
+      fail("BadUserRequestException is expected");
+    } catch (Exception ex) {
+      if (!(ex instanceof BadUserRequestException)) {
+        fail("BadUserRequestException is expected, but another exception was received:  " + ex);
+      }
+      assertEquals("The tenant already exists", ex.getMessage());
+    }
   }
 
   @Test
@@ -98,6 +141,69 @@ public class IdentityServiceTenantTest {
 
     tenant = identityService.createTenantQuery().singleResult();
     assertEquals("newName", tenant.getName());
+  }
+
+  @Test
+  public void testInvalidTenantId() {
+    String invalidId = "john's tenant";
+    try {
+      identityService.newTenant(invalidId);
+      fail("Invalid tenant id exception expected!");
+    } catch (ProcessEngineException ex) {
+      assertEquals(String.format(INVALID_ID_MESSAGE, "Tenant", invalidId), ex.getMessage());
+    }
+  }
+
+  @Test
+  public void testInvalidTenantIdOnUpdate() {
+    String invalidId = "john's tenant";
+    try {
+      Tenant updatedTenant = identityService.newTenant("john");
+      updatedTenant.setId(invalidId);
+      identityService.saveTenant(updatedTenant);
+
+      fail("Invalid tenant id exception expected!");
+    } catch (ProcessEngineException ex) {
+      assertEquals(String.format(INVALID_ID_MESSAGE, "Tenant", invalidId), ex.getMessage());
+    }
+  }
+
+  @Test
+  public void testCustomCreateTenantWhitelistPattern() {
+    processEngine = ProcessEngineConfiguration
+      .createProcessEngineConfigurationFromResource("org/camunda/bpm/engine/test/api/identity/generic.resource.id.whitelist.camunda.cfg.xml")
+      .buildProcessEngine();
+    processEngine.getProcessEngineConfiguration().setTenantResourceWhitelistPattern("[a-zA-Z]+");
+
+    String invalidId = "john's tenant";
+
+    try {
+      processEngine.getIdentityService().newTenant(invalidId);
+      fail("Invalid tenant id exception expected!");
+    } catch (ProcessEngineException ex) {
+      assertEquals(String.format(INVALID_ID_MESSAGE, "Tenant", invalidId), ex.getMessage());
+    }
+  }
+
+  @Test
+  public void testCustomTenantWhitelistPattern() {
+    processEngine = ProcessEngineConfiguration
+      .createProcessEngineConfigurationFromResource("org/camunda/bpm/engine/test/api/identity/generic.resource.id.whitelist.camunda.cfg.xml")
+      .buildProcessEngine();
+    processEngine.getProcessEngineConfiguration().setTenantResourceWhitelistPattern("[a-zA-Z]+");
+
+    String validId = "johnsTenant";
+    String invalidId = "john!@#$%";
+
+    try {
+      Tenant tenant = processEngine.getIdentityService().newTenant(validId);
+      tenant.setId(invalidId);
+      processEngine.getIdentityService().saveTenant(tenant);
+
+      fail("Invalid tenant id exception expected!");
+    } catch (ProcessEngineException ex) {
+      assertEquals(String.format(INVALID_ID_MESSAGE, "Tenant", invalidId), ex.getMessage());
+    }
   }
 
   @Test
@@ -138,12 +244,16 @@ public class IdentityServiceTenantTest {
 
   @Test
   public void createTenantWithGenericResourceId() {
-    Tenant tenant = identityService.newTenant("*");
+    processEngine = ProcessEngineConfiguration
+      .createProcessEngineConfigurationFromResource("org/camunda/bpm/engine/test/api/identity/generic.resource.id.whitelist.camunda.cfg.xml")
+      .buildProcessEngine();
+
+    Tenant tenant = processEngine.getIdentityService().newTenant("*");
 
     thrown.expect(ProcessEngineException.class);
     thrown.expectMessage("has an invalid id: id cannot be *. * is a reserved identifier.");
 
-    identityService.saveTenant(tenant);
+    processEngine.getIdentityService().saveTenant(tenant);
   }
 
   @Test

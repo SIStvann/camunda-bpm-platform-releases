@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -62,7 +65,17 @@ public class ExternalTaskServiceImpl extends ServiceImpl implements ExternalTask
 
   @Override
   public void handleBpmnError(String externalTaskId, String workerId, String errorCode) {
-    commandExecutor.execute(new HandleExternalTaskBpmnErrorCmd(externalTaskId, workerId, errorCode));
+    handleBpmnError(externalTaskId, workerId, errorCode, null, null);
+  }
+
+  @Override
+  public void handleBpmnError(String externalTaskId, String workerId, String errorCode, String errorMessage) {
+    handleBpmnError(externalTaskId, workerId, errorCode, errorMessage, null);
+  }
+
+  @Override
+  public void handleBpmnError(String externalTaskId, String workerId, String errorCode, String errorMessage, Map<String, Object> variables) {
+    commandExecutor.execute(new HandleExternalTaskBpmnErrorCmd(externalTaskId, workerId, errorCode, errorMessage, variables));
   }
 
   public void unlock(String externalTaskId) {

@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,6 +15,7 @@
  */
 package org.camunda.bpm.engine.impl.persistence.entity;
 
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +25,8 @@ import org.camunda.bpm.engine.impl.HistoricJobLogQueryImpl;
 import org.camunda.bpm.engine.impl.Page;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
+import org.camunda.bpm.engine.impl.db.entitymanager.operation.DbOperation;
 import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.history.event.HistoryEvent;
 import org.camunda.bpm.engine.impl.history.event.HistoryEventProcessor;
@@ -57,6 +63,26 @@ public class HistoricJobLogManager extends AbstractHistoricManager {
   public long findHistoricJobLogsCountByQueryCriteria(HistoricJobLogQueryImpl query) {
     configureQuery(query);
     return (Long) getDbEntityManager().selectOne("selectHistoricJobLogCountByQueryCriteria", query);
+  }
+
+  // update ///////////////////////////////////////////////////////////////////
+
+  public void addRemovalTimeToJobLogByRootProcessInstanceId(String rootProcessInstanceId, Date removalTime) {
+    Map<String, Object> parameters = new HashMap<>();
+    parameters.put("rootProcessInstanceId", rootProcessInstanceId);
+    parameters.put("removalTime", removalTime);
+
+    getDbEntityManager()
+      .updatePreserveOrder(HistoricJobLogEventEntity.class, "updateJobLogByRootProcessInstanceId", parameters);
+  }
+
+  public void addRemovalTimeToJobLogByBatchId(String batchId, Date removalTime) {
+    Map<String, Object> parameters = new HashMap<>();
+    parameters.put("batchId", batchId);
+    parameters.put("removalTime", removalTime);
+
+    getDbEntityManager()
+      .updatePreserveOrder(HistoricJobLogEventEntity.class, "updateJobLogByBatchId", parameters);
   }
 
   // delete ///////////////////////////////////////////////////////////////////
@@ -113,6 +139,20 @@ public class HistoricJobLogManager extends AbstractHistoricManager {
       deleteExceptionByteArrayByParameterMap("historicBatchIdIn", historicBatchIds);
       getDbEntityManager().delete(HistoricJobLogEventEntity.class, "deleteHistoricJobLogByBatchIds", historicBatchIds);
     }
+  }
+
+  public DbOperation deleteJobLogByRemovalTime(Date removalTime, int minuteFrom, int minuteTo, int batchSize) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("removalTime", removalTime);
+    if (minuteTo - minuteFrom + 1 < 60) {
+      parameters.put("minuteFrom", minuteFrom);
+      parameters.put("minuteTo", minuteTo);
+    }
+    parameters.put("batchSize", batchSize);
+
+    return getDbEntityManager()
+      .deletePreserveOrder(HistoricJobLogEventEntity.class, "deleteJobLogByRemovalTime",
+        new ListQueryParameterObject(parameters, 0, batchSize));
   }
 
   // byte array delete ////////////////////////////////////////////////////////

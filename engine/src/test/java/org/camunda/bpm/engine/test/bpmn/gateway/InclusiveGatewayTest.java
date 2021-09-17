@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -674,6 +677,69 @@ public class InclusiveGatewayTest extends PluggableProcessEngineTestCase {
 
     // then
     assertEquals(0, runtimeService.createVariableInstanceQuery().count());
+  }
+
+  @Deployment
+  public void testJoinAfterEventBasedGateway() {
+    // given
+    TaskQuery taskQuery = taskService.createTaskQuery();
+
+    runtimeService.startProcessInstanceByKey("process");
+    Task task = taskQuery.singleResult();
+    taskService.complete(task.getId());
+
+    // assume
+    assertNull(taskQuery.singleResult());
+
+    // when
+    runtimeService.correlateMessage("foo");
+
+    // then
+    task = taskQuery.singleResult();
+    assertNotNull(task);
+    assertEquals("taskAfterJoin", task.getTaskDefinitionKey());
+  }
+
+  @Deployment
+  public void testJoinAfterEventBasedGatewayInSubProcess() {
+    // given
+    TaskQuery taskQuery = taskService.createTaskQuery();
+
+    runtimeService.startProcessInstanceByKey("process");
+    Task task = taskQuery.singleResult();
+    taskService.complete(task.getId());
+
+    // assume
+    assertNull(taskQuery.singleResult());
+
+    // when
+    runtimeService.correlateMessage("foo");
+
+    // then
+    task = taskQuery.singleResult();
+    assertNotNull(task);
+    assertEquals("taskAfterJoin", task.getTaskDefinitionKey());
+  }
+
+  @Deployment
+  public void testJoinAfterEventBasedGatewayContainedInSubProcess() {
+    // given
+    TaskQuery taskQuery = taskService.createTaskQuery();
+
+    runtimeService.startProcessInstanceByKey("process");
+    Task task = taskQuery.singleResult();
+    taskService.complete(task.getId());
+
+    // assume
+    assertNull(taskQuery.singleResult());
+
+    // when
+    runtimeService.correlateMessage("foo");
+
+    // then
+    task = taskQuery.singleResult();
+    assertNotNull(task);
+    assertEquals("taskAfterJoin", task.getTaskDefinitionKey());
   }
 
 }

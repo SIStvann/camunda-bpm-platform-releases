@@ -1,4 +1,7 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.rest.helper;
 
 import static org.mockito.Mockito.mock;
@@ -31,8 +33,10 @@ public class MockHistoricBatchBuilder {
   protected String monitorJobDefinitionId;
   protected String batchJobDefinitionId;
   protected String tenantId;
+  protected String createUserId;
   protected Date startTime;
   protected Date endTime;
+  protected Date removalTime;
 
   public MockHistoricBatchBuilder id(String id) {
     this.id = id;
@@ -79,6 +83,11 @@ public class MockHistoricBatchBuilder {
     return this;
   }
 
+  public MockHistoricBatchBuilder createUserId(String createUserId) {
+    this.createUserId = createUserId;
+    return this;
+  }
+
   public MockHistoricBatchBuilder startTime(Date startTime) {
     this.startTime = startTime;
     return this;
@@ -86,6 +95,11 @@ public class MockHistoricBatchBuilder {
 
   public MockHistoricBatchBuilder endTime(Date endTime) {
     this.endTime = endTime;
+    return this;
+  }
+
+  public MockHistoricBatchBuilder removalTime(Date removalTime) {
+    this.removalTime = removalTime;
     return this;
   }
 
@@ -100,8 +114,10 @@ public class MockHistoricBatchBuilder {
     when(historicBatch.getMonitorJobDefinitionId()).thenReturn(monitorJobDefinitionId);
     when(historicBatch.getBatchJobDefinitionId()).thenReturn(batchJobDefinitionId);
     when(historicBatch.getTenantId()).thenReturn(tenantId);
+    when(historicBatch.getCreateUserId()).thenReturn(createUserId);
     when(historicBatch.getStartTime()).thenReturn(startTime);
     when(historicBatch.getEndTime()).thenReturn(endTime);
+    when(historicBatch.getRemovalTime()).thenReturn(removalTime);
     return historicBatch;
   }
 

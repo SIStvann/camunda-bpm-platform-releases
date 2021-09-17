@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -114,6 +117,8 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   protected String caseInstanceBusinessKey;
   protected String caseInstanceBusinessKeyLike;
   protected String caseExecutionId;
+
+  protected List<String> cachedCandidateGroups;
 
   // or query /////////////////////////////
   protected List<TaskQueryImpl> queries = new ArrayList<TaskQueryImpl>(Arrays.asList(this));
@@ -904,36 +909,45 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   }
 
   public List<String> getCandidateGroups() {
+
+    if (cachedCandidateGroups != null) {
+      return cachedCandidateGroups;
+    }
+
     if (isOrQueryActive) {
-      if (candidateGroup != null && candidateGroups != null) {
-        ArrayList result = new ArrayList();
-        result.addAll(candidateGroups);
-        result.add(candidateGroup);
-        return result;
-      } else if (candidateGroups != null) {
-        return candidateGroups;
-      } else if (candidateGroup != null) {
-        ArrayList result = new ArrayList();
-        result.add(candidateGroup);
-        return result;
+
+      if (candidateGroup != null) {
+        cachedCandidateGroups = new ArrayList<String>();
+        cachedCandidateGroups.add(candidateGroup);
+
+        if (candidateGroups != null) {
+          cachedCandidateGroups.addAll(candidateGroups);
+        }
+
+      }
+      else if (candidateGroups != null) {
+        cachedCandidateGroups = candidateGroups;
       }
 
-      return null;
+      return cachedCandidateGroups;
     }
 
     if (candidateGroup != null && candidateGroups != null) {
       //get intersection of candidateGroups and candidateGroup
-      ArrayList result = new ArrayList(candidateGroups);
-      result.retainAll(Arrays.asList(candidateGroup));
-      return result;
-    } else if (candidateGroup != null) {
-      return Arrays.asList(candidateGroup);
-    } else if (candidateUser != null) {
-      return getGroupsForCandidateUser(candidateUser);
-    } else if (candidateGroups != null) {
-      return candidateGroups;
+      cachedCandidateGroups = new ArrayList<String>(candidateGroups);
+      cachedCandidateGroups.retainAll(Arrays.asList(candidateGroup));
     }
-    return null;
+    else if (candidateGroup != null) {
+      cachedCandidateGroups = Arrays.asList(candidateGroup);
+    }
+    else if (candidateUser != null) {
+      cachedCandidateGroups = getGroupsForCandidateUser(candidateUser);
+    }
+    else if (candidateGroups != null) {
+      cachedCandidateGroups = candidateGroups;
+    }
+
+    return cachedCandidateGroups;
   }
 
   public Boolean isWithCandidateGroups() {
@@ -1253,6 +1267,8 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     ensureVariablesInitialized();
     checkQueryOk();
 
+    resetCachedCandidateGroups();
+
     //check if candidateGroup and candidateGroups intersect
     if (getCandidateGroup() != null && getCandidateGroupsInternal() != null && getCandidateGroups().isEmpty()) {
       return Collections.emptyList();
@@ -1277,6 +1293,9 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     ensureOrExpressionsEvaluated();
     ensureVariablesInitialized();
     checkQueryOk();
+
+    resetCachedCandidateGroups();
+
     //check if candidateGroup and candidateGroups intersect
     if (getCandidateGroup() != null && getCandidateGroupsInternal() != null && getCandidateGroups().isEmpty()) {
       return 0;
@@ -1284,6 +1303,13 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     return commandContext
       .getTaskManager()
       .findTaskCountByQueryCriteria(this);
+  }
+
+  protected void resetCachedCandidateGroups() {
+    cachedCandidateGroups = null;
+    for (int i = 1; i < queries.size(); i++) {
+      queries.get(i).cachedCandidateGroups = null;
+    }
   }
 
   //getters ////////////////////////////////////////////////////////////////

@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -29,6 +32,7 @@ public class ProcessDefinitionDto {
   protected String tenantId;
   protected String versionTag;
   protected Integer historyTimeToLive;
+  protected boolean isStartableInTasklist;
 
   public String getId() {
     return id;
@@ -82,6 +86,10 @@ public class ProcessDefinitionDto {
     return historyTimeToLive;
   }
 
+  public boolean isStartableInTasklist() {
+    return isStartableInTasklist;
+  }
+
   public static ProcessDefinitionDto fromProcessDefinition(ProcessDefinition definition) {
     ProcessDefinitionDto dto = new ProcessDefinitionDto();
     dto.id = definition.getId();
@@ -97,6 +105,7 @@ public class ProcessDefinitionDto {
     dto.tenantId = definition.getTenantId();
     dto.versionTag = definition.getVersionTag();
     dto.historyTimeToLive = definition.getHistoryTimeToLive();
+    dto.isStartableInTasklist = definition.isStartableInTasklist();
     return dto;
   }
 

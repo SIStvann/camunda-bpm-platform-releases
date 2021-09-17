@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.history;
+
+import java.util.Date;
 
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
@@ -68,5 +72,19 @@ public interface HistoricDecisionOutputInstance {
    * @return an error message indicating why the variable value could not be loaded.
    */
   String getErrorMessage();
+
+  /**
+   * Returns time when the variable was created.
+   */
+  Date getCreateTime();
+
+  /**
+   * Returns the root process instance id of the process instance
+   * on which the associated business rule task has been called.
+   */
+  String getRootProcessInstanceId();
+
+  /** The time the historic decision instance will be removed. */
+  Date getRemovalTime();
 
 }

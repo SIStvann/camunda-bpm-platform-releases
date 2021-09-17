@@ -1,18 +1,22 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <!--
-  ~ Licensed under the Apache License, Version 2.0 (the "License");
-  ~ you may not use this file except in compliance with the License.
-  ~ You may obtain a copy of the License at
-  ~
-  ~       http://www.apache.org/licenses/LICENSE-2.0
-  ~
-  ~ Unless required by applicable law or agreed to in writing, software
-  ~ distributed under the License is distributed on an "AS IS" BASIS,
-  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  ~ See the License for the specific language governing permissions and
-  ~ limitations under the License.
-  -->
+
+    Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
 
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
@@ -21,17 +25,20 @@
   <!-- ATTACHMENT INSERT -->
 
   <insert id="insertAttachment" parameterType="org.camunda.bpm.engine.impl.persistence.entity.AttachmentEntity">
-    insert into ${prefix}ACT_HI_ATTACHMENT (ID_, NAME_, DESCRIPTION_, TYPE_, TASK_ID_, PROC_INST_ID_, URL_, CONTENT_ID_, TENANT_ID_, REV_)
+    insert into ${prefix}ACT_HI_ATTACHMENT (ID_, NAME_, DESCRIPTION_, TYPE_, TASK_ID_, ROOT_PROC_INST_ID_, PROC_INST_ID_, URL_, CONTENT_ID_, TENANT_ID_, CREATE_TIME_, REMOVAL_TIME_, REV_)
     values (
       #{id ,jdbcType=VARCHAR},
       #{name ,jdbcType=VARCHAR},
       #{description ,jdbcType=VARCHAR},
       #{type ,jdbcType=VARCHAR},
       #{taskId ,jdbcType=VARCHAR},
+      #{rootProcessInstanceId ,jdbcType=VARCHAR},
       #{processInstanceId ,jdbcType=VARCHAR},
       #{url ,jdbcType=VARCHAR},
       #{contentId ,jdbcType=VARCHAR},
       #{tenantId ,jdbcType=VARCHAR},
+      #{createTime, jdbcType=TIMESTAMP},
+      #{removalTime, jdbcType=TIMESTAMP},
       1
     )
   </insert>
@@ -46,6 +53,14 @@
       DESCRIPTION_ = #{description, jdbcType=TIMESTAMP}
     where ID_ = #{id}
       and REV_ = #{revision, jdbcType=INTEGER}
+  </update>
+
+  <update id="updateAttachmentsByRootProcessInstanceId"
+          parameterType="java.util.Map">
+      update ${prefix}ACT_HI_ATTACHMENT set
+      REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+
+      where ROOT_PROC_INST_ID_ = #{rootProcessInstanceId, jdbcType=VARCHAR}
   </update>
 
   <!-- ATTACHMENT DELETE -->
@@ -94,14 +109,50 @@
       </where>
   </delete>
 
-  <delete id="deleteByteArraysByIds">
-    delete
-    from
-    ${prefix}ACT_GE_BYTEARRAY
-    where
-      <bind name="listOfIds" value="list"/>
-      <bind name="fieldName" value="'ID_'"/>
-      <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
+  <sql id="andWhereMinuteInDateBetweenSql">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart2}${date}${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <sql id="andWhereMinuteInDateBetweenSql_oracle">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}${date}${datepart2}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <delete id="deleteAttachmentsByRemovalTime"
+    parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_ATTACHMENT
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteAttachmentsByRemovalTime_oracle"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_ATTACHMENT
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql_oracle"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteAttachmentsByRemovalTime_postgres_or_db2"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_ATTACHMENT
+    where ID_ IN
+      (SELECT ID_
+       FROM ${prefix}ACT_HI_ATTACHMENT
+       WHERE REMOVAL_TIME_ &lt;= #{parameter.removalTime} <include refid="andWhereMinuteInDateBetweenSql"/>
+       ${limitAfterWithoutOffset})
   </delete>
 
   <!-- ATTACHMENT RESULTMAP -->
@@ -113,10 +164,13 @@
     <result property="description" column="DESCRIPTION_" jdbcType="VARCHAR" />
     <result property="type" column="TYPE_" jdbcType="VARCHAR" />
     <result property="taskId" column="TASK_ID_" jdbcType="VARCHAR" />
+    <result property="rootProcessInstanceId" column="ROOT_PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="processInstanceId" column="PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="url" column="URL_" jdbcType="VARCHAR" />
     <result property="contentId" column="CONTENT_ID_" jdbcType="VARCHAR" />
     <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
+    <result property="createTime" column="CREATE_TIME_" jdbcType="TIMESTAMP"/>
+    <result property="removalTime" column="REMOVAL_TIME_" jdbcType="TIMESTAMP"/>
   </resultMap>
   
   <!-- ATTACHMENT SELECT -->

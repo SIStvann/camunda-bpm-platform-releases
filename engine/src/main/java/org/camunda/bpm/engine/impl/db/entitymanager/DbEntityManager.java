@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -57,6 +60,7 @@ import org.camunda.bpm.engine.impl.db.DbEntityLifecycleAware;
 import org.camunda.bpm.engine.impl.db.EntityLoadListener;
 import org.camunda.bpm.engine.impl.db.HasDbReferences;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
+import org.camunda.bpm.engine.impl.db.HistoricEntity;
 import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
 import org.camunda.bpm.engine.impl.db.PersistenceSession;
 import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
@@ -72,9 +76,11 @@ import org.camunda.bpm.engine.impl.identity.db.DbGroupQueryImpl;
 import org.camunda.bpm.engine.impl.identity.db.DbUserQueryImpl;
 import org.camunda.bpm.engine.impl.interceptor.Session;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutorContext;
+import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayEntity;
 import org.camunda.bpm.engine.impl.util.CollectionUtil;
 import org.camunda.bpm.engine.impl.util.EnsureUtil;
 import org.camunda.bpm.engine.impl.util.ExceptionUtil;
+import org.camunda.bpm.engine.repository.ResourceTypes;
 
 /**
  *
@@ -435,6 +441,7 @@ public class DbEntityManager implements Session, EntityLoadListener {
         for (int statementResult : batchResult.getUpdateCounts()) {
           flushResultSize++;
           DbOperation thisOperation = operationIt.next();
+          thisOperation.setRowsAffected(statementResult);
           if (thisOperation instanceof DbEntityOperation && ((DbEntityOperation) thisOperation).getEntity() instanceof HasDbRevision
             && !thisOperation.getOperationType().equals(DbOperationType.INSERT)) {
             final DbEntity dbEntity = ((DbEntityOperation) thisOperation).getEntity();
@@ -480,8 +487,24 @@ public class DbEntityManager implements Session, EntityLoadListener {
       }
     }
 
+    if (!isHandled && Context.getProcessEngineConfiguration().isSkipHistoryOptimisticLockingExceptions()) {
+      DbEntity dbEntity = ((DbEntityOperation) dbOperation).getEntity();
+      if (dbEntity instanceof HistoricEntity || isHistoricByteArray(dbEntity)) {
+        isHandled = true;
+      }
+    }
+
     if(!isHandled) {
       throw LOG.concurrentUpdateDbEntityException(dbOperation);
+    }
+  }
+
+  protected boolean isHistoricByteArray(DbEntity dbEntity) {
+    if (dbEntity instanceof ByteArrayEntity) {
+      ByteArrayEntity byteArrayEntity = (ByteArrayEntity) dbEntity;
+      return byteArrayEntity.getType().equals(ResourceTypes.HISTORY.getValue());
+    } else {
+      return false;
     }
   }
 
@@ -608,9 +631,10 @@ public class DbEntityManager implements Session, EntityLoadListener {
    * @param entityType
    * @param statement
    * @param parameter
+   * @return delete operation
    */
-  public void deletePreserveOrder(Class<? extends DbEntity> entityType, String statement, Object parameter) {
-    performBulkOperationPreserveOrder(entityType, statement, parameter, DELETE_BULK);
+  public DbBulkOperation deletePreserveOrder(Class<? extends DbEntity> entityType, String statement, Object parameter) {
+    return performBulkOperationPreserveOrder(entityType, statement, parameter, DELETE_BULK);
   }
 
   protected DbBulkOperation performBulkOperation(Class<? extends DbEntity> entityType, String statement, Object parameter, DbOperationType operationType) {

@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,6 +15,10 @@
  */
 package org.camunda.bpm.engine.rest.dto.externaltask;
 
+import java.util.Map;
+
+import org.camunda.bpm.engine.rest.dto.VariableValueDto;
+
 /**
  *
  * @author Christopher Zell <christopher.zell@camunda.com>
@@ -23,6 +27,8 @@ public class ExternalTaskBpmnError {
 
   protected String workerId;
   protected String errorCode;
+  protected String errorMessage;
+  protected Map<String, VariableValueDto> variables;
 
   public String getWorkerId() {
     return workerId;
@@ -38,5 +44,21 @@ public class ExternalTaskBpmnError {
 
   public void setErrorCode(String errorCode) {
     this.errorCode = errorCode;
+  }
+
+  public String getErrorMessage() {
+    return errorMessage;
+  }
+
+  public void setErrorMessage(String errorMessage) {
+    this.errorMessage = errorMessage;
+  }
+
+  public Map<String, VariableValueDto> getVariables() {
+    return variables;
+  }
+
+  public void setVariables(Map<String, VariableValueDto> variables) {
+    this.variables = variables;
   }
 }

@@ -1,11 +1,11 @@
-/**
+/*
  * Copyright (C) 2011, 2012 camunda services GmbH
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -139,7 +139,7 @@ public class DeploymentHelper {
     } else if (server.equals("websphere")) {
       return Maven.configureResolver()
         .workOffline()
-        .loadPomFromFile("pom.xml", "was80")
+        .loadPomFromFile("pom.xml", "was85")
         .resolve("com.fasterxml.jackson.datatype:jackson-datatype-joda")
         .using(new RejectDependenciesStrategy(false,
           "joda-time:joda-time"))
@@ -176,7 +176,7 @@ public class DeploymentHelper {
     } else if (server.equals("websphere")) {
       return Maven.configureResolver()
         .workOffline()
-        .loadPomFromFile("pom.xml", "was80")
+        .loadPomFromFile("pom.xml", "was85")
         .resolve("org.camunda.spin:camunda-spin-dataformat-json-jackson")
         .using(new RejectDependenciesStrategy(false,
           "org.camunda.spin:camunda-spin-core",

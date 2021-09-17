@@ -5,14 +5,14 @@
   <parent>
     <groupId>org.camunda</groupId>
     <artifactId>camunda-release-parent</artifactId>
-    <version>2.5</version>
+    <version>3.1</version>
     <!-- do not remove empty tag - http://jira.codehaus.org/browse/MNG-4687 -->
     <relativePath />
   </parent>
 
   <groupId>org.camunda.bpm</groupId>
   <artifactId>camunda-bom</artifactId>
-  <version>7.9.0</version>
+  <version>7.10.0</version>
   <packaging>pom</packaging>
   <name>camunda BPM - Bom</name>
   <url>http://camunda.org</url>
@@ -35,11 +35,11 @@
     <version.mybatis>3.4.4</version.mybatis>
     <version.joda-time>2.1</version.joda-time>
     <version.uuid-generator>3.1.2</version.uuid-generator>
-    <version.camunda.commons>1.5.0</version.camunda.commons>
-    <version.camunda.connect>1.0.6</version.camunda.connect>
-    <version.camunda.spin>1.5.1</version.camunda.spin>
-    <version.camunda.template-engines>1.0.1</version.camunda.template-engines>
-    <version.camunda.ee.xslt-plugin>1.0.2</version.camunda.ee.xslt-plugin>
+    <version.camunda.commons>1.6.1</version.camunda.commons>
+    <version.camunda.connect>1.1.0</version.camunda.connect>
+    <version.camunda.spin>1.6.3</version.camunda.spin>
+    <version.camunda.template-engines>1.1.0</version.camunda.template-engines>
+    <version.camunda.ee.xslt-plugin>1.1.0</version.camunda.ee.xslt-plugin>
   </properties>
 
   <dependencyManagement>
@@ -222,11 +222,18 @@
     <url>https://github.com/camunda/camunda-bpm-platform</url>
     <connection>scm:git:git@github.com:camunda/camunda-bpm-platform.git</connection>
     <developerConnection>scm:git:git@github.com:camunda/camunda-bpm-platform.git</developerConnection>
-    <tag>7.9.0</tag>
+    <tag>7.10.0</tag>
   </scm>
 
   <issueManagement>
     <system>Jira</system>
     <url>https://app.camunda.com/jira/browse/CAM/</url>
   </issueManagement>
+
+  <repositories>
+    <repository>
+      <id>fix-maven-snapshots-issue-with-nexus</id>
+      <url>allow-parent-pom-resolving-when-snapshot</url>
+    </repository>
+  </repositories>
 </project>

@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -58,6 +61,7 @@ import org.camunda.bpm.engine.rest.VariableInstanceRestService;
 import org.camunda.bpm.engine.rest.dto.ProcessEngineDto;
 import org.camunda.bpm.engine.rest.exception.RestException;
 import org.camunda.bpm.engine.rest.history.HistoryRestService;
+import org.camunda.bpm.engine.rest.impl.optimize.OptimizeRestService;
 import org.camunda.bpm.engine.rest.spi.ProcessEngineProvider;
 
 @Path(NamedProcessEngineRestServiceImpl.PATH)
@@ -237,6 +241,16 @@ public class NamedProcessEngineRestServiceImpl extends AbstractProcessEngineRest
   @Path("/{name}" + ConditionRestService.PATH)
   public ConditionRestService getConditionRestService(@PathParam("name") String engineName) {
     return super.getConditionRestService(engineName);
+  }
+
+  @Path("/{name}" + OptimizeRestService.PATH)
+  public OptimizeRestService getOptimizeRestService(@PathParam("name") String engineName) {
+    return super.getOptimizeRestService(engineName);
+  }
+
+  @Path("/{name}" + VersionRestService.PATH)
+  public VersionRestService getVersionRestService(@PathParam("name") String engineName) {
+    return super.getVersionRestService(engineName);
   }
 
   @GET

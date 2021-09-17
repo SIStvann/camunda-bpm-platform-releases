@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,6 +27,7 @@ public class HistoricJobLogDto {
 
   protected String id;
   protected Date timestamp;
+  protected Date removalTime;
 
   protected String jobId;
   protected Date jobDueDate;
@@ -42,6 +46,7 @@ public class HistoricJobLogDto {
   protected String processDefinitionKey;
   protected String deploymentId;
   protected String tenantId;
+  protected String rootProcessInstanceId;
 
   protected boolean creationLog;
   protected boolean failureLog;
@@ -54,6 +59,10 @@ public class HistoricJobLogDto {
 
   public Date getTimestamp() {
     return timestamp;
+  }
+
+  public Date getRemovalTime() {
+    return removalTime;
   }
 
   public String getJobId() {
@@ -116,6 +125,10 @@ public class HistoricJobLogDto {
     return tenantId;
   }
 
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+
   public boolean isCreationLog() {
     return creationLog;
   }
@@ -137,6 +150,7 @@ public class HistoricJobLogDto {
 
     result.id = historicJobLog.getId();
     result.timestamp = historicJobLog.getTimestamp();
+    result.removalTime = historicJobLog.getRemovalTime();
 
     result.jobId = historicJobLog.getJobId();
     result.jobDueDate = historicJobLog.getJobDueDate();
@@ -155,6 +169,7 @@ public class HistoricJobLogDto {
     result.processDefinitionKey = historicJobLog.getProcessDefinitionKey();
     result.deploymentId = historicJobLog.getDeploymentId();
     result.tenantId = historicJobLog.getTenantId();
+    result.rootProcessInstanceId = historicJobLog.getRootProcessInstanceId();
 
     result.creationLog = historicJobLog.isCreationLog();
     result.failureLog = historicJobLog.isFailureLog();

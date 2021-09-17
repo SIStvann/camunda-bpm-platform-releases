@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -50,8 +53,34 @@ public class HistoricDetailRestServiceImpl implements HistoricDetailRestService 
       Integer maxResults, boolean deserializeObjectValues) {
     HistoricDetailQueryDto queryDto = new HistoricDetailQueryDto(objectMapper, uriInfo.getQueryParameters());
     HistoricDetailQuery query = queryDto.toQuery(processEngine);
-    query.disableBinaryFetching();
 
+    return executeHistoricDetailQuery(query, firstResult, maxResults, deserializeObjectValues);
+  }
+
+  @Override
+  public List<HistoricDetailDto> queryHistoricDetails(HistoricDetailQueryDto queryDto, Integer firstResult,
+      Integer maxResults, boolean deserializeObjectValues) {
+    HistoricDetailQuery query = queryDto.toQuery(processEngine);
+
+    return executeHistoricDetailQuery(query, firstResult, maxResults, deserializeObjectValues);
+  }
+
+  @Override
+  public CountResultDto getHistoricDetailsCount(UriInfo uriInfo) {
+    HistoricDetailQueryDto queryDto = new HistoricDetailQueryDto(objectMapper, uriInfo.getQueryParameters());
+    HistoricDetailQuery query = queryDto.toQuery(processEngine);
+
+    long count = query.count();
+    CountResultDto result = new CountResultDto();
+    result.setCount(count);
+
+    return result;
+  }
+
+  private List<HistoricDetailDto> executeHistoricDetailQuery(HistoricDetailQuery query, Integer firstResult,
+      Integer maxResults, boolean deserializeObjectValues) {
+
+    query.disableBinaryFetching();
     if (!deserializeObjectValues) {
       query.disableCustomObjectDeserialization();
     }
@@ -68,18 +97,6 @@ public class HistoricDetailRestServiceImpl implements HistoricDetailRestService 
       HistoricDetailDto dto = HistoricDetailDto.fromHistoricDetail(historicDetail);
       result.add(dto);
     }
-
-    return result;
-  }
-
-  @Override
-  public CountResultDto getHistoricDetailsCount(UriInfo uriInfo) {
-    HistoricDetailQueryDto queryDto = new HistoricDetailQueryDto(objectMapper, uriInfo.getQueryParameters());
-    HistoricDetailQuery query = queryDto.toQuery(processEngine);
-
-    long count = query.count();
-    CountResultDto result = new CountResultDto();
-    result.setCount(count);
 
     return result;
   }

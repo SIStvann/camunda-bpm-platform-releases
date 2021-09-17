@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -11,6 +14,8 @@
  * limitations under the License.
  */
 package org.camunda.bpm.engine.history;
+
+import java.util.Date;
 
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
@@ -82,6 +87,11 @@ public interface HistoricVariableInstance {
   String getProcessDefinitionId();
 
   /**
+   * The root process instance reference.
+   */
+  String getRootProcessInstanceId();
+
+  /**
    * The process instance reference.
    */
   String getProcessInstanceId();
@@ -143,4 +153,12 @@ public interface HistoricVariableInstance {
    * The current state of the variable. Can be 'CREATED' or 'DELETED'
    */
   String getState();
+
+  /**
+   * The time when the variable was created.
+   */
+  Date getCreateTime();
+
+  /** The time when the historic variable instance will be removed. */
+  Date getRemovalTime();
 }

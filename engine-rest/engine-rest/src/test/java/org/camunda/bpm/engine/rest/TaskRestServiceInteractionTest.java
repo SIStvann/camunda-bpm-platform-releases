@@ -1,7 +1,22 @@
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_CASE_DEFINITION_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_CASE_EXECUTION_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_CASE_INSTANCE_ID;
@@ -15,6 +30,7 @@ import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_ATTAC
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_ATTACHMENT_URL;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_COMMENT_FULL_MESSAGE;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_COMMENT_ID;
+import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_COMMENT_ROOT_PROCESS_INSTANCE_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_COMMENT_TIME;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_EXECUTION_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_ID;
@@ -69,6 +85,7 @@ import org.camunda.bpm.ProcessApplicationService;
 import org.camunda.bpm.application.ProcessApplicationInfo;
 import org.camunda.bpm.container.RuntimeContainerDelegate;
 import org.camunda.bpm.engine.AuthorizationException;
+import org.camunda.bpm.engine.impl.form.validator.FormFieldValidationException;
 import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.FormService;
 import org.camunda.bpm.engine.HistoryService;
@@ -121,9 +138,10 @@ import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.path.json.JsonPath;
-import com.jayway.restassured.response.Response;
+
+import io.restassured.http.ContentType;
+import io.restassured.path.json.JsonPath;
+import io.restassured.response.Response;
 
 public class TaskRestServiceInteractionTest extends
     AbstractRestServiceTest {
@@ -908,6 +926,26 @@ public class TaskRestServiceInteractionTest extends
     .when()
       .post(SUBMIT_FORM_URL);
   }
+
+  @Test
+  public void testSubmitTaskFormThrowsFormFieldValidationException() {
+    String message = "expected exception";
+    doThrow(new FormFieldValidationException("form-exception", message)).when(formServiceMock).submitTaskForm(anyString(), Matchers.<Map<String, Object>>any());
+
+    given()
+      .pathParam("id", EXAMPLE_TASK_ID)
+      .header("accept", MediaType.APPLICATION_JSON)
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(EMPTY_JSON_OBJECT)
+    .then().expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(RestException.class.getSimpleName()))
+      .body("message", equalTo("Cannot submit task form " + EXAMPLE_TASK_ID + ": " + message))
+    .when()
+      .post(SUBMIT_FORM_URL);
+  }
+
 
   @Test
   public void testGetTaskFormVariables() {
@@ -1933,6 +1971,8 @@ public class TaskRestServiceInteractionTest extends
       .body("userId", equalTo(EXAMPLE_USER_ID))
       .body("time", equalTo(EXAMPLE_TASK_COMMENT_TIME))
       .body("message", equalTo(EXAMPLE_TASK_COMMENT_FULL_MESSAGE))
+      .body("removalTime", equalTo(EXAMPLE_TASK_COMMENT_TIME))
+      .body("rootProcessInstanceId", equalTo(EXAMPLE_TASK_COMMENT_ROOT_PROCESS_INSTANCE_ID))
     .when()
       .get(SINGLE_TASK_SINGLE_COMMENT_URL);
   }
@@ -2219,6 +2259,9 @@ public class TaskRestServiceInteractionTest extends
       .body("type", equalTo(MockProvider.EXAMPLE_TASK_ATTACHMENT_TYPE))
       .body("name", equalTo(MockProvider.EXAMPLE_TASK_ATTACHMENT_NAME))
       .body("url", equalTo(MockProvider.EXAMPLE_TASK_ATTACHMENT_URL))
+      .body("createTime", equalTo(MockProvider.EXAMPLE_TASK_ATTACHMENT_CREATE_DATE))
+      .body("removalTime", equalTo(MockProvider.EXAMPLE_TASK_ATTACHMENT_REMOVAL_DATE))
+      .body("rootProcessInstanceId", equalTo(MockProvider.EXAMPLE_TASK_ATTACHMENT_ROOT_PROCESS_INSTANCE_ID))
     .when().get(SINGLE_TASK_SINGLE_ATTACHMENT_URL);
   }
 

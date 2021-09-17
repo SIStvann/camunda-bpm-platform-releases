@@ -1,18 +1,22 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <!--
-  ~ Licensed under the Apache License, Version 2.0 (the "License");
-  ~ you may not use this file except in compliance with the License.
-  ~ You may obtain a copy of the License at
-  ~
-  ~       http://www.apache.org/licenses/LICENSE-2.0
-  ~
-  ~ Unless required by applicable law or agreed to in writing, software
-  ~ distributed under the License is distributed on an "AS IS" BASIS,
-  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  ~ See the License for the specific language governing permissions and
-  ~ limitations under the License.
-  -->
+
+    Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
 
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
@@ -25,6 +29,7 @@
         ID_,
         PROC_DEF_KEY_,
         PROC_DEF_ID_,
+        ROOT_PROC_INST_ID_,
         PROC_INST_ID_,
         EXECUTION_ID_,
         CASE_DEF_KEY_,
@@ -45,11 +50,13 @@
         PRIORITY_,
         DUE_DATE_,
         FOLLOW_UP_DATE_,
-        TENANT_ID_
+        TENANT_ID_,
+        REMOVAL_TIME_
       ) values (
         #{id ,jdbcType=VARCHAR},
         #{processDefinitionKey, jdbcType=VARCHAR},
         #{processDefinitionId, jdbcType=VARCHAR},
+        #{rootProcessInstanceId, jdbcType=VARCHAR},
         #{processInstanceId, jdbcType=VARCHAR},
         #{executionId, jdbcType=VARCHAR},
         #{caseDefinitionKey, jdbcType=VARCHAR},
@@ -70,7 +77,8 @@
         #{priority, jdbcType=INTEGER},
         #{dueDate, jdbcType=TIMESTAMP},
         #{followUpDate, jdbcType=TIMESTAMP},
-        #{tenantId, jdbcType=VARCHAR}
+        #{tenantId, jdbcType=VARCHAR},
+        #{removalTime, jdbcType=TIMESTAMP}
       )
   </insert>
 
@@ -98,6 +106,14 @@
       </if>
 
     where ID_ = #{id, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateHistoricTaskInstancesByRootProcessInstanceId"
+          parameterType="java.util.Map">
+    update ${prefix}ACT_HI_TASKINST set
+    REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+
+    where ROOT_PROC_INST_ID_ = #{rootProcessInstanceId, jdbcType=VARCHAR}
   </update>
 
   <!-- HISTORIC TASK INSTANCE SELECT -->
@@ -131,12 +147,59 @@
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
   </delete>
 
+  <sql id="andWhereMinuteInDateBetweenSql">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart2}${date}${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <sql id="andWhereMinuteInDateBetweenSql_oracle">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}${date}${datepart2}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <delete id="deleteHistoricTaskInstancesByRemovalTime"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_TASKINST
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteHistoricTaskInstancesByRemovalTime_oracle"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_TASKINST
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql_oracle"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteHistoricTaskInstancesByRemovalTime_postgres_or_db2"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_TASKINST
+    where ID_ IN
+      (SELECT ID_
+       FROM ${prefix}ACT_HI_TASKINST
+       WHERE REMOVAL_TIME_ &lt;= #{parameter.removalTime} <include refid="andWhereMinuteInDateBetweenSql"/>
+       ${limitAfterWithoutOffset})
+  </delete>
+
   <!-- HISTORIC TASK INSTANCE RESULT MAP -->
 
   <resultMap id="historicTaskInstanceResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity">
     <id property="id" column="ID_" jdbcType="VARCHAR" />
     <result property="processDefinitionKey" column="PROC_DEF_KEY_" jdbcType="VARCHAR" />
     <result property="processDefinitionId" column="PROC_DEF_ID_" jdbcType="VARCHAR" />
+    <result property="rootProcessInstanceId" column="ROOT_PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="processInstanceId" column="PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="executionId" column="EXECUTION_ID_" jdbcType="VARCHAR" />
     <result property="caseDefinitionKey" column="CASE_DEF_KEY_" jdbcType="VARCHAR" />
@@ -158,6 +221,7 @@
     <result property="dueDate" column="DUE_DATE_" jdbcType="TIMESTAMP" />
     <result property="followUpDate" column="FOLLOW_UP_DATE_" jdbcType="TIMESTAMP" />
     <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
+    <result property="removalTime" column="REMOVAL_TIME_" jdbcType="TIMESTAMP"/>
   </resultMap>
 
   <!-- HISTORIC TASK INSTANCE SELECT -->
@@ -454,5 +518,47 @@
 
   <select id="selectHistoricTaskInstanceCountByNativeQuery" parameterType="java.util.Map" resultType="long">
     ${sql}
+  </select>
+
+  <select id="selectCompletedHistoricTaskInstancePage" resultMap="historicTaskInstanceResultMap" parameterType="java.util.Map" >
+    <bind name="maxResults" value="parameter.maxResults" />
+
+    ${optimizeLimitBeforeWithoutOffset}
+    select ${limitBeforeWithoutOffset} * from ${prefix}ACT_HI_TASKINST RES
+
+    <where>
+      <if test="parameter.finishedAfter != null">
+        and RES.END_TIME_ &gt; #{parameter.finishedAfter}
+      </if>
+      <if test="parameter.finishedAt != null">
+        and RES.END_TIME_ = #{parameter.finishedAt}
+      </if>
+      <if test="parameter.finishedAfter == null and parameter.finishedAt == null">
+        and RES.END_TIME_ is not null
+      </if>
+    </where>
+
+    ORDER BY RES.END_TIME_ ASC
+    ${optimizeLimitAfterWithoutOffset}
+  </select>
+
+  <select id="selectRunningHistoricTaskInstancePage" resultMap="historicTaskInstanceResultMap"
+          parameterType="java.util.Map">
+    <bind name="maxResults" value="parameter.maxResults"/>
+    ${optimizeLimitBeforeWithoutOffset}
+    select ${limitBeforeWithoutOffset} * from ${prefix}ACT_HI_TASKINST RES
+
+    <where>
+      <if test="parameter.startedAfter != null">
+        and RES.START_TIME_ &gt; #{parameter.startedAfter}
+      </if>
+      <if test="parameter.startedAt != null">
+        and RES.START_TIME_ = #{parameter.startedAt}
+      </if>
+      and RES.END_TIME_ is null
+    </where>
+
+    ORDER BY RES.START_TIME_ ASC
+    ${optimizeLimitAfterWithoutOffset}
   </select>
 </mapper>

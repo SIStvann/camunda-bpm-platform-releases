@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -66,23 +69,31 @@ public class HistoricVariableUpdateDto extends HistoricDetailDto {
   public static HistoricVariableUpdateDto fromHistoricVariableUpdate(HistoricVariableUpdate historicVariableUpdate) {
 
     HistoricVariableUpdateDto dto = new HistoricVariableUpdateDto();
+    fromHistoricVariableUpdate(dto, historicVariableUpdate);
+    return dto;
+  }
 
+  protected static void fromHistoricVariableUpdate(HistoricVariableUpdateDto dto,
+                                                   HistoricVariableUpdate historicVariableUpdate) {
     dto.revision = historicVariableUpdate.getRevision();
     dto.variableName = historicVariableUpdate.getVariableName();
     dto.variableInstanceId = historicVariableUpdate.getVariableInstanceId();
 
-    if(historicVariableUpdate.getErrorMessage() == null) {
-      VariableValueDto variableValueDto = VariableValueDto.fromTypedValue(historicVariableUpdate.getTypedValue());
-      dto.value = variableValueDto.getValue();
-      dto.variableType = variableValueDto.getType();
-      dto.valueInfo = variableValueDto.getValueInfo();
+    if (historicVariableUpdate.getErrorMessage() == null) {
+      try {
+        VariableValueDto variableValueDto = VariableValueDto.fromTypedValue(historicVariableUpdate.getTypedValue());
+        dto.value = variableValueDto.getValue();
+        dto.variableType = variableValueDto.getType();
+        dto.valueInfo = variableValueDto.getValueInfo();
+      } catch (RuntimeException e) {
+        dto.errorMessage = e.getMessage();
+        dto.variableType = VariableValueDto.toRestApiTypeName(historicVariableUpdate.getTypeName());
+      }
     }
     else {
       dto.errorMessage = historicVariableUpdate.getErrorMessage();
       dto.variableType = VariableValueDto.toRestApiTypeName(historicVariableUpdate.getTypeName());
     }
-
-    return dto;
   }
 
 }

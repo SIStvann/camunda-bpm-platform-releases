@@ -1,8 +1,23 @@
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.rest.history;
 
-import static com.jayway.restassured.RestAssured.expect;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.expect;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.camunda.bpm.engine.rest.util.QueryParamUtils.arrayAsCommaSeperatedList;
 import static org.fest.assertions.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -38,8 +53,8 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 
 public class HistoricTaskInstanceRestServiceQueryTest extends AbstractRestServiceTest {
 
@@ -451,55 +466,7 @@ public class HistoricTaskInstanceRestServiceQueryTest extends AbstractRestServic
     Assert.assertEquals("There should be one historic task instance returned.", 1, instances.size());
     Assert.assertNotNull("The returned historic task instance should not be null.", instances.get(0));
 
-    String returnedId = from(content).getString("[0].id");
-    String returnedProcessDefinitionKey = from(content).getString("[0].processDefinitionKey");
-    String returnedProcessDefinitionId = from(content).getString("[0].processDefinitionId");
-    String returnedProcessInstanceId = from(content).getString("[0].processInstanceId");
-    String returnedExecutionId = from(content).getString("[0].executionId");
-    String returnedActivityInstanceId = from(content).getString("[0].activityInstanceId");
-    String returnedName = from(content).getString("[0].name");
-    String returnedDescription = from(content).getString("[0].description");
-    String returnedDeleteReason = from(content).getString("[0].deleteReason");
-    String returnedOwner = from(content).getString("[0].owner");
-    String returnedAssignee = from(content).getString("[0].assignee");
-    Date returnedStartTime = DateTimeUtil.parseDate(from(content).getString("[0].startTime"));
-    Date returnedEndTime = DateTimeUtil.parseDate(from(content).getString("[0].endTime"));
-    Long returnedDurationInMillis = from(content).getLong("[0].duration");
-    String returnedTaskDefinitionKey = from(content).getString("[0].taskDefinitionKey");
-    int returnedPriority = from(content).getInt("[0].priority");
-    String returnedParentTaskId = from(content).getString("[0].parentTaskId");
-    Date returnedDue = DateTimeUtil.parseDate(from(content).getString("[0].due"));
-    Date returnedFollow = DateTimeUtil.parseDate(from(content).getString("[0].followUp"));
-    String returnedCaseDefinitionKey = from(content).getString("[0].caseDefinitionKey");
-    String returnedCaseDefinitionId = from(content).getString("[0].caseDefinitionId");
-    String returnedCaseInstanceId = from(content).getString("[0].caseInstanceId");
-    String returnedCaseExecutionId = from(content).getString("[0].caseExecutionId");
-    String returnedTenantId = from(content).getString("[0].tenantId");
-
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ID, returnedId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_INST_ID, returnedProcessInstanceId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ACT_INST_ID, returnedActivityInstanceId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_EXEC_ID, returnedExecutionId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_DEF_ID, returnedProcessDefinitionId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_DEF_KEY, returnedProcessDefinitionKey);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_NAME, returnedName);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DESCRIPTION, returnedDescription);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DELETE_REASON, returnedDeleteReason);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_OWNER, returnedOwner);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ASSIGNEE, returnedAssignee);
-    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_START_TIME), returnedStartTime);
-    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_END_TIME), returnedEndTime);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DURATION, returnedDurationInMillis);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DEF_KEY, returnedTaskDefinitionKey);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PRIORITY, returnedPriority);
-    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DUE_DATE), returnedDue);
-    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_FOLLOW_UP_DATE), returnedFollow);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PARENT_TASK_ID, returnedParentTaskId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_DEF_KEY, returnedCaseDefinitionKey);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_DEF_ID, returnedCaseDefinitionId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_INST_ID, returnedCaseInstanceId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_EXEC_ID, returnedCaseExecutionId);
-    Assert.assertEquals(MockProvider.EXAMPLE_TENANT_ID, returnedTenantId);
+    verifyHistoricTaskInstanceEntries(content);
   }
 
   @Test
@@ -521,55 +488,7 @@ public class HistoricTaskInstanceRestServiceQueryTest extends AbstractRestServic
     Assert.assertEquals("There should be one historic task instance returned.", 1, instances.size());
     Assert.assertNotNull("The returned historic task instance should not be null.", instances.get(0));
 
-    String returnedId = from(content).getString("[0].id");
-    String returnedProcessDefinitionKey = from(content).getString("[0].processDefinitionKey");
-    String returnedProcessDefinitionId = from(content).getString("[0].processDefinitionId");
-    String returnedProcessInstanceId = from(content).getString("[0].processInstanceId");
-    String returnedExecutionId = from(content).getString("[0].executionId");
-    String returnedActivityInstanceId = from(content).getString("[0].activityInstanceId");
-    String returnedName = from(content).getString("[0].name");
-    String returnedDescription = from(content).getString("[0].description");
-    String returnedDeleteReason = from(content).getString("[0].deleteReason");
-    String returnedOwner = from(content).getString("[0].owner");
-    String returnedAssignee = from(content).getString("[0].assignee");
-    Date returnedStartTime = DateTimeUtil.parseDate(from(content).getString("[0].startTime"));
-    Date returnedEndTime = DateTimeUtil.parseDate(from(content).getString("[0].endTime"));
-    Long returnedDurationInMillis = from(content).getLong("[0].duration");
-    String returnedTaskDefinitionKey = from(content).getString("[0].taskDefinitionKey");
-    int returnedPriority = from(content).getInt("[0].priority");
-    String returnedParentTaskId = from(content).getString("[0].parentTaskId");
-    Date returnedDue = DateTimeUtil.parseDate(from(content).getString("[0].due"));
-    Date returnedFollow = DateTimeUtil.parseDate(from(content).getString("[0].followUp"));
-    String returnedCaseDefinitionKey = from(content).getString("[0].caseDefinitionKey");
-    String returnedCaseDefinitionId = from(content).getString("[0].caseDefinitionId");
-    String returnedCaseInstanceId = from(content).getString("[0].caseInstanceId");
-    String returnedCaseExecutionId = from(content).getString("[0].caseExecutionId");
-    String returnedTenantId = from(content).getString("[0].tenantId");
-
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ID, returnedId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_INST_ID, returnedProcessInstanceId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ACT_INST_ID, returnedActivityInstanceId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_EXEC_ID, returnedExecutionId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_DEF_ID, returnedProcessDefinitionId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_DEF_KEY, returnedProcessDefinitionKey);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_NAME, returnedName);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DESCRIPTION, returnedDescription);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DELETE_REASON, returnedDeleteReason);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_OWNER, returnedOwner);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ASSIGNEE, returnedAssignee);
-    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_START_TIME), returnedStartTime);
-    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_END_TIME), returnedEndTime);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DURATION, returnedDurationInMillis);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DEF_KEY, returnedTaskDefinitionKey);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PRIORITY, returnedPriority);
-    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DUE_DATE), returnedDue);
-    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_FOLLOW_UP_DATE), returnedFollow);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PARENT_TASK_ID, returnedParentTaskId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_DEF_KEY, returnedCaseDefinitionKey);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_DEF_ID, returnedCaseDefinitionId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_INST_ID, returnedCaseInstanceId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_EXEC_ID, returnedCaseExecutionId);
-    Assert.assertEquals(MockProvider.EXAMPLE_TENANT_ID, returnedTenantId);
+    verifyHistoricTaskInstanceEntries(content);
   }
 
   @Test
@@ -2317,6 +2236,62 @@ public class HistoricTaskInstanceRestServiceQueryTest extends AbstractRestServic
     return Arrays.asList(
         MockProvider.createMockHistoricTaskInstance(MockProvider.EXAMPLE_TENANT_ID),
         MockProvider.createMockHistoricTaskInstance(MockProvider.ANOTHER_EXAMPLE_TENANT_ID));
+  }
+
+  protected void verifyHistoricTaskInstanceEntries(String content) {
+    String returnedId = from(content).getString("[0].id");
+    String returnedProcessDefinitionKey = from(content).getString("[0].processDefinitionKey");
+    String returnedProcessDefinitionId = from(content).getString("[0].processDefinitionId");
+    String returnedProcessInstanceId = from(content).getString("[0].processInstanceId");
+    String returnedExecutionId = from(content).getString("[0].executionId");
+    String returnedActivityInstanceId = from(content).getString("[0].activityInstanceId");
+    String returnedName = from(content).getString("[0].name");
+    String returnedDescription = from(content).getString("[0].description");
+    String returnedDeleteReason = from(content).getString("[0].deleteReason");
+    String returnedOwner = from(content).getString("[0].owner");
+    String returnedAssignee = from(content).getString("[0].assignee");
+    Date returnedStartTime = DateTimeUtil.parseDate(from(content).getString("[0].startTime"));
+    Date returnedEndTime = DateTimeUtil.parseDate(from(content).getString("[0].endTime"));
+    Long returnedDurationInMillis = from(content).getLong("[0].duration");
+    String returnedTaskDefinitionKey = from(content).getString("[0].taskDefinitionKey");
+    int returnedPriority = from(content).getInt("[0].priority");
+    String returnedParentTaskId = from(content).getString("[0].parentTaskId");
+    Date returnedDue = DateTimeUtil.parseDate(from(content).getString("[0].due"));
+    Date returnedFollow = DateTimeUtil.parseDate(from(content).getString("[0].followUp"));
+    String returnedCaseDefinitionKey = from(content).getString("[0].caseDefinitionKey");
+    String returnedCaseDefinitionId = from(content).getString("[0].caseDefinitionId");
+    String returnedCaseInstanceId = from(content).getString("[0].caseInstanceId");
+    String returnedCaseExecutionId = from(content).getString("[0].caseExecutionId");
+    String returnedTenantId = from(content).getString("[0].tenantId");
+    Date returnedRemovalTime = DateTimeUtil.parseDate(from(content).getString("[0].removalTime"));
+    String returnedRootProcessInstanceId = from(content).getString("[0].rootProcessInstanceId");
+
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ID, returnedId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_INST_ID, returnedProcessInstanceId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ACT_INST_ID, returnedActivityInstanceId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_EXEC_ID, returnedExecutionId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_DEF_ID, returnedProcessDefinitionId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_DEF_KEY, returnedProcessDefinitionKey);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_NAME, returnedName);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DESCRIPTION, returnedDescription);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DELETE_REASON, returnedDeleteReason);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_OWNER, returnedOwner);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ASSIGNEE, returnedAssignee);
+    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_START_TIME), returnedStartTime);
+    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_END_TIME), returnedEndTime);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DURATION, returnedDurationInMillis);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DEF_KEY, returnedTaskDefinitionKey);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PRIORITY, returnedPriority);
+    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DUE_DATE), returnedDue);
+    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_FOLLOW_UP_DATE), returnedFollow);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PARENT_TASK_ID, returnedParentTaskId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_DEF_KEY, returnedCaseDefinitionKey);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_DEF_ID, returnedCaseDefinitionId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_INST_ID, returnedCaseInstanceId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_EXEC_ID, returnedCaseExecutionId);
+    Assert.assertEquals(MockProvider.EXAMPLE_TENANT_ID, returnedTenantId);
+    Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_REMOVAL_TIME), returnedRemovalTime);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ROOT_PROC_INST_ID, returnedRootProcessInstanceId);
   }
 
 }

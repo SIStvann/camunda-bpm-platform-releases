@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -235,6 +238,7 @@ public class BpmnParse extends Parse {
     this.expressionManager = parser.getExpressionManager();
     this.parseListeners = parser.getParseListeners();
     setSchemaResource(ReflectUtil.getResourceUrlAsString(BpmnParser.BPMN_20_SCHEMA_LOCATION));
+    setEnableXxeProcessing(Context.getProcessEngineConfiguration().isEnableXxeProcessing());
   }
 
   public BpmnParse deployment(DeploymentEntity deployment) {
@@ -547,6 +551,9 @@ public class BpmnParse extends Parse {
       addError(new BpmnParseException(e.getMessage(), processElement, e));
     }
 
+    boolean isStartableInTasklist = isStartable(processElement);
+    processDefinition.setStartableInTasklist(isStartableInTasklist);
+
     LOG.parsingElement("process", processDefinition.getKey());
 
     parseScope(processElement, processDefinition);
@@ -851,10 +858,12 @@ public class BpmnParse extends Parse {
 
       ensureNoIoMappingDefined(startEventElement);
 
+      parseExecutionListenersOnScope(startEventElement, startEventActivity);
+
       for (BpmnParseListener parseListener : parseListeners) {
         parseListener.parseStartEvent(startEventElement, scope, startEventActivity);
       }
-      parseExecutionListenersOnScope(startEventElement, startEventActivity);
+
     }
 
     if (scope instanceof ProcessDefinitionEntity) {
@@ -1430,11 +1439,11 @@ public class BpmnParse extends Parse {
       addError("Unsupported intermediate catch event type", intermediateEventElement);
     }
 
+    parseExecutionListenersOnScope(intermediateEventElement, nestedActivity);
+
     for (BpmnParseListener parseListener : parseListeners) {
       parseListener.parseIntermediateCatchEvent(intermediateEventElement, scopeElement, nestedActivity);
     }
-
-    parseExecutionListenersOnScope(intermediateEventElement, nestedActivity);
 
     return nestedActivity;
   }
@@ -1540,13 +1549,13 @@ public class BpmnParse extends Parse {
       activityBehavior = new IntermediateThrowNoneEventActivityBehavior();
     }
 
-    for (BpmnParseListener parseListener : parseListeners) {
-      parseListener.parseIntermediateThrowEvent(intermediateEventElement, scopeElement, nestedActivityImpl);
-    }
-
     nestedActivityImpl.setActivityBehavior(activityBehavior);
 
     parseExecutionListenersOnScope(intermediateEventElement, nestedActivityImpl);
+
+    for (BpmnParseListener parseListener : parseListeners) {
+      parseListener.parseIntermediateThrowEvent(intermediateEventElement, scopeElement, nestedActivityImpl);
+    }
 
     return nestedActivityImpl;
   }
@@ -2930,11 +2939,12 @@ public class BpmnParse extends Parse {
 
       parseAsynchronousContinuationForActivity(endEventElement, activity);
 
+      parseExecutionListenersOnScope(endEventElement, activity);
+
       for (BpmnParseListener parseListener : parseListeners) {
         parseListener.parseEndEvent(endEventElement, scope, activity);
       }
 
-      parseExecutionListenersOnScope(endEventElement, activity);
     }
   }
 
@@ -3052,13 +3062,14 @@ public class BpmnParse extends Parse {
 
       ensureNoIoMappingDefined(boundaryEventElement);
 
+      boundaryEventActivity.setActivityBehavior(behavior);
+
+      parseExecutionListenersOnScope(boundaryEventElement, boundaryEventActivity);
+
       for (BpmnParseListener parseListener : parseListeners) {
         parseListener.parseBoundaryEvent(boundaryEventElement, flowScope, boundaryEventActivity);
       }
 
-      boundaryEventActivity.setActivityBehavior(behavior);
-
-      parseExecutionListenersOnScope(boundaryEventElement, boundaryEventActivity);
     }
 
   }
@@ -4397,6 +4408,10 @@ public class BpmnParse extends Parse {
     return -1.0;
   }
 
+  protected boolean isStartable(Element element) {
+    return TRUE.equalsIgnoreCase(element.attributeNS(CAMUNDA_BPMN_EXTENSIONS_NS, "isStartableInTasklist", TRUE));
+  }
+
   protected boolean isExclusive(Element element) {
     return TRUE.equals(element.attributeNS(CAMUNDA_BPMN_EXTENSIONS_NS, "exclusive", String.valueOf(JobEntity.DEFAULT_EXCLUSIVE)));
   }
@@ -4470,7 +4485,7 @@ public class BpmnParse extends Parse {
   protected boolean checkActivityInputOutputSupported(Element activityElement, ActivityImpl activity, IoMapping inputOutput) {
     String tagName = activityElement.getTagName();
 
-    if (!(tagName.contains("Task")
+    if (!(tagName.toLowerCase().contains("task")
         || tagName.contains("Event")
         || tagName.equals("transaction")
         || tagName.equals("subProcess")

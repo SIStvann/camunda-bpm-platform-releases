@@ -1,4 +1,7 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.pvm.runtime;
 
 import java.util.Map;
@@ -38,14 +40,14 @@ public class ExecutionStartContext {
   }
 
   public void executionStarted(PvmExecutionImpl execution) {
-
-    if (execution instanceof ExecutionEntity && delayFireHistoricVariableEvents) {
-      ExecutionEntity executionEntity = (ExecutionEntity) execution;
-      executionEntity.fireHistoricVariableInstanceCreateEvents();
-    }
-
     PvmExecutionImpl parent = execution;
     while (parent != null && parent.getExecutionStartContext() != null) {
+      if (parent instanceof ExecutionEntity && delayFireHistoricVariableEvents) {
+        // with the fix of CAM-9249 we presume that the parent and the child have the same startContext
+        ExecutionEntity executionEntity = (ExecutionEntity) parent;
+        executionEntity.fireHistoricVariableInstanceCreateEvents();
+      }
+
       parent.disposeExecutionStartContext();
       parent = parent.getParent();
     }

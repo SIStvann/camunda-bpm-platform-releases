@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -50,6 +53,7 @@ import java.util.List;
 
 import static org.camunda.bpm.engine.test.api.authorization.util.AuthorizationScenario.scenario;
 import static org.camunda.bpm.engine.test.api.authorization.util.AuthorizationSpec.grant;
+import static org.junit.Assert.assertEquals;
 
 /**
  * @author Askar Akhmerov
@@ -140,7 +144,7 @@ public class BatchCreationAuthorizationTest {
     // then
     authRule.assertScenario(scenario);
   }
-  
+
   @Test
   public void createBatchModification() {
     //given
@@ -163,7 +167,10 @@ public class BatchCreationAuthorizationTest {
     engineRule.getRuntimeService().createModification(processDefinition.getId()).startAfterActivity("user1").processInstanceIds(instances).executeAsync();
 
     // then
-    authRule.assertScenario(scenario);
+    if (authRule.assertScenario(scenario)) {
+      Batch batch = engineRule.getManagementService().createBatchQuery().singleResult();
+      assertEquals("userId", batch.getCreateUserId());
+    }
   }
 
   @Test

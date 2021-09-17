@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -38,6 +41,10 @@ public class ListenerProcessEngineServicesAccessTest extends AbstractProcessEngi
     return StartProcessListener.class;
   }
 
+  protected Class<?> getProcessEngineStartProcessClass() {
+    return ProcessEngineStartProcessListener.class;
+  }
+
   protected Task createModelAccessTask(BpmnModelInstance modelInstance, Class<?> delegateClass) {
     ManualTask task = modelInstance.newInstance(ManualTask.class);
     task.setId("manualTask");
@@ -63,6 +70,12 @@ public class ListenerProcessEngineServicesAccessTest extends AbstractProcessEngi
   public static class StartProcessListener implements ExecutionListener {
     public void notify(DelegateExecution execution) throws Exception {
       assertCanStartProcessInstance(execution.getProcessEngineServices());
+    }
+  }
+
+  public static class ProcessEngineStartProcessListener implements ExecutionListener {
+    public void notify(DelegateExecution execution) throws Exception {
+      assertCanStartProcessInstance(execution.getProcessEngine());
     }
   }
 

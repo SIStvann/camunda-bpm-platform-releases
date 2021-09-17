@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.history;
 
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
@@ -23,6 +25,7 @@ import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.history.event.HistoryEvent;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricVariableInstanceEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
+import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.impl.util.CollectionUtil;
 import org.camunda.bpm.engine.runtime.*;
 import org.camunda.bpm.engine.task.Task;
@@ -41,6 +44,8 @@ import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.junit.Assert;
 
 import java.io.Serializable;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 import static org.hamcrest.CoreMatchers.is;
@@ -2332,5 +2337,24 @@ public class HistoricVariableInstanceTest extends PluggableProcessEngineTestCase
     assertNotNull(historyVariable);
     assertEquals("initial", historyVariable.getName());
     assertEquals("bar", historyVariable.getValue());
+  }
+
+  @Deployment(resources={"org/camunda/bpm/engine/test/api/runtime/oneTaskProcess.bpmn20.xml"})
+  public void testVariableCreateTime() throws ParseException {
+    // given
+    SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy hh:mm:ss.SSS");
+    Date fixedDate = sdf.parse("01/01/2001 01:01:01.000");
+    ClockUtil.setCurrentTime(fixedDate);
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("stringVar", "test");
+    // when
+    runtimeService.startProcessInstanceByKey("oneTaskProcess", variables);
+
+    // then
+    HistoricVariableInstance variable = historyService.createHistoricVariableInstanceQuery().singleResult();
+    assertEquals(fixedDate, variable.getCreateTime());
+
+    // clean up
+    ClockUtil.setCurrentTime(new Date());
   }
 }

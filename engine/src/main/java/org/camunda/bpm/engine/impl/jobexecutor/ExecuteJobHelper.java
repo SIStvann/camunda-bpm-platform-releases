@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -22,11 +25,22 @@ public class ExecuteJobHelper {
 
   private static final JobExecutorLogger LOG = ProcessEngineLogger.JOB_EXECUTOR_LOGGER;
 
+  public static ExceptionLoggingHandler LOGGING_HANDLER = new ExceptionLoggingHandler() {
+
+    @Override
+    public void exceptionWhileExecutingJob(String jobId, Throwable exception) {
+
+      // Default behavior, just log exception
+      LOG.exceptionWhileExecutingJob(jobId, exception);
+    }
+
+  };
+
   public static void executeJob(String jobId, CommandExecutor commandExecutor) {
 
     JobFailureCollector jobFailureCollector = new JobFailureCollector(jobId);
 
-    ExecuteJobHelper.executeJob(jobId, commandExecutor, jobFailureCollector, new ExecuteJobsCmd(jobId, jobFailureCollector));
+    executeJob(jobId, commandExecutor, jobFailureCollector, new ExecuteJobsCmd(jobId, jobFailureCollector));
 
   }
 
@@ -36,17 +50,17 @@ public class ExecuteJobHelper {
       commandExecutor.execute(cmd);
 
     } catch (RuntimeException exception) {
-      ExecuteJobHelper.handleJobFailure(nextJobId, jobFailureCollector, exception);
+      handleJobFailure(nextJobId, jobFailureCollector, exception);
       // throw the original exception to indicate the ExecuteJobCmd failed
       throw exception;
 
     } catch (Throwable exception) {
-      ExecuteJobHelper.handleJobFailure(nextJobId, jobFailureCollector, exception);
+      handleJobFailure(nextJobId, jobFailureCollector, exception);
       // wrap the exception and throw it to indicate the ExecuteJobCmd failed
       throw LOG.wrapJobExecutionFailure(jobFailureCollector, exception);
 
     } finally {
-      ExecuteJobHelper.invokeJobListener(commandExecutor, jobFailureCollector);
+      invokeJobListener(commandExecutor, jobFailureCollector);
     }
 
   }
@@ -89,8 +103,7 @@ public class ExecuteJobHelper {
   }
 
   protected static void handleJobFailure(final String nextJobId, final JobFailureCollector jobFailureCollector, Throwable exception) {
-    LOG.exceptionWhileExecutingJob(nextJobId, exception);
-
+    LOGGING_HANDLER.exceptionWhileExecutingJob(nextJobId, exception);
     jobFailureCollector.setFailure(exception);
   }
 
@@ -101,6 +114,10 @@ public class ExecuteJobHelper {
 
   protected static SuccessfulJobListener createSuccessfulJobListener(CommandExecutor commandExecutor) {
     return new SuccessfulJobListener();
+  }
+
+  public interface ExceptionLoggingHandler {
+    void exceptionWhileExecutingJob(String jobId, Throwable exception);
   }
 
 }

@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.event;
 
 import java.util.Map;
@@ -36,7 +38,7 @@ public class EventHandlerImpl implements EventHandler {
     this.eventType = eventType;
   }
 
-  public void handleIntermediateEvent(EventSubscriptionEntity eventSubscription, Object payload, CommandContext commandContext) {
+  public void handleIntermediateEvent(EventSubscriptionEntity eventSubscription, Object payload, Object localPayload, CommandContext commandContext) {
 
     PvmExecutionImpl execution = eventSubscription.getExecution();
     ActivityImpl activity = eventSubscription.getActivity();
@@ -48,11 +50,15 @@ public class EventHandlerImpl implements EventHandler {
       execution.setVariables((Map<String, Object>)payload);
     }
 
+    if (localPayload instanceof Map) {
+      execution.setVariablesLocal((Map<String, Object>) localPayload);
+    }
+
     if(activity.equals(execution.getActivity())) {
       execution.signal("signal", null);
     }
     else {
-      // hack around the fact that the start event is refrenced by event subscriptions for event subprocesses
+      // hack around the fact that the start event is referenced by event subscriptions for event subprocesses
       // and not the subprocess itself
       if (activity.getActivityBehavior() instanceof EventSubProcessStartEventActivityBehavior) {
         activity = (ActivityImpl) activity.getFlowScope();
@@ -63,8 +69,8 @@ public class EventHandlerImpl implements EventHandler {
   }
 
   @Override
-  public void handleEvent(EventSubscriptionEntity eventSubscription, Object payload, String businessKey, CommandContext commandContext) {
-    handleIntermediateEvent(eventSubscription, payload, commandContext);
+  public void handleEvent(EventSubscriptionEntity eventSubscription, Object payload, Object localPayload, String businessKey, CommandContext commandContext) {
+    handleIntermediateEvent(eventSubscription, payload, localPayload, commandContext);
   }
 
   @Override

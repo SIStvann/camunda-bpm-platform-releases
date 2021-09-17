@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl;
 
 import java.io.InputStream;
@@ -132,6 +134,11 @@ public class RepositoryServiceImpl extends ServiceImpl implements RepositoryServ
 
   @Override
   public void deleteProcessDefinition(String processDefinitionId, boolean cascade, boolean skipCustomListeners) {
+    deleteProcessDefinition(processDefinitionId, cascade, skipCustomListeners, false);
+  }
+
+  @Override
+  public void deleteProcessDefinition(String processDefinitionId, boolean cascade, boolean skipCustomListeners, boolean skipIoMappings) {
     DeleteProcessDefinitionsBuilder builder = deleteProcessDefinitions().byIds(processDefinitionId);
 
     if (cascade) {
@@ -140,6 +147,10 @@ public class RepositoryServiceImpl extends ServiceImpl implements RepositoryServ
 
     if (skipCustomListeners) {
       builder.skipCustomListeners();
+    }
+
+    if (skipIoMappings) {
+      builder.skipIoMappings();
     }
 
     builder.delete();

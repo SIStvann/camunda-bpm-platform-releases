@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.runtime;
 
 import java.io.ByteArrayInputStream;
@@ -40,21 +42,26 @@ import org.camunda.bpm.engine.runtime.MessageCorrelationResult;
 import org.camunda.bpm.engine.runtime.MessageCorrelationResultType;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
+import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.api.variables.FailingJavaSerializable;
 import org.camunda.bpm.engine.test.util.ProcessEngineBootstrapRule;
 import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
 import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
+import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.Variables.SerializationDataFormats;
 import org.camunda.bpm.engine.variable.value.ObjectValue;
 import org.camunda.bpm.model.bpmn.Bpmn;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.junit.rules.RuleChain;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -1582,6 +1589,149 @@ public class MessageCorrelationTest {
     } catch (BadUserRequestException e){
       testRule.assertTextPresent("Cannot specify correlation variables ", e.getMessage());
     }
+  }
+
+  @Test
+  public void testCorrelationWithResultBySettingLocalVariables() {
+    // given
+    String outputVarName = "localVar";
+    BpmnModelInstance model = Bpmn.createExecutableProcess("Process_1")
+        .startEvent()
+          .intermediateCatchEvent("message_1")
+            .message("1")
+            .camundaOutputParameter(outputVarName, "${testLocalVar}")
+          .userTask("UserTask_1")
+        .endEvent()
+        .done();
+
+    testRule.deploy(model);
+
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("processInstanceVar", "processInstanceVarValue");
+    ProcessInstance processInstance = engineRule.getRuntimeService().startProcessInstanceByKey("Process_1", variables);
+
+    Map<String, Object> messageLocalPayload = new HashMap<String, Object>();
+    String outpuValue = "outputValue";
+    String localVarName = "testLocalVar";
+    messageLocalPayload.put(localVarName, outpuValue);
+
+    // when
+    MessageCorrelationResult messageCorrelationResult = runtimeService
+        .createMessageCorrelation("1")
+        .setVariablesLocal(messageLocalPayload)
+        .correlateWithResult();
+
+    // then
+    checkExecutionMessageCorrelationResult(messageCorrelationResult, processInstance, "message_1");
+
+    VariableInstance variable = runtimeService
+        .createVariableInstanceQuery()
+        .processInstanceIdIn(processInstance.getId())
+        .variableName(outputVarName)
+        .singleResult();
+    assertNotNull(variable);
+    assertEquals(outpuValue, variable.getValue());
+    assertEquals(processInstance.getId(), variable.getExecutionId());
+
+    VariableInstance variableNonExisting = runtimeService
+        .createVariableInstanceQuery()
+        .processInstanceIdIn(processInstance.getId())
+        .variableName(localVarName)
+        .singleResult();
+    assertNull(variableNonExisting);
+  }
+
+  @Test
+  public void testCorrelationBySettingLocalVariables() {
+    // given
+    String outputVarName = "localVar";
+    BpmnModelInstance model = Bpmn.createExecutableProcess("Process_1")
+        .startEvent()
+          .intermediateCatchEvent("message_1")
+            .message("1")
+            .camundaOutputParameter(outputVarName, "${testLocalVar}")
+          .userTask("UserTask_1")
+        .endEvent()
+        .done();
+
+    testRule.deploy(model);
+
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("processInstanceVar", "processInstanceVarValue");
+    ProcessInstance processInstance = engineRule.getRuntimeService().startProcessInstanceByKey("Process_1", variables);
+
+    Map<String, Object> messageLocalPayload = new HashMap<String, Object>();
+    String outpuValue = "outputValue";
+    String localVarName = "testLocalVar";
+    messageLocalPayload.put(localVarName, outpuValue);
+
+    // when
+    runtimeService
+        .createMessageCorrelation("1")
+        .setVariablesLocal(messageLocalPayload)
+        .correlate();
+
+    // then
+    VariableInstance variable = runtimeService
+        .createVariableInstanceQuery()
+        .processInstanceIdIn(processInstance.getId())
+        .variableName(outputVarName)
+        .singleResult();
+    assertNotNull(variable);
+    assertEquals(outpuValue, variable.getValue());
+    assertEquals(processInstance.getId(), variable.getExecutionId());
+
+    VariableInstance variableNonExisting = runtimeService
+        .createVariableInstanceQuery()
+        .processInstanceIdIn(processInstance.getId())
+        .variableName(localVarName)
+        .singleResult();
+    assertNull(variableNonExisting);
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/runtime/MessageCorrelationTest.waitForMessageProcess.bpmn20.xml",
+  "org/camunda/bpm/engine/test/api/runtime/MessageCorrelationTest.sendMessageProcess.bpmn20.xml" })
+  @Test
+  public void testCorrelateWithResultTwoTimesInSameTransaction() {
+    // start process that waits for message
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("correlationKey", "someCorrelationKey");
+    ProcessInstance messageWaitProcess = runtimeService.startProcessInstanceByKey("waitForMessageProcess", variables);
+
+    Execution waitingProcess = runtimeService.createExecutionQuery().executionId(messageWaitProcess.getProcessInstanceId()).singleResult();
+    Assert.assertNotNull(waitingProcess);
+
+    thrown.expect(MismatchingMessageCorrelationException.class);
+    thrown.expectMessage("Cannot correlate message 'waitForCorrelationKeyMessage'");
+
+    // start process that sends two messages with the same correlationKey
+    VariableMap switchScenarioFlag = Variables.createVariables().putValue("allFlag", false);
+    runtimeService.startProcessInstanceByKey("sendMessageProcess", switchScenarioFlag);
+
+    // waiting process must be finished
+    waitingProcess = runtimeService.createExecutionQuery().executionId(messageWaitProcess.getProcessInstanceId()).singleResult();
+    Assert.assertNull(waitingProcess);
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/runtime/MessageCorrelationTest.waitForMessageProcess.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/runtime/MessageCorrelationTest.sendMessageProcess.bpmn20.xml" })
+  @Test
+  public void testCorrelateAllWithResultTwoTimesInSameTransaction() {
+    // start process that waits for message
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("correlationKey", "someCorrelationKey");
+    ProcessInstance messageWaitProcess = runtimeService.startProcessInstanceByKey("waitForMessageProcess", variables);
+
+    Execution waitingProcess = runtimeService.createExecutionQuery().executionId(messageWaitProcess.getProcessInstanceId()).singleResult();
+    Assert.assertNotNull(waitingProcess);
+
+    // start process that sends two messages with the same correlationKey
+    VariableMap switchScenarioFlag = Variables.createVariables().putValue("allFlag", true);
+    runtimeService.startProcessInstanceByKey("sendMessageProcess", switchScenarioFlag);
+
+    // waiting process must be finished
+    waitingProcess = runtimeService.createExecutionQuery().executionId(messageWaitProcess.getProcessInstanceId()).singleResult();
+    Assert.assertNull(waitingProcess);
   }
 
 }

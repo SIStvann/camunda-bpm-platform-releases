@@ -1,7 +1,22 @@
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.rest;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import org.camunda.bpm.ProcessApplicationService;
 import org.camunda.bpm.application.ProcessApplicationInfo;
 import org.camunda.bpm.container.RuntimeContainerDelegate;
@@ -19,6 +34,7 @@ import org.camunda.bpm.engine.repository.ProcessDefinitionQuery;
 import org.camunda.bpm.engine.rest.dto.HistoryTimeToLiveDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
+import org.camunda.bpm.engine.impl.form.validator.FormFieldValidationException;
 import org.camunda.bpm.engine.rest.helper.*;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsObjectValue;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsPrimitiveValue;
@@ -49,7 +65,7 @@ import java.io.*;
 import java.net.URISyntaxException;
 import java.util.*;
 
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.createMockSerializedVariables;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.*;
@@ -789,6 +805,23 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
   }
 
   @Test
+  public void testSubmitFormByIdThrowsFormFieldValidationException() {
+    String message = "expected exception";
+    doThrow(new FormFieldValidationException("form-exception", message)).when(formServiceMock).submitStartForm(any(String.class), Matchers.<Map<String, Object>>any());
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(EMPTY_JSON_OBJECT)
+    .then().expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(RestException.class.getSimpleName()))
+      .body("message", equalTo("Cannot instantiate process definition " + MockProvider.EXAMPLE_PROCESS_DEFINITION_ID + ": " + message))
+    .when()
+      .post(SUBMIT_FORM_URL);
+  }
+
+  @Test
   public void testGetStartFormVariables() {
 
     given().pathParam("id", EXAMPLE_PROCESS_DEFINITION_ID)
@@ -1463,7 +1496,7 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
     .when()
       .delete(SINGLE_PROCESS_DEFINITION_URL);
 
-    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false);
+    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false, false);
   }
 
 
@@ -1478,7 +1511,7 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
     .when()
       .delete(SINGLE_PROCESS_DEFINITION_URL);
 
-    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, true, false);
+    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, true, false, false);
   }
 
   @Test
@@ -1492,7 +1525,7 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
     .when()
       .delete(SINGLE_PROCESS_DEFINITION_URL);
 
-    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false);
+    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false, false);
   }
 
   @Test
@@ -1506,7 +1539,7 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
     .when()
       .delete(SINGLE_PROCESS_DEFINITION_URL);
 
-    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false);
+    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false, false);
   }
 
   @Test
@@ -1520,7 +1553,7 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
     .when()
       .delete(SINGLE_PROCESS_DEFINITION_URL);
 
-    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, true);
+    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, true, false);
   }
 
   @Test
@@ -1534,7 +1567,7 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
     .when()
       .delete(SINGLE_PROCESS_DEFINITION_URL);
 
-    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false);
+    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false, false);
   }
 
   @Test
@@ -1548,7 +1581,7 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
     .when()
       .delete(SINGLE_PROCESS_DEFINITION_URL);
 
-    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false);
+    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false, false);
   }
 
   @Test
@@ -1563,7 +1596,7 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
     .when()
       .delete(SINGLE_PROCESS_DEFINITION_URL);
 
-    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, true, true);
+    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, true, true, false);
   }
 
   @Test
@@ -1571,7 +1604,7 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
 
     doThrow(new NotFoundException("No process definition found with id 'NON_EXISTING_ID'"))
             .when(repositoryServiceMock)
-            .deleteProcessDefinition("NON_EXISTING_ID", false, false);
+            .deleteProcessDefinition("NON_EXISTING_ID", false, false, false);
 
     given()
       .pathParam("id", "NON_EXISTING_ID")
@@ -1585,7 +1618,7 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
   @Test
   public void testDeleteDeploymentThrowsAuthorizationException() {
     String message = "expected exception";
-    doThrow(new AuthorizationException(message)).when(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false);
+    doThrow(new AuthorizationException(message)).when(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false, false);
 
     given()
       .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
@@ -1595,6 +1628,20 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
       .body("message", is(message))
     .when()
       .delete(SINGLE_PROCESS_DEFINITION_URL);
+  }
+
+  @Test
+  public void testDeleteDefinitionSkipIoMappings() {
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+      .queryParam("skipIoMappings", true)
+    .expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_URL);
+
+    verify(repositoryServiceMock).deleteProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, false, true);
   }
 
   @Test
@@ -1642,6 +1689,23 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
     DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
       .byKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
       .skipCustomListeners();
+
+    verify(builder).delete();
+  }
+
+  @Test
+  public void testDeleteDefinitionsByKeySkipIoMappings() {
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .queryParam("skipIoMappings", true)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(SINGLE_PROCESS_DEFINITION_BY_KEY_DELETE_URL);
+
+    DeleteProcessDefinitionsBuilder builder = repositoryServiceMock.deleteProcessDefinitions()
+      .byKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .skipIoMappings();
 
     verify(builder).delete();
   }
@@ -3019,6 +3083,23 @@ public class ProcessDefinitionRestServiceInteractionTest extends AbstractRestSer
       .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
       .body("type", equalTo(AuthorizationException.class.getSimpleName()))
       .body("message", equalTo(message))
+    .when()
+      .post(SUBMIT_FORM_BY_KEY_URL);
+  }
+
+  @Test
+  public void testSubmitFormByKeyThrowsFormFieldValidationException() {
+    String message = "expected exception";
+    doThrow(new FormFieldValidationException("form-exception", message)).when(formServiceMock).submitStartForm(any(String.class), Matchers.<Map<String, Object>>any());
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(EMPTY_JSON_OBJECT)
+    .then().expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(RestException.class.getSimpleName()))
+      .body("message", equalTo("Cannot instantiate process definition " + MockProvider.EXAMPLE_PROCESS_DEFINITION_ID + ": " + message))
     .when()
       .post(SUBMIT_FORM_BY_KEY_URL);
   }

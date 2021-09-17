@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +36,11 @@ import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.mock.Mocks;
+import org.camunda.bpm.engine.variable.Variables;
+import org.camunda.bpm.model.bpmn.Bpmn;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
+import org.camunda.bpm.model.bpmn.builder.ProcessBuilder;
 
 /**
  * @author Joram Barrez
@@ -41,7 +49,6 @@ public class StartTimerEventTest extends PluggableProcessEngineTestCase {
 
   @Deployment
   public void testDurationStartTimerEvent() throws Exception {
-
     // Set the clock fixed
     Date startTime = new Date();
 
@@ -144,6 +151,37 @@ public class StartTimerEventTest extends PluggableProcessEngineTestCase {
     assertEquals(2, piq.count());
     assertEquals(0, jobQuery.count());
 
+  }
+
+  @Deployment
+  public void testPriorityInTimerCycleEvent() throws Exception {
+    ClockUtil.setCurrentTime(new Date());
+
+    // After process start, there should be timer created
+    JobQuery jobQuery = managementService.createJobQuery();
+    assertEquals(1, jobQuery.count());
+
+    // ensure that the deployment Id is set on the new job
+    Job job = jobQuery.singleResult();
+    assertNotNull(job.getDeploymentId());
+    assertEquals(9999, job.getPriority());
+
+    final ProcessInstanceQuery piq = runtimeService.createProcessInstanceQuery()
+      .processDefinitionKey("startTimerEventExampleCycle");
+
+    assertEquals(0, piq.count());
+
+    moveByMinutes(5);
+    executeAllJobs();
+    assertEquals(1, piq.count());
+    assertEquals(1, jobQuery.count());
+
+    // ensure that the deployment Id is set on the new job
+    job = jobQuery.singleResult();
+    assertNotNull(job.getDeploymentId());
+
+    // second job should have the same priority
+    assertEquals(9999, job.getPriority());
   }
 
   @Deployment
@@ -1144,6 +1182,103 @@ public class StartTimerEventTest extends PluggableProcessEngineTestCase {
 
     String anotherJobId = jobQuery.singleResult().getId();
     assertFalse(jobId.equals(anotherJobId));
+  }
+
+  public void testInterruptingWithDurationExpression() {
+    // given
+    Mocks.register("duration", "PT60S");
+
+    ProcessBuilder processBuilder = Bpmn.createExecutableProcess("process");
+
+    BpmnModelInstance modelInstance = processBuilder
+      .startEvent().timerWithDuration("${duration}")
+        .userTask("aTaskName")
+      .endEvent()
+      .done();
+
+    deploymentId = repositoryService.createDeployment()
+      .addModelInstance("process.bpmn", modelInstance).deploy()
+      .getId();
+
+    // when
+    String jobId = managementService.createJobQuery()
+      .singleResult()
+      .getId();
+
+    managementService.executeJob(jobId);
+
+    // then
+    assertEquals(1, taskService.createTaskQuery().taskName("aTaskName").list().size());
+
+    // cleanup
+    Mocks.reset();
+  }
+
+  public void testInterruptingWithDurationExpressionInEventSubprocess() {
+    // given
+    ProcessBuilder processBuilder = Bpmn.createExecutableProcess("process");
+
+    BpmnModelInstance modelInstance = processBuilder
+      .startEvent()
+        .userTask()
+      .endEvent()
+      .done();
+
+    processBuilder.eventSubProcess()
+      .startEvent().timerWithDuration("${duration}")
+        .userTask("taskInSubprocess")
+      .endEvent();
+
+    deploymentId = repositoryService.createDeployment()
+      .addModelInstance("process.bpmn", modelInstance).deploy()
+      .getId();
+
+    // when
+    runtimeService.startProcessInstanceByKey("process",
+      Variables.createVariables()
+        .putValue("duration", "PT60S"));
+
+    String jobId = managementService.createJobQuery()
+      .singleResult()
+      .getId();
+
+    managementService.executeJob(jobId);
+
+    // then
+    assertEquals(1, taskService.createTaskQuery().taskName("taskInSubprocess").list().size());
+  }
+
+  public void testNonInterruptingWithDurationExpressionInEventSubprocess() {
+    // given
+    ProcessBuilder processBuilder = Bpmn.createExecutableProcess("process");
+
+    BpmnModelInstance modelInstance = processBuilder
+      .startEvent()
+        .userTask()
+      .endEvent().done();
+
+    processBuilder.eventSubProcess()
+      .startEvent().interrupting(false).timerWithDuration("${duration}")
+        .userTask("taskInSubprocess")
+      .endEvent();
+
+    deploymentId = repositoryService.createDeployment()
+      .addModelInstance("process.bpmn", modelInstance).deploy()
+      .getId();
+
+    // when
+    runtimeService.startProcessInstanceByKey("process",
+      Variables.createVariables()
+        .putValue("duration", "PT60S"));
+
+    String jobId = managementService.createJobQuery()
+      .singleResult()
+      .getId();
+
+    managementService.executeJob(jobId);
+
+    // then
+    assertEquals(1, taskService.createTaskQuery().taskName("taskInSubprocess").list().size());
   }
 
   @Deployment

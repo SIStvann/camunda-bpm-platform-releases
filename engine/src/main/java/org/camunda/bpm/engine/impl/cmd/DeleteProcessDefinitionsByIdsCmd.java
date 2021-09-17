@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -56,16 +56,22 @@ public class DeleteProcessDefinitionsByIdsCmd implements Command<Void>, Serializ
   protected boolean cascadeToInstances;
   protected boolean skipCustomListeners;
   protected boolean writeUserOperationLog;
+  protected boolean skipIoMappings;
 
-  public DeleteProcessDefinitionsByIdsCmd(List<String> processDefinitionIds, boolean cascade, boolean skipCustomListeners) {
-    this(processDefinitionIds, cascade, cascade, skipCustomListeners, true);
+  public DeleteProcessDefinitionsByIdsCmd(List<String> processDefinitionIds, boolean cascade, boolean skipCustomListeners, boolean skipIoMappings) {
+    this(processDefinitionIds, cascade, cascade, skipCustomListeners, skipIoMappings, true);
   }
 
   public DeleteProcessDefinitionsByIdsCmd(List<String> processDefinitionIds, boolean cascadeToHistory, boolean cascadeToInstances, boolean skipCustomListeners, boolean writeUserOperationLog) {
+    this(processDefinitionIds, cascadeToHistory, cascadeToInstances, skipCustomListeners, false, writeUserOperationLog);
+  }
+
+  public DeleteProcessDefinitionsByIdsCmd(List<String> processDefinitionIds, boolean cascadeToHistory, boolean cascadeToInstances, boolean skipCustomListeners, boolean skipIoMappings, boolean writeUserOperationLog) {
     this.processDefinitionIds = new HashSet<String>(processDefinitionIds);
     this.cascadeToHistory = cascadeToHistory;
     this.cascadeToInstances = cascadeToInstances;
     this.skipCustomListeners = skipCustomListeners;
+    this.skipIoMappings = skipIoMappings;
     this.writeUserOperationLog = writeUserOperationLog;
   }
 
@@ -187,7 +193,7 @@ public class DeleteProcessDefinitionsByIdsCmd implements Command<Void>, Serializ
             new PropertyChange("cascade", false, cascadeToHistory));
       }
 
-      definitionManager.deleteProcessDefinition(processDefinition, processDefinitionId, cascadeToHistory, cascadeToInstances, skipCustomListeners);
+      definitionManager.deleteProcessDefinition(processDefinition, processDefinitionId, cascadeToHistory, cascadeToInstances, skipCustomListeners, skipIoMappings);
     }
 
     if (newLatestProcessDefinition != null) {

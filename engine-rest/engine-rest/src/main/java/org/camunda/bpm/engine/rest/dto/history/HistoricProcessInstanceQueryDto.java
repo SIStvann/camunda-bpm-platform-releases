@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -31,6 +34,8 @@ import org.camunda.bpm.engine.rest.dto.converter.StringListConverter;
 import org.camunda.bpm.engine.rest.dto.converter.StringSetConverter;
 import org.camunda.bpm.engine.rest.dto.converter.VariableListConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
+
+import static java.lang.Boolean.TRUE;
 
 public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricProcessInstanceQuery> {
 
@@ -70,6 +75,7 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   private List<String> processDefinitionKeyNotIn;
   private String processInstanceBusinessKey;
   private String processInstanceBusinessKeyLike;
+  private Boolean rootProcessInstances;
   private Boolean finished;
   private Boolean unfinished;
   private Boolean withIncidents;
@@ -93,6 +99,7 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   private String subCaseInstanceId;
   private String caseInstanceId;
   private List<String> tenantIds;
+  private Boolean withoutTenantId;
   private List<String> executedActivityIdIn;
   private List<String> activeActivityIdIn;
   private Boolean active;
@@ -156,6 +163,11 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   @CamundaQueryParam("processInstanceBusinessKeyLike")
   public void setProcessInstanceBusinessKeyLike(String processInstanceBusinessKeyLike) {
     this.processInstanceBusinessKeyLike = processInstanceBusinessKeyLike;
+  }
+
+  @CamundaQueryParam(value = "rootProcessInstances", converter = BooleanConverter.class)
+  public void setRootProcessInstances(Boolean rootProcessInstances) {
+    this.rootProcessInstances = rootProcessInstances;
   }
 
   @CamundaQueryParam(value = "finished", converter = BooleanConverter.class)
@@ -262,6 +274,11 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     this.tenantIds = tenantIds;
   }
 
+  @CamundaQueryParam(value = "withoutTenantId", converter = BooleanConverter.class)
+  public void setWithoutTenantId(Boolean withoutTenantId) {
+    this.withoutTenantId = withoutTenantId;
+  }
+
   @CamundaQueryParam(value = "executedActivityAfter", converter = DateConverter.class)
   public void setExecutedActivityAfter(Date executedActivityAfter) {
     this.executedActivityAfter = executedActivityAfter;
@@ -357,6 +374,9 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     if (processInstanceBusinessKeyLike != null) {
       query.processInstanceBusinessKeyLike(processInstanceBusinessKeyLike);
     }
+    if (rootProcessInstances != null && rootProcessInstances) {
+      query.rootProcessInstances();
+    }
     if (finished != null && finished) {
       query.finished();
     }
@@ -413,6 +433,9 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     }
     if (tenantIds != null && !tenantIds.isEmpty()) {
       query.tenantIdIn(tenantIds.toArray(new String[tenantIds.size()]));
+    }
+    if (TRUE.equals(withoutTenantId)) {
+      query.withoutTenantId();
     }
 
     if (variables != null) {

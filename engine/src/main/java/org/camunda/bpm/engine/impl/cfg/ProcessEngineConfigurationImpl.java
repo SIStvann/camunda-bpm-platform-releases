@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.cfg;
 
 
@@ -70,6 +72,7 @@ import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
+import org.camunda.bpm.engine.authorization.Groups;
 import org.camunda.bpm.engine.authorization.Permission;
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.impl.AuthorizationServiceImpl;
@@ -82,6 +85,7 @@ import org.camunda.bpm.engine.impl.HistoryServiceImpl;
 import org.camunda.bpm.engine.impl.IdentityServiceImpl;
 import org.camunda.bpm.engine.impl.ManagementServiceImpl;
 import org.camunda.bpm.engine.impl.ModificationBatchJobHandler;
+import org.camunda.bpm.engine.impl.OptimizeService;
 import org.camunda.bpm.engine.impl.PriorityProvider;
 import org.camunda.bpm.engine.impl.ProcessEngineImpl;
 import org.camunda.bpm.engine.impl.RepositoryServiceImpl;
@@ -169,7 +173,9 @@ import org.camunda.bpm.engine.impl.form.validator.MinLengthValidator;
 import org.camunda.bpm.engine.impl.form.validator.MinValidator;
 import org.camunda.bpm.engine.impl.form.validator.ReadOnlyValidator;
 import org.camunda.bpm.engine.impl.form.validator.RequiredValidator;
+import org.camunda.bpm.engine.impl.history.DefaultHistoryRemovalTimeProvider;
 import org.camunda.bpm.engine.impl.history.HistoryLevel;
+import org.camunda.bpm.engine.impl.history.HistoryRemovalTimeProvider;
 import org.camunda.bpm.engine.impl.history.event.HistoricDecisionInstanceManager;
 import org.camunda.bpm.engine.impl.history.handler.DbHistoryEventHandler;
 import org.camunda.bpm.engine.impl.history.handler.HistoryEventHandler;
@@ -193,10 +199,10 @@ import org.camunda.bpm.engine.impl.interceptor.CommandInterceptor;
 import org.camunda.bpm.engine.impl.interceptor.DelegateInterceptor;
 import org.camunda.bpm.engine.impl.interceptor.SessionFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.AsyncContinuationJobHandler;
+import org.camunda.bpm.engine.impl.jobexecutor.DefaultFailedJobCommandFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.DefaultJobExecutor;
 import org.camunda.bpm.engine.impl.jobexecutor.DefaultJobPriorityProvider;
 import org.camunda.bpm.engine.impl.jobexecutor.FailedJobCommandFactory;
-import org.camunda.bpm.engine.impl.jobexecutor.DefaultFailedJobCommandFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.JobDeclaration;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
 import org.camunda.bpm.engine.impl.jobexecutor.JobHandler;
@@ -214,6 +220,7 @@ import org.camunda.bpm.engine.impl.jobexecutor.TimerSuspendProcessDefinitionHand
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.BatchWindowManager;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.DefaultBatchWindowManager;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupBatch;
+import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupHelper;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupJobHandler;
 import org.camunda.bpm.engine.impl.metrics.MetricsRegistry;
@@ -253,6 +260,7 @@ import org.camunda.bpm.engine.impl.migration.validation.instruction.SameBehavior
 import org.camunda.bpm.engine.impl.migration.validation.instruction.SameEventScopeInstructionValidator;
 import org.camunda.bpm.engine.impl.migration.validation.instruction.SameEventTypeValidator;
 import org.camunda.bpm.engine.impl.migration.validation.instruction.UpdateEventTriggersValidator;
+import org.camunda.bpm.engine.impl.optimize.OptimizeManager;
 import org.camunda.bpm.engine.impl.persistence.GenericManagerFactory;
 import org.camunda.bpm.engine.impl.persistence.deploy.Deployer;
 import org.camunda.bpm.engine.impl.persistence.deploy.cache.CacheFactory;
@@ -377,6 +385,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected FilterService filterService = new FilterServiceImpl();
   protected ExternalTaskService externalTaskService = new ExternalTaskServiceImpl();
   protected DecisionService decisionService = new DecisionServiceImpl();
+  protected OptimizeService optimizeService = new OptimizeService();
 
   // COMMAND EXECUTORS ////////////////////////////////////////////////////////
 
@@ -661,6 +670,11 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected boolean enableExpressionsInStoredQueries = true;
 
   /**
+   * If false, disables XML eXternal Entity (XXE) Processing. This provides protection against XXE Processing attacks.
+   */
+  protected boolean enableXxeProcessing = false;
+
+  /**
    * If true, user operation log entries are only written if there is an
    * authenticated user present in the context. If false, user operation log
    * entries are written regardless of authentication state.
@@ -676,6 +690,10 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected TenantIdProvider tenantIdProvider = null;
 
   protected List<CommandChecker> commandCheckers = null;
+
+  protected List<String> adminGroups;
+
+  protected List<String> adminUsers;
 
   // Migration
   protected MigrationActivityMatcher migrationActivityMatcher;
@@ -732,6 +750,12 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected Map<String, Integer> parsedBatchOperationsForHistoryCleanup;
 
   protected BatchWindowManager batchWindowManager = new DefaultBatchWindowManager();
+
+  protected HistoryRemovalTimeProvider historyRemovalTimeProvider;
+
+  protected String historyRemovalTimeStrategy;
+
+  protected String historyCleanupStrategy;
 
   /**
    * Size of batch in which history cleanup data will be deleted. {@link HistoryCleanupBatch#MAX_BATCH_SIZE} must be respected.
@@ -815,11 +839,40 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     initMigration();
     initCommandCheckers();
     initDefaultUserPermissionForTask();
+    initHistoryRemovalTime();
     initHistoryCleanup();
+    initAdminUser();
+    initAdminGroups();
     invokePostInit();
   }
 
+  public void initHistoryRemovalTime() {
+    initHistoryRemovalTimeProvider();
+    initHistoryRemovalTimeStrategy();
+  }
+
+  public void initHistoryRemovalTimeStrategy() {
+    if (historyRemovalTimeStrategy == null) {
+      historyRemovalTimeStrategy = HISTORY_REMOVAL_TIME_STRATEGY_END;
+    }
+
+    if (!HISTORY_REMOVAL_TIME_STRATEGY_START.equals(historyRemovalTimeStrategy) &&
+      !HISTORY_REMOVAL_TIME_STRATEGY_END.equals(historyRemovalTimeStrategy) &&
+      !HISTORY_REMOVAL_TIME_STRATEGY_NONE.equals(historyRemovalTimeStrategy)) {
+      throw LOG.invalidPropertyValue("historyRemovalTimeStrategy", String.valueOf(historyRemovalTimeStrategy),
+        String.format("history removal time strategy must be set to '%s', '%s' or '%s'", HISTORY_REMOVAL_TIME_STRATEGY_START, HISTORY_REMOVAL_TIME_STRATEGY_END, HISTORY_REMOVAL_TIME_STRATEGY_NONE));
+    }
+  }
+
+  public void initHistoryRemovalTimeProvider() {
+    if (historyRemovalTimeProvider == null) {
+      historyRemovalTimeProvider = new DefaultHistoryRemovalTimeProvider();
+    }
+  }
+
   public void initHistoryCleanup() {
+    initHistoryCleanupStrategy();
+
     //validate number of threads
     if (historyCleanupDegreeOfParallelism < 1 || historyCleanupDegreeOfParallelism > MAX_THREADS_NUMBER) {
       throw LOG.invalidPropertyValue("historyCleanupDegreeOfParallelism", String.valueOf(historyCleanupDegreeOfParallelism),
@@ -836,9 +889,9 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
     initHistoryCleanupBatchWindowsMap();
 
-    if (historyCleanupBatchSize > HistoryCleanupBatch.MAX_BATCH_SIZE || historyCleanupBatchSize <= 0) {
+    if (historyCleanupBatchSize > HistoryCleanupHandler.MAX_BATCH_SIZE || historyCleanupBatchSize <= 0) {
       throw LOG.invalidPropertyValue("historyCleanupBatchSize", String.valueOf(historyCleanupBatchSize),
-          String.format("value for batch size should be between 1 and %s", HistoryCleanupBatch.MAX_BATCH_SIZE));
+          String.format("value for batch size should be between 1 and %s", HistoryCleanupHandler.MAX_BATCH_SIZE));
     }
 
     if (historyCleanupBatchThreshold < 0) {
@@ -847,6 +900,24 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     }
 
     initBatchOperationsHistoryTimeToLive();
+  }
+
+  protected void initHistoryCleanupStrategy() {
+    if (historyCleanupStrategy == null) {
+      historyCleanupStrategy = HISTORY_CLEANUP_STRATEGY_REMOVAL_TIME_BASED;
+    }
+
+    if (!HISTORY_CLEANUP_STRATEGY_REMOVAL_TIME_BASED.equals(historyCleanupStrategy) &&
+      !HISTORY_CLEANUP_STRATEGY_END_TIME_BASED.equals(historyCleanupStrategy)) {
+      throw LOG.invalidPropertyValue("historyCleanupStrategy", String.valueOf(historyCleanupStrategy),
+        String.format("history cleanup strategy must be either set to '%s' or '%s'", HISTORY_CLEANUP_STRATEGY_REMOVAL_TIME_BASED, HISTORY_CLEANUP_STRATEGY_END_TIME_BASED));
+    }
+
+    if (HISTORY_CLEANUP_STRATEGY_REMOVAL_TIME_BASED.equals(historyCleanupStrategy) &&
+      HISTORY_REMOVAL_TIME_STRATEGY_NONE.equals(historyRemovalTimeStrategy)) {
+      throw LOG.invalidPropertyValue("historyRemovalTimeStrategy", String.valueOf(historyRemovalTimeStrategy),
+        String.format("history removal time strategy cannot be set to '%s' in conjunction with '%s' history cleanup strategy", HISTORY_REMOVAL_TIME_STRATEGY_NONE, HISTORY_CLEANUP_STRATEGY_REMOVAL_TIME_BASED));
+    }
   }
 
   private void initHistoryCleanupBatchWindowsMap() {
@@ -1125,6 +1196,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     initService(filterService);
     initService(externalTaskService);
     initService(decisionService);
+    initService(optimizeService);
   }
 
   protected void initService(Object service) {
@@ -1353,6 +1425,9 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
       properties.put("limitAfter", DbSqlSessionFactory.databaseSpecificLimitAfterStatements.get(databaseType));
       properties.put("limitBeforeWithoutOffset", DbSqlSessionFactory.databaseSpecificLimitBeforeWithoutOffsetStatements.get(databaseType));
       properties.put("limitAfterWithoutOffset", DbSqlSessionFactory.databaseSpecificLimitAfterWithoutOffsetStatements.get(databaseType));
+
+      properties.put("optimizeLimitBeforeWithoutOffset", DbSqlSessionFactory.optimizeDatabaseSpecificLimitBeforeWithoutOffsetStatements.get(databaseType));
+      properties.put("optimizeLimitAfterWithoutOffset", DbSqlSessionFactory.optimizeDatabaseSpecificLimitAfterWithoutOffsetStatements.get(databaseType));
       properties.put("innerLimitAfter", DbSqlSessionFactory.databaseSpecificInnerLimitAfterStatements.get(databaseType));
       properties.put("limitBetween", DbSqlSessionFactory.databaseSpecificLimitBetweenStatements.get(databaseType));
       properties.put("limitBetweenFilter", DbSqlSessionFactory.databaseSpecificLimitBetweenFilterStatements.get(databaseType));
@@ -1453,6 +1528,8 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
       addSessionFactory(new GenericManagerFactory(DecisionDefinitionManager.class));
       addSessionFactory(new GenericManagerFactory(DecisionRequirementsDefinitionManager.class));
       addSessionFactory(new GenericManagerFactory(HistoricDecisionInstanceManager.class));
+
+      addSessionFactory(new GenericManagerFactory(OptimizeManager.class));
 
       sessionFactories.put(ReadOnlyIdentityProvider.class, identityProviderSessionFactory);
 
@@ -2272,6 +2349,21 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     }
   }
 
+  protected void initAdminUser() {
+    if (adminUsers == null) {
+      adminUsers = new ArrayList<>();
+    }
+  }
+
+  protected void initAdminGroups() {
+    if (adminGroups == null) {
+      adminGroups = new ArrayList<String>();
+    }
+    if (adminGroups.isEmpty() || !(adminGroups.contains(Groups.CAMUNDA_ADMIN))) {
+      adminGroups.add(Groups.CAMUNDA_ADMIN);
+    }
+  }
+
   // getters and setters //////////////////////////////////////////////////////
 
   @Override
@@ -2470,6 +2562,10 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   public DecisionService getDecisionService() {
     return decisionService;
+  }
+
+  public OptimizeService getOptimizeService() {
+    return optimizeService;
   }
 
   public void setDecisionService(DecisionService decisionService) {
@@ -3652,6 +3748,14 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     this.enableExpressionsInStoredQueries = enableExpressionsInStoredQueries;
   }
 
+  public boolean isEnableXxeProcessing() {
+    return enableXxeProcessing;
+  }
+
+  public void setEnableXxeProcessing(boolean enableXxeProcessing) {
+    this.enableXxeProcessing = enableXxeProcessing;
+  }
+
   public ProcessEngineConfigurationImpl setBpmnStacktraceVerbose(boolean isBpmnStacktraceVerbose) {
     this.isBpmnStacktraceVerbose = isBpmnStacktraceVerbose;
     return this;
@@ -4064,6 +4168,33 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     this.batchWindowManager = batchWindowManager;
   }
 
+  public HistoryRemovalTimeProvider getHistoryRemovalTimeProvider() {
+    return historyRemovalTimeProvider;
+  }
+
+  public ProcessEngineConfigurationImpl setHistoryRemovalTimeProvider(HistoryRemovalTimeProvider removalTimeProvider) {
+    historyRemovalTimeProvider = removalTimeProvider;
+    return this;
+  }
+
+  public String getHistoryRemovalTimeStrategy() {
+    return historyRemovalTimeStrategy;
+  }
+
+  public ProcessEngineConfigurationImpl setHistoryRemovalTimeStrategy(String removalTimeStrategy) {
+    historyRemovalTimeStrategy = removalTimeStrategy;
+    return this;
+  }
+
+  public String getHistoryCleanupStrategy() {
+    return historyCleanupStrategy;
+  }
+
+  public ProcessEngineConfigurationImpl setHistoryCleanupStrategy(String historyCleanupStrategy) {
+    this.historyCleanupStrategy = historyCleanupStrategy;
+    return this;
+  }
+
   public int getFailedJobListenerMaxRetries() {
     return failedJobListenerMaxRetries;
   }
@@ -4110,6 +4241,22 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   public void setLoginDelayBase(int loginInitialDelay) {
     this.loginDelayBase = loginInitialDelay;
+  }
+
+  public List<String> getAdminGroups() {
+    return adminGroups;
+  }
+
+  public void setAdminGroups(List<String> adminGroups) {
+    this.adminGroups = adminGroups;
+  }
+
+  public List<String> getAdminUsers() {
+    return adminUsers;
+  }
+
+  public void setAdminUsers(List<String> adminUsers) {
+    this.adminUsers = adminUsers;
   }
 
 }

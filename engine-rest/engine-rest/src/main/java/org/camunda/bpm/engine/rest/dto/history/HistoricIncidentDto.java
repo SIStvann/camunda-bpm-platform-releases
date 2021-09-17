@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,8 +30,10 @@ public class HistoricIncidentDto {
   protected String processDefinitionId;
   protected String processInstanceId;
   protected String executionId;
+  protected String rootProcessInstanceId;
   protected Date createTime;
   protected Date endTime;
+  protected Date removalTime;
   protected String incidentType;
   protected String activityId;
   protected String causeIncidentId;
@@ -61,12 +66,20 @@ public class HistoricIncidentDto {
     return executionId;
   }
 
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+
   public Date getCreateTime() {
     return createTime;
   }
 
   public Date getEndTime() {
     return endTime;
+  }
+
+  public Date getRemovalTime() {
+    return removalTime;
   }
 
   public String getIncidentType() {
@@ -134,6 +147,8 @@ public class HistoricIncidentDto {
     dto.resolved = historicIncident.isResolved();
     dto.tenantId = historicIncident.getTenantId();
     dto.jobDefinitionId = historicIncident.getJobDefinitionId();
+    dto.removalTime = historicIncident.getRemovalTime();
+    dto.rootProcessInstanceId = historicIncident.getRootProcessInstanceId();
 
     return dto;
   }

@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -52,6 +55,7 @@ public class MessageCorrelationBuilderImpl implements MessageCorrelationBuilder 
   protected VariableMap correlationProcessInstanceVariables;
   protected VariableMap correlationLocalVariables;
   protected VariableMap payloadProcessInstanceVariables;
+  protected VariableMap payloadProcessInstanceVariablesLocal;
 
   protected String tenantId = null;
   protected boolean isTenantIdSet = false;
@@ -141,6 +145,13 @@ public class MessageCorrelationBuilderImpl implements MessageCorrelationBuilder 
     return this;
   }
 
+  public MessageCorrelationBuilder setVariableLocal(String variableName, Object variableValue) {
+    ensureNotNull("variableName", variableName);
+    ensurePayloadProcessInstanceVariablesLocalInitialized();
+    payloadProcessInstanceVariablesLocal.put(variableName, variableValue);
+    return this;
+  }
+
   public MessageCorrelationBuilder setVariables(Map<String, Object> variables) {
     if (variables != null) {
       ensurePayloadProcessInstanceVariablesInitialized();
@@ -149,9 +160,24 @@ public class MessageCorrelationBuilderImpl implements MessageCorrelationBuilder 
     return this;
   }
 
+  @Override
+  public MessageCorrelationBuilder setVariablesLocal(Map<String, Object> variables) {
+    if (variables != null) {
+      ensurePayloadProcessInstanceVariablesLocalInitialized();
+      payloadProcessInstanceVariablesLocal.putAll(variables);
+    }
+    return this;
+  }
+
   protected void ensurePayloadProcessInstanceVariablesInitialized() {
     if (payloadProcessInstanceVariables == null) {
       payloadProcessInstanceVariables = new VariableMapImpl();
+    }
+  }
+
+  protected void ensurePayloadProcessInstanceVariablesLocalInitialized() {
+    if (payloadProcessInstanceVariablesLocal == null) {
+      payloadProcessInstanceVariablesLocal = new VariableMapImpl();
     }
   }
 
@@ -279,6 +305,10 @@ public class MessageCorrelationBuilderImpl implements MessageCorrelationBuilder 
 
   public Map<String, Object> getPayloadProcessInstanceVariables() {
     return payloadProcessInstanceVariables;
+  }
+
+  public VariableMap getPayloadProcessInstanceVariablesLocal() {
+    return payloadProcessInstanceVariablesLocal;
   }
 
   public boolean isExclusiveCorrelation() {

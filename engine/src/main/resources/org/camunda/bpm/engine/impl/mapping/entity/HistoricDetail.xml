@@ -1,18 +1,22 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
 <!--
-  ~ Licensed under the Apache License, Version 2.0 (the "License");
-  ~ you may not use this file except in compliance with the License.
-  ~ You may obtain a copy of the License at
-  ~
-  ~       http://www.apache.org/licenses/LICENSE-2.0
-  ~
-  ~ Unless required by applicable law or agreed to in writing, software
-  ~ distributed under the License is distributed on an "AS IS" BASIS,
-  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  ~ See the License for the specific language governing permissions and
-  ~ limitations under the License.
-  -->
+
+    Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
 
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
@@ -27,6 +31,7 @@
       TYPE_,
       PROC_DEF_KEY_,
       PROC_DEF_ID_,
+      ROOT_PROC_INST_ID_,
       PROC_INST_ID_,
       ACT_INST_ID_,
       EXECUTION_ID_,
@@ -36,13 +41,15 @@
       TEXT_,
       SEQUENCE_COUNTER_,
       TENANT_ID_,
-      OPERATION_ID_
+      OPERATION_ID_,
+      REMOVAL_TIME_
     )
     values (
       #{id, jdbcType=VARCHAR},
       'FormProperty',
       #{processDefinitionKey, jdbcType=VARCHAR},
       #{processDefinitionId, jdbcType=VARCHAR},
+      #{rootProcessInstanceId, jdbcType=VARCHAR},
       #{processInstanceId, jdbcType=VARCHAR},
       #{activityInstanceId, jdbcType=VARCHAR},
       #{executionId, jdbcType=VARCHAR},
@@ -52,7 +59,8 @@
       #{propertyValue, jdbcType=VARCHAR},
       #{sequenceCounter, jdbcType=BIGINT},
       #{tenantId, jdbcType=VARCHAR},
-      #{userOperationId, jdbcType=VARCHAR}
+      #{userOperationId, jdbcType=VARCHAR},
+      #{removalTime, jdbcType=TIMESTAMP}
     )
   </insert>
 
@@ -64,6 +72,7 @@
       TYPE_,
       PROC_DEF_KEY_,
       PROC_DEF_ID_,
+      ROOT_PROC_INST_ID_,
       PROC_INST_ID_,
       EXECUTION_ID_,
       ACT_INST_ID_,
@@ -84,13 +93,15 @@
       TEXT2_,
       SEQUENCE_COUNTER_,
       TENANT_ID_,
-      OPERATION_ID_
+      OPERATION_ID_,
+      REMOVAL_TIME_
     )
     values (
       #{id, jdbcType=VARCHAR},
       'VariableUpdate',
       #{processDefinitionKey, jdbcType=VARCHAR},
       #{processDefinitionId, jdbcType=VARCHAR},
+      #{rootProcessInstanceId, jdbcType=VARCHAR},
       #{processInstanceId, jdbcType=VARCHAR},
       #{executionId, jdbcType=VARCHAR},
       #{activityInstanceId, jdbcType=VARCHAR},
@@ -111,17 +122,24 @@
       #{textValue2, jdbcType=VARCHAR},
       #{sequenceCounter, jdbcType=BIGINT},
       #{tenantId, jdbcType=VARCHAR},
-      #{userOperationId, jdbcType=VARCHAR}
+      #{userOperationId, jdbcType=VARCHAR},
+      #{removalTime, jdbcType=TIMESTAMP}
     )
   </insert>
+
+  <!-- HISTORIC DETAILS UPDATE -->
+
+  <update id="updateHistoricDetailsByRootProcessInstanceId"
+          parameterType="java.util.Map">
+    update ${prefix}ACT_HI_DETAIL set
+    REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+
+    where ROOT_PROC_INST_ID_ = #{rootProcessInstanceId, jdbcType=VARCHAR}
+  </update>
 
   <!-- HISTORIC DETAILS DELETE -->
 
   <delete id="deleteHistoricDetailVariableInstanceUpdate">
-    delete from ${prefix}ACT_HI_DETAIL where ID_ = #{id}
-  </delete>
-
-  <delete id="deleteHistoricFormProperty">
     delete from ${prefix}ACT_HI_DETAIL where ID_ = #{id}
   </delete>
 
@@ -138,6 +156,11 @@
     <include refid="selectHistoricDetailsTaskProcessAndCaseInstanceByIdsSql_mysql"/>
     <where>
       <include refid="selectHistoricDetailsProcessAndCaseInstanceByIdsSql"/>
+      <!-- https://app.camunda.com/jira/browse/CAM-9436 -->
+      <!-- null filter to speed up the history cleanup -->
+      <if test="taskProcessInstanceIds != null &amp;&amp; taskProcessInstanceIds.size() > 0">
+        and D.TASK_ID_ is not null
+      </if>
     </where>
   </delete>
 
@@ -164,11 +187,58 @@
       </where>
   </delete>
 
+  <sql id="andWhereMinuteInDateBetweenSql">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart2}${date}${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <sql id="andWhereMinuteInDateBetweenSql_oracle">
+    <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
+      AND ${datepart1}${date}${datepart2}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart3}
+      between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
+    </if>
+  </sql>
+
+  <delete id="deleteHistoricDetailsByRemovalTime"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_DETAIL
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteHistoricDetailsByRemovalTime_oracle"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_DETAIL
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql_oracle"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteHistoricDetailsByRemovalTime_postgres_or_db2"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_DETAIL
+    where ID_ IN
+      (SELECT ID_
+       FROM ${prefix}ACT_HI_DETAIL
+       WHERE REMOVAL_TIME_ &lt;= #{parameter.removalTime} <include refid="andWhereMinuteInDateBetweenSql"/>
+       ${limitAfterWithoutOffset})
+  </delete>
+
   <!-- HISTORIC DETAILS RESULTMAP -->
   <resultMap id="historicDetailResultMap" type="org.camunda.bpm.engine.impl.history.event.HistoricDetailEventEntity">
     <id property="id" column="ID_" jdbcType="VARCHAR" />
     <result property="processDefinitionKey" column="PROC_DEF_KEY_" jdbcType="VARCHAR" />
     <result property="processDefinitionId" column="PROC_DEF_ID_" jdbcType="VARCHAR" />
+    <result property="rootProcessInstanceId" column="ROOT_PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="processInstanceId" column="PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="executionId" column="EXECUTION_ID_" jdbcType="VARCHAR" />
     <result property="caseDefinitionKey" column="CASE_DEF_KEY_" jdbcType="VARCHAR" />
@@ -181,6 +251,7 @@
     <result property="sequenceCounter" column="SEQUENCE_COUNTER_" jdbcType="BIGINT" />
     <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
     <result property="userOperationId" column="OPERATION_ID_" jdbcType="VARCHAR" />
+    <result property="removalTime" column="REMOVAL_TIME_" jdbcType="TIMESTAMP"/>
     <discriminator javaType="string" column="TYPE_">
       <case value="VariableUpdate" resultMap="historicVariableUpdateResultMap"/>
       <case value="FormProperty" resultMap="historicFormPropertyResultMap"/>
@@ -197,6 +268,7 @@
     <result property="textValue" column="TEXT_" jdbcType="VARCHAR" />
     <result property="textValue2" column="TEXT2_" jdbcType="VARCHAR" />
     <result property="longValue" column="LONG_" jdbcType="BIGINT" />
+    <result property="removalTime" column="REMOVAL_TIME_" jdbcType="TIMESTAMP"/>
   </resultMap>
 
   <resultMap id="historicFormPropertyResultMap" extends="historicDetailResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.HistoricFormPropertyEntity">
@@ -385,5 +457,24 @@
           <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
     </if>
   </sql>
+
+  <select id="selectHistoricVariableUpdatePage" resultMap="historicVariableUpdateResultMap" parameterType="java.util.Map" >
+    <bind name="maxResults" value="parameter.maxResults" />
+    ${optimizeLimitBeforeWithoutOffset}
+    select ${limitBeforeWithoutOffset} * from ${prefix}ACT_HI_DETAIL RES
+    <where>
+      <if test="parameter.occurredAfter != null">
+        RES.TIME_ &gt; #{parameter.occurredAfter}
+      </if>
+      <if test="parameter.occurredAt != null">
+        and RES.TIME_ = #{parameter.occurredAt}
+      </if>
+
+      and RES.TYPE_ = 'VariableUpdate'
+    </where>
+
+    ORDER BY RES.TIME_ ASC
+    ${optimizeLimitAfterWithoutOffset}
+  </select>
 
 </mapper>

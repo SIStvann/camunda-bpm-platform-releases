@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl;
 
+import static org.camunda.bpm.engine.ProcessEngineConfiguration.HISTORY_CLEANUP_STRATEGY_REMOVAL_TIME_BASED;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 import java.util.Date;
@@ -35,6 +38,8 @@ public class CleanableHistoricProcessInstanceReportImpl extends AbstractQuery<Cl
   protected boolean isCompact = false;
 
   protected Date currentTimestamp;
+
+  protected boolean isHistoryCleanupStrategyRemovalTimeBased;
 
   public CleanableHistoricProcessInstanceReportImpl(CommandExecutor commandExecutor) {
     super(commandExecutor);
@@ -81,6 +86,8 @@ public class CleanableHistoricProcessInstanceReportImpl extends AbstractQuery<Cl
 
   @Override
   public long executeCount(CommandContext commandContext) {
+    provideHistoryCleanupStrategy(commandContext);
+
     checkQueryOk();
     return commandContext
         .getHistoricProcessInstanceManager()
@@ -89,6 +96,8 @@ public class CleanableHistoricProcessInstanceReportImpl extends AbstractQuery<Cl
 
   @Override
   public List<CleanableHistoricProcessInstanceReportResult> executeList(CommandContext commandContext, final Page page) {
+    provideHistoryCleanupStrategy(commandContext);
+
     checkQueryOk();
     return commandContext
         .getHistoricProcessInstanceManager()
@@ -126,4 +135,16 @@ public class CleanableHistoricProcessInstanceReportImpl extends AbstractQuery<Cl
   public boolean isCompact() {
     return isCompact;
   }
+
+  protected void provideHistoryCleanupStrategy(CommandContext commandContext) {
+    String historyCleanupStrategy = commandContext.getProcessEngineConfiguration()
+      .getHistoryCleanupStrategy();
+
+    isHistoryCleanupStrategyRemovalTimeBased = HISTORY_CLEANUP_STRATEGY_REMOVAL_TIME_BASED.equals(historyCleanupStrategy);
+  }
+
+  public boolean isHistoryCleanupStrategyRemovalTimeBased() {
+    return isHistoryCleanupStrategyRemovalTimeBased;
+  }
+
 }

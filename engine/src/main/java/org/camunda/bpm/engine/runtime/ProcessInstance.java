@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,9 +17,8 @@ package org.camunda.bpm.engine.runtime;
 
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 
-
-
-/** Represents one execution of a  {@link ProcessDefinition}.
+/**
+ * Represents one execution of a  {@link ProcessDefinition}.
  *
  * @author Tom Baeyens
  * @author Joram Barrez
@@ -33,6 +35,11 @@ public interface ProcessInstance extends Execution {
    * The business key of this process instance.
    */
   String getBusinessKey();
+
+  /**
+   * The id of the root process instance associated with this process instance.
+   */
+  String getRootProcessInstanceId();
 
   /**
    * The id of the case instance associated with this process instance.

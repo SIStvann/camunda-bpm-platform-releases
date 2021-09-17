@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -67,6 +70,25 @@ public class LdapUserQueryTest extends LdapIdentityProviderTest {
     users = identityService.createUserQuery().userIdIn("oscar", "monster", "daniel", "non-existing").list();
     assertNotNull(users);
     assertEquals(3, users.size());
+  }
+  
+  public void testFilterByUserIdWithCapitalization() {
+	try {
+	  processEngineConfiguration.setAuthorizationEnabled(true);
+	  identityService.setAuthenticatedUserId("Oscar");
+	  User user = identityService.createUserQuery().userId("Oscar").singleResult();
+	  assertNotNull(user);
+
+	  // validate user
+	  assertEquals("oscar", user.getId());
+	  assertEquals("Oscar", user.getFirstName());
+	  assertEquals("The Crouch", user.getLastName());
+	  assertEquals("oscar@camunda.org", user.getEmail());
+	}
+	finally {
+      processEngineConfiguration.setAuthorizationEnabled(false);
+	  identityService.clearAuthentication();
+	}
   }
 
   public void testFilterByFirstname() {

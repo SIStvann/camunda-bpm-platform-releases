@@ -4,14 +4,14 @@
   <parent>
     <groupId>org.camunda</groupId>
     <artifactId>camunda-release-parent</artifactId>
-    <version>2.5</version>
+    <version>3.1</version>
     <!-- do not remove empty tag - http://jira.codehaus.org/browse/MNG-4687 -->
     <relativePath />
   </parent>
 
   <groupId>org.camunda.bpm</groupId>
   <artifactId>camunda-root</artifactId>
-  <version>7.9.0</version>
+  <version>7.10.0</version>
   <packaging>pom</packaging>
   <name>camunda BPM - Root Pom</name>
 
@@ -68,8 +68,8 @@
         <module>distro/license-book</module>
         <module>distro/jbossas7</module>
         <module>distro/tomcat</module>
+        <module>distro/wildfly8</module>
         <module>distro/sql-script</module>
-
 
         <module>database</module>
         <module>parent</module>
@@ -144,9 +144,8 @@
       <modules>
         <module>javaee/ejb-client</module>
         <module>distro/license-book</module>
+        <module>distro/wildfly8</module>
         <module>distro/wildfly</module>
-        <module>distro/wildfly10</module>
-        <module>distro/wildfly11</module>
       </modules>
     </profile>
 
@@ -233,11 +232,18 @@
     <url>https://github.com/camunda/camunda-bpm-platform</url>
     <connection>scm:git:git@github.com:camunda/camunda-bpm-platform.git</connection>
     <developerConnection>scm:git:git@github.com:camunda/camunda-bpm-platform.git</developerConnection>
-    <tag>7.9.0</tag>
+    <tag>7.10.0</tag>
   </scm>
 
   <issueManagement>
     <system>Jira</system>
     <url>https://app.camunda.com/jira/browse/CAM/</url>
   </issueManagement>
+
+  <repositories>
+    <repository>
+      <id>fix-maven-snapshots-issue-with-nexus</id>
+      <url>allow-parent-pom-resolving-when-snapshot</url>
+    </repository>
+  </repositories>
 </project>

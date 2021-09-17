@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.history;
 
 import static org.junit.Assert.assertEquals;
@@ -122,7 +124,7 @@ public class BulkHistoryDeleteCmmnDisabledTest {
   private void prepareHistoricProcesses(int instanceCount) {
     Date oldCurrentTime = ClockUtil.getCurrentTime();
     List<String> processInstanceIds = new ArrayList<String>();
-
+    ClockUtil.setCurrentTime(DateUtils.addDays(new Date(), -6));
     for (int i = 0; i < instanceCount; i++) {
       ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
       processInstanceIds.add(processInstance.getId());
@@ -130,7 +132,7 @@ public class BulkHistoryDeleteCmmnDisabledTest {
     List<ProcessDefinition> processDefinitions = engineRule.getRepositoryService().createProcessDefinitionQuery().list();
     assertEquals(1, processDefinitions.size());
     engineRule.getRepositoryService().updateProcessDefinitionHistoryTimeToLive(processDefinitions.get(0).getId(), 5);
-    ClockUtil.setCurrentTime(DateUtils.addDays(new Date(), -6));
+
     runtimeService.deleteProcessInstances(processInstanceIds, null, true, true);
     ClockUtil.setCurrentTime(oldCurrentTime);
   }

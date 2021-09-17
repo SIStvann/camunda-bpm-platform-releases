@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -87,12 +90,16 @@ public class MessageRestServiceImpl extends AbstractRestProcessEngineAware imple
     Map<String, Object> correlationKeys = VariableValueDto.toMap(messageDto.getCorrelationKeys(), processEngine, objectMapper);
     Map<String, Object> localCorrelationKeys = VariableValueDto.toMap(messageDto.getLocalCorrelationKeys(), processEngine, objectMapper);
     Map<String, Object> processVariables = VariableValueDto.toMap(messageDto.getProcessVariables(), processEngine, objectMapper);
+    Map<String, Object> processVariablesLocal = VariableValueDto.toMap(messageDto.getProcessVariablesLocal(), processEngine, objectMapper);
 
     MessageCorrelationBuilder builder = runtimeService
         .createMessageCorrelation(messageDto.getMessageName());
 
     if (processVariables != null) {
       builder.setVariables(processVariables);
+    }
+    if (processVariablesLocal != null) {
+      builder.setVariablesLocal(processVariablesLocal);
     }
     if (messageDto.getBusinessKey() != null) {
       builder.processInstanceBusinessKey(messageDto.getBusinessKey());

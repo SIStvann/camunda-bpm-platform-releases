@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -27,6 +30,8 @@ import org.camunda.bpm.engine.management.TablePage;
  */
 public class ManagementAuthorizationTest extends AuthorizationTest {
 
+  private static final String REQUIRED_ADMIN_AUTH_EXCEPTION = "ENGINE-03029 Required admin authenticated group or user.";
+
   // get table count //////////////////////////////////////////////
 
   public void testGetTableCountWithoutAuthorization() {
@@ -39,7 +44,7 @@ public class ManagementAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       // then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
     }
   }
 
@@ -66,7 +71,7 @@ public class ManagementAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       // then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
     }
   }
 
@@ -94,7 +99,7 @@ public class ManagementAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       // then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
     }
   }
 
@@ -121,7 +126,7 @@ public class ManagementAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       // then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
     }
 
   }
@@ -150,7 +155,7 @@ public class ManagementAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       // then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
     }
   }
 
@@ -177,7 +182,51 @@ public class ManagementAuthorizationTest extends AuthorizationTest {
     } catch (AuthorizationException e) {
       // then
       String message = e.getMessage();
-      assertTextPresent("ENGINE-03029 Required authenticated group 'camunda-admin'", message);
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
+    }
+  }
+
+  // get properties & set/delete property ///////////////////////////
+
+  public void testGetPropertiesWithoutAuthorization() {
+    // given
+
+    try {
+      // when
+      managementService.getProperties();
+      fail("Exception expected: It should not be possible to get properties");
+    } catch (AuthorizationException e) {
+      // then
+      String message = e.getMessage();
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
+    }
+  }
+
+  public void testSetPropertyWithoutAuthorization() {
+    // given
+
+    try {
+      // when
+      managementService.setProperty("aPropertyKey", "aPropertyValue");
+      fail("Exception expected: It should not be possible to set a property");
+    } catch (AuthorizationException e) {
+      // then
+      String message = e.getMessage();
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
+    }
+  }
+
+  public void testDeletePropertyWithoutAuthorization() {
+    // given
+
+    try {
+      // when
+      managementService.deleteProperty("aPropertyName");
+      fail("Exception expected: It should not be possible to delete a property");
+    } catch (AuthorizationException e) {
+      // then
+      String message = e.getMessage();
+      assertTextPresent(REQUIRED_ADMIN_AUTH_EXCEPTION, message);
     }
   }
 

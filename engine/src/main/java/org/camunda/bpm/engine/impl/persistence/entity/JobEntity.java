@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,6 +43,7 @@ import org.camunda.bpm.engine.impl.jobexecutor.JobHandlerConfiguration;
 import org.camunda.bpm.engine.impl.pvm.process.ProcessDefinitionImpl;
 import org.camunda.bpm.engine.impl.util.ExceptionUtil;
 import org.camunda.bpm.engine.management.JobDefinition;
+import org.camunda.bpm.engine.repository.ResourceTypes;
 import org.camunda.bpm.engine.runtime.Incident;
 import org.camunda.bpm.engine.runtime.Job;
 
@@ -104,6 +108,8 @@ public abstract class JobEntity implements Serializable, Job, DbEntity, HasDbRev
   protected long priority = DefaultJobPriorityProvider.DEFAULT_PRIORITY;
 
   protected String tenantId;
+
+  protected Date createTime;
 
   // runtime state /////////////////////////////
   protected String activityId;
@@ -454,7 +460,7 @@ public abstract class JobEntity implements Serializable, Job, DbEntity, HasDbRev
     ByteArrayEntity byteArray = getExceptionByteArray();
 
     if(byteArray == null) {
-      byteArray = createJobExceptionByteArray(exceptionBytes);
+      byteArray = createJobExceptionByteArray(exceptionBytes, ResourceTypes.RUNTIME);
       exceptionByteArrayId = byteArray.getId();
       exceptionByteArray = byteArray;
     }
@@ -603,6 +609,14 @@ public abstract class JobEntity implements Serializable, Job, DbEntity, HasDbRev
 
   public void setTenantId(String tenantId) {
     this.tenantId = tenantId;
+  }
+
+  public Date getCreateTime() {
+    return createTime;
+  }
+
+  public void setCreateTime(Date createTime) {
+    this.createTime = createTime;
   }
 
   protected void ensureActivityIdInitialized() {

@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -80,6 +83,9 @@ public class ProcessDefinitionQueryDto extends AbstractQueryDto<ProcessDefinitio
   private String versionTag;
   private String versionTagLike;
   private List<String> keys;
+  private Boolean startableInTasklist;
+  private Boolean notStartableInTasklist;
+  private Boolean startablePermissionCheck;
 
   public ProcessDefinitionQueryDto() {
 
@@ -238,6 +244,21 @@ public class ProcessDefinitionQueryDto extends AbstractQueryDto<ProcessDefinitio
     this.versionTagLike = versionTagLike;
   }
 
+  @CamundaQueryParam(value = "startableInTasklist", converter = BooleanConverter.class)
+  public void setStartableInTasklist(Boolean startableInTasklist) {
+    this.startableInTasklist = startableInTasklist;
+  }
+
+  @CamundaQueryParam(value = "notStartableInTasklist", converter = BooleanConverter.class)
+  public void setNotStartableInTasklist(Boolean notStartableInTasklist) {
+    this.notStartableInTasklist = notStartableInTasklist;
+  }
+
+  @CamundaQueryParam(value = "startablePermissionCheck", converter = BooleanConverter.class)
+  public void setStartablePermissionCheck(Boolean startablePermissionCheck) {
+    this.startablePermissionCheck = startablePermissionCheck;
+  }
+
   @Override
   protected boolean isValidSortByValue(String value) {
     return VALID_SORT_BY_VALUES.contains(value);
@@ -329,6 +350,16 @@ public class ProcessDefinitionQueryDto extends AbstractQueryDto<ProcessDefinitio
     if( versionTagLike != null) {
       query.versionTagLike(versionTagLike);
     }
+    if (TRUE.equals(startableInTasklist)) {
+      query.startableInTasklist();
+    }
+    if (TRUE.equals(notStartableInTasklist)) {
+      query.notStartableInTasklist();
+    }
+    if (TRUE.equals(startablePermissionCheck)) {
+      query.startablePermissionCheck();
+    }
+
   }
 
   @Override

@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,7 +18,9 @@ package org.camunda.bpm.engine.impl;
 import java.util.List;
 import java.util.Map;
 
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.IdentityService;
+import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.GroupQuery;
 import org.camunda.bpm.engine.identity.NativeUserQuery;
@@ -59,6 +64,7 @@ import org.camunda.bpm.engine.impl.identity.Authentication;
 import org.camunda.bpm.engine.impl.persistence.entity.GroupEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.IdentityInfoEntity;
 import org.camunda.bpm.engine.impl.util.EnsureUtil;
+import org.camunda.bpm.engine.impl.util.ExceptionUtil;
 
 
 /**
@@ -86,15 +92,39 @@ public class IdentityServiceImpl extends ServiceImpl implements IdentityService 
   }
 
   public void saveGroup(Group group) {
-    commandExecutor.execute(new SaveGroupCmd((GroupEntity) group));
+
+    try {
+      commandExecutor.execute(new SaveGroupCmd((GroupEntity) group));
+    } catch (ProcessEngineException ex) {
+      if (ExceptionUtil.checkConstraintViolationException(ex)) {
+        throw new BadUserRequestException("The group already exists", ex);
+      }
+      throw ex;
+    }
   }
 
   public void saveUser(User user) {
-    commandExecutor.execute(new SaveUserCmd(user));
+
+    try {
+      commandExecutor.execute(new SaveUserCmd(user));
+    } catch (ProcessEngineException ex) {
+      if (ExceptionUtil.checkConstraintViolationException(ex)) {
+        throw new BadUserRequestException("The user already exists", ex);
+      }
+      throw ex;
+    }
   }
 
   public void saveTenant(Tenant tenant) {
-    commandExecutor.execute(new SaveTenantCmd(tenant));
+
+    try {
+      commandExecutor.execute(new SaveTenantCmd(tenant));
+    } catch (ProcessEngineException ex) {
+      if (ExceptionUtil.checkConstraintViolationException(ex)) {
+        throw new BadUserRequestException("The tenant already exists", ex);
+      }
+      throw ex;
+    }
   }
 
   public UserQuery createUserQuery() {

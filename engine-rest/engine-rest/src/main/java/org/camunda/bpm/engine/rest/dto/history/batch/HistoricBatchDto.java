@@ -1,4 +1,7 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.rest.dto.history.batch;
 
 import java.util.Date;
@@ -28,8 +30,10 @@ public class HistoricBatchDto {
   protected String monitorJobDefinitionId;
   protected String batchJobDefinitionId;
   protected String tenantId;
+  protected String createUserId;
   protected Date startTime;
   protected Date endTime;
+  protected Date removalTime;
 
   public String getId() {
     return id;
@@ -67,12 +71,20 @@ public class HistoricBatchDto {
     return tenantId;
   }
 
+  public String getCreateUserId() {
+    return createUserId;
+  }
+
   public Date getStartTime() {
     return startTime;
   }
 
   public Date getEndTime() {
     return endTime;
+  }
+
+  public Date getRemovalTime() {
+    return removalTime;
   }
 
   public static HistoricBatchDto fromBatch(HistoricBatch historicBatch) {
@@ -86,8 +98,10 @@ public class HistoricBatchDto {
     dto.monitorJobDefinitionId = historicBatch.getMonitorJobDefinitionId();
     dto.batchJobDefinitionId = historicBatch.getBatchJobDefinitionId();
     dto.tenantId = historicBatch.getTenantId();
+    dto.createUserId = historicBatch.getCreateUserId();
     dto.startTime = historicBatch.getStartTime();
     dto.endTime = historicBatch.getEndTime();
+    dto.removalTime = historicBatch.getRemovalTime();
     return dto;
   }
 

@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,8 +16,6 @@
 package org.camunda.bpm.engine.impl;
 
 import java.util.Map;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
 
 import org.camunda.bpm.engine.*;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
@@ -25,14 +26,15 @@ import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.interceptor.SessionFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
 import org.camunda.bpm.engine.impl.metrics.reporter.DbMetricsReporter;
+import org.camunda.bpm.engine.impl.util.CompositeCondition;
 
 /**
  * @author Tom Baeyens
  */
 public class ProcessEngineImpl implements ProcessEngine {
 
-  public static final ReentrantLock LOCK_MONITOR = new ReentrantLock(false);
-  public static final Condition IS_EXTERNAL_TASK_AVAILABLE = LOCK_MONITOR.newCondition();
+  /** external task conditions used to signal long polling in rest API */
+  public static final CompositeCondition EXT_TASK_CONDITIONS = new CompositeCondition();
 
   private final static ProcessEngineLogger LOG = ProcessEngineLogger.INSTANCE;
 

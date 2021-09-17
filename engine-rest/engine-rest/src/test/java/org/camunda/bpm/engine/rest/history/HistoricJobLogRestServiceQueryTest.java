@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,9 +15,9 @@
  */
 package org.camunda.bpm.engine.rest.history;
 
-import static com.jayway.restassured.RestAssured.expect;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.expect;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.fest.assertions.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,8 +49,8 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 
 /**
  * @author Roman Smirnov
@@ -422,47 +425,7 @@ public class HistoricJobLogRestServiceQueryTest extends AbstractRestServiceTest 
     Assert.assertEquals("There should be one historic job log returned.", 1, logs.size());
     Assert.assertNotNull("The returned historic job log should not be null.", logs.get(0));
 
-    String returnedId = from(content).getString("[0].id");
-    String returnedTimestamp = from(content).getString("[0].timestamp");
-    String returnedJobId = from(content).getString("[0].jobId");
-    String returnedJobDueDate = from(content).getString("[0].jobDueDate");
-    int returnedJobRetries = from(content).getInt("[0].jobRetries");
-    long returnedJobPriority = from(content).getLong("[0].jobPriority");
-    String returnedJobExceptionMessage = from(content).getString("[0].jobExceptionMessage");
-    String returnedJobDefinitionId = from(content).getString("[0].jobDefinitionId");
-    String returnedJobDefinitionType = from(content).getString("[0].jobDefinitionType");
-    String returnedJobDefinitionConfiguration = from(content).getString("[0].jobDefinitionConfiguration");
-    String returnedActivityId = from(content).getString("[0].activityId");
-    String returnedExecutionId = from(content).getString("[0].executionId");
-    String returnedProcessInstanceId = from(content).getString("[0].processInstanceId");
-    String returnedProcessDefinitionId = from(content).getString("[0].processDefinitionId");
-    String returnedProcessDefinitionKey = from(content).getString("[0].processDefinitionKey");
-    String returnedDeploymentId = from(content).getString("[0].deploymentId");
-    boolean returnedCreationLog = from(content).getBoolean("[0].creationLog");
-    boolean returnedFailureLog = from(content).getBoolean("[0].failureLog");
-    boolean returnedSuccessLog = from(content).getBoolean("[0].successLog");
-    boolean returnedDeletionLog = from(content).getBoolean("[0].deletionLog");
-
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_ID, returnedId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_TIMESTAMP, returnedTimestamp);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_ID, returnedJobId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_DUE_DATE, returnedJobDueDate);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_RETRIES, returnedJobRetries);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_PRIORITY, returnedJobPriority);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_EXCEPTION_MSG, returnedJobExceptionMessage);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_DEF_ID, returnedJobDefinitionId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_DEF_TYPE, returnedJobDefinitionType);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_DEF_CONFIG, returnedJobDefinitionConfiguration);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_ACTIVITY_ID, returnedActivityId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_EXECUTION_ID, returnedExecutionId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_PROC_INST_ID, returnedProcessInstanceId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_PROC_DEF_ID, returnedProcessDefinitionId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_PROC_DEF_KEY, returnedProcessDefinitionKey);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_DEPLOYMENT_ID, returnedDeploymentId);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_IS_CREATION_LOG, returnedCreationLog);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_IS_FAILURE_LOG, returnedFailureLog);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_IS_SUCCESS_LOG, returnedSuccessLog);
-    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_IS_DELETION_LOG, returnedDeletionLog);
+    verifyHistoricJobLogEntries(content);
   }
 
   @Test
@@ -490,8 +453,13 @@ public class HistoricJobLogRestServiceQueryTest extends AbstractRestServiceTest 
     Assert.assertEquals("There should be one historic job log returned.", 1, logs.size());
     Assert.assertNotNull("The returned historic job log should not be null.", logs.get(0));
 
+    verifyHistoricJobLogEntries(content);
+  }
+
+  protected void verifyHistoricJobLogEntries(String content) {
     String returnedId = from(content).getString("[0].id");
     String returnedTimestamp = from(content).getString("[0].timestamp");
+    String returnedRemovalTime = from(content).getString("[0].removalTime");
     String returnedJobId = from(content).getString("[0].jobId");
     String returnedJobDueDate = from(content).getString("[0].jobDueDate");
     int returnedJobRetries = from(content).getInt("[0].jobRetries");
@@ -506,6 +474,7 @@ public class HistoricJobLogRestServiceQueryTest extends AbstractRestServiceTest 
     String returnedProcessDefinitionId = from(content).getString("[0].processDefinitionId");
     String returnedProcessDefinitionKey = from(content).getString("[0].processDefinitionKey");
     String returnedDeploymentId = from(content).getString("[0].deploymentId");
+    String returnedRootProcessInstanceId = from(content).getString("[0].rootProcessInstanceId");
     boolean returnedCreationLog = from(content).getBoolean("[0].creationLog");
     boolean returnedFailureLog = from(content).getBoolean("[0].failureLog");
     boolean returnedSuccessLog = from(content).getBoolean("[0].successLog");
@@ -513,6 +482,7 @@ public class HistoricJobLogRestServiceQueryTest extends AbstractRestServiceTest 
 
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_ID, returnedId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_TIMESTAMP, returnedTimestamp);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_REMOVAL_TIME, returnedRemovalTime);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_ID, returnedJobId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_DUE_DATE, returnedJobDueDate);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_JOB_RETRIES, returnedJobRetries);
@@ -527,6 +497,7 @@ public class HistoricJobLogRestServiceQueryTest extends AbstractRestServiceTest 
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_PROC_DEF_ID, returnedProcessDefinitionId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_PROC_DEF_KEY, returnedProcessDefinitionKey);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_DEPLOYMENT_ID, returnedDeploymentId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_ROOT_PROC_INST_ID, returnedRootProcessInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_IS_CREATION_LOG, returnedCreationLog);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_IS_FAILURE_LOG, returnedFailureLog);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_JOB_LOG_IS_SUCCESS_LOG, returnedSuccessLog);

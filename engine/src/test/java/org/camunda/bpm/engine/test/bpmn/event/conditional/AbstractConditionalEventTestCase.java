@@ -5,7 +5,7 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,6 +15,7 @@
  */
 package org.camunda.bpm.engine.test.bpmn.event.conditional;
 
+import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
@@ -95,6 +96,7 @@ public abstract class AbstractConditionalEventTestCase {
   protected RuntimeService runtimeService;
   protected TaskService taskService;
   protected RepositoryService repositoryService;
+  protected HistoryService historyService;
   protected ProcessEngineConfigurationImpl processEngineConfiguration;
   protected EventSubscriptionQueryImpl conditionEventSubscriptionQuery;
 
@@ -103,6 +105,7 @@ public abstract class AbstractConditionalEventTestCase {
     this.runtimeService = engine.getRuntimeService();
     this.taskService = engine.getTaskService();
     this.repositoryService = engine.getRepositoryService();
+    this.historyService = engine.getHistoryService();
     this.processEngineConfiguration = engine.getProcessEngineConfiguration();
     this.conditionEventSubscriptionQuery = new EventSubscriptionQueryImpl(processEngineConfiguration.getCommandExecutorTxRequired()).eventType(EventType.CONDITONAL.name());
   }

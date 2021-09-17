@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.api.mgmt;
 
 import java.util.HashMap;
@@ -239,7 +241,7 @@ public class ActivityStatisticsQueryTest extends PluggableProcessEngineTestCase 
 
   @Test
   @Deployment(resources = "org/camunda/bpm/engine/test/api/mgmt/StatisticsTest.testMultiInstanceStatisticsQuery.bpmn20.xml")
-  public void testParallelMultiInstanceActivityStatisticsQuery() {
+  public void testParallelMultiInstanceActivityStatisticsQueryIncludingFailedJobIncidents() {
     runtimeService.startProcessInstanceByKey("MIExampleProcess");
     ProcessDefinition definition = repositoryService.createProcessDefinitionQuery()
         .processDefinitionKey("MIExampleProcess").singleResult();
@@ -249,6 +251,27 @@ public class ActivityStatisticsQueryTest extends PluggableProcessEngineTestCase 
         .createActivityStatisticsQuery(definition.getId())
         .includeFailedJobs()
         .includeIncidents()
+        .list();
+
+    Assert.assertEquals(1, statistics.size());
+
+    ActivityStatistics activityResult = statistics.get(0);
+    Assert.assertEquals(3, activityResult.getInstances());
+    Assert.assertEquals("theTask", activityResult.getId());
+    Assert.assertEquals(0, activityResult.getFailedJobs());
+    assertTrue(activityResult.getIncidentStatistics().isEmpty());
+  }
+
+  @Test
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/mgmt/StatisticsTest.testMultiInstanceStatisticsQuery.bpmn20.xml")
+  public void testParallelMultiInstanceActivityStatisticsQuery() {
+    runtimeService.startProcessInstanceByKey("MIExampleProcess");
+    ProcessDefinition definition = repositoryService.createProcessDefinitionQuery()
+        .processDefinitionKey("MIExampleProcess").singleResult();
+
+    List<ActivityStatistics> statistics =
+        managementService
+        .createActivityStatisticsQuery(definition.getId())
         .list();
 
     Assert.assertEquals(1, statistics.size());

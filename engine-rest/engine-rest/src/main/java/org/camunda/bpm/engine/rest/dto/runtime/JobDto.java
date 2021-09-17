@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,6 +33,7 @@ public class JobDto {
   protected boolean suspended;
   protected long priority;
   protected String tenantId;
+  protected Date createTime;
 
   public static JobDto fromJob(Job job) {
     JobDto dto = new JobDto();
@@ -45,6 +49,7 @@ public class JobDto {
     dto.suspended = job.isSuspended();
     dto.priority = job.getPriority();
     dto.tenantId = job.getTenantId();
+    dto.createTime = job.getCreateTime();
 
     return dto;
   }
@@ -95,6 +100,10 @@ public class JobDto {
 
   public String getTenantId() {
     return tenantId;
+  }
+
+  public Date getCreateTime() {
+    return createTime;
   }
 
 }

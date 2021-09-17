@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.history.event;
 
 import org.camunda.bpm.engine.authorization.Resources;
@@ -19,12 +21,11 @@ import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionOutputInstance;
 import org.camunda.bpm.engine.history.CleanableHistoricDecisionInstanceReportResult;
 import org.camunda.bpm.engine.impl.CleanableHistoricDecisionInstanceReportImpl;
-import org.camunda.bpm.engine.impl.Direction;
 import org.camunda.bpm.engine.impl.HistoricDecisionInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.Page;
-import org.camunda.bpm.engine.impl.QueryOrderingProperty;
-import org.camunda.bpm.engine.impl.QueryPropertyImpl;
+import org.camunda.bpm.engine.impl.db.DbEntity;
 import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
+import org.camunda.bpm.engine.impl.db.entitymanager.operation.DbOperation;
 import org.camunda.bpm.engine.impl.persistence.AbstractHistoricManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayEntity;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
@@ -33,8 +34,8 @@ import org.camunda.bpm.engine.impl.variable.serializer.AbstractTypedValueSeriali
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -84,7 +85,6 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
 
       for (HistoricDecisionInstanceEntity requiredHistoricDecisionInstances : event.getRequiredHistoricDecisionInstances()) {
         requiredHistoricDecisionInstances.setRootDecisionInstanceId(rootHistoricDecisionInstance.getId());
-
         insertHistoricDecisionInstance(requiredHistoricDecisionInstances);
       }
     }
@@ -122,22 +122,27 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
       @SuppressWarnings("unchecked")
       List<HistoricDecisionInstance> decisionInstances = getDbEntityManager().selectList("selectHistoricDecisionInstancesByQueryCriteria", query, page);
 
-      Map<String, HistoricDecisionInstanceEntity> decisionInstancesById = new HashMap<String, HistoricDecisionInstanceEntity>();
-      for(HistoricDecisionInstance decisionInstance : decisionInstances) {
-        decisionInstancesById.put(decisionInstance.getId(), (HistoricDecisionInstanceEntity) decisionInstance);
-      }
-
-      if (!decisionInstances.isEmpty() && query.isIncludeInput()) {
-        appendHistoricDecisionInputInstances(decisionInstancesById, query);
-      }
-
-      if(!decisionInstances.isEmpty() && query.isIncludeOutputs()) {
-        appendHistoricDecisionOutputInstances(decisionInstancesById, query);
-      }
+      enrichHistoricDecisionsWithInputsAndOutputs(query, decisionInstances);
 
       return decisionInstances;
     } else {
       return Collections.emptyList();
+    }
+  }
+
+  public void enrichHistoricDecisionsWithInputsAndOutputs(HistoricDecisionInstanceQueryImpl query, List<HistoricDecisionInstance> decisionInstances) {
+    Map<String, HistoricDecisionInstanceEntity> decisionInstancesById =
+      new HashMap<String, HistoricDecisionInstanceEntity>();
+    for(HistoricDecisionInstance decisionInstance : decisionInstances) {
+      decisionInstancesById.put(decisionInstance.getId(), (HistoricDecisionInstanceEntity) decisionInstance);
+    }
+
+    if (!decisionInstances.isEmpty() && query.isIncludeInput()) {
+      appendHistoricDecisionInputInstances(decisionInstancesById, query);
+    }
+
+    if(!decisionInstances.isEmpty() && query.isIncludeOutputs()) {
+      appendHistoricDecisionOutputInstances(decisionInstancesById, query);
     }
   }
 
@@ -282,6 +287,53 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
     getAuthorizationManager().configureQueryHistoricFinishedInstanceReport(query, Resources.DECISION_DEFINITION);
     getTenantManager().configureQuery(query);
     return (Long) getDbEntityManager().selectOne("selectFinishedDecisionInstancesReportEntitiesCount", query);
+  }
+
+  public void addRemovalTimeToDecisionsByRootProcessInstanceId(String rootProcessInstanceId, Date removalTime) {
+    Map<String, Object> parameters = new HashMap<>();
+    parameters.put("rootProcessInstanceId", rootProcessInstanceId);
+    parameters.put("removalTime", removalTime);
+
+    getDbEntityManager()
+      .updatePreserveOrder(HistoricDecisionInstanceEntity.class, "updateHistoricDecisionInstancesByRootProcessInstanceId", parameters);
+
+    getDbEntityManager()
+      .updatePreserveOrder(HistoricDecisionInputInstanceEntity.class, "updateHistoricDecisionInputInstancesByRootProcessInstanceId", parameters);
+
+    getDbEntityManager()
+      .updatePreserveOrder(HistoricDecisionOutputInstanceEntity.class, "updateHistoricDecisionOutputInstancesByRootProcessInstanceId", parameters);
+  }
+
+  public Map<Class<? extends DbEntity>, DbOperation> deleteHistoricDecisionsByRemovalTime(Date removalTime, int minuteFrom, int minuteTo, int batchSize) {
+    Map<String, Object> parameters = new HashMap<>();
+    parameters.put("removalTime", removalTime);
+    if (minuteTo - minuteFrom + 1 < 60) {
+      parameters.put("minuteFrom", minuteFrom);
+      parameters.put("minuteTo", minuteTo);
+    }
+    parameters.put("batchSize", batchSize);
+
+    Map<Class<? extends DbEntity>, DbOperation> deleteOperations = new HashMap<>();
+
+    DbOperation deleteDecisionInputInstances = getDbEntityManager()
+      .deletePreserveOrder(HistoricDecisionInputInstanceEntity.class, "deleteHistoricDecisionInputInstancesByRemovalTime",
+        new ListQueryParameterObject(parameters, 0, batchSize));
+
+    deleteOperations.put(HistoricDecisionInputInstanceEntity.class, deleteDecisionInputInstances);
+
+    DbOperation deleteDecisionOutputInstances = getDbEntityManager()
+      .deletePreserveOrder(HistoricDecisionOutputInstanceEntity.class, "deleteHistoricDecisionOutputInstancesByRemovalTime",
+        new ListQueryParameterObject(parameters, 0, batchSize));
+
+    deleteOperations.put(HistoricDecisionOutputInstanceEntity.class, deleteDecisionOutputInstances);
+
+    DbOperation deleteDecisionInstances = getDbEntityManager()
+      .deletePreserveOrder(HistoricDecisionInstanceEntity.class, "deleteHistoricDecisionInstancesByRemovalTime",
+        new ListQueryParameterObject(parameters, 0, batchSize));
+
+    deleteOperations.put(HistoricDecisionInstanceEntity.class, deleteDecisionInstances);
+
+    return deleteOperations;
   }
 
 }

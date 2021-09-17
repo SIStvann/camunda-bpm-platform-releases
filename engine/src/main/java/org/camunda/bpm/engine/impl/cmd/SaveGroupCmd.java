@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  * 
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  * 
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +19,6 @@ import java.io.Serializable;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.GroupEntity;
-import org.camunda.bpm.engine.impl.util.EnsureUtil;
 
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.*;
 
@@ -35,6 +37,7 @@ public class SaveGroupCmd extends AbstractWritableIdentityServiceCmd<Void> imple
   
   protected Void executeCmd(CommandContext commandContext) {
     ensureNotNull("group", group);
+    ensureWhitelistedResourceId(commandContext, "Group", group.getId());
 
     commandContext
       .getWritableIdentityProvider()

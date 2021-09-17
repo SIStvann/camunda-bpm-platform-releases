@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -48,7 +51,7 @@ public class ExternalTaskManager extends AbstractManager {
 
   public void insert(ExternalTaskEntity externalTask) {
     getDbEntityManager().insert(externalTask);
-    fireExternalTaskCreatedEvent();
+    fireExternalTaskAvailableEvent();
   }
 
   public void delete(ExternalTaskEntity externalTask) {
@@ -65,14 +68,13 @@ public class ExternalTaskManager extends AbstractManager {
     return getDbEntityManager().selectList("selectExternalTasksByProcessInstanceId", processInstanceId);
   }
 
-  public List<ExternalTaskEntity> selectExternalTasksForTopics(Collection<TopicFetchInstruction> queryFilters, boolean filterByBusinessKey, int maxResults, boolean usePriority) {
+  public List<ExternalTaskEntity> selectExternalTasksForTopics(Collection<TopicFetchInstruction> queryFilters, int maxResults, boolean usePriority) {
     if (queryFilters.isEmpty()) {
       return new ArrayList<ExternalTaskEntity>();
     }
 
     Map<String, Object> parameters = new HashMap<String, Object>();
     parameters.put("topics", queryFilters);
-    parameters.put("businessKeyFilter", filterByBusinessKey);
     parameters.put("now", ClockUtil.getCurrentTime());
     parameters.put("applyOrdering", usePriority);
     List<QueryOrderingProperty> orderingProperties = new ArrayList<QueryOrderingProperty>();
@@ -147,20 +149,13 @@ public class ExternalTaskManager extends AbstractManager {
     return getTenantManager().configureQuery(parameter);
   }
 
-  public void fireExternalTaskCreatedEvent() {
-
+  public void fireExternalTaskAvailableEvent() {
     Context.getCommandContext()
       .getTransactionContext()
       .addTransactionListener(TransactionState.COMMITTED, new TransactionListener() {
         @Override
         public void execute(CommandContext commandContext) {
-          ProcessEngineImpl.LOCK_MONITOR.lock();
-          try {
-            ProcessEngineImpl.IS_EXTERNAL_TASK_AVAILABLE.signal();
-          }
-          finally {
-            ProcessEngineImpl.LOCK_MONITOR.unlock();
-          }
+          ProcessEngineImpl.EXT_TASK_CONDITIONS.signalAll();
         }
       });
   }

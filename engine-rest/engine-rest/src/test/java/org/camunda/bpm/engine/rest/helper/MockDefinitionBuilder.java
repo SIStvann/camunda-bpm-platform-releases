@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -32,6 +35,7 @@ public class MockDefinitionBuilder {
   private boolean startFormKey = false;
   private String tenantId = null;
   private String versionTag = null;
+  private boolean isStartableInTasklist = true;
 
   public MockDefinitionBuilder id(String id) {
     this.id = id;
@@ -98,6 +102,11 @@ public class MockDefinitionBuilder {
     return this;
   }
 
+  public MockDefinitionBuilder isStartableInTasklist(boolean isStartableInTasklist) {
+    this.isStartableInTasklist = isStartableInTasklist;
+    return this;
+  }
+
   public ProcessDefinition build() {
     ProcessDefinition mockDefinition = mock(ProcessDefinition.class);
     when(mockDefinition.getId()).thenReturn(id);
@@ -113,6 +122,7 @@ public class MockDefinitionBuilder {
     when(mockDefinition.hasStartFormKey()).thenReturn(startFormKey);
     when(mockDefinition.getTenantId()).thenReturn(tenantId);
     when(mockDefinition.getVersionTag()).thenReturn(versionTag);
+    when(mockDefinition.isStartableInTasklist()).thenReturn(isStartableInTasklist);
     return mockDefinition;
   }
 }

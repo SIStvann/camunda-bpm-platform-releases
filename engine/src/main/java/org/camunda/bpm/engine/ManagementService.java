@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -1037,13 +1040,23 @@ public interface ManagementService {
    */
   String getJobExceptionStacktrace(String jobId);
 
-  /** get the list of properties. */
+  /**
+   * @return a map of all properties.
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
+   */
   Map<String, String> getProperties();
 
-  /** Set the value for a property.
+  /**
+   * Set the value for a property.
    *
-   *  @param name the name of the property.
-   *  @param value the new value for the property.
+   * @param name the name of the property.
+   *
+   * @param value the new value for the property.
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
    */
   void setProperty(String name, String value);
 
@@ -1051,6 +1064,9 @@ public interface ManagementService {
    * Deletes a property by name. If the property does not exist, the request is ignored.
    *
    * @param name the name of the property to delete
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
    */
   void deleteProperty(String name);
 

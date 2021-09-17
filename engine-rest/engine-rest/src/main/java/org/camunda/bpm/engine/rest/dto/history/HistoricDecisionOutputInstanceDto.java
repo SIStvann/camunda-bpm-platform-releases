@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -11,6 +14,8 @@
  * limitations under the License.
  */
 package org.camunda.bpm.engine.rest.dto.history;
+
+import java.util.Date;
 
 import org.camunda.bpm.engine.history.HistoricDecisionOutputInstance;
 import org.camunda.bpm.engine.rest.dto.VariableValueDto;
@@ -25,6 +30,9 @@ public class HistoricDecisionOutputInstanceDto extends VariableValueDto {
   protected Integer ruleOrder;
   protected String variableName;
   protected String errorMessage;
+  protected Date createTime;
+  protected Date removalTime;
+  protected String rootProcessInstanceId;
 
   public String getId() {
     return id;
@@ -58,6 +66,18 @@ public class HistoricDecisionOutputInstanceDto extends VariableValueDto {
     return errorMessage;
   }
 
+  public Date getCreateTime() {
+    return createTime;
+  }
+
+  public Date getRemovalTime() {
+    return removalTime;
+  }
+
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+
   public static HistoricDecisionOutputInstanceDto fromHistoricDecisionOutputInstance(HistoricDecisionOutputInstance historicDecisionOutputInstance) {
 
     HistoricDecisionOutputInstanceDto dto = new HistoricDecisionOutputInstanceDto();
@@ -69,6 +89,9 @@ public class HistoricDecisionOutputInstanceDto extends VariableValueDto {
     dto.ruleId = historicDecisionOutputInstance.getRuleId();
     dto.ruleOrder = historicDecisionOutputInstance.getRuleOrder();
     dto.variableName = historicDecisionOutputInstance.getVariableName();
+    dto.createTime = historicDecisionOutputInstance.getCreateTime();
+    dto.removalTime = historicDecisionOutputInstance.getRemovalTime();
+    dto.rootProcessInstanceId = historicDecisionOutputInstance.getRootProcessInstanceId();
 
     if(historicDecisionOutputInstance.getErrorMessage() == null) {
       VariableValueDto.fromTypedValue(dto, historicDecisionOutputInstance.getTypedValue());

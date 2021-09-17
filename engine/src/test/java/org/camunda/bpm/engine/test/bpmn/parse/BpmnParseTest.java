@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.test.bpmn.parse;
 
 import java.util.List;
@@ -48,6 +50,7 @@ import org.junit.Test;
  * @author Joram Barrez
  */
 public class BpmnParseTest extends PluggableProcessEngineTestCase {
+
   public void testInvalidSubProcessWithTimerStartEvent() {
     try {
       String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), "testInvalidSubProcessWithTimerStartEvent");
@@ -796,6 +799,8 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
     Integer timeToLive = processDefinitions.get(0).getHistoryTimeToLive();
     assertNotNull(timeToLive);
     assertEquals(5, timeToLive.intValue());
+
+    assertTrue(processDefinitions.get(0).isStartableInTasklist());
   }
 
   @Deployment
@@ -859,4 +864,22 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
     }
   }
 
+  @Deployment
+  public void testParseProcessDefinitionStartable() {
+    List<ProcessDefinition> processDefinitions = repositoryService.createProcessDefinitionQuery().list();
+    assertNotNull(processDefinitions);
+    assertEquals(1, processDefinitions.size());
+
+    assertFalse(processDefinitions.get(0).isStartableInTasklist());
+  }
+
+  public void testXxeProcessing() {
+    try {
+      String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), "testParseProcessDefinitionXXE");
+      repositoryService.createDeployment().name(resource).addClasspathResource(resource).deploy();
+    } catch (ProcessEngineException e) {
+      assertTextPresent("cvc-datatype-valid.1.2.1: ''", e.getMessage());
+      assertTextPresent("cvc-type.3.1.3: The value ''", e.getMessage());
+    }
+  }
 }

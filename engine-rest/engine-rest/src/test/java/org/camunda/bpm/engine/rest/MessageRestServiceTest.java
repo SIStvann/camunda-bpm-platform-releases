@@ -1,3 +1,18 @@
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.rest;
 
 import static org.hamcrest.Matchers.containsString;
@@ -32,17 +47,16 @@ import org.junit.Test;
 import org.mockito.Matchers;
 import org.mockito.Mockito;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import java.util.ArrayList;
 import java.util.List;
 import junit.framework.Assert;
-import static org.camunda.bpm.engine.rest.AbstractRestServiceTest.POST_JSON_CONTENT_TYPE;
 import org.camunda.bpm.engine.runtime.MessageCorrelationResult;
 import org.camunda.bpm.engine.runtime.MessageCorrelationResultType;
 import static org.mockito.Mockito.when;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -96,6 +110,7 @@ public class MessageRestServiceTest extends AbstractRestServiceTest {
     String messageName = "aMessageName";
     String businessKey = "aBusinessKey";
     Map<String, Object> variables = VariablesBuilder.create().variable("aKey", "aValue").getVariables();
+    Map<String, Object> variablesLocal = VariablesBuilder.create().variable("aKeyLocal", "aValueLocal").getVariables();
 
     Map<String, Object> correlationKeys = VariablesBuilder.create()
         .variable("aKey", "aValue")
@@ -112,6 +127,7 @@ public class MessageRestServiceTest extends AbstractRestServiceTest {
     messageParameters.put("correlationKeys", correlationKeys);
     messageParameters.put("localCorrelationKeys", localCorrelationKeys);
     messageParameters.put("processVariables", variables);
+    messageParameters.put("processVariablesLocal", variablesLocal);
     messageParameters.put("businessKey", businessKey);
 
     given().contentType(POST_JSON_CONTENT_TYPE).body(messageParameters)
@@ -130,10 +146,13 @@ public class MessageRestServiceTest extends AbstractRestServiceTest {
 
     Map<String, Object> expectedVariables = new HashMap<String, Object>();
     expectedVariables.put("aKey", "aValue");
+    Map<String, Object> expectedVariablesLocal = new HashMap<String, Object>();
+    expectedVariablesLocal.put("aKeyLocal", "aValueLocal");
 
     verify(runtimeServiceMock).createMessageCorrelation(eq(messageName));
     verify(messageCorrelationBuilderMock).processInstanceBusinessKey(eq(businessKey));
     verify(messageCorrelationBuilderMock).setVariables(argThat(new EqualsMap(expectedVariables)));
+    verify(messageCorrelationBuilderMock).setVariablesLocal(argThat(new EqualsMap(expectedVariablesLocal)));
 
     for (Entry<String, Object> expectedKey : expectedCorrelationKeys.entrySet()) {
       String name = expectedKey.getKey();
@@ -235,6 +254,7 @@ public class MessageRestServiceTest extends AbstractRestServiceTest {
     String messageName = "aMessageName";
     String businessKey = "aBusinessKey";
     Map<String, Object> variables = VariablesBuilder.create().variable("aKey", "aValue").getVariables();
+    Map<String, Object> variablesLocal = VariablesBuilder.create().variable("aKeyLocal", "aValueLocal").getVariables();
 
     Map<String, Object> correlationKeys = VariablesBuilder.create()
         .variable("aKey", "aValue")
@@ -251,6 +271,7 @@ public class MessageRestServiceTest extends AbstractRestServiceTest {
     messageParameters.put("correlationKeys", correlationKeys);
     messageParameters.put("localCorrelationKeys", localCorrelationKeys);
     messageParameters.put("processVariables", variables);
+    messageParameters.put("processVariablesLocal", variablesLocal);
     messageParameters.put("businessKey", businessKey);
     messageParameters.put("all", true);
 
@@ -270,10 +291,13 @@ public class MessageRestServiceTest extends AbstractRestServiceTest {
 
     Map<String, Object> expectedVariables = new HashMap<String, Object>();
     expectedVariables.put("aKey", "aValue");
+    Map<String, Object> expectedVariablesLocal = new HashMap<String, Object>();
+    expectedVariablesLocal.put("aKeyLocal", "aValueLocal");
 
     verify(runtimeServiceMock).createMessageCorrelation(eq(messageName));
     verify(messageCorrelationBuilderMock).processInstanceBusinessKey(eq(businessKey));
     verify(messageCorrelationBuilderMock).setVariables(argThat(new EqualsMap(expectedVariables)));
+    verify(messageCorrelationBuilderMock).setVariablesLocal(argThat(new EqualsMap(expectedVariablesLocal)));
 
     for (Entry<String, Object> expectedKey : expectedCorrelationKeys.entrySet()) {
       String name = expectedKey.getKey();
@@ -975,6 +999,71 @@ public class MessageRestServiceTest extends AbstractRestServiceTest {
     .then().expect().statusCode(Status.BAD_REQUEST.getStatusCode())
     .body("type", equalTo(InvalidRequestException.class.getSimpleName()))
     .body("message", equalTo("Cannot deliver message: Unsupported value type 'X'"))
+    .when().post(MESSAGE_URL);
+  }
+
+  @Test
+  public void testFailingDueToUnparseableIntegerInProcessVariablesLocal() {
+    String variableKey = "aVariableKey";
+    String variableValue = "1abc";
+    String variableType = "Integer";
+
+    Map<String, Object> variableLocalJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
+
+    String messageName = "aMessageName";
+
+    Map<String, Object> messageParameters = new HashMap<String, Object>();
+    messageParameters.put("messageName", messageName);
+    messageParameters.put("processVariablesLocal", variableLocalJson);
+
+    given().contentType(POST_JSON_CONTENT_TYPE).body(messageParameters)
+    .then().expect().statusCode(Status.BAD_REQUEST.getStatusCode())
+    .body("type", equalTo(InvalidRequestException.class.getSimpleName()))
+    .body("message", equalTo("Cannot deliver message: "
+        + ErrorMessageHelper.getExpectedFailingConversionMessage(variableValue, variableType, Integer.class)))
+    .when().post(MESSAGE_URL);
+  }
+
+  @Test
+  public void testFailingDueToNotSupportedTypeInProcessVariablesLocal() {
+    String variableKey = "aVariableKey";
+    String variableValue = "1abc";
+    String variableType = "X";
+
+    Map<String, Object> variableLocalJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
+
+    String messageName = "aMessageName";
+
+    Map<String, Object> messageParameters = new HashMap<String, Object>();
+    messageParameters.put("messageName", messageName);
+    messageParameters.put("processVariablesLocal", variableLocalJson);
+
+    given().contentType(POST_JSON_CONTENT_TYPE).body(messageParameters)
+    .then().expect().statusCode(Status.BAD_REQUEST.getStatusCode())
+    .body("type", equalTo(InvalidRequestException.class.getSimpleName()))
+    .body("message", equalTo("Cannot deliver message: Unsupported value type 'X'"))
+    .when().post(MESSAGE_URL);
+  }
+
+  @Test
+  public void testFailingDueToUnparseableDateInProcessVariablesLocal() {
+    String variableKey = "aVariableKey";
+    String variableValue = "1abc";
+    String variableType = "Date";
+
+    Map<String, Object> variableLocalJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
+
+    String messageName = "aMessageName";
+
+    Map<String, Object> messageParameters = new HashMap<String, Object>();
+    messageParameters.put("messageName", messageName);
+    messageParameters.put("processVariablesLocal", variableLocalJson);
+
+    given().contentType(POST_JSON_CONTENT_TYPE).body(messageParameters)
+    .then().expect().statusCode(Status.BAD_REQUEST.getStatusCode())
+    .body("type", equalTo(InvalidRequestException.class.getSimpleName()))
+    .body("message", equalTo("Cannot deliver message: "
+        + ErrorMessageHelper.getExpectedFailingConversionMessage(variableValue, variableType, Date.class)))
     .when().post(MESSAGE_URL);
   }
 

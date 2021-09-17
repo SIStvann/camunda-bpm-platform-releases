@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -34,6 +37,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.Nameable;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
 import org.camunda.bpm.engine.impl.persistence.entity.util.ByteArrayField;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
+import org.camunda.bpm.engine.repository.ResourceTypes;
 
 public class BatchEntity implements Batch, DbEntity, HasDbReferences, Nameable, HasDbRevision {
 
@@ -53,9 +57,10 @@ public class BatchEntity implements Batch, DbEntity, HasDbReferences, Nameable, 
   protected String monitorJobDefinitionId;
   protected String batchJobDefinitionId;
 
-  protected ByteArrayField configuration = new ByteArrayField(this);
+  protected ByteArrayField configuration = new ByteArrayField(this, ResourceTypes.RUNTIME);
 
   protected String tenantId;
+  protected String createUserId;
 
   protected int suspensionState = SuspensionState.ACTIVE.getStateCode();
 
@@ -150,6 +155,14 @@ public class BatchEntity implements Batch, DbEntity, HasDbReferences, Nameable, 
 
   public void setTenantId(String tenantId) {
     this.tenantId = tenantId;
+  }
+
+  public String getCreateUserId() {
+    return createUserId;
+  }
+
+  public void setCreateUserId(String createUserId) {
+    this.createUserId = createUserId;
   }
 
   public String getConfiguration() {

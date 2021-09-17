@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,9 +15,9 @@
  */
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.expect;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
+import static io.restassured.RestAssured.expect;
+import static io.restassured.RestAssured.given;
+import static io.restassured.path.json.JsonPath.from;
 import static org.camunda.bpm.engine.rest.util.DateTimeUtils.withTimezone;
 import static org.fest.assertions.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,8 +51,8 @@ import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 
 public class JobRestServiceQueryTest extends AbstractRestServiceTest {
 
@@ -155,6 +158,7 @@ public class JobRestServiceQueryTest extends AbstractRestServiceTest {
     long returnedPriority = from(content).getLong("[0].priority");
     String returnedJobDefinitionId= from(content).getString("[0].jobDefinitionId");
     String returnedTenantId = from(content).getString("[0].tenantId");
+    String returnedCreateTime = from(content).getString("[0].createTime");
 
     Assert.assertEquals(MockProvider.EXAMPLE_JOB_ID, returnedJobId);
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, returnedProcessInstanceId);
@@ -168,6 +172,7 @@ public class JobRestServiceQueryTest extends AbstractRestServiceTest {
     Assert.assertEquals(MockProvider.EXAMPLE_JOB_PRIORITY, returnedPriority);
     Assert.assertEquals(MockProvider.EXAMPLE_JOB_DEFINITION_ID, returnedJobDefinitionId);
     Assert.assertEquals(MockProvider.EXAMPLE_TENANT_ID, returnedTenantId);
+    Assert.assertEquals(MockProvider.EXAMPLE_JOB_CREATE_TIME, returnedCreateTime);
   }
 
   @Test

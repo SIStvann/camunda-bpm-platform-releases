@@ -1,4 +1,7 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.rest.dto.history;
 
 import java.util.ArrayList;
@@ -32,9 +34,11 @@ public class HistoricDecisionInstanceDto {
   protected String decisionDefinitionKey;
   protected String decisionDefinitionName;
   protected Date evaluationTime;
+  protected Date removalTime;
   protected String processDefinitionId;
   protected String processDefinitionKey;
   protected String processInstanceId;
+  protected String rootProcessInstanceId;
   protected String caseDefinitionId;
   protected String caseDefinitionKey;
   protected String caseInstanceId;
@@ -135,6 +139,22 @@ public class HistoricDecisionInstanceDto {
     return decisionRequirementsDefinitionKey;
   }
 
+  public Date getRemovalTime() {
+    return removalTime;
+  }
+
+  public void setRemovalTime(Date removalTime) {
+    this.removalTime = removalTime;
+  }
+
+  public String getRootProcessInstanceId() {
+    return rootProcessInstanceId;
+  }
+
+  public void setRootProcessInstanceId(String rootProcessInstanceId) {
+    this.rootProcessInstanceId = rootProcessInstanceId;
+  }
+
   public static HistoricDecisionInstanceDto fromHistoricDecisionInstance(HistoricDecisionInstance historicDecisionInstance) {
     HistoricDecisionInstanceDto dto = new HistoricDecisionInstanceDto();
 
@@ -143,6 +163,7 @@ public class HistoricDecisionInstanceDto {
     dto.decisionDefinitionKey = historicDecisionInstance.getDecisionDefinitionKey();
     dto.decisionDefinitionName = historicDecisionInstance.getDecisionDefinitionName();
     dto.evaluationTime = historicDecisionInstance.getEvaluationTime();
+    dto.removalTime = historicDecisionInstance.getRemovalTime();
     dto.processDefinitionId = historicDecisionInstance.getProcessDefinitionId();
     dto.processDefinitionKey = historicDecisionInstance.getProcessDefinitionKey();
     dto.processInstanceId = historicDecisionInstance.getProcessInstanceId();
@@ -154,6 +175,7 @@ public class HistoricDecisionInstanceDto {
     dto.userId = historicDecisionInstance.getUserId();
     dto.collectResultValue = historicDecisionInstance.getCollectResultValue();
     dto.rootDecisionInstanceId = historicDecisionInstance.getRootDecisionInstanceId();
+    dto.rootProcessInstanceId = historicDecisionInstance.getRootProcessInstanceId();
     dto.decisionRequirementsDefinitionId = historicDecisionInstance.getDecisionRequirementsDefinitionId();
     dto.decisionRequirementsDefinitionKey = historicDecisionInstance.getDecisionRequirementsDefinitionKey();
     dto.tenantId = historicDecisionInstance.getTenantId();

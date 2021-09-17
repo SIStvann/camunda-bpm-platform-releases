@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine;
 
 import java.io.InputStream;
@@ -53,7 +55,7 @@ import org.camunda.bpm.engine.variable.type.ValueTypeResolver;
  * userguide.
  * </p>
  *
- * <p>The second option is great for testing: {@link #createStandalonInMemeProcessEngineConfiguration()}
+ * <p>The second option is great for testing: {@link #createStandaloneInMemProcessEngineConfiguration()}
  * <pre>ProcessEngine processEngine = ProcessEngineConfiguration
  *   .createStandaloneInMemProcessEngineConfiguration()
  *   .buildProcessEngine();
@@ -140,6 +142,31 @@ public abstract class ProcessEngineConfiguration {
    * The default history level that is used when no history level is configured
    */
   public static final String HISTORY_DEFAULT = HISTORY_AUDIT;
+
+  /**
+   * History cleanup is performed based on end time.
+   */
+  public static final String HISTORY_CLEANUP_STRATEGY_END_TIME_BASED = "endTimeBased";
+
+  /**
+   * History cleanup is performed based on removal time.
+   */
+  public static final String HISTORY_CLEANUP_STRATEGY_REMOVAL_TIME_BASED = "removalTimeBased";
+
+  /**
+   * Removal time for historic entities is set on execution start.
+   */
+  public static final String HISTORY_REMOVAL_TIME_STRATEGY_START = "start";
+
+  /**
+   * Removal time for historic entities is set if execution has been ended.
+   */
+  public static final String HISTORY_REMOVAL_TIME_STRATEGY_END = "end";
+
+  /**
+   * Removal time for historic entities is not set.
+   */
+  public static final String HISTORY_REMOVAL_TIME_STRATEGY_NONE = "none";
 
   /**
    * Always enables check for {@link Authorization#AUTH_TYPE_REVOKE revoke} authorizations.
@@ -273,6 +300,45 @@ public abstract class ProcessEngineConfiguration {
   protected String authorizationCheckRevokes = AUTHORIZATION_CHECK_REVOKE_AUTO;
 
   /**
+   * A parameter used for defining acceptable values for the User, Group
+   * and Tenant IDs. The pattern can be defined by using the standard
+   * Java Regular Expression syntax should be used.
+   *
+   * <p>By default only alphanumeric values (or 'camunda-admin') will be accepted.</p>
+   */
+  protected String generalResourceWhitelistPattern =  "[a-zA-Z0-9]+|camunda-admin";
+
+  /**
+   * A parameter used for defining acceptable values for the User IDs.
+   * The pattern can be defined by using the standard Java Regular
+   * Expression syntax should be used.
+   *
+   * <p>If not defined, the general pattern is used. Only alphanumeric
+   * values (or 'camunda-admin') will be accepted.</p>
+   */
+  protected String userResourceWhitelistPattern;
+
+  /**
+   * A parameter used for defining acceptable values for the Group IDs.
+   * The pattern can be defined by using the standard Java Regular
+   * Expression syntax should be used.
+   *
+   * <p>If not defined, the general pattern is used. Only alphanumeric
+   * values (or 'camunda-admin') will be accepted.</p>
+   */
+  protected String groupResourceWhitelistPattern;
+
+  /**
+   * A parameter used for defining acceptable values for the Tenant IDs.
+   * The pattern can be defined by using the standard Java Regular
+   * Expression syntax should be used.
+   *
+   * <p>If not defined, the general pattern is used. Only alphanumeric
+   * values (or 'camunda-admin') will be accepted.</p>
+   */
+  protected String tenantResourceWhitelistPattern;
+
+  /**
    * If the value of this flag is set <code>true</code> then the process engine
    * throws {@link ProcessEngineException} when no catching boundary event was
    * defined for an error event.
@@ -280,6 +346,14 @@ public abstract class ProcessEngineConfiguration {
    * <p>The default value is <code>false</code>.</p>
    */
   protected boolean enableExceptionsAfterUnhandledBpmnError = false;
+
+  /**
+   * If the value of this flag is set to <code>false</code>, {@link OptimisticLockingException}s
+   * are not skipped for UPDATE or DELETE operations applied to historic entities.
+   *
+   * <p>The default value is <code>true</code>.</p>
+   */
+  protected boolean skipHistoryOptimisticLockingExceptions = true;
 
   /** use one of the static createXxxx methods instead */
   protected ProcessEngineConfiguration() {
@@ -731,6 +805,38 @@ public abstract class ProcessEngineConfiguration {
     return this;
   }
 
+  public String getGeneralResourceWhitelistPattern() {
+    return generalResourceWhitelistPattern;
+  }
+
+  public void setGeneralResourceWhitelistPattern(String generalResourceWhitelistPattern) {
+    this.generalResourceWhitelistPattern = generalResourceWhitelistPattern;
+  }
+
+  public String getUserResourceWhitelistPattern() {
+    return userResourceWhitelistPattern;
+  }
+
+  public void setUserResourceWhitelistPattern(String userResourceWhitelistPattern) {
+    this.userResourceWhitelistPattern = userResourceWhitelistPattern;
+  }
+
+  public String getGroupResourceWhitelistPattern() {
+    return groupResourceWhitelistPattern;
+  }
+
+  public void setGroupResourceWhitelistPattern(String groupResourceWhitelistPattern) {
+    this.groupResourceWhitelistPattern = groupResourceWhitelistPattern;
+  }
+
+  public String getTenantResourceWhitelistPattern() {
+    return tenantResourceWhitelistPattern;
+  }
+
+  public void setTenantResourceWhitelistPattern(String tenantResourceWhitelistPattern) {
+    this.tenantResourceWhitelistPattern = tenantResourceWhitelistPattern;
+  }
+
   public int getDefaultNumberOfRetries() {
     return defaultNumberOfRetries;
   }
@@ -787,4 +893,14 @@ public abstract class ProcessEngineConfiguration {
   public void setEnableExceptionsAfterUnhandledBpmnError(boolean enableExceptionsAfterUnhandledBpmnError) {
     this.enableExceptionsAfterUnhandledBpmnError = enableExceptionsAfterUnhandledBpmnError;
   }
+
+  public boolean isSkipHistoryOptimisticLockingExceptions() {
+    return skipHistoryOptimisticLockingExceptions;
+  }
+
+  public ProcessEngineConfiguration setSkipHistoryOptimisticLockingExceptions(boolean skipHistoryOptimisticLockingExceptions) {
+    this.skipHistoryOptimisticLockingExceptions = skipHistoryOptimisticLockingExceptions;
+    return this;
+  }
+
 }

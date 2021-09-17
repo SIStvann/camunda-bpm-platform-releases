@@ -1,5 +1,23 @@
 <?xml version="1.0" encoding="UTF-8" ?>
 
+<!--
+
+    Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    You may obtain a copy of the License at
+
+        http://www.apache.org/licenses/LICENSE-2.0
+
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+-->
+
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.camunda.bpm.engine.impl.history.event.HistoricDecisionInstanceEntity">
@@ -32,9 +50,11 @@
       ACT_INST_ID_,
       ACT_ID_,
       EVAL_TIME_,
+      REMOVAL_TIME_,
       COLLECT_VALUE_,
       USER_ID_,
       ROOT_DEC_INST_ID_,
+      ROOT_PROC_INST_ID_,
       DEC_REQ_ID_,
       DEC_REQ_KEY_,
       TENANT_ID_)
@@ -51,17 +71,29 @@
             #{activityInstanceId, jdbcType=VARCHAR},
             #{activityId, jdbcType=VARCHAR},
             #{evaluationTime, jdbcType=TIMESTAMP},
+            #{removalTime, jdbcType=TIMESTAMP},
             #{collectResultValue, jdbcType=DOUBLE},
             #{userId, jdbcType=VARCHAR},
             #{rootDecisionInstanceId, jdbcType=VARCHAR},
+            #{rootProcessInstanceId, jdbcType=VARCHAR},
             #{decisionRequirementsDefinitionId, jdbcType=VARCHAR},
             #{decisionRequirementsDefinitionKey, jdbcType=VARCHAR},
             #{tenantId, jdbcType=VARCHAR}
            )
   </insert>
   
+  <!-- update -->
+
+  <update id="updateHistoricDecisionInstancesByRootProcessInstanceId"
+          parameterType="java.util.Map">
+      update ${prefix}ACT_HI_DECINST set
+      REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+
+      where ROOT_PROC_INST_ID_ = #{rootProcessInstanceId, jdbcType=VARCHAR}
+  </update>
+
   <!-- delete -->
-  
+
   <delete id="deleteHistoricDecisionInstance" parameterType="org.camunda.bpm.engine.impl.history.event.HistoricDecisionInstanceEntity">
     delete from ${prefix}ACT_HI_DECINST where ID_ = #{id}
   </delete>
@@ -73,6 +105,38 @@
       <bind name="listOfIds" value="list"/>
       <bind name="fieldName" value="'ID_'"/>
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.applyInForPaginatedCollection"/>
+  </delete>
+
+  <delete id="deleteHistoricDecisionInstancesByRemovalTime"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_DECINST
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteHistoricDecisionInstancesByRemovalTime_oracle"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_DECINST
+    where REMOVAL_TIME_ &lt;= #{parameter.removalTime}
+    <include refid="andWhereMinuteInDateBetweenSql_oracle"/>
+    ${limitAfterWithoutOffset}
+  </delete>
+
+  <delete id="deleteHistoricDecisionInstancesByRemovalTime_postgres_or_db2"
+          parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    <bind name="date" value="'REMOVAL_TIME_'"/>
+    <bind name="reportPeriodUnitName" value="'MINUTE'"/>
+    delete ${limitBeforeWithoutOffset} from ${prefix}ACT_HI_DECINST
+    where ID_ IN
+      (SELECT ID_
+       FROM ${prefix}ACT_HI_DECINST
+       WHERE REMOVAL_TIME_ &lt;= #{parameter.removalTime} <include refid="andWhereMinuteInDateBetweenSql"/>
+       ${limitAfterWithoutOffset})
   </delete>
 
   <!-- result map -->
@@ -91,9 +155,11 @@
     <result property="activityInstanceId" column="ACT_INST_ID_" jdbcType="VARCHAR"/>
     <result property="activityId" column="ACT_ID_" jdbcType="VARCHAR"/>
     <result property="evaluationTime" column="EVAL_TIME_" jdbcType="TIMESTAMP"/>
+    <result property="removalTime" column="REMOVAL_TIME_" jdbcType="TIMESTAMP"/>
     <result property="collectResultValue" column="COLLECT_VALUE_" jdbcType="DOUBLE"/>
     <result property="userId" column="USER_ID_" jdbcType="VARCHAR"/>
     <result property="rootDecisionInstanceId" column="ROOT_DEC_INST_ID_" jdbcType="VARCHAR"/>
+    <result property="rootProcessInstanceId" column="ROOT_PROC_INST_ID_" jdbcType="VARCHAR"/>
     <result property="decisionRequirementsDefinitionId" column="DEC_REQ_ID_" jdbcType="VARCHAR"/>
     <result property="decisionRequirementsDefinitionKey" column="DEC_REQ_KEY_" jdbcType="VARCHAR"/>
     <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR"/>
@@ -311,14 +377,14 @@
 
   <sql id="andWhereMinuteInDateBetweenSql">
     <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
-      AND ${datepart1}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart2}di.EVAL_TIME_${datepart3}
+      AND ${datepart1}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart2}${date}${datepart3}
       between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
     </if>
   </sql>
 
   <sql id="andWhereMinuteInDateBetweenSql_oracle">
     <if test="parameter.minuteFrom != null and parameter.minuteTo != null">
-      AND ${datepart1}di.EVAL_TIME_${datepart2}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart3}
+      AND ${datepart1}${date}${datepart2}<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.periodUnitFunction"/>${datepart3}
       between #{parameter.minuteFrom, jdbcType=INTEGER} and #{parameter.minuteTo, jdbcType=INTEGER}
     </if>
   </sql>
@@ -351,7 +417,14 @@
         RES.HISTORY_TTL_,
         RES.TENANT_ID_,
         F.FINISHED_,
-        SUM(CASE WHEN RES.HISTORY_TTL_ is not null and DI.EVAL_TIME_ is not null and (RES.HISTORY_TTL_=0 OR ${dayComparator}) THEN 1 ELSE 0 END) AS CLEANABLE_
+        <choose>
+          <when test="isHistoryCleanupStrategyRemovalTimeBased">
+            SUM(CASE WHEN DI.REMOVAL_TIME_ is not null and DI.REMOVAL_TIME_ &lt;= #{currentTimestamp} THEN 1 ELSE 0 END) AS CLEANABLE_
+          </when>
+          <otherwise>
+            SUM(CASE WHEN RES.HISTORY_TTL_ is not null and DI.EVAL_TIME_ is not null and (RES.HISTORY_TTL_=0 OR ${dayComparator}) THEN 1 ELSE 0 END) AS CLEANABLE_
+          </otherwise>
+        </choose>
       FROM
         (
           SELECT DISTINCT RES.*
@@ -419,5 +492,26 @@
     ) RES
 
   </sql>
+
+  <select id="selectHistoricDecisionInstancePage" resultMap="historicDecisionInstanceResultMap"
+          parameterType="java.util.Map">
+    <bind name="maxResults" value="parameter.maxResults"/>
+
+    ${optimizeLimitBeforeWithoutOffset}
+    select ${limitBeforeWithoutOffset} * from ${prefix}ACT_HI_DECINST RES
+
+    <where>
+      <if test="parameter.evaluatedAfter != null">
+        and RES.EVAL_TIME_ &gt; #{parameter.evaluatedAfter}
+      </if>
+      <if test="test=parameter.evaluatedAt != null">
+        and RES.EVAL_TIME_ = #{parameter.evaluatedAt}
+      </if>
+    </where>
+
+    ORDER BY RES.EVAL_TIME_ ASC
+    ${optimizeLimitAfterWithoutOffset}
+
+  </select>
 
 </mapper>

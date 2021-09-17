@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -10,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.camunda.bpm.engine.impl.persistence.entity;
 
 import java.util.ArrayList;
@@ -22,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.ProcessEngineServices;
 import org.camunda.bpm.engine.delegate.ExecutionListener;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
@@ -214,6 +217,13 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
   protected String superExecutionId;
 
   /**
+   * persisted reference to the root process instance.
+   *
+   * @see #getRootProcessInstanceId()
+   */
+  protected String rootProcessInstanceId;
+
+  /**
    * persisted reference to the super case execution of this execution
    *
    * @See {@link #getSuperCaseExecution()}
@@ -267,6 +277,7 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
       createdExecution.setTenantId(tenantId);
     }
 
+    // with the fix of CAM-9249 we presume that the parent and the child have the same startContext
     if (initializeExecutionStartContext) {
       createdExecution.setStartContext(new ExecutionStartContext());
     } else if (startContext != null) {
@@ -426,6 +437,13 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
 
   @Override
   public void start(Map<String, Object> variables) {
+    if (getSuperExecution() == null) {
+      setRootProcessInstanceId(processInstanceId);
+    } else {
+      ExecutionEntity superExecution = getSuperExecution();
+      setRootProcessInstanceId(superExecution.getRootProcessInstanceId());
+    }
+
     // determine tenant Id if null
     provideTenantId(variables);
     super.start(variables);
@@ -433,6 +451,7 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
 
   @Override
   public void startWithoutExecuting(Map<String, Object> variables) {
+    setRootProcessInstanceId(getProcessInstanceId());
     provideTenantId(variables);
     super.startWithoutExecuting(variables);
   }
@@ -460,6 +479,7 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
   }
 
   public void startWithFormProperties(VariableMap properties) {
+    setRootProcessInstanceId(getProcessInstanceId());
     provideTenantId(properties);
     if (isProcessInstanceExecution()) {
       ActivityImpl initial = processDefinition.getInitial();
@@ -1806,6 +1826,23 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
     return cachedEntityState;
   }
 
+  public String getRootProcessInstanceId() {
+    if (isProcessInstanceExecution()) {
+      return rootProcessInstanceId;
+    } else {
+      ExecutionEntity processInstance = getProcessInstance();
+      return processInstance.rootProcessInstanceId;
+    }
+  }
+
+  public String getRootProcessInstanceIdRaw() {
+    return rootProcessInstanceId;
+  }
+
+  public void setRootProcessInstanceId(String rootProcessInstanceId) {
+    this.rootProcessInstanceId = rootProcessInstanceId;
+  }
+
   public String getProcessInstanceId() {
     return processInstanceId;
   }
@@ -1947,4 +1984,8 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
     return Context.getProcessEngineConfiguration().getProcessEngine();
   }
 
+  @Override
+  public ProcessEngine getProcessEngine() {
+    return Context.getProcessEngineConfiguration().getProcessEngine();
+  }
 }

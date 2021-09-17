@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,6 +24,11 @@ import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.core.instance.CoreExecution;
 import org.camunda.bpm.engine.impl.core.variable.event.VariableEvent;
 import org.camunda.bpm.engine.impl.core.variable.scope.AbstractVariableScope;
+import org.camunda.bpm.engine.impl.history.HistoryLevel;
+import org.camunda.bpm.engine.impl.history.event.HistoryEvent;
+import org.camunda.bpm.engine.impl.history.event.HistoryEventProcessor;
+import org.camunda.bpm.engine.impl.history.event.HistoryEventTypes;
+import org.camunda.bpm.engine.impl.history.producer.HistoryEventProducer;
 import org.camunda.bpm.engine.impl.incident.DefaultIncidentHandler;
 import org.camunda.bpm.engine.impl.incident.IncidentContext;
 import org.camunda.bpm.engine.impl.incident.IncidentHandler;
@@ -226,11 +234,12 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     startContext = new ProcessInstanceStartContext(getActivity());
 
     initialize();
-    initializeTimerDeclarations();
 
     if (variables != null) {
       setVariables(variables);
     }
+
+    initializeTimerDeclarations();
 
     fireHistoricProcessStartEvent();
 
@@ -688,7 +697,6 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
     // activity instance id handling
     this.activityInstanceId = execution.getActivityInstanceId();
     this.isActive = execution.isActive;
-    this.deleteRoot = execution.deleteRoot;
 
     this.replacedBy = null;
     execution.replacedBy = this;
@@ -1114,6 +1122,24 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   @Override
   public String getProcessBusinessKey() {
     return getProcessInstance().getBusinessKey();
+  }
+
+  @Override
+  public void setProcessBusinessKey(String businessKey) {
+    final PvmExecutionImpl processInstance = getProcessInstance();
+    processInstance.setBusinessKey(businessKey);
+
+    HistoryLevel historyLevel = Context
+    .getCommandContext().getProcessEngineConfiguration().getHistoryLevel();
+    if (historyLevel.isHistoryEventProduced(HistoryEventTypes.PROCESS_INSTANCE_UPDATE, processInstance)) {
+
+      HistoryEventProcessor.processHistoryEvents(new HistoryEventProcessor.HistoryEventCreator() {
+        @Override
+        public HistoryEvent createHistoryEvent(HistoryEventProducer producer) {
+          return producer.createProcessInstanceUpdateEvt(processInstance);
+        }
+      });
+    }
   }
 
   @Override
@@ -1660,9 +1686,6 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   }
 
   public void setDeleteRoot(boolean deleteRoot) {
-    if (getReplacedBy() != null) {
-      getReplacedBy().setDeleteRoot(deleteRoot);
-    }
     this.deleteRoot = deleteRoot;
   }
 

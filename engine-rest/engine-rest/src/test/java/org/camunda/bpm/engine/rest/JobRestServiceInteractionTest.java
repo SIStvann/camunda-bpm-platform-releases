@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -12,7 +15,7 @@
  */
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.given;
+import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertEquals;
@@ -46,7 +49,7 @@ import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.exception.NullValueException;
-import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
+import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
 import org.camunda.bpm.engine.management.UpdateJobSuspensionStateSelectBuilder;
 import org.camunda.bpm.engine.management.UpdateJobSuspensionStateTenantBuilder;
 import org.camunda.bpm.engine.rest.dto.batch.BatchDto;
@@ -67,8 +70,8 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.mockito.InOrder;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import io.restassured.http.ContentType;
+import io.restassured.response.Response;
 import org.mockito.Mockito;
 
 public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
@@ -110,6 +113,7 @@ public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
       .priority(MockProvider.EXAMPLE_JOB_PRIORITY)
       .jobDefinitionId(MockProvider.EXAMPLE_JOB_DEFINITION_ID)
       .tenantId(MockProvider.EXAMPLE_TENANT_ID)
+      .createTime(DateTimeUtil.parseDate(MockProvider.EXAMPLE_JOB_CREATE_TIME))
       .build();
 
     when(mockQuery.singleResult()).thenReturn(mockedJob);
@@ -214,6 +218,7 @@ public class JobRestServiceInteractionTest extends AbstractRestServiceTest {
       .body("priority", equalTo(MockProvider.EXAMPLE_JOB_PRIORITY))
       .body("jobDefinitionId", equalTo(MockProvider.EXAMPLE_JOB_DEFINITION_ID))
       .body("tenantId", equalTo(MockProvider.EXAMPLE_TENANT_ID))
+      .body("createTime", equalTo(MockProvider.EXAMPLE_JOB_CREATE_TIME))
     .when().get(SINGLE_JOB_RESOURCE_URL);
 
     InOrder inOrder = inOrder(mockQuery);

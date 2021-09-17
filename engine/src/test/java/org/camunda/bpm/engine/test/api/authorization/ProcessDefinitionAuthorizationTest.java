@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,14 +17,16 @@ package org.camunda.bpm.engine.test.api.authorization;
 
 import static org.camunda.bpm.engine.authorization.Authorization.ANY;
 import static org.camunda.bpm.engine.authorization.Permissions.ALL;
+import static org.camunda.bpm.engine.authorization.Permissions.CREATE;
+import static org.camunda.bpm.engine.authorization.Permissions.CREATE_INSTANCE;
 import static org.camunda.bpm.engine.authorization.Permissions.READ;
 import static org.camunda.bpm.engine.authorization.Permissions.UPDATE;
 import static org.camunda.bpm.engine.authorization.Permissions.UPDATE_INSTANCE;
-import static org.camunda.bpm.engine.authorization.Resources.DECISION_DEFINITION;
 import static org.camunda.bpm.engine.authorization.Resources.PROCESS_DEFINITION;
 import static org.camunda.bpm.engine.authorization.Resources.PROCESS_INSTANCE;
 
 import java.io.InputStream;
+import java.util.List;
 
 import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.authorization.Authorization;
@@ -854,6 +859,74 @@ public class ProcessDefinitionAuthorizationTest extends AuthorizationTest {
       assertTextPresent(PROCESS_DEFINITION.resourceName(), message);
     }
 
+  }
+
+  public void testStartableInTasklist() {
+    // given
+    createGrantAuthorization(PROCESS_DEFINITION, ONE_TASK_PROCESS_KEY, userId, READ, CREATE_INSTANCE);
+    createGrantAuthorization(PROCESS_INSTANCE, "*", userId, CREATE);
+    final ProcessDefinition definition = selectProcessDefinitionByKey(ONE_TASK_PROCESS_KEY);
+
+    // when
+    List<ProcessDefinition> processDefinitions = repositoryService.createProcessDefinitionQuery().startablePermissionCheck().startableInTasklist().list();
+    // then
+    assertNotNull(processDefinitions);
+    assertEquals(1, repositoryService.createProcessDefinitionQuery().startablePermissionCheck().startableInTasklist().count());
+    assertEquals(definition.getId(), processDefinitions.get(0).getId());
+    assertTrue(processDefinitions.get(0).isStartableInTasklist());
+  }
+
+  public void testStartableInTasklistReadAllProcessDefinition() {
+    // given
+    createGrantAuthorization(PROCESS_DEFINITION, "*", userId, READ);
+    createGrantAuthorization(PROCESS_DEFINITION, ONE_TASK_PROCESS_KEY, userId, CREATE_INSTANCE);
+    createGrantAuthorization(PROCESS_INSTANCE, "*", userId, CREATE);
+    final ProcessDefinition definition = selectProcessDefinitionByKey(ONE_TASK_PROCESS_KEY);
+
+    // when
+    List<ProcessDefinition> processDefinitions = repositoryService.createProcessDefinitionQuery().startablePermissionCheck().startableInTasklist().list();
+    // then
+    assertNotNull(processDefinitions);
+    assertEquals(1, repositoryService.createProcessDefinitionQuery().startablePermissionCheck().startableInTasklist().count());
+    assertEquals(definition.getId(), processDefinitions.get(0).getId());
+    assertTrue(processDefinitions.get(0).isStartableInTasklist());
+  }
+
+  public void testStartableInTasklistWithoutCreateInstancePerm() {
+    // given
+    createGrantAuthorization(PROCESS_DEFINITION, ONE_TASK_PROCESS_KEY, userId, READ);
+    createGrantAuthorization(PROCESS_INSTANCE, "*", userId, CREATE);
+    selectProcessDefinitionByKey(ONE_TASK_PROCESS_KEY);
+
+    // when
+    List<ProcessDefinition> processDefinitions = repositoryService.createProcessDefinitionQuery().startablePermissionCheck().startableInTasklist().list();
+    // then
+    assertNotNull(processDefinitions);
+    assertEquals(0, processDefinitions.size());
+  }
+
+  public void testStartableInTasklistWithoutReadDefPerm() {
+    // given
+    createGrantAuthorization(PROCESS_DEFINITION, ONE_TASK_PROCESS_KEY, userId, CREATE_INSTANCE);
+    createGrantAuthorization(PROCESS_INSTANCE, "*", userId, CREATE);
+    selectProcessDefinitionByKey(ONE_TASK_PROCESS_KEY);
+
+    // when
+    List<ProcessDefinition> processDefinitions = repositoryService.createProcessDefinitionQuery().startablePermissionCheck().startableInTasklist().list();
+    // then
+    assertNotNull(processDefinitions);
+    assertEquals(0, processDefinitions.size());
+  }
+
+  public void testStartableInTasklistWithoutCreatePerm() {
+    // given
+    selectProcessDefinitionByKey(ONE_TASK_PROCESS_KEY);
+
+    // when
+    List<ProcessDefinition> processDefinitions = repositoryService.createProcessDefinitionQuery().startablePermissionCheck().startableInTasklist().list();
+    // then
+    assertNotNull(processDefinitions);
+    assertEquals(0, processDefinitions.size());
   }
 
   // helper /////////////////////////////////////////////////////////////////////

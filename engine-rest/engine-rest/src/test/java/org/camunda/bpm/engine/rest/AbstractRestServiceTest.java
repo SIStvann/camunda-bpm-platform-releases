@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -23,6 +26,7 @@ import java.util.ServiceLoader;
 
 import javax.ws.rs.core.MediaType;
 
+import io.restassured.http.Header;
 import org.apache.http.entity.ContentType;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -39,8 +43,7 @@ import org.camunda.bpm.engine.variable.value.BytesValue;
 import org.camunda.bpm.engine.variable.value.TypedValue;
 import org.junit.BeforeClass;
 
-import com.jayway.restassured.RestAssured;
-import com.jayway.restassured.response.Header;
+import io.restassured.RestAssured;
 
 public abstract class AbstractRestServiceTest {
 
@@ -82,6 +85,7 @@ public abstract class AbstractRestServiceTest {
   protected static final String EXAMPLE_ACTIVITY_NAME = "anActivityName";
   protected static final String EXAMPLE_PROCESS_INSTANCE_ID = "aProcessInstanceId";
   protected static final String EXAMPLE_PROCESS_DEFINITION_ID = "aProcessDefinitionId";
+  protected static final String EXAMPLE_PROCESS_DEFINITION_KEY = "aKey";
   protected static final String EXAMPLE_BUSINESS_KEY = "aBusinessKey";
   protected static final String EXAMPLE_EXECUTION_ID = "anExecutionId";
 

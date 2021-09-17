@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -33,6 +36,7 @@ public class MockJobBuilder {
 	protected long priority;
 	protected String jobDefinitionId;
 	protected String tenantId;
+	protected Date createTime;
 
 	public MockJobBuilder id(String id) {
 		this.id = id;
@@ -94,6 +98,11 @@ public class MockJobBuilder {
 	  return this;
 	}
 
+	public MockJobBuilder createTime(Date createTime) {
+		this.createTime = createTime;
+		return this;
+	}
+
 	public Job build() {
 		Job mockJob = mock(Job.class);
 		when(mockJob.getId()).thenReturn(id);
@@ -108,6 +117,7 @@ public class MockJobBuilder {
 		when(mockJob.getPriority()).thenReturn(priority);
 		when(mockJob.getJobDefinitionId()).thenReturn(jobDefinitionId);
 		when(mockJob.getTenantId()).thenReturn(tenantId);
+		when(mockJob.getCreateTime()).thenReturn(createTime);
 		return mockJob;
 	}
 

@@ -1,8 +1,11 @@
-/* Licensed under the Apache License, Version 2.0 (the "License");
+/*
+ * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -56,6 +59,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.camunda.bpm.engine.test.api.runtime.migration.ModifiableBpmnModelInstance.modify;
 import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.assertThat;
 import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.describeActivityInstanceTree;
 import static org.hamcrest.Matchers.greaterThan;
@@ -754,6 +758,261 @@ public class ExternalTaskServiceTest extends PluggableProcessEngineTestCase {
 
     // then
     assertEquals(1, tasks.size());
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/externaltask/externalTaskPriorityProcess.bpmn20.xml" })
+  public void testFetchByProcessDefinitionId() {
+    // given
+    runtimeService.startProcessInstanceByKey("oneExternalTaskProcess");
+    ProcessInstance processInstance2 = runtimeService.startProcessInstanceByKey("twoExternalTaskWithPriorityProcess");
+    String processDefinitionId2 = processInstance2.getProcessDefinitionId();
+
+    // when
+    List<LockedExternalTask> externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .processDefinitionId(processDefinitionId2)
+      .execute();
+
+    // then
+    assertEquals(1, externalTasks.size());
+    assertEquals(processDefinitionId2, externalTasks.get(0).getProcessDefinitionId());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/parallelExternalTaskProcess.bpmn20.xml")
+  public void testFetchByProcessDefinitionIdCombination() {
+    // given
+    String topicName1 = "topic1";
+    String topicName2 = "topic2";
+
+    String businessKey1 = "testBusinessKey1";
+    String businessKey2 = "testBusinessKey2";
+
+    Long lockDuration = 60L * 1000L;
+
+    runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey1);
+    ProcessInstance processInstance2 = runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey2);
+    String processDefinitionId2 = processInstance2.getProcessDefinitionId();
+
+
+  //when
+    List<LockedExternalTask> topicTasks = externalTaskService
+        .fetchAndLock(3, "externalWorkerId")
+        .topic(topicName1, lockDuration)
+        .topic(topicName2, lockDuration)
+          .processDefinitionId(processDefinitionId2)
+        .execute();
+
+    //then
+    assertEquals(3, topicTasks.size());
+
+    for (LockedExternalTask externalTask : topicTasks) {
+      ProcessInstance pi = runtimeService.createProcessInstanceQuery()
+          .processInstanceId(externalTask.getProcessInstanceId())
+          .singleResult();
+      if (externalTask.getTopicName().equals(topicName1)) {
+        assertEquals(pi.getProcessDefinitionId(), externalTask.getProcessDefinitionId());
+      } else if (externalTask.getTopicName().equals(topicName2)){
+        assertEquals(processDefinitionId2, pi.getProcessDefinitionId());
+        assertEquals(processDefinitionId2, externalTask.getProcessDefinitionId());
+      } else {
+        fail("No other topic name values should be available!");
+      }
+    }
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/parallelExternalTaskProcess.bpmn20.xml")
+  public void testFetchByProcessDefinitionIdIn() {
+    // given
+    String topicName1 = "topic1";
+    String topicName2 = "topic2";
+    String topicName3 = "topic3";
+
+    String businessKey1 = "testBusinessKey1";
+    String businessKey2 = "testBusinessKey2";
+    String businessKey3 = "testBusinessKey3";
+
+    Long lockDuration = 60L * 1000L;
+
+    ProcessInstance processInstance1 = runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey1);
+    String processDefinitionId1 = processInstance1.getProcessDefinitionId();
+    ProcessInstance processInstance2 = runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey2);
+    String processDefinitionId2 = processInstance2.getProcessDefinitionId();
+    ProcessInstance processInstance3 = runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey3);
+    String processDefinitionId3 = processInstance3.getProcessDefinitionId();
+
+    // when
+    List<LockedExternalTask> topicTasks = externalTaskService
+        .fetchAndLock(2, "externalWorkerId")
+        .topic(topicName1, lockDuration)
+          .processDefinitionIdIn(processDefinitionId1)
+          .processDefinitionKey("parallelExternalTaskProcess")
+        .topic(topicName2, lockDuration)
+          .processDefinitionId(processDefinitionId2)
+          .businessKey(businessKey2)
+        .topic(topicName3, lockDuration)
+          .processDefinitionId(processDefinitionId3)
+          .processDefinitionKeyIn("unexisting")
+        .execute();
+
+    // then
+    assertEquals(2, topicTasks.size());
+
+    for (LockedExternalTask externalTask : topicTasks) {
+      ProcessInstance pi = runtimeService.createProcessInstanceQuery()
+          .processInstanceId(externalTask.getProcessInstanceId())
+          .singleResult();
+      if (externalTask.getTopicName().equals(topicName1)) {
+        assertEquals(processDefinitionId1, pi.getProcessDefinitionId());
+        assertEquals(processDefinitionId1, externalTask.getProcessDefinitionId());
+      } else if (externalTask.getTopicName().equals(topicName2)){
+        assertEquals(processDefinitionId2, pi.getProcessDefinitionId());
+        assertEquals(processDefinitionId2, externalTask.getProcessDefinitionId());
+      } else {
+        fail("No other topic name values should be available!");
+      }
+    }
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml",
+  "org/camunda/bpm/engine/test/api/externaltask/externalTaskPriorityProcess.bpmn20.xml" })
+  public void testFetchByProcessDefinitionIds() {
+    // given
+    ProcessInstance processInstance1 = runtimeService.startProcessInstanceByKey("oneExternalTaskProcess");
+    String processDefinitionId1 = processInstance1.getProcessDefinitionId();
+    ProcessInstance processInstance2 = runtimeService.startProcessInstanceByKey("twoExternalTaskWithPriorityProcess");
+    String processDefinitionId2 = processInstance2.getProcessDefinitionId();
+
+    // when
+    List<LockedExternalTask> externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .processDefinitionId(processDefinitionId2)
+      .processDefinitionIdIn(processDefinitionId1)
+      .execute();
+
+    // then
+    assertEquals(0, externalTasks.size());
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/externaltask/externalTaskPriorityProcess.bpmn20.xml" })
+  public void testFetchByProcessDefinitionKey() {
+    // given
+    String processDefinitionKey1 = "oneExternalTaskProcess";
+    runtimeService.startProcessInstanceByKey(processDefinitionKey1);
+    String processDefinitionKey2 = "twoExternalTaskWithPriorityProcess";
+    runtimeService.startProcessInstanceByKey(processDefinitionKey2);
+
+    // when
+    List<LockedExternalTask> externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .processDefinitionKey(processDefinitionKey2)
+      .execute();
+
+    // then
+    assertEquals(1, externalTasks.size());
+    assertEquals(processDefinitionKey2, externalTasks.get(0).getProcessDefinitionKey());
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml",
+  "org/camunda/bpm/engine/test/api/externaltask/externalTaskPriorityProcess.bpmn20.xml" })
+  public void testFetchByProcessDefinitionKeyIn() {
+    // given
+    String processDefinitionKey1 = "oneExternalTaskProcess";
+    runtimeService.startProcessInstanceByKey(processDefinitionKey1);
+    String processDefinitionKey2 = "twoExternalTaskWithPriorityProcess";
+    runtimeService.startProcessInstanceByKey(processDefinitionKey2);
+
+    // when
+    List<LockedExternalTask> externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .processDefinitionKeyIn(processDefinitionKey2)
+      .execute();
+
+    // then
+    assertEquals(1, externalTasks.size());
+    assertEquals(processDefinitionKey2, externalTasks.get(0).getProcessDefinitionKey());
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml",
+  "org/camunda/bpm/engine/test/api/externaltask/externalTaskPriorityProcess.bpmn20.xml" })
+  public void testFetchByProcessDefinitionKeys() {
+    // given
+    String processDefinitionKey1 = "oneExternalTaskProcess";
+    runtimeService.startProcessInstanceByKey(processDefinitionKey1);
+    String processDefinitionKey2 = "twoExternalTaskWithPriorityProcess";
+    runtimeService.startProcessInstanceByKey(processDefinitionKey2);
+
+    // when
+    List<LockedExternalTask> externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .processDefinitionKey(processDefinitionKey1)
+      .processDefinitionKeyIn(processDefinitionKey2)
+      .execute();
+
+    // then
+    assertEquals(0, externalTasks.size());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/parallelExternalTaskProcess.bpmn20.xml")
+  public void testFetchByProcessDefinitionIdAndKey() {
+    // given
+    String topicName1 = "topic1";
+    String topicName2 = "topic2";
+
+    String businessKey1 = "testBusinessKey1";
+    String businessKey2 = "testBusinessKey2";
+    String businessKey3 = "testBusinessKey3";
+
+    Long lockDuration = 60L * 1000L;
+
+    runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey1);
+    ProcessInstance processInstance2 = runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey2);
+    String processDefinitionId2 = processInstance2.getProcessDefinitionId();
+    ProcessInstance processInstance3 = runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey3);
+    String processDefinitionId3 = processInstance3.getProcessDefinitionId();
+
+    //when
+    List<LockedExternalTask> topicTasks = externalTaskService
+        .fetchAndLock(3, "externalWorkerId")
+        .topic(topicName1, lockDuration)
+        .topic(topicName2, lockDuration)
+          .processDefinitionIdIn(processDefinitionId2, processDefinitionId3)
+        .topic("topic3", lockDuration)
+          .processDefinitionIdIn("unexisting")
+        .execute();
+
+    //then
+    assertEquals(3, topicTasks.size());
+
+    for (LockedExternalTask externalTask : topicTasks) {
+      ProcessInstance pi = runtimeService.createProcessInstanceQuery()
+          .processInstanceId(externalTask.getProcessInstanceId())
+          .singleResult();
+      if (externalTask.getTopicName().equals(topicName1)) {
+        assertEquals(pi.getProcessDefinitionId(), externalTask.getProcessDefinitionId());
+      } else if (externalTask.getTopicName().equals(topicName2)){
+        assertEquals(processDefinitionId2, pi.getProcessDefinitionId());
+        assertEquals(processDefinitionId2, externalTask.getProcessDefinitionId());
+      } else {
+        fail("No other topic name values should be available!");
+      }
+    }
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml"})
+  public void testFetchWithoutTenant() {
+    // given
+    runtimeService.startProcessInstanceByKey("oneExternalTaskProcess");
+
+    // when
+    List<LockedExternalTask> externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .withoutTenantId()
+      .execute();
+
+    // then
+    assertEquals(1, externalTasks.size());
   }
 
   @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/twoExternalTaskProcess.bpmn20.xml")
@@ -1726,12 +1985,11 @@ public class ExternalTaskServiceTest extends PluggableProcessEngineTestCase {
     assertEquals(afterBpmnError.getTaskDefinitionKey(), "afterBpmnError");
   }
 
-
   @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml")
   public void testHandleBpmnErrorReclaimedLockExpiredTaskWithoutDefinedBoundary() {
     // given
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneExternalTaskProcess");
-    handleBpmnErrorReclaimedLockExpiredTask();
+    handleBpmnErrorReclaimedLockExpiredTask(false);
     assertProcessEnded(processInstance.getId());
   }
 
@@ -1740,13 +1998,14 @@ public class ExternalTaskServiceTest extends PluggableProcessEngineTestCase {
     // given
     runtimeService.startProcessInstanceByKey("twoExternalTaskProcess");
     //then
-    handleBpmnErrorReclaimedLockExpiredTask();
+    handleBpmnErrorReclaimedLockExpiredTask(false);
   }
 
   /**
    * Helpher method which reclaims an external task after the lock is expired.
+   * @param includeVariables flag showing if pass or not variables
    */
-  public void handleBpmnErrorReclaimedLockExpiredTask() {
+  public void handleBpmnErrorReclaimedLockExpiredTask(boolean includeVariables) {
     // when
     List<LockedExternalTask> externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
       .topic(TOPIC_NAME, LOCK_TIME)
@@ -1766,6 +2025,10 @@ public class ExternalTaskServiceTest extends PluggableProcessEngineTestCase {
       fail("exception expected");
     } catch (ProcessEngineException e) {
       assertTextPresent("Bpmn error of External Task " + externalTasks.get(0).getId() + " cannot be reported by worker '" + WORKER_ID + "'. It is locked by worker 'anotherWorkerId'.", e.getMessage());
+      if (includeVariables) {
+        List<VariableInstance> list = runtimeService.createVariableInstanceQuery().list();
+        assertEquals(0, list.size());
+      }
     }
 
     // and the second worker can
@@ -1855,6 +2118,138 @@ public class ExternalTaskServiceTest extends PluggableProcessEngineTestCase {
     } catch (ProcessEngineException e) {
       assertTextPresent("ExternalTask with id '" + task.getId() + "' is suspended", e.getMessage());
     }
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/twoExternalTaskProcess.bpmn20.xml")
+  public void testHandleBpmnErrorPassVariablesBoundryEvent() {
+    //given
+    ProcessInstance pi = runtimeService.startProcessInstanceByKey("twoExternalTaskProcess");
+
+    List<LockedExternalTask> externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .execute();
+
+    // and the lock expires without the task being reclaimed
+    ClockUtil.setCurrentTime(new DateTime(ClockUtil.getCurrentTime()).plus(LOCK_TIME * 2).toDate());
+
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("foo", "bar");
+    variables.put("transientVar", Variables.integerValue(1, true));
+
+    // when
+    externalTaskService.handleBpmnError(externalTasks.get(0).getId(), WORKER_ID, "ERROR-OCCURED", null, variables);
+
+    externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .execute();
+
+    // then
+    assertEquals(0, externalTasks.size());
+    assertEquals(0, externalTaskService.createExternalTaskQuery().count());
+    Task afterBpmnError = taskService.createTaskQuery().singleResult();
+    assertNotNull(afterBpmnError);
+    assertEquals(afterBpmnError.getTaskDefinitionKey(), "afterBpmnError");
+    List<VariableInstance> list = runtimeService.createVariableInstanceQuery().processInstanceIdIn(pi.getId()).list();
+    assertEquals(1, list.size());
+    assertEquals("foo", list.get(0).getName());
+  }
+
+  public void testHandleBpmnErrorPassVariablesEventSubProcess() {
+    // when
+    BpmnModelInstance process =
+        Bpmn.createExecutableProcess("process")
+        .startEvent("startEvent")
+        .serviceTask("externalTask")
+          .camundaType("external")
+          .camundaTopic(TOPIC_NAME)
+        .endEvent("endEvent")
+        .done();
+
+    BpmnModelInstance subProcess = modify(process)
+        .addSubProcessTo("process")
+          .id("eventSubProcess")
+          .triggerByEvent()
+          .embeddedSubProcess()
+            .startEvent("eventSubProcessStart")
+                .error("ERROR-SPEC-10")
+            .userTask("afterBpmnError")
+            .endEvent()
+          .subProcessDone()
+          .done();
+
+    BpmnModelInstance targetProcess = modify(subProcess);
+
+    deploymentId = deployment(targetProcess);
+
+    ProcessInstance pi = runtimeService.startProcessInstanceByKey("process");
+
+    List<LockedExternalTask> externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .execute();
+
+    // and the lock expires without the task being reclaimed
+    ClockUtil.setCurrentTime(new DateTime(ClockUtil.getCurrentTime()).plus(LOCK_TIME * 2).toDate());
+
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("foo", "bar");
+    variables.put("transientVar", Variables.integerValue(1, true));
+
+    // when
+    externalTaskService.handleBpmnError(externalTasks.get(0).getId(), WORKER_ID, "ERROR-SPEC-10", null, variables);
+
+    externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .execute();
+
+    // then
+    assertEquals(0, externalTasks.size());
+    assertEquals(0, externalTaskService.createExternalTaskQuery().count());
+    Task afterBpmnError = taskService.createTaskQuery().singleResult();
+    assertNotNull(afterBpmnError);
+    assertEquals(afterBpmnError.getTaskDefinitionKey(), "afterBpmnError");
+    List<VariableInstance> list = runtimeService.createVariableInstanceQuery().processInstanceIdIn(pi.getId()).list();
+    assertEquals(1, list.size());
+    assertEquals("foo", list.get(0).getName());
+  }
+
+  @Deployment
+  public void testHandleBpmnErrorPassMessageEventSubProcess() {
+    //given
+    ProcessInstance pi = runtimeService.startProcessInstanceByKey("oneExternalTaskProcess");
+
+    List<LockedExternalTask> externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .execute();
+
+    // and the lock expires without the task being reclaimed
+    ClockUtil.setCurrentTime(new DateTime(ClockUtil.getCurrentTime()).plus(LOCK_TIME * 2).toDate());
+
+    // when
+    String anErrorMessage = "Some meaningful message";
+    externalTaskService.handleBpmnError(externalTasks.get(0).getId(), WORKER_ID, "ERROR-SPEC-10", anErrorMessage);
+
+    externalTasks = externalTaskService.fetchAndLock(1, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .execute();
+
+    // then
+    assertEquals(0, externalTasks.size());
+    assertEquals(0, externalTaskService.createExternalTaskQuery().count());
+    Task afterBpmnError = taskService.createTaskQuery().singleResult();
+    assertNotNull(afterBpmnError);
+    assertEquals(afterBpmnError.getTaskDefinitionKey(), "afterBpmnError");
+    List<VariableInstance> list = runtimeService.createVariableInstanceQuery().processInstanceIdIn(pi.getId()).list();
+    assertEquals(1, list.size());
+    assertEquals("errorMessageVariable", list.get(0).getName());
+    assertEquals(anErrorMessage, list.get(0).getValue());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/twoExternalTaskProcess.bpmn20.xml")
+  public void testHandleBpmnErrorReclaimedLockExpiredTaskWithBoundaryAndPassVariables() {
+    // given
+    runtimeService.startProcessInstanceByKey("twoExternalTaskProcess");
+    // then
+    handleBpmnErrorReclaimedLockExpiredTask(true);
   }
 
   @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/oneExternalTaskProcess.bpmn20.xml")
@@ -2335,6 +2730,86 @@ public class ExternalTaskServiceTest extends PluggableProcessEngineTestCase {
       if (externalTask.getTopicName().equals(topicName1)) {
         assertEquals(businessKey1, pi.getBusinessKey());
         assertEquals(businessKey1, externalTask.getBusinessKey());
+      } else if (externalTask.getTopicName().equals(topicName2)){
+        assertEquals(businessKey2, pi.getBusinessKey());
+        assertEquals(businessKey2, externalTask.getBusinessKey());
+      } else {
+        fail("No other topic name values should be available!");
+      }
+    }
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/parallelExternalTaskProcess.bpmn20.xml")
+  public void testQueryByBusinessKeyCombination1() {
+    // given
+    String topicName1 = "topic1";
+    String topicName2 = "topic2";
+
+    String businessKey1 = "testBusinessKey1";
+    String businessKey2 = "testBusinessKey2";
+
+    Long lockDuration = 60L * 1000L;
+
+    runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey1);
+    runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey2);
+
+    //when
+    List<LockedExternalTask> topicTasks = externalTaskService
+        .fetchAndLock(3, "externalWorkerId")
+        .topic(topicName1, lockDuration)
+          .businessKey(businessKey1)
+        .topic(topicName2, lockDuration)
+        .execute();
+
+    //then
+    assertEquals(3, topicTasks.size());
+
+    for (LockedExternalTask externalTask : topicTasks) {
+      ProcessInstance pi = runtimeService.createProcessInstanceQuery()
+          .processInstanceId(externalTask.getProcessInstanceId())
+          .singleResult();
+      if (externalTask.getTopicName().equals(topicName1)) {
+        assertEquals(businessKey1, pi.getBusinessKey());
+        assertEquals(businessKey1, externalTask.getBusinessKey());
+      } else if (externalTask.getTopicName().equals(topicName2)){
+        assertEquals(pi.getBusinessKey(), externalTask.getBusinessKey());
+      } else {
+        fail("No other topic name values should be available!");
+      }
+    }
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/externaltask/parallelExternalTaskProcess.bpmn20.xml")
+  public void testQueryByBusinessKeyCombination2() {
+    // given
+    String topicName1 = "topic1";
+    String topicName2 = "topic2";
+
+    String businessKey1 = "testBusinessKey1";
+    String businessKey2 = "testBusinessKey2";
+
+    Long lockDuration = 60L * 1000L;
+
+    runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey1);
+    runtimeService.startProcessInstanceByKey("parallelExternalTaskProcess", businessKey2);
+
+    //when
+    List<LockedExternalTask> topicTasks = externalTaskService
+        .fetchAndLock(3, "externalWorkerId")
+        .topic(topicName1, lockDuration)
+        .topic(topicName2, lockDuration)
+          .businessKey(businessKey2)
+        .execute();
+
+    //then
+    assertEquals(3, topicTasks.size());
+
+    for (LockedExternalTask externalTask : topicTasks) {
+      ProcessInstance pi = runtimeService.createProcessInstanceQuery()
+          .processInstanceId(externalTask.getProcessInstanceId())
+          .singleResult();
+      if (externalTask.getTopicName().equals(topicName1)) {
+        assertEquals(pi.getBusinessKey(), externalTask.getBusinessKey());
       } else if (externalTask.getTopicName().equals(topicName2)){
         assertEquals(businessKey2, pi.getBusinessKey());
         assertEquals(businessKey2, externalTask.getBusinessKey());
