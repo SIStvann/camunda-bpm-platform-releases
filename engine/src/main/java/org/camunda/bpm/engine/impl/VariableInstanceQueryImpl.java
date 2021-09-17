@@ -12,6 +12,8 @@
  */
 package org.camunda.bpm.engine.impl;
 
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
 import java.io.Serializable;
 import java.util.List;
 import java.util.logging.Level;
@@ -20,9 +22,9 @@ import java.util.logging.Logger;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.persistence.entity.VariableInstanceEntity;
-import org.camunda.bpm.engine.impl.variable.ByteArrayType;
 import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.runtime.VariableInstanceQuery;
+import org.camunda.bpm.engine.variable.type.ValueType;
 
 /**
  * @author roman.smirnov
@@ -35,13 +37,18 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
 
   protected String variableId;
   protected String variableName;
+  protected String[] variableNames;
   protected String variableNameLike;
   protected String[] executionIds;
   protected String[] processInstanceIds;
+  protected String[] caseExecutionIds;
+  protected String[] caseInstanceIds;
   protected String[] taskIds;
+  protected String[] variableScopeIds;
   protected String[] activityInstanceIds;
 
   protected boolean isByteArrayFetchingEnabled = true;
+  protected boolean isCustomObjectDeserializationEnabled = true;
 
   public VariableInstanceQueryImpl() { }
 
@@ -50,13 +57,18 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
   }
 
   public VariableInstanceQuery variableId(String id) {
-    assertParamNotNull("id", id);
+    ensureNotNull("id", id);
     this.variableId = id;
     return this;
   }
 
   public VariableInstanceQuery variableName(String variableName) {
     this.variableName = variableName;
+    return this;
+  }
+
+  public VariableInstanceQuery variableNameIn(String... variableNames) {
+    this.variableNames = variableNames;
     return this;
   }
 
@@ -75,8 +87,23 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
     return this;
   }
 
+  public VariableInstanceQuery caseExecutionIdIn(String... caseExecutionIds) {
+    this.caseExecutionIds = caseExecutionIds;
+    return this;
+  }
+
+  public VariableInstanceQuery caseInstanceIdIn(String... caseInstanceIds) {
+    this.caseInstanceIds = caseInstanceIds;
+    return this;
+  }
+
   public VariableInstanceQuery taskIdIn(String... taskIds) {
     this.taskIds = taskIds;
+    return this;
+  }
+
+  public VariableInstanceQuery variableScopeIdIn(String... variableScopeIds) {
+    this.variableScopeIds = variableScopeIds;
     return this;
   }
 
@@ -87,6 +114,11 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
 
   public VariableInstanceQuery disableBinaryFetching() {
     this.isByteArrayFetchingEnabled = false;
+    return this;
+  }
+
+  public VariableInstanceQuery disableCustomObjectDeserialization() {
+    this.isCustomObjectDeserializationEnabled = false;
     return this;
   }
 
@@ -128,25 +160,28 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
       return result;
     }
 
-    // iterate over the result array to initialize the value of the value
+    // iterate over the result array to initialize the value and serialized value of the variable
     for (VariableInstance variableInstance : result) {
-        VariableInstanceEntity variableInstanceEntity = (VariableInstanceEntity) variableInstance;
+      VariableInstanceEntity variableInstanceEntity = (VariableInstanceEntity) variableInstance;
 
-      // do not fetch values for byte arrays eagerly (unless requested by the user)
-      if (isByteArrayFetchingEnabled
-          || !ByteArrayType.TYPE_NAME.equals(variableInstanceEntity.getType().getTypeName())) {
-
+      if (shouldFetchValue(variableInstanceEntity)) {
         try {
-          variableInstanceEntity.getValue();
+          variableInstanceEntity.getTypedValue(isCustomObjectDeserializationEnabled);
+
         } catch(Exception t) {
           // do not fail if one of the variables fails to load
           LOGGER.log(Level.FINE, "Exception while getting value for variable", t);
         }
-
       }
+
     }
 
     return result;
+  }
+
+  protected boolean shouldFetchValue(VariableInstanceEntity entity) {
+    // do not fetch values for byte arrays eagerly (unless requested by the user)
+    return isByteArrayFetchingEnabled || !ValueType.BYTES.equals(entity.getSerializer().getType());
   }
 
   // getters ////////////////////////////////////////////////////
@@ -157,6 +192,10 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
 
   public String getVariableName() {
     return variableName;
+  }
+
+  public String[] getVariableNames() {
+    return variableNames;
   }
 
   public String getVariableNameLike() {
@@ -171,8 +210,20 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
     return processInstanceIds;
   }
 
+  public String[] getCaseExecutionIds() {
+    return caseExecutionIds;
+  }
+
+  public String[] getCaseInstanceIds() {
+    return caseInstanceIds;
+  }
+
   public String[] getTaskIds() {
     return taskIds;
+  }
+
+  public String[] getVariableScopeIds() {
+    return variableScopeIds;
   }
 
   public String[] getActivityInstanceIds() {

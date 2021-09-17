@@ -1,9 +1,9 @@
 /* Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -26,16 +26,17 @@ import org.camunda.bpm.engine.rest.dto.converter.StringArrayConverter;
 import org.camunda.bpm.engine.rest.dto.converter.VariableListConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.runtime.VariableInstanceQuery;
+import org.codehaus.jackson.map.ObjectMapper;
 
 /**
  * @author roman.smirnov
  */
 public class VariableInstanceQueryDto extends AbstractQueryDto<VariableInstanceQuery> {
-  
+
   private static final String SORT_BY_VARIABLE_NAME_VALUE = "variableName";
   private static final String SORT_BY_VARIABLE_TYPE_VALUE = "variableType";
   private static final String SORT_BY_ACTIVITY_INSTANCE_ID_VALUE = "activityInstanceId";
-  
+
   private static final List<String> VALID_SORT_BY_VALUES;
   static {
     VALID_SORT_BY_VALUES = new ArrayList<String>();
@@ -43,19 +44,22 @@ public class VariableInstanceQueryDto extends AbstractQueryDto<VariableInstanceQ
     VALID_SORT_BY_VALUES.add(SORT_BY_VARIABLE_TYPE_VALUE);
     VALID_SORT_BY_VALUES.add(SORT_BY_ACTIVITY_INSTANCE_ID_VALUE);
   }
-  
+
   protected String variableName;
   protected String variableNameLike;
   protected List<VariableQueryParameterDto> variableValues;
   protected String[] executionIdIn;
   protected String[] processInstanceIdIn;
+  protected String[] caseExecutionIdIn;
+  protected String[] caseInstanceIdIn;
   protected String[] taskIdIn;
+  protected String[] variableScopeIdIn;
   protected String[] activityInstanceIdIn;
-  
+
   public VariableInstanceQueryDto() {}
-  
-  public VariableInstanceQueryDto(MultivaluedMap<String, String> queryParameters) {
-    super(queryParameters);
+
+  public VariableInstanceQueryDto(ObjectMapper objectMapper, MultivaluedMap<String, String> queryParameters) {
+    super(objectMapper, queryParameters);
   }
 
   @CamundaQueryParam("variableName")
@@ -72,20 +76,35 @@ public class VariableInstanceQueryDto extends AbstractQueryDto<VariableInstanceQ
   public void setVariableValues(List<VariableQueryParameterDto> variableValues) {
     this.variableValues = variableValues;
   }
-  
+
   @CamundaQueryParam(value="executionIdIn", converter = StringArrayConverter.class)
   public void setExecutionIdIn(String[] executionIdIn) {
     this.executionIdIn = executionIdIn;
   }
 
-  @CamundaQueryParam(value="processInstanceIdIn", converter = StringArrayConverter.class)  
+  @CamundaQueryParam(value="processInstanceIdIn", converter = StringArrayConverter.class)
   public void setProcessInstanceIdIn(String[] processInstanceIdIn) {
     this.processInstanceIdIn = processInstanceIdIn;
+  }
+
+  @CamundaQueryParam(value="caseExecutionIdIn", converter = StringArrayConverter.class)
+  public void setCaseExecutionIdIn(String[] caseExecutionIdIn) {
+    this.caseExecutionIdIn = caseExecutionIdIn;
+  }
+
+  @CamundaQueryParam(value="caseInstanceIdIn", converter = StringArrayConverter.class)
+  public void setCaseInstanceIdIn(String[] caseInstanceIdIn) {
+    this.caseInstanceIdIn = caseInstanceIdIn;
   }
 
   @CamundaQueryParam(value="taskIdIn", converter = StringArrayConverter.class)
   public void setTaskIdIn(String[] taskIdIn) {
     this.taskIdIn = taskIdIn;
+  }
+
+  @CamundaQueryParam(value="variableScopeIdIn", converter = StringArrayConverter.class)
+  public void setVariableScopeIdIn(String[] variableScopeIdIn) {
+    this.variableScopeIdIn = variableScopeIdIn;
   }
 
   @CamundaQueryParam(value="activityInstanceIdIn", converter = StringArrayConverter.class)
@@ -108,17 +127,17 @@ public class VariableInstanceQueryDto extends AbstractQueryDto<VariableInstanceQ
     if (variableName != null) {
       query.variableName(variableName);
     }
-    
+
     if (variableNameLike != null) {
       query.variableNameLike(variableNameLike);
     }
-    
+
     if (variableValues != null) {
       for (VariableQueryParameterDto variableQueryParam : variableValues) {
         String variableName = variableQueryParam.getName();
         String op = variableQueryParam.getOperator();
-        Object variableValue = variableQueryParam.getValue();
-        
+        Object variableValue = variableQueryParam.resolveValue(objectMapper);
+
         if (op.equals(VariableQueryParameterDto.EQUALS_OPERATOR_NAME)) {
           query.variableValueEquals(variableName, variableValue);
         } else if (op.equals(VariableQueryParameterDto.GREATER_THAN_OPERATOR_NAME)) {
@@ -138,24 +157,36 @@ public class VariableInstanceQueryDto extends AbstractQueryDto<VariableInstanceQ
         }
       }
     }
-    
+
     if (executionIdIn != null && executionIdIn.length > 0) {
       query.executionIdIn(executionIdIn);
     }
-    
+
     if (processInstanceIdIn != null && processInstanceIdIn.length > 0) {
       query.processInstanceIdIn(processInstanceIdIn);
     }
-    
+
+    if (caseExecutionIdIn != null && caseExecutionIdIn.length > 0) {
+      query.caseExecutionIdIn(caseExecutionIdIn);
+    }
+
+    if (caseInstanceIdIn != null && caseInstanceIdIn.length > 0) {
+      query.caseInstanceIdIn(caseInstanceIdIn);
+    }
+
     if (taskIdIn != null && taskIdIn.length > 0) {
       query.taskIdIn(taskIdIn);
     }
-    
+
+    if (variableScopeIdIn != null && variableScopeIdIn.length > 0) {
+      query.variableScopeIdIn(variableScopeIdIn);
+    }
+
     if (activityInstanceIdIn != null && activityInstanceIdIn.length > 0) {
       query.activityInstanceIdIn(activityInstanceIdIn);
     }
   }
-  
+
   @Override
   protected void applySortingOptions(VariableInstanceQuery query) {
     if (sortBy != null) {
@@ -167,7 +198,7 @@ public class VariableInstanceQueryDto extends AbstractQueryDto<VariableInstanceQ
         query.orderByActivityInstanceId();
       }
     }
-    
+
     if (sortOrder != null) {
       if (sortOrder.equals(SORT_ORDER_ASC_VALUE)) {
         query.asc();

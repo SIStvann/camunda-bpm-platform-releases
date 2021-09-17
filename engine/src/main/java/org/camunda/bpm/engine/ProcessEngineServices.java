@@ -78,5 +78,20 @@ public interface ProcessEngineServices {
    */
   AuthorizationService getAuthorizationService();
 
+  /**
+   * Returns the engine's {@link CaseService}.
+   *
+   * @return the {@link CaseService} object.
+   *
+   */
+  CaseService getCaseService();
+
+  /**
+   * Returns the engine's {@link FilterService}.
+   *
+   * @return the {@link FilterService} object.
+   *
+   */
+  FilterService getFilterService();
 
 }

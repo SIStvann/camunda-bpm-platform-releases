@@ -12,25 +12,28 @@
  */
 package org.camunda.bpm.engine.impl.persistence.entity;
 
-import java.io.Serializable;
-import java.io.UnsupportedEncodingException;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.Context;
-import org.camunda.bpm.engine.impl.db.DbSqlSession;
-import org.camunda.bpm.engine.impl.db.HasRevision;
-import org.camunda.bpm.engine.impl.db.PersistentObject;
+import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.impl.db.HasDbRevision;
+import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.incident.FailedJobIncidentHandler;
 import org.camunda.bpm.engine.impl.incident.IncidentHandler;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.jobexecutor.JobHandler;
 import org.camunda.bpm.engine.runtime.Incident;
 import org.camunda.bpm.engine.runtime.Job;
+
+import java.io.Serializable;
+import java.io.UnsupportedEncodingException;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Logger;
+
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 /**
  * Stub of the common parts of a Job. You will normally work with a subclass of
@@ -41,11 +44,19 @@ import org.camunda.bpm.engine.runtime.Job;
  * @author Dave Syer
  * @author Frederik Heremans
  */
-public abstract class JobEntity implements Serializable, Job, PersistentObject, HasRevision {
+public abstract class JobEntity implements Serializable, Job, DbEntity, HasDbRevision {
+
+  private final static Logger LOG = Logger.getLogger(JobEntity.class.getName());
 
   public static final boolean DEFAULT_EXCLUSIVE = true;
   public static final int DEFAULT_RETRIES = 3;
-  private static final int MAX_EXCEPTION_MESSAGE_LENGTH = 255;
+
+  /**
+   * Note: {@link String#length()} counts Unicode supplementary
+   * characters twice, so for a String consisting only of those,
+   * the limit is effectively MAX_EXCEPTION_MESSAGE_LENGTH / 2
+   */
+  public static int MAX_EXCEPTION_MESSAGE_LENGTH = 666;
 
   private static final long serialVersionUID = 1L;
 
@@ -82,10 +93,12 @@ public abstract class JobEntity implements Serializable, Job, PersistentObject, 
 
   protected String jobDefinitionId;
 
+
   public void execute(CommandContext commandContext) {
     ExecutionEntity execution = null;
     if (executionId != null) {
       execution = commandContext.getExecutionManager().findExecutionById(executionId);
+      ensureNotNull("Cannot find execution with id '" + executionId + "' referenced from job '" + this + "'", "execution", execution);
     }
 
     Map<String, JobHandler> jobHandlers = Context.getProcessEngineConfiguration().getJobHandlers();
@@ -95,11 +108,11 @@ public abstract class JobEntity implements Serializable, Job, PersistentObject, 
   }
 
   public void insert() {
-    DbSqlSession dbSqlSession = Context
+    DbEntityManager dbEntityManger = Context
       .getCommandContext()
-      .getDbSqlSession();
+      .getDbEntityManager();
 
-    dbSqlSession.insert(this);
+    dbEntityManger.insert(this);
 
     // add link to execution and deployment
     if(executionId != null) {
@@ -116,11 +129,11 @@ public abstract class JobEntity implements Serializable, Job, PersistentObject, 
   }
 
   public void delete(boolean incidentResolved) {
-    DbSqlSession dbSqlSession = Context
+    DbEntityManager dbEntityManger = Context
         .getCommandContext()
-        .getDbSqlSession();
+        .getDbEntityManager();
 
-    dbSqlSession.delete(this);
+    dbEntityManger.delete(this);
 
     // Also delete the job's exception byte array
     if (exceptionByteArrayId != null) {
@@ -147,6 +160,9 @@ public abstract class JobEntity implements Serializable, Job, PersistentObject, 
     persistentState.put("duedate", duedate);
     persistentState.put("exceptionMessage", exceptionMessage);
     persistentState.put("suspensionState", suspensionState);
+    persistentState.put("processDefinitionId", processDefinitionId);
+    persistentState.put("jobDefinitionId", jobDefinitionId);
+    persistentState.put("deploymentId", deploymentId);
     if(exceptionByteArrayId != null) {
       persistentState.put("exceptionByteArrayId", exceptionByteArrayId);
     }
@@ -178,6 +194,11 @@ public abstract class JobEntity implements Serializable, Job, PersistentObject, 
   }
 
   public void setRetries(int retries) {
+    // if retries should be set to a negative value set it to 0
+    if (retries < 0) {
+      retries = 0;
+    }
+
     // Assuming: if the number of retries will
     // be changed from 0 to x (x >= 1), means
     // that the corresponding incident is resolved.
@@ -187,7 +208,7 @@ public abstract class JobEntity implements Serializable, Job, PersistentObject, 
 
     // If the retries will be set to 0, an
     // incident has to be created.
-    if(retries == 0) {
+    if(retries == 0 && this.retries > 0) {
       createFailedJobIncident();
     }
     this.retries = retries;
@@ -336,7 +357,7 @@ public abstract class JobEntity implements Serializable, Job, PersistentObject, 
       byteArray = new ByteArrayEntity("job.exceptionByteArray", exceptionBytes);
       Context
         .getCommandContext()
-        .getDbSqlSession()
+        .getDbEntityManager()
         .insert(byteArray);
       exceptionByteArrayId = byteArray.getId();
       exceptionByteArray = byteArray;
@@ -392,7 +413,7 @@ public abstract class JobEntity implements Serializable, Job, PersistentObject, 
     if ((exceptionByteArray == null) && (exceptionByteArrayId != null)) {
       exceptionByteArray = Context
         .getCommandContext()
-        .getDbSqlSession()
+        .getDbEntityManager()
         .selectById(ByteArrayEntity.class, exceptionByteArrayId);
     }
     return exceptionByteArray;
@@ -404,6 +425,41 @@ public abstract class JobEntity implements Serializable, Job, PersistentObject, 
 
   public void setDeploymentId(String deploymentId) {
     this.deploymentId = deploymentId;
+  }
+
+  public boolean isInInconsistentLockState() {
+    return (lockOwner != null && lockExpirationTime == null)
+        || (retries == 0 && (lockOwner != null || lockExpirationTime != null));
+  }
+
+  public void resetLock() {
+    this.lockOwner = null;
+    this.lockExpirationTime = null;
+  }
+
+  @Override
+  public int hashCode() {
+    final int prime = 31;
+    int result = 1;
+    result = prime * result + ((id == null) ? 0 : id.hashCode());
+    return result;
+  }
+
+  @Override
+  public boolean equals(Object obj) {
+    if (this == obj)
+      return true;
+    if (obj == null)
+      return false;
+    if (getClass() != obj.getClass())
+      return false;
+    JobEntity other = (JobEntity) obj;
+    if (id == null) {
+      if (other.id != null)
+        return false;
+    } else if (!id.equals(other.id))
+      return false;
+    return true;
   }
 
   @Override

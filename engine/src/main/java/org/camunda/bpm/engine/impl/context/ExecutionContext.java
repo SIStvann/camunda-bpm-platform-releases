@@ -1,9 +1,9 @@
 /* Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -13,25 +13,24 @@
 
 package org.camunda.bpm.engine.impl.context;
 
-import org.camunda.bpm.engine.impl.persistence.entity.DeploymentEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
-import org.camunda.bpm.engine.impl.pvm.runtime.InterpretableExecution;
 
 
 /**
+ * An {@link ExecutionEntity} execution context. Provides access to the process instance and the deployment.
+ *
+ * @deprecated since 7.2: use {@link BpmnExecutionContext}
+ *
  * @author Tom Baeyens
+ * @author Roman Smirnov
+ * @author Daniel Meyer
  */
-public class ExecutionContext {
+@Deprecated
+public class ExecutionContext extends CoreExecutionContext<ExecutionEntity> {
 
-  protected ExecutionEntity execution;
-  
-  public ExecutionContext(InterpretableExecution execution) {
-    this.execution = (ExecutionEntity) execution;
-  }
-  
-  public ExecutionEntity getExecution() {
-    return execution;
+  public ExecutionContext(ExecutionEntity execution) {
+    super(execution);
   }
 
   public ExecutionEntity getProcessInstance() {
@@ -42,12 +41,7 @@ public class ExecutionContext {
     return (ProcessDefinitionEntity) execution.getProcessDefinition();
   }
 
-  public DeploymentEntity getDeployment() {
-    String deploymentId = getProcessDefinition().getDeploymentId();
-    DeploymentEntity deployment = Context
-      .getCommandContext()
-      .getDeploymentManager()
-      .findDeploymentById(deploymentId);
-    return deployment;
+  protected String getDeploymentId() {
+    return getProcessDefinition().getDeploymentId();
   }
 }

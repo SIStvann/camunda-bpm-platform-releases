@@ -86,6 +86,15 @@ public interface ActivityExecution extends DelegateExecution {
   PvmProcessInstance createSubProcessInstance(PvmProcessDefinition processDefinition, String businessKey);
 
   /**
+   * @see #createSubProcessInstance(PvmProcessDefinition)
+   *
+   * @param processDefinition The {@link PvmProcessDefinition} of the subprocess.
+   * @param businessKey the business key of the process instance
+   * @param caseInstanceId the case instance id of the process instance
+   */
+  PvmProcessInstance createSubProcessInstance(PvmProcessDefinition processDefinition, String businessKey, String caseInstanceId);
+
+  /**
    * returns the parent of this execution, or null if there no parent.
    */
   ActivityExecution getParent();
@@ -99,6 +108,12 @@ public interface ActivityExecution extends DelegateExecution {
    * ends this execution.
    */
   void end(boolean isScopeComplete);
+
+  /**
+   * Execution finished compensation. Removes this
+   * execution and notifies listeners.
+   */
+  void endCompensation();
 
   /* State management */
 
@@ -130,7 +145,7 @@ public interface ActivityExecution extends DelegateExecution {
   /**
    * returns whether this execution is a process instance or not.
    */
-  boolean isProcessInstance();
+  boolean isProcessInstanceExecution();
 
   /**
    * Inactivates this execution.
@@ -168,7 +183,7 @@ public interface ActivityExecution extends DelegateExecution {
    * Takes the given outgoing transitions, and potentially reusing
    * the given list of executions that were previously joined.
    */
-  void takeAll(List<PvmTransition> outgoingTransitions, List<ActivityExecution> joinedExecutions);
+  void takeAll(List<PvmTransition> outgoingTransitions, List<? extends ActivityExecution> joinedExecutions);
 
   /**
    * Executes the {@link ActivityBehavior} associated with the given activity.
@@ -183,5 +198,13 @@ public interface ActivityExecution extends DelegateExecution {
 
   /** An activity which is to be started next. */
   PvmActivity getNextActivity();
+
+  void remove();
+
+  void signal(String string, Object signalData);
+
+  void cancelScope(String string);
+
+  void setActivity(PvmActivity cancelBoundaryEvent);
 
 }

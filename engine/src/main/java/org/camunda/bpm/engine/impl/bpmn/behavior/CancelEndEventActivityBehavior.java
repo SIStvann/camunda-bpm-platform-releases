@@ -13,12 +13,12 @@
 
 package org.camunda.bpm.engine.impl.bpmn.behavior;
 
-import org.camunda.bpm.engine.ProcessEngineException;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
 import org.camunda.bpm.engine.impl.bpmn.helper.ScopeUtil;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityExecution;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
-import org.camunda.bpm.engine.impl.pvm.runtime.InterpretableExecution;
 
 
 /**
@@ -34,18 +34,16 @@ public class CancelEndEventActivityBehavior extends FlowNodeActivityBehavior {
     ActivityImpl cancelBoundaryEvent = ScopeUtil
       .findInParentScopesByBehaviorType((ActivityImpl) execution.getActivity(), CancelBoundaryEventActivityBehavior.class);
 
-    if(cancelBoundaryEvent == null) {
-      throw new ProcessEngineException("Could not find cancel boundary event for cancel end event "+execution.getActivity());
-    }
+    ensureNotNull("Could not find cancel boundary event for cancel end event " + execution.getActivity(), "cancelBoundaryEvent", cancelBoundaryEvent);
 
-    ActivityExecution scopeExecution = ScopeUtil.findScopeExecutionForScope((ExecutionEntity)execution, cancelBoundaryEvent.getParentActivity());
+    ActivityExecution scopeExecution = ScopeUtil.findScopeExecutionForScope((ExecutionEntity) execution, cancelBoundaryEvent.getParentActivity());
 
     // end all executions and process instances in the scope of the transaction
-    ((InterpretableExecution)scopeExecution).cancelScope("cancel end event fired");
+    scopeExecution.cancelScope("cancel end event fired");
     scopeExecution.interruptScope("cancel end event fired");
 
     // the scope execution executes the boundary event
-    InterpretableExecution outgoingExecution = (InterpretableExecution)scopeExecution;
+    ActivityExecution outgoingExecution = scopeExecution;
     outgoingExecution.setActivity(cancelBoundaryEvent);
     outgoingExecution.setActive(true);
 

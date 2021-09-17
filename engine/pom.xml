@@ -9,10 +9,23 @@
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-parent</artifactId>
     <relativePath>../parent</relativePath>
-    <version>7.1.0-Final</version>
+    <version>7.2.0</version>
   </parent>
 
   <dependencies>
+
+    <!-- camunda dependencies -->
+
+    <dependency>
+      <groupId>org.camunda.bpm.model</groupId>
+      <artifactId>camunda-bpmn-model</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.camunda.bpm.model</groupId>
+      <artifactId>camunda-cmmn-model</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-email</artifactId>
@@ -31,7 +44,7 @@
       <groupId>org.springframework</groupId>
       <artifactId>spring-beans</artifactId>
     </dependency>
-    
+
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
@@ -44,7 +57,7 @@
     </dependency>
     <dependency>
       <groupId>org.codehaus.groovy</groupId>
-      <artifactId>groovy</artifactId>
+      <artifactId>groovy-all</artifactId>
       <scope>provided</scope>
     </dependency>
     <dependency>
@@ -57,7 +70,7 @@
       <artifactId>geronimo-jta_1.1_spec</artifactId>
       <scope>provided</scope>
     </dependency>
-    
+
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
@@ -87,7 +100,7 @@
     <dependency>
       <groupId>joda-time</groupId>
       <artifactId>joda-time</artifactId>
-    </dependency> 
+    </dependency>
 
     <dependency>
       <groupId>org.jboss.spec</groupId>
@@ -95,13 +108,13 @@
       <type>pom</type>
       <scope>provided</scope>
     </dependency>
-    
+
     <dependency>
       <groupId>org.springframework</groupId>
       <artifactId>spring-test</artifactId>
       <scope>test</scope>
     </dependency>
-    
+
     <dependency>
       <groupId>commons-dbcp</groupId>
       <artifactId>commons-dbcp</artifactId>
@@ -113,31 +126,48 @@
       <artifactId>catalina</artifactId>
       <scope>provided</scope>
     </dependency>
-    
+
     <dependency>
       <groupId>org.jboss</groupId>
       <artifactId>jboss-vfs</artifactId>
       <version>3.1.0.Final</version>
-      <scope>provided</scope>    
+      <scope>provided</scope>
     </dependency>
-    
+
     <dependency>
-      <groupId>org.camunda.bpm.model</groupId>
-      <artifactId>camunda-bpmn-model</artifactId>
+      <groupId>org.python</groupId>
+      <artifactId>jython</artifactId>
+      <scope>provided</scope>
     </dependency>
-       
+
+    <dependency>
+      <groupId>org.jruby</groupId>
+      <artifactId>jruby-complete</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.hamcrest</groupId>
+      <artifactId>hamcrest-library</artifactId>
+      <scope>test</scope>
+    </dependency>
+
   </dependencies>
-  
+
+
   <properties>
       <history.level>full</history.level>
       <mail.server.port>5025</mail.server.port>
-  
+
       <camunda.artifact>
         org.camunda.bpm
       </camunda.artifact>
-      <camunda.osgi.import.defaults>
-        org.camunda.bpm.model*
-      </camunda.osgi.import.defaults>
+      <camunda.osgi.export.pkg>
+        ${camunda.artifact};${camunda.osgi.version};-noimport:=true,
+        ${camunda.artifact}.application.*;${camunda.osgi.version};-noimport:=true,
+        ${camunda.artifact}.container.*;${camunda.osgi.version};-noimport:=true,
+        ${camunda.artifact}.engine.*
+      </camunda.osgi.export.pkg>
       <camunda.osgi.import.additional>
           junit*;resolution:=optional,
           org.junit*;resolution:=optional,
@@ -171,11 +201,12 @@
           <include>**/camunda.cfg.xml</include>
           <include>**/*camunda.cfg.xml</include>
           <include>**/camunda.cfg.db.xml</include>
+          <include>**/camunda.cfg.plugins.xml</include>
         </includes>
       </testResource>
     </testResources>
-        
-    <plugins>     
+
+    <plugins>
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
@@ -187,14 +218,6 @@
 
             <exclude>**/RepeatingServiceTaskTest.java</exclude>
           </excludes>
-        </configuration>
-      </plugin>
-      <plugin>
-        <artifactId>maven-jar-plugin</artifactId>
-        <configuration>
-          <archive>
-            <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
-          </archive>
         </configuration>
       </plugin>
       <plugin>
@@ -252,16 +275,15 @@
       </plugins>
     </pluginManagement>
   </build>
-  
-  <profiles>
 
+  <profiles>
     <profile>
       <id>checkspring</id>
       <properties>
         <skipTests>true</skipTests>
       </properties>
     </profile>
-    
+
     <profile>
       <id>create-test-jar</id>
       <build>
@@ -276,7 +298,7 @@
                 </goals>
               </execution>
             </executions>
-          </plugin>         
+          </plugin>
         </plugins>
       </build>
     </profile>
@@ -311,15 +333,15 @@
         </plugins>
       </build>
     </profile>
-    
+
     <!--  database qa profile -->
     <profile>
       <id>database</id>
-      
+
       <properties>
         <db.properties.file>${user.home}/.camunda/jdbc/engine.${database}.properties</db.properties.file>
       </properties>
-      
+
       <activation>
         <property>
           <name>database</name>
@@ -342,12 +364,12 @@
                   <goal>run</goal>
                 </goals>
                 <configuration>
-                  <tasks>                                     
+                  <tasks>
                     <echo message="updating configuration to db ${database}" />
                     <copy file="target/test-classes/camunda.cfg.db.xml" tofile="target/test-classes/camunda.cfg.xml" overwrite="true">
                       <filterset filtersfile="${db.properties.file}" />
                     </copy>
-                    
+
                     <echo message="dropping schema in ${database}" />
                     <java classname="org.camunda.bpm.engine.impl.db.DbSchemaDrop" classpathref="maven.test.classpath" />
                   </tasks>
@@ -417,6 +439,9 @@
                 <exclude>**/TaskEventsTest.java</exclude>
                 <exclude>**/OperationLog*.java</exclude>
                 <exclude>**/HistoricIncident*Test.java</exclude>
+                <exclude>**/HistoricVariableDataFormatTest.java</exclude>
+                <exclude>**/HistoricVariableInstanceScopeTest.java</exclude>
+                <exclude>**/HistoricTaskInstanceQueryTest.java</exclude>
               </excludes>
             </configuration>
           </plugin>
@@ -446,6 +471,8 @@
                 <exclude>**/OperationLog*.java</exclude>
                 <exclude>**/HistoricVariableInstanceScopeTest.java</exclude>
                 <exclude>**/HistoricIncident*Test.java</exclude>
+                <exclude>**/HistoricVariableDataFormatTest.java</exclude>
+                <exclude>**/Historic*QueryTest.java</exclude>
               </excludes>
             </configuration>
           </plugin>
@@ -533,7 +560,7 @@
         </dependency>
       </dependencies>
     </profile>
-  
+
   <profile>
       <id>oracle10g</id>
       <activation>
@@ -558,8 +585,8 @@
               <trimStackTrace>false</trimStackTrace>
               <redirectTestOutputToFile>true</redirectTestOutputToFile>
               <excludes>
-                <exclude>**/ManagementServiceTest.java</exclude>    
-                                
+                <exclude>**/ManagementServiceTest.java</exclude>
+
                 <exclude>**/*TestCase.java</exclude>
                 <exclude>**/RepeatingServiceTaskTest.java</exclude>
               </excludes>
@@ -568,7 +595,7 @@
         </plugins>
       </build>
     </profile>
-    
+
     <profile>
       <id>db2</id>
       <activation>
@@ -636,7 +663,25 @@
         </dependency>
        </dependencies>
     </profile>
-    
+
+    <profile>
+      <id>mariadb</id>
+      <activation>
+        <property>
+          <name>database</name>
+          <value>mariadb</value>
+        </property>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>org.mariadb.jdbc</groupId>
+          <artifactId>mariadb-java-client</artifactId>
+          <version>1.1.7</version>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+    </profile>
+
     <profile>
       <id>postgresql</id>
         <activation>
@@ -671,30 +716,53 @@
        </dependencies>
     </profile>
 
+    <!-- check for api differences between latest minor release -->
     <profile>
-      <!-- check for official api differences between latest major release -->
-      <id>check-api-compability</id>
+      <id>check-api-compatibility</id>
       <build>
         <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <skipTests>true</skipTests>
+            </configuration>
+          </plugin>
           <plugin>
             <groupId>org.codehaus.mojo</groupId>
             <artifactId>clirr-maven-plugin</artifactId>
             <configuration>
-              <comparisonVersion>7.0.0-Final</comparisonVersion>
-              <textOutputFile>${project.build.directory}/clirr.txt</textOutputFile>
-              <failOnError>false</failOnError>
-              <includes>
-                <include>org/camunda/bpm/application/*</include>
-                <include>org/camunda/bpm/container/*</include>
-                <include>org/camunda/bpm/engine/*</include>
-              </includes>
+              <comparisonVersion>7.1.0-Final</comparisonVersion>
+              <logResults>true</logResults>
+              <excludes>
+                <exclude>org/camunda/bpm/*/impl/**</exclude>
+                <exclude>org/camunda/bpm/engine/test/ProcessEngineRule</exclude>
+              </excludes>
             </configuration>
             <executions>
               <execution>
+                <id>all</id>
                 <phase>verify</phase>
                 <goals>
                   <goal>check-no-fork</goal>
                 </goals>
+                <configuration>
+                  <textOutputFile>${project.build.directory}/clirr-all.txt</textOutputFile>
+                  <failOnWarning>false</failOnWarning>
+                  <failOnError>false</failOnError>
+                </configuration>
+              </execution>
+              <execution>
+                <id>restrictive</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>check-no-fork</goal>
+                </goals>
+                <configuration>
+                  <textOutputFile>${project.build.directory}/clirr-restrictive.txt</textOutputFile>
+                  <failOnWarning>true</failOnWarning>
+                  <ignoredDifferencesFile>.clirr-jenkins-ignore.xml</ignoredDifferencesFile>
+                </configuration>
               </execution>
             </executions>
           </plugin>
@@ -712,6 +780,56 @@
         </dependency>
       </dependencies>
     </profile>
+
+    <profile>
+      <id>check-plugins</id>
+      <dependencies>
+        <dependency>
+          <groupId>org.camunda.bpm</groupId>
+          <artifactId>camunda-engine-plugin-spin</artifactId>
+        </dependency>
+        <dependency>
+          <groupId>org.camunda.spin</groupId>
+          <artifactId>camunda-spin-dataformat-all</artifactId>
+        </dependency>
+        <dependency>
+          <groupId>org.camunda.bpm</groupId>
+          <artifactId>camunda-engine-plugin-connect</artifactId>
+        </dependency>
+        <dependency>
+          <groupId>org.camunda.connect</groupId>
+          <artifactId>camunda-connect-connectors-all</artifactId>
+        </dependency>
+      </dependencies>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <!--
+              only worked with this version, there might be a bug with antrun
+              see http://jira.codehaus.org/browse/MANTRUN-109
+            -->
+            <version>1.4</version>
+            <executions>
+              <execution>
+                <id>copy-camunda-cfg</id>
+                <phase>process-test-classes</phase>
+                <goals>
+                  <goal>run</goal>
+                </goals>
+                <configuration>
+                  <tasks>
+                    <echo message="Copying camunda.cfg.plugins.xml to camunda.cfg.xml" />
+                    <copy file="target/test-classes/camunda.cfg.plugins.xml" tofile="target/test-classes/camunda.cfg.xml" overwrite="true" />
+                  </tasks>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
   </profiles>
 
 </project>

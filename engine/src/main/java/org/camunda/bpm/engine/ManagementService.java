@@ -540,7 +540,17 @@ public interface ManagementService {
    */
   void setProperty(String name, String value);
 
-  /** programmatic schema update on a given connection returning feedback about what happened */
+  /**
+   * Deletes a property by name. If the property does not exist, the request is ignored.
+   *
+   * @param name the name of the property to delete
+   */
+  void deleteProperty(String name);
+
+  /** programmatic schema update on a given connection returning feedback about what happened
+   *
+   *  Note: will always return an empty string
+   */
   String databaseSchemaUpgrade(Connection connection, String catalog, String schema);
 
   /**
@@ -577,5 +587,12 @@ public interface ManagementService {
    * jobs for the given deployment will no longer get acquired.
    */
   void unregisterDeploymentForJobExecutor(String deploymentId);
+
+  /**
+   * Get the configured history level for the process engine.
+   *
+   * @return the history level
+   */
+  int getHistoryLevel();
 
 }

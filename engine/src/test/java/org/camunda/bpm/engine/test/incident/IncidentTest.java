@@ -18,7 +18,10 @@ import java.util.Map;
 
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.incident.FailedJobIncidentHandler;
+import org.camunda.bpm.engine.impl.interceptor.Command;
+import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.management.JobDefinition;
 import org.camunda.bpm.engine.runtime.Execution;
@@ -383,6 +386,84 @@ public class IncidentTest extends PluggableProcessEngineTestCase {
     assertEquals(1, query.count());
     tmp = query.singleResult();
     assertEquals(incident.getId(), tmp.getId());
+
+  }
+
+  @Deployment
+  public void testIncidentUpdateAfterCompaction() {
+    String processInstanceId = runtimeService.startProcessInstanceByKey("process").getId();
+
+    executeAvailableJobs();
+
+    Incident incident = runtimeService.createIncidentQuery().singleResult();
+    assertNotNull(incident);
+    assertNotSame(processInstanceId, incident.getExecutionId());
+
+    runtimeService.correlateMessage("Message");
+
+    incident = runtimeService.createIncidentQuery().singleResult();
+    assertNotNull(incident);
+
+    // incident updated with new execution id after execution tree is compacted
+    assertEquals(processInstanceId, incident.getExecutionId());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/incident/IncidentTest.testShouldCreateOneIncident.bpmn"})
+  public void testDoNotSetNegativeRetries() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("failingProcess");
+
+    executeAvailableJobs();
+
+    // it exists a job with 0 retries and an incident
+    Job job = managementService.createJobQuery().singleResult();
+    assertEquals(0, job.getRetries());
+
+    assertEquals(1, runtimeService.createIncidentQuery().count());
+
+    // it should not be possible to set negative retries
+    final JobEntity jobEntity = (JobEntity) job;
+    processEngineConfiguration
+      .getCommandExecutorTxRequired()
+      .execute(new Command<Void>() {
+        public Void execute(CommandContext commandContext) {
+          jobEntity.setRetries(-100);
+          return null;
+        }
+      });
+
+    assertEquals(0, job.getRetries());
+
+    // retries should still be 0 after execution this job again
+    try {
+      managementService.executeJob(job.getId());
+      fail("Exception expected");
+    }
+    catch (ProcessEngineException e) {
+      // expected
+    }
+
+    job = managementService.createJobQuery().singleResult();
+    assertEquals(0, job.getRetries());
+
+    // also no new incident was created
+    assertEquals(1, runtimeService.createIncidentQuery().count());
+
+    // it should not be possible to set the retries to a negative number with the management service
+    try {
+      managementService.setJobRetries(job.getId(), -200);
+      fail("Exception expected");
+    }
+    catch (ProcessEngineException e) {
+      // expected
+    }
+
+    try {
+      managementService.setJobRetriesByJobDefinitionId(job.getJobDefinitionId(), -300);
+      fail("Exception expected");
+    }
+    catch (ProcessEngineException e) {
+      // expected
+    }
 
   }
 

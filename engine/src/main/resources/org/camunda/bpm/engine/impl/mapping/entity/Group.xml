@@ -7,12 +7,12 @@
   <!-- GROUP INSERT -->
 
   <insert id="insertGroup" parameterType="org.camunda.bpm.engine.impl.persistence.entity.GroupEntity">
-    insert into ${prefix}ACT_ID_GROUP (ID_, REV_, NAME_, TYPE_)
+    insert into ${prefix}ACT_ID_GROUP (ID_, NAME_, TYPE_, REV_)
     values (
       #{id ,jdbcType=VARCHAR},
-      1, 
       #{name ,jdbcType=VARCHAR},
-      #{type ,jdbcType=VARCHAR}
+      #{type ,jdbcType=VARCHAR},
+      1
     )
   </insert>
 
@@ -87,6 +87,13 @@
     <where>
       <if test="id != null">
         RES.ID_ = #{id}
+      </if>
+      <if test="ids != null &amp;&amp; ids.length > 0">
+        and RES.ID_ in
+        <foreach item="item" index="index" collection="ids"
+                 open="(" separator="," close=")">
+          #{item}
+        </foreach>
       </if>
       <if test="name != null">
         and RES.NAME_ = #{name}

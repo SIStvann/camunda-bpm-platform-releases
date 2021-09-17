@@ -1,3 +1,15 @@
+/* Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package org.camunda.bpm.engine.rest;
 
 import static com.jayway.restassured.RestAssured.expect;
@@ -5,6 +17,7 @@ import static com.jayway.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.junit.matchers.JUnitMatchers.hasItems;
+import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
@@ -18,8 +31,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 
+import org.camunda.bpm.engine.CaseService;
+import org.camunda.bpm.engine.FilterService;
 import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.IdentityService;
 import org.camunda.bpm.engine.ManagementService;
@@ -27,6 +43,8 @@ import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
+import org.camunda.bpm.engine.filter.Filter;
+import org.camunda.bpm.engine.filter.FilterQuery;
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
 import org.camunda.bpm.engine.history.HistoricActivityInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricActivityStatistics;
@@ -47,14 +65,23 @@ import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.identity.UserQuery;
 import org.camunda.bpm.engine.management.JobDefinition;
 import org.camunda.bpm.engine.management.JobDefinitionQuery;
+import org.camunda.bpm.engine.repository.CaseDefinition;
+import org.camunda.bpm.engine.repository.CaseDefinitionQuery;
+import org.camunda.bpm.engine.repository.Deployment;
+import org.camunda.bpm.engine.repository.DeploymentQuery;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.helper.EqualsMap;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
+import org.camunda.bpm.engine.runtime.CaseExecution;
+import org.camunda.bpm.engine.runtime.CaseExecutionQuery;
+import org.camunda.bpm.engine.runtime.CaseInstance;
+import org.camunda.bpm.engine.runtime.CaseInstanceQuery;
 import org.camunda.bpm.engine.runtime.Execution;
 import org.camunda.bpm.engine.runtime.ExecutionQuery;
 import org.camunda.bpm.engine.runtime.Incident;
 import org.camunda.bpm.engine.runtime.IncidentQuery;
+import org.camunda.bpm.engine.runtime.MessageCorrelationBuilder;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
 import org.camunda.bpm.engine.runtime.VariableInstance;
@@ -63,6 +90,7 @@ import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.Matchers;
 
 import com.jayway.restassured.http.ContentType;
 
@@ -83,8 +111,16 @@ public abstract class AbstractProcessEngineRestServiceTest extends
   protected static final String INCIDENT_URL = SINGLE_ENGINE_URL + "/incident";
   protected static final String AUTHORIZATION_URL = SINGLE_ENGINE_URL + AuthorizationRestService.PATH;
   protected static final String AUTHORIZATION_CHECK_URL = AUTHORIZATION_URL + "/check";
+  protected static final String DEPLOYMENT_REST_SERVICE_URL = SINGLE_ENGINE_URL + DeploymentRestService.PATH;
+  protected static final String DEPLOYMENT_URL = DEPLOYMENT_REST_SERVICE_URL + "/{id}";
 
   protected static final String JOB_DEFINITION_URL = SINGLE_ENGINE_URL + "/job-definition";
+
+  protected static final String CASE_DEFINITION_URL = SINGLE_ENGINE_URL + "/case-definition";
+  protected static final String CASE_INSTANCE_URL = SINGLE_ENGINE_URL + "/case-instance";
+  protected static final String CASE_EXECUTION_URL = SINGLE_ENGINE_URL + "/case-execution";
+
+  protected static final String FILTER_URL = SINGLE_ENGINE_URL + "/filter";
 
   protected static final String HISTORY_URL = SINGLE_ENGINE_URL + "/history";
   protected static final String HISTORY_ACTIVITY_INSTANCE_URL = HISTORY_URL + "/activity-instance";
@@ -104,6 +140,9 @@ public abstract class AbstractProcessEngineRestServiceTest extends
   private IdentityService mockIdentityService;
   private ManagementService mockManagementService;
   private HistoryService mockHistoryService;
+  private CaseService mockCaseService;
+  private FilterService mockFilterService;
+  private MessageCorrelationBuilder mockMessageCorrelationBuilder;
 
   @Before
   public void setUpRuntimeData() {
@@ -114,6 +153,8 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     mockIdentityService = mock(IdentityService.class);
     mockManagementService = mock(ManagementService.class);
     mockHistoryService = mock(HistoryService.class);
+    mockCaseService = mock(CaseService.class);
+    mockFilterService = mock(FilterService.class);
 
     when(namedProcessEngine.getRepositoryService()).thenReturn(mockRepoService);
     when(namedProcessEngine.getRuntimeService()).thenReturn(mockRuntimeService);
@@ -121,6 +162,8 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     when(namedProcessEngine.getIdentityService()).thenReturn(mockIdentityService);
     when(namedProcessEngine.getManagementService()).thenReturn(mockManagementService);
     when(namedProcessEngine.getHistoryService()).thenReturn(mockHistoryService);
+    when(namedProcessEngine.getCaseService()).thenReturn(mockCaseService);
+    when(namedProcessEngine.getFilterService()).thenReturn(mockFilterService);
 
     createProcessDefinitionMock();
     createProcessInstanceMock();
@@ -130,6 +173,12 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     createVariableInstanceMock();
     createJobDefinitionMock();
     createIncidentMock();
+    createDeploymentMock();
+    createMessageCorrelationBuilderMock();
+    createCaseDefinitionMock();
+    createCaseInstanceMock();
+    createCaseExecutionMock();
+    createFilterMock();
 
     createHistoricActivityInstanceMock();
     createHistoricProcessInstanceMock();
@@ -140,11 +189,41 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     createHistoricIncidentMock();
   }
 
-
   private void createProcessDefinitionMock() {
     ProcessDefinition mockDefinition = MockProvider.createMockDefinition();
 
     when(mockRepoService.getProcessDefinition(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))).thenReturn(mockDefinition);
+  }
+
+
+  private void createCaseDefinitionMock() {
+    List<CaseDefinition> caseDefinitions = new ArrayList<CaseDefinition>();
+    CaseDefinition mockCaseDefinition = MockProvider.createMockCaseDefinition();
+    caseDefinitions.add(mockCaseDefinition);
+
+    CaseDefinitionQuery mockCaseDefinitionQuery = mock(CaseDefinitionQuery.class);
+    when(mockCaseDefinitionQuery.list()).thenReturn(caseDefinitions);
+    when(mockRepoService.createCaseDefinitionQuery()).thenReturn(mockCaseDefinitionQuery);
+  }
+
+  private void createCaseInstanceMock() {
+    List<CaseInstance> caseInstances = new ArrayList<CaseInstance>();
+    CaseInstance mockCaseInstance = MockProvider.createMockCaseInstance();
+    caseInstances.add(mockCaseInstance);
+
+    CaseInstanceQuery mockCaseInstanceQuery = mock(CaseInstanceQuery.class);
+    when(mockCaseInstanceQuery.list()).thenReturn(caseInstances);
+    when(mockCaseService.createCaseInstanceQuery()).thenReturn(mockCaseInstanceQuery);
+  }
+
+  private void createCaseExecutionMock() {
+    List<CaseExecution> caseExecutions = new ArrayList<CaseExecution>();
+    CaseExecution mockCaseExecution = MockProvider.createMockCaseExecution();
+    caseExecutions.add(mockCaseExecution);
+
+    CaseExecutionQuery mockCaseExecutionQuery = mock(CaseExecutionQuery.class);
+    when(mockCaseExecutionQuery.list()).thenReturn(caseExecutions);
+    when(mockCaseService.createCaseExecutionQuery()).thenReturn(mockCaseExecutionQuery);
   }
 
   private void createProcessInstanceMock() {
@@ -170,6 +249,7 @@ public abstract class AbstractProcessEngineRestServiceTest extends
 
     TaskQuery mockTaskQuery = mock(TaskQuery.class);
     when(mockTaskQuery.taskId(eq(MockProvider.EXAMPLE_TASK_ID))).thenReturn(mockTaskQuery);
+    when(mockTaskQuery.initializeFormKeys()).thenReturn(mockTaskQuery);
     when(mockTaskQuery.singleResult()).thenReturn(mockTask);
     when(mockTaskService.createTaskQuery()).thenReturn(mockTaskQuery);
   }
@@ -197,7 +277,6 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     when(mockIdentityService.createUserQuery()).thenReturn(sampleUserQuery);
   }
 
-
   private void createVariableInstanceMock() {
     List<VariableInstance> variables = new ArrayList<VariableInstance>();
     VariableInstance mockInstance = MockProvider.createMockVariableInstance();
@@ -223,6 +302,18 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     List<Incident> incidents = MockProvider.createMockIncidents();
     when(mockIncidentQuery.list()).thenReturn(incidents);
     when(mockRuntimeService.createIncidentQuery()).thenReturn(mockIncidentQuery);
+  }
+
+  private void createMessageCorrelationBuilderMock() {
+    mockMessageCorrelationBuilder = mock(MessageCorrelationBuilder.class);
+
+    when(mockRuntimeService.createMessageCorrelation(anyString())).thenReturn(mockMessageCorrelationBuilder);
+    when(mockMessageCorrelationBuilder.processInstanceId(anyString())).thenReturn(mockMessageCorrelationBuilder);
+    when(mockMessageCorrelationBuilder.processInstanceBusinessKey(anyString())).thenReturn(mockMessageCorrelationBuilder);
+    when(mockMessageCorrelationBuilder.processInstanceVariableEquals(anyString(), any())).thenReturn(mockMessageCorrelationBuilder);
+    when(mockMessageCorrelationBuilder.setVariables(Matchers.<Map<String,Object>>any())).thenReturn(mockMessageCorrelationBuilder);
+    when(mockMessageCorrelationBuilder.setVariable(anyString(), any())).thenReturn(mockMessageCorrelationBuilder);
+
   }
 
   private void createHistoricActivityInstanceMock() {
@@ -286,6 +377,26 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     when(mockHistoryService.createHistoricIncidentQuery()).thenReturn(mockHistoricIncidentQuery);
   }
 
+  private void createDeploymentMock() {
+    Deployment mockDeployment = MockProvider.createMockDeployment();
+
+    DeploymentQuery deploymentQueryMock = mock(DeploymentQuery.class);
+    when(deploymentQueryMock.deploymentId(anyString())).thenReturn(deploymentQueryMock);
+    when(deploymentQueryMock.singleResult()).thenReturn(mockDeployment);
+
+    when(mockRepoService.createDeploymentQuery()).thenReturn(deploymentQueryMock);
+  }
+
+  private void createFilterMock() {
+    List<Filter> filters = new ArrayList<Filter>();
+    Filter mockFilter = MockProvider.createMockFilter();
+    filters.add(mockFilter);
+
+    FilterQuery mockFilterQuery = mock(FilterQuery.class);
+    when(mockFilterQuery.list()).thenReturn(filters);
+    when(mockFilterService.createFilterQuery()).thenReturn(mockFilterQuery);
+  }
+
   @Test
   public void testNonExistingEngineAccess() {
     given().pathParam("name", MockProvider.NON_EXISTING_PROCESS_ENGINE_NAME)
@@ -334,6 +445,7 @@ public abstract class AbstractProcessEngineRestServiceTest extends
   public void testTaskServiceEngineAccess() {
     given().pathParam("name", EXAMPLE_ENGINE_NAME)
       .pathParam("id", MockProvider.EXAMPLE_TASK_ID)
+      .header("accept", MediaType.APPLICATION_JSON)
     .then().expect()
       .statusCode(Status.OK.getStatusCode())
     .when().get(TASK_URL);
@@ -364,8 +476,9 @@ public abstract class AbstractProcessEngineRestServiceTest extends
       .then().expect().statusCode(Status.NO_CONTENT.getStatusCode())
       .when().post(MESSAGE_URL);
 
-    verify(mockRuntimeService).correlateMessage(eq(messageName), eq((String) null),
-        argThat(new EqualsMap(null)), argThat(new EqualsMap(null)));
+    verify(mockRuntimeService).createMessageCorrelation(eq(messageName));
+    verify(mockMessageCorrelationBuilder).setVariables(argThat(new EqualsMap(null)));
+    verify(mockMessageCorrelationBuilder).processInstanceBusinessKey(eq((String) null));
     verifyZeroInteractions(processEngine);
   }
 
@@ -545,6 +658,74 @@ public abstract class AbstractProcessEngineRestServiceTest extends
         .get(HISTORY_INCIDENT_URL);
 
     verify(mockHistoryService).createHistoricIncidentQuery();
+    verifyZeroInteractions(processEngine);
+  }
+
+  @Test
+  public void testDeploymentRestServiceEngineAccess() {
+    given().pathParam("name", EXAMPLE_ENGINE_NAME)
+      .pathParam("id", MockProvider.EXAMPLE_DEPLOYMENT_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when().get(DEPLOYMENT_URL);
+
+    verify(mockRepoService).createDeploymentQuery();
+    verifyZeroInteractions(processEngine);
+  }
+
+  @Test
+  public void testCaseDefinitionAccess() {
+    given()
+      .pathParam("name", EXAMPLE_ENGINE_NAME)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .get(CASE_DEFINITION_URL);
+
+    verify(mockRepoService).createCaseDefinitionQuery();
+    verifyZeroInteractions(processEngine);
+  }
+
+  @Test
+  public void testCaseInstanceAccess() {
+    given()
+      .pathParam("name", EXAMPLE_ENGINE_NAME)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .get(CASE_INSTANCE_URL);
+
+    verify(mockCaseService).createCaseInstanceQuery();
+    verifyZeroInteractions(processEngine);
+  }
+
+  @Test
+  public void testCaseExecutionAccess() {
+    given()
+      .pathParam("name", EXAMPLE_ENGINE_NAME)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .get(CASE_EXECUTION_URL);
+
+    verify(mockCaseService).createCaseExecutionQuery();
+    verifyZeroInteractions(processEngine);
+  }
+
+  @Test
+  public void testFilterAccess() {
+    given()
+      .pathParam("name", EXAMPLE_ENGINE_NAME)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .get(FILTER_URL);
+
+    verify(mockFilterService).createFilterQuery();
     verifyZeroInteractions(processEngine);
   }
 }

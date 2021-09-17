@@ -12,7 +12,7 @@
  */
 package org.camunda.bpm.container.impl.jmx.deployment.util;
 
-import org.camunda.bpm.container.impl.jmx.deployment.scanning.ProcessApplicationScanningUtil;
+import org.camunda.bpm.container.impl.deployment.scanning.ProcessApplicationScanningUtil;
 import org.junit.Test;
 
 import java.net.MalformedURLException;
@@ -39,8 +39,38 @@ public class VfsProcessApplicationScannerTest {
     // expect: finds only the BPMN process file and not treats the 'bpmn' folder
     assertEquals(1, scanResult.size());
     String processFileName = "VfsProcessScannerTest.bpmn20.xml";
-    assertTrue("'" + processFileName + "' found", contains(scanResult, processFileName));
-    assertFalse("'bpmn' folder in resource path not found", contains(scanResult, "bpmn"));
+    assertTrue("'" + processFileName + "'not found", contains(scanResult, processFileName));
+    assertFalse("'bpmn' folder in resource path found", contains(scanResult, "processResource.txt"));
+  }
+
+  @Test
+  public void testScanProcessArchivePathForCmmnResources() throws MalformedURLException {
+
+    // given: scanning the relative test resource root
+    URLClassLoader classLoader = new URLClassLoader(new URL[]{new URL("file:")});
+    String processRootPath = "classpath:org/camunda/bpm/container/impl/jmx/deployment/case/";
+    Map<String, byte[]> scanResult = ProcessApplicationScanningUtil.findResources(classLoader, processRootPath, null);
+
+    // expect: finds only the CMMN process file and not treats the 'cmmn' folder
+    assertEquals(1, scanResult.size());
+    String processFileName = "VfsProcessScannerTest.cmmn";
+    assertTrue("'" + processFileName + "' not found", contains(scanResult, processFileName));
+    assertFalse("'cmmn' in resource path found", contains(scanResult, "caseResource.txt"));
+  }
+
+  @Test
+  public void testScanProcessArchivePathWithAdditionalResourceSuffixes() throws MalformedURLException {
+    URLClassLoader classLoader = new URLClassLoader(new URL[]{new URL("file:")});
+    String processRootPath = "classpath:org/camunda/bpm/container/impl/jmx/deployment/script/";
+    String[] additionalResourceSuffixes = new String[] { "py", "groovy", "rb" };
+    Map<String, byte[]> scanResult = ProcessApplicationScanningUtil.findResources(classLoader, processRootPath, null, additionalResourceSuffixes);
+
+    assertEquals(4, scanResult.size());
+    String processFileName = "VfsProcessScannerTest.bpmn20.xml";
+    assertTrue("'" + processFileName + "' not found", contains(scanResult, processFileName));
+    assertTrue("'hello.py' in resource path found", contains(scanResult, "hello.py"));
+    assertTrue("'hello.rb' in resource path found", contains(scanResult, "hello.rb"));
+    assertTrue("'hello.groovy' in resource path found", contains(scanResult, "hello.groovy"));
   }
 
   private boolean contains(Map<String, byte[]> scanResult, String suffix) {

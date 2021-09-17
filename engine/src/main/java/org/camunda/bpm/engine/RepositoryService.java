@@ -18,6 +18,11 @@ import java.util.Date;
 import java.util.List;
 
 import org.camunda.bpm.application.ProcessApplicationReference;
+import org.camunda.bpm.engine.delegate.ExecutionListener;
+import org.camunda.bpm.engine.exception.NotFoundException;
+import org.camunda.bpm.engine.exception.NotValidException;
+import org.camunda.bpm.engine.repository.CaseDefinition;
+import org.camunda.bpm.engine.repository.CaseDefinitionQuery;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.repository.DeploymentQuery;
 import org.camunda.bpm.engine.repository.DiagramLayout;
@@ -25,8 +30,10 @@ import org.camunda.bpm.engine.repository.ProcessApplicationDeployment;
 import org.camunda.bpm.engine.repository.ProcessApplicationDeploymentBuilder;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinitionQuery;
+import org.camunda.bpm.engine.repository.Resource;
 import org.camunda.bpm.engine.task.IdentityLink;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
+import org.camunda.bpm.model.cmmn.CmmnModelInstance;
 
 
 /** Service providing access to the repository of process definitions and deployments.
@@ -69,11 +76,28 @@ public interface RepositoryService {
   void deleteDeployment(String deploymentId, boolean cascade);
 
   /**
-   * Retrieves a list of deployment resources for the given deployment,
+   * Deletes the given deployment and cascade deletion to process instances,
+   * history process instances and jobs.
+   * @param deploymentId id of the deployment, cannot be null.
+   * @param cascade if set to true, all process instances (incuding) history are deleted
+   * @param skipCustomListeners if true, only the built-in {@link ExecutionListener}s
+   * are notified with the {@link ExecutionListener#EVENTNAME_END} event.
+   */
+  void deleteDeployment(String deploymentId, boolean cascade, boolean skipCustomListeners);
+
+  /**
+   * Retrieves a list of deployment resource names for the given deployment,
    * ordered alphabetically.
    * @param deploymentId id of the deployment, cannot be null.
    */
   List<String> getDeploymentResourceNames(String deploymentId);
+
+  /**
+   * Retrieves a list of deployment resources for the given deployment,
+   * ordered alphabetically by name.
+   * @param deploymentId id of the deployment, cannot be null.
+   */
+  List<Resource> getDeploymentResources(String deploymentId);
 
   /**
    * Gives access to a deployment resource through a stream of bytes.
@@ -84,8 +108,20 @@ public interface RepositoryService {
    */
   InputStream getResourceAsStream(String deploymentId, String resourceName);
 
+  /**
+   * Gives access to a deployment resource through a stream of bytes.
+   * @param deploymentId id of the deployment, cannot be null.
+   * @param resourceId id of the resource, cannot be null.
+   * @throws ProcessEngineException when the resource doesn't exist in the given deployment or when no deployment exists
+   * for the given deploymentId.
+   */
+  InputStream getResourceAsStreamById(String deploymentId, String resourceId);
+
   /** Query process definitions. */
   ProcessDefinitionQuery createProcessDefinitionQuery();
+
+  /** Query case definitions. */
+  CaseDefinitionQuery createCaseDefinitionQuery();
 
   /** Query process definitions. */
   DeploymentQuery createDeploymentQuery();
@@ -246,6 +282,22 @@ public interface RepositoryService {
   BpmnModelInstance getBpmnModelInstance(String processDefinitionId);
 
   /**
+   * Returns the {@link CmmnModelInstance} for the given caseDefinitionId.
+   *
+   * @param caseDefinitionId the id of the Case Definition for which the {@link CmmnModelInstance}
+   *  should be retrieved.
+   *
+   * @return the {@link CmmnModelInstance}
+   *
+   * @throws NotValidException when the given case definition id or deployment id or resource name is null
+   * @throws NotFoundException when no CMMN model instance or deployment resource is found for the given
+   *     case definition id
+   * @throws ProcessEngineException when an internal exception happens during the execution
+   *     of the command.
+   */
+  CmmnModelInstance getCmmnModelInstance(String caseDefinitionId);
+
+  /**
    * Authorizes a candidate user for a process definition.
    * @param processDefinitionId id of the process definition, cannot be null.
    * @param userId id of the user involve, cannot be null.
@@ -284,4 +336,38 @@ public interface RepositoryService {
    */
   List<IdentityLink> getIdentityLinksForProcessDefinition(String processDefinitionId);
 
+  /**
+   * Returns the {@link CaseDefinition}.
+   *
+   * @throws NotValidException when the given case definition id is null
+   * @throws NotFoundException when no case definition is found for the given case definition id
+   * @throws ProcessEngineException when an internal exception happens during the execution
+   *     of the command.
+   */
+  CaseDefinition getCaseDefinition(String caseDefinitionId);
+
+  /**
+   * Gives access to a deployed case model, e.g., a CMMN 1.0 XML file,
+   * through a stream of bytes.
+   *
+   * @param caseDefinitionId
+   *          id of a {@link CaseDefinition}, cannot be null.
+   *
+   * @throws NotValidException when the given case definition id or deployment id or resource name is null
+   * @throws NotFoundException when no case definition or deployment resource is found for the given case definition id
+   * @throws ProcessEngineException when an internal exception happens during the execution of the command
+   */
+  InputStream getCaseModel(String caseDefinitionId);
+
+  /**
+   * Gives access to a deployed case diagram, e.g., a PNG image, through a
+   * stream of bytes.
+   *
+   * @param caseDefinitionId id of a {@link CaseDefinition}, cannot be null.
+   * @return null when the diagram resource name of a {@link CaseDefinition} is null.
+   * @throws ProcessEngineException when the process diagram doesn't exist.
+   */
+  InputStream getCaseDiagram(String caseDefinitionId);
+
 }
+

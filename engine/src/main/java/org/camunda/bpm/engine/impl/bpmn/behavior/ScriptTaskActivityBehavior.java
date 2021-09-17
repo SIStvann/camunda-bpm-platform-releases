@@ -1,9 +1,9 @@
 /* Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -18,55 +18,65 @@ import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.delegate.BpmnError;
 import org.camunda.bpm.engine.impl.bpmn.helper.ErrorPropagation;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.pvm.delegate.ActivityBehavior;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityExecution;
-import org.camunda.bpm.engine.impl.scripting.ScriptingEngines;
+import org.camunda.bpm.engine.impl.scripting.ExecutableScript;
 
 
 /**
- * activity implementation of the BPMN 2.0 script task.
- * 
+ * <p>{@link ActivityBehavior} implementation of the BPMN 2.0 script task.</p>
+ *
  * @author Joram Barrez
  * @author Christian Stettler
  * @author Falko Menge
+ * @author Daniel Meyer
+ *
  */
 public class ScriptTaskActivityBehavior extends TaskActivityBehavior {
-  
-  protected final String script;
-  protected final String language;
-  protected final String resultVariable;
 
-  public ScriptTaskActivityBehavior(String script, String language, String resultVariable) {
+  protected ExecutableScript script;
+  protected String resultVariable;
+
+  public ScriptTaskActivityBehavior(ExecutableScript script, String resultVariable) {
     this.script = script;
-    this.language = language;
     this.resultVariable = resultVariable;
   }
-  
+
   public void execute(ActivityExecution execution) throws Exception {
-    ScriptingEngines scriptingEngines = Context
-      .getProcessEngineConfiguration()
-      .getScriptingEngines();
 
     boolean noErrors = true;
+
     try {
-      Object result = scriptingEngines.evaluate(script, language, execution);
-      
-      if (resultVariable != null) {
+      Object result = Context.getProcessEngineConfiguration()
+        .getScriptingEnvironment()
+        .execute(script, execution);
+      if(result != null && resultVariable != null) {
         execution.setVariable(resultVariable, result);
       }
 
     } catch (ProcessEngineException e) {
       noErrors = false;
       if (e.getCause() instanceof ScriptException
+          && e.getCause().getCause() instanceof BpmnError) {
+        ErrorPropagation.propagateError((BpmnError) e.getCause().getCause(), execution);
+
+      } else if (e.getCause() instanceof ScriptException
           && e.getCause().getCause() instanceof ScriptException
           && e.getCause().getCause().getCause() instanceof BpmnError) {
         ErrorPropagation.propagateError((BpmnError) e.getCause().getCause().getCause(), execution);
+
       } else {
         ErrorPropagation.propagateException(e, execution);
+
       }
     }
-     if (noErrors) {
-       leave(execution);
-     }
+    if (noErrors) {
+      leave(execution);
+    }
   }
-  
+
+  public ExecutableScript getScript() {
+    return script;
+  }
+
 }

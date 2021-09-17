@@ -24,7 +24,6 @@ import org.camunda.bpm.engine.impl.Condition;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
 import org.camunda.bpm.engine.impl.pvm.PvmTransition;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityExecution;
-import org.camunda.bpm.engine.impl.pvm.runtime.InterpretableExecution;
 
 /**
  * Helper class for implementing BPMN 2.0 activities, offering convenience
@@ -128,9 +127,7 @@ public class BpmnActivityBehavior {
         Object isForCompensation = execution.getActivity().getProperty(BpmnParse.PROPERTYNAME_IS_FOR_COMPENSATION);
         if(isForCompensation != null && (Boolean) isForCompensation) {
 
-          InterpretableExecution parentExecution = (InterpretableExecution) execution.getParent();
-          ((InterpretableExecution)execution).remove();
-          parentExecution.signal("compensationDone", null);
+          execution.endCompensation();
 
         } else {
 

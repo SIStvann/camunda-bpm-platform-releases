@@ -15,7 +15,6 @@ package org.camunda.bpm.engine.impl.pvm.process;
 
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.PvmException;
-import org.camunda.bpm.engine.impl.pvm.PvmScope;
 import org.camunda.bpm.engine.impl.pvm.PvmTransition;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityBehavior;
 
@@ -32,19 +31,28 @@ import java.util.Map;
 public class ActivityImpl extends ScopeImpl implements PvmActivity, HasDIBounds {
 
   private static final long serialVersionUID = 1L;
+
   protected List<TransitionImpl> outgoingTransitions = new ArrayList<TransitionImpl>();
   protected Map<String, TransitionImpl> namedOutgoingTransitions = new HashMap<String, TransitionImpl>();
   protected List<TransitionImpl> incomingTransitions = new ArrayList<TransitionImpl>();
-  protected ActivityBehavior activityBehavior;
-  protected ScopeImpl parent;
-  protected boolean isScope;
-  protected boolean isAsync;
-  protected boolean isExclusive;
-  protected boolean isCancelScope = false;
-  protected boolean isConcurrent = false;
-  protected PvmScope scope;
-  protected PvmScope flowScope;
 
+  protected ActivityBehavior activityBehavior;
+
+  protected ScopeImpl parent;
+
+  protected boolean isScope;
+
+  protected boolean isAsyncBefore;
+
+  protected boolean isAsyncAfter;
+
+  protected boolean isCancelScope = false;
+
+  protected boolean isConcurrent = false;
+
+  protected ScopeImpl scope;
+
+  protected ScopeImpl flowScope;
 
   // Graphical information
   protected int x = -1;
@@ -101,7 +109,7 @@ public class ActivityImpl extends ScopeImpl implements PvmActivity, HasDIBounds 
     this.parent = parent;
   }
 
-  public void setScope(PvmScope scope) {
+  public void setScope(ScopeImpl scope) {
     this.scope = scope;
   }
 
@@ -128,7 +136,7 @@ public class ActivityImpl extends ScopeImpl implements PvmActivity, HasDIBounds 
     return parent;
   }
 
-  public PvmScope getScope() {
+  public ScopeImpl getScope() {
     if(scope == null) {
       return parent;
     } else {
@@ -181,21 +189,36 @@ public class ActivityImpl extends ScopeImpl implements PvmActivity, HasDIBounds 
     this.height = height;
   }
 
-  public boolean isAsync() {
-    return isAsync;
-  }
-
-  public void setAsync(boolean isAsync) {
-    this.isAsync = isAsync;
-  }
-
-  public boolean isExclusive() {
-    return isExclusive;
-  }
-
+  /**
+   * Deprecated since 7.2, use {@link #isAsyncBefore()}
+   */
   @Deprecated
-  public void setExclusive(boolean isExclusive) {
-    this.isExclusive = isExclusive;
+  public boolean isAsync() {
+    return isAsyncBefore;
+  }
+
+  /**
+   * Deprecated since 7.2, use {@link #setAsyncBefore(boolean)}
+   */
+  @Deprecated
+  public void setAsync(boolean isAsync) {
+    this.isAsyncBefore = isAsync;
+  }
+
+  public boolean isAsyncBefore() {
+    return isAsyncBefore;
+  }
+
+  public void setAsyncBefore(boolean isAsyncBefore) {
+    this.isAsyncBefore = isAsyncBefore;
+  }
+
+  public boolean isAsyncAfter() {
+    return isAsyncAfter;
+  }
+
+  public void setAsyncAfter(boolean isAsyncAfter) {
+    this.isAsyncAfter = isAsyncAfter;
   }
 
   public String getActivityId() {
@@ -203,7 +226,19 @@ public class ActivityImpl extends ScopeImpl implements PvmActivity, HasDIBounds 
   }
 
   public ScopeImpl getParentScope() {
-    return parent;
+    ScopeImpl parentScope = parent;
+    while (parentScope != null && !parentScope.isScope()) {
+      parentScope = parentScope.getParent();
+    }
+    return parentScope;
+  }
+
+  public ActivityImpl getParentScopeActivity() {
+    ScopeImpl parentScope = getParentScope();
+    if (parentScope instanceof ActivityImpl) {
+      return (ActivityImpl) parentScope;
+    }
+    return null;
   }
 
   public boolean isCancelScope() {
@@ -226,7 +261,7 @@ public class ActivityImpl extends ScopeImpl implements PvmActivity, HasDIBounds 
    * @return the scope which should be used for traversing
    * transitions which originate in this activity.
    */
-  public PvmScope getFlowScope() {
+  public ScopeImpl getFlowScope() {
     if(flowScope == null) {
       return getScope();
 
@@ -236,7 +271,7 @@ public class ActivityImpl extends ScopeImpl implements PvmActivity, HasDIBounds 
     }
   }
 
-  public void setFlowScope(PvmScope flowScope) {
+  public void setFlowScope(ScopeImpl flowScope) {
     this.flowScope = flowScope;
   }
 

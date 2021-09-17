@@ -17,10 +17,12 @@ import java.util.List;
 
 import org.camunda.bpm.engine.impl.DeploymentQueryImpl;
 import org.camunda.bpm.engine.impl.Page;
+import org.camunda.bpm.engine.impl.ProcessDefinitionQueryImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.event.MessageEventHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventJobHandler;
 import org.camunda.bpm.engine.impl.persistence.AbstractManager;
+import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.Deployment;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.Job;
@@ -32,7 +34,7 @@ import org.camunda.bpm.engine.runtime.Job;
 public class DeploymentManager extends AbstractManager {
 
   public void insertDeployment(DeploymentEntity deployment) {
-    getDbSqlSession().insert(deployment);
+    getDbEntityManager().insert(deployment);
 
     for (ResourceEntity resource : deployment.getResources().values()) {
       resource.setDeploymentId(deployment.getId());
@@ -46,10 +48,11 @@ public class DeploymentManager extends AbstractManager {
   }
 
   public void deleteDeployment(String deploymentId, boolean cascade) {
-    List<ProcessDefinition> processDefinitions = getDbSqlSession()
-            .createProcessDefinitionQuery()
-            .deploymentId(deploymentId)
-            .list();
+    deleteDeployment(deploymentId, cascade, false);
+  }
+
+  public void deleteDeployment(String deploymentId, boolean cascade, boolean skipCustomListeners) {
+    List<ProcessDefinition> processDefinitions = getProcessDefinitionManager().findProcessDefinitionsByDeploymentId(deploymentId);
 
     if (cascade) {
 
@@ -58,7 +61,7 @@ public class DeploymentManager extends AbstractManager {
         String processDefinitionId = processDefinition.getId();
 
         getProcessInstanceManager()
-          .deleteProcessInstancesByProcessDefinition(processDefinitionId, "deleted deployment", cascade);
+          .deleteProcessInstancesByProcessDefinition(processDefinitionId, "deleted deployment", cascade, skipCustomListeners);
 
       }
     }
@@ -90,6 +93,12 @@ public class DeploymentManager extends AbstractManager {
           .getCommandContext()
           .getHistoricIncidentManager()
           .deleteHistoricIncidentsByProcessDefinitionId(processDefinitionId);
+
+        // remove historic op log entries which are not related to a process instance
+        Context
+          .getCommandContext()
+          .getOperationLogManager()
+          .deleteOperationLogEntriesByProcessDefinitionId(processDefinitionId);
       }
     }
 
@@ -122,15 +131,48 @@ public class DeploymentManager extends AbstractManager {
 
     }
 
+    deleteCaseDeployment(deploymentId, cascade);
+
     getResourceManager()
       .deleteResourcesByDeploymentId(deploymentId);
 
-    getDbSqlSession().delete("deleteDeployment", deploymentId);
+    getDbEntityManager().delete(DeploymentEntity.class, "deleteDeployment", deploymentId);
+  }
+
+  protected void deleteCaseDeployment(String deploymentId, boolean cascade) {
+    List<CaseDefinition> caseDefinitions = getCaseDefinitionManager().findCaseDefinitionByDeploymentId(deploymentId);
+
+    if (cascade) {
+
+      // delete case instances
+      for (CaseDefinition caseDefinition: caseDefinitions) {
+        String caseDefinitionId = caseDefinition.getId();
+
+        getCaseInstanceManager()
+          .deleteCaseInstancesByCaseDefinition(caseDefinitionId, "deleted deployment", cascade);
+
+      }
+    }
+
+    // delete case definitions from db
+    getCaseDefinitionManager()
+      .deleteCaseDefinitionsByDeploymentId(deploymentId);
+
+    for (CaseDefinition caseDefinition : caseDefinitions) {
+      String processDefinitionId = caseDefinition.getId();
+
+      // remove case definitions from cache:
+      Context
+        .getProcessEngineConfiguration()
+        .getDeploymentCache()
+        .removeCaseDefinition(processDefinitionId);
+    }
+
   }
 
 
   public DeploymentEntity findLatestDeploymentByName(String deploymentName) {
-    List<?> list = getDbSqlSession().selectList("selectDeploymentsByName", deploymentName, 0, 1);
+    List<?> list = getDbEntityManager().selectList("selectDeploymentsByName", deploymentName, 0, 1);
     if (list!=null && !list.isEmpty()) {
       return (DeploymentEntity) list.get(0);
     }
@@ -138,22 +180,22 @@ public class DeploymentManager extends AbstractManager {
   }
 
   public DeploymentEntity findDeploymentById(String deploymentId) {
-    return (DeploymentEntity) getDbSqlSession().selectById(DeploymentEntity.class, deploymentId);
+    return getDbEntityManager().selectById(DeploymentEntity.class, deploymentId);
   }
 
   public long findDeploymentCountByQueryCriteria(DeploymentQueryImpl deploymentQuery) {
-    return (Long) getDbSqlSession().selectOne("selectDeploymentCountByQueryCriteria", deploymentQuery);
+    return (Long) getDbEntityManager().selectOne("selectDeploymentCountByQueryCriteria", deploymentQuery);
   }
 
   @SuppressWarnings("unchecked")
   public List<Deployment> findDeploymentsByQueryCriteria(DeploymentQueryImpl deploymentQuery, Page page) {
     final String query = "selectDeploymentsByQueryCriteria";
-    return getDbSqlSession().selectList(query, deploymentQuery, page);
+    return getDbEntityManager().selectList(query, deploymentQuery, page);
   }
 
   @SuppressWarnings("unchecked")
   public List<String> getDeploymentResourceNames(String deploymentId) {
-    return getDbSqlSession().getSqlSession().selectList("selectResourceNamesByDeploymentId", deploymentId);
+    return getDbEntityManager().selectList("selectResourceNamesByDeploymentId", deploymentId);
   }
 
   public void close() {
@@ -161,4 +203,5 @@ public class DeploymentManager extends AbstractManager {
 
   public void flush() {
   }
+
 }
