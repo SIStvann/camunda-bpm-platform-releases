@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -59,8 +60,9 @@ public class FileValueProcessSerializationTest extends PluggableProcessEngineTes
     assertThat(value.getMimeType(), is(type));
     assertThat(value.getEncoding(), is("UTF-8"));
     assertThat(value.getEncodingAsCharset(), is(Charset.forName("UTF-8")));
-    Scanner scanner = new Scanner(value.getValue());
-    assertThat(scanner.nextLine(), is("ABC"));
+    try (Scanner scanner = new Scanner(value.getValue())) {
+      assertThat(scanner.nextLine(), is("ABC"));
+    }
 
     // clean up
     repositoryService.deleteDeployment(deployment.getId(), true);
@@ -105,6 +107,16 @@ public class FileValueProcessSerializationTest extends PluggableProcessEngineTes
 
     FileValue fileVar = runtimeService.getVariableTyped(pi.getId(), "fileVar");
     assertNull(fileVar.getMimeType());
+  }
+  
+  @Test
+  @Deployment(resources = ONE_TASK_PROCESS)
+  public void testSerializeEmptyFileName() {
+    ProcessInstance pi = runtimeService.startProcessInstanceByKey("oneTaskProcess",
+        Variables.createVariables().putValue("fileVar", Variables.fileValue("").create()));
+
+    FileValue fileVar = runtimeService.getVariableTyped(pi.getId(), "fileVar");
+    assertEquals("", fileVar.getFilename());
   }
 
 }

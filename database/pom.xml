@@ -6,7 +6,7 @@
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-parent</artifactId>
     <relativePath>../parent</relativePath>
-    <version>7.10.0</version>
+    <version>7.11.0</version>
   </parent>
 
   <groupId>org.camunda.bpm</groupId>
@@ -20,6 +20,7 @@
     <!-- database driver versions -->
     <version.h2>1.4.190</version.h2>
     <version.oracle-12>12.1.0.2</version.oracle-12>
+    <version.oracle-18>18.3.0.0</version.oracle-18>
     <version.oracle-11>11.2.0.4</version.oracle-11>
     <version.oracle-10>10.2.0.5</version.oracle-10>
     <version.oracle>${version.oracle-11}</version.oracle>
@@ -36,7 +37,7 @@
     <version.postgresql>9.3-1102-jdbc4</version.postgresql>
 
     <!-- needed for sql script and backward compatibility checks -->
-    <camunda.version.old>7.9.0</camunda.version.old>
+    <camunda.version.old>7.10.0</camunda.version.old>
   </properties>
 
   <dependencyManagement>
@@ -49,6 +50,16 @@
       <dependency>
         <groupId>com.oracle.jdbc</groupId>
         <artifactId>ojdbc6</artifactId>
+        <version>${version.oracle}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.oracle.jdbc</groupId>
+        <artifactId>ojdbc7</artifactId>
+        <version>${version.oracle}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.oracle.jdbc</groupId>
+        <artifactId>ojdbc8</artifactId>
         <version>${version.oracle}</version>
       </dependency>
       <dependency>
@@ -95,48 +106,6 @@
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>sql-maven-plugin</artifactId>
-          <dependencies>
-            <dependency>
-              <groupId>org.mariadb.jdbc</groupId>
-              <artifactId>mariadb-java-client</artifactId>
-              <version>${version.mariadb}</version>
-            </dependency>
-            <dependency>
-              <groupId>mysql</groupId>
-              <artifactId>mysql-connector-java</artifactId>
-              <version>${version.mysql}</version>
-            </dependency>
-            <dependency>
-              <groupId>com.oracle.jdbc</groupId>
-              <artifactId>ojdbc6</artifactId>
-              <version>${version.oracle}</version>
-            </dependency>
-            <dependency>
-              <groupId>com.oracle.jdbc</groupId>
-              <artifactId>ojdbc14</artifactId>
-              <version>${version.oracle-10}</version>
-            </dependency>
-            <dependency>
-              <groupId>com.ibm.db2.jcc</groupId>
-              <artifactId>db2jcc4</artifactId>
-              <version>${version.db2}</version>
-            </dependency>
-            <dependency>
-              <groupId>com.microsoft.sqlserver</groupId>
-              <artifactId>sqljdbc4</artifactId>
-              <version>${version.sqlserver}</version>
-            </dependency>
-            <dependency>
-              <groupId>org.postgresql</groupId>
-              <artifactId>postgresql</artifactId>
-              <version>${version.postgresql}</version>
-            </dependency>
-            <dependency>
-              <groupId>com.h2database</groupId>
-              <artifactId>h2</artifactId>
-              <version>${version.h2}</version>
-            </dependency>
-          </dependencies>
           <configuration>
             <driver>${database.driver}</driver>
             <url>${database.url}</url>
@@ -164,6 +133,23 @@
           <scope>test</scope>
         </dependency>
       </dependencies>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>sql-maven-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>com.ibm.db2.jcc</groupId>
+                  <artifactId>db2jcc4</artifactId>
+                  <version>${version.db2}</version>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
     </profile>
     <profile>
       <id>db2-111</id>
@@ -209,6 +195,23 @@
           <scope>test</scope>
         </dependency>
       </dependencies>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>sql-maven-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>com.h2database</groupId>
+                  <artifactId>h2</artifactId>
+                  <version>${version.h2}</version>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
     </profile>
 
     <profile>
@@ -235,6 +238,23 @@
           <scope>test</scope>
         </dependency>
       </dependencies>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>sql-maven-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>com.h2database</groupId>
+                  <artifactId>h2</artifactId>
+                  <version>${version.h2}</version>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
     </profile>
 
     <profile>
@@ -252,6 +272,23 @@
           <scope>test</scope>
         </dependency>
       </dependencies>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>sql-maven-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>org.mariadb.jdbc</groupId>
+                  <artifactId>mariadb-java-client</artifactId>
+                  <version>${version.mariadb}</version>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
     </profile>
     <profile>
       <id>mariadb-galera</id>
@@ -275,6 +312,23 @@
           <scope>test</scope>
         </dependency>
       </dependencies>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>sql-maven-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>mysql</groupId>
+                  <artifactId>mysql-connector-java</artifactId>
+                  <version>${version.mysql}</version>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
     </profile>
 
     <profile>
@@ -287,6 +341,9 @@
     </profile>
     <profile>
       <id>oracle-10</id>
+      <properties>
+        <version.oracle>${version.oracle-10}</version.oracle>
+      </properties>
       <dependencies>
         <dependency>
           <groupId>com.oracle.jdbc</groupId>
@@ -294,6 +351,23 @@
           <scope>test</scope>
         </dependency>
       </dependencies>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>sql-maven-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>com.oracle.jdbc</groupId>
+                  <artifactId>ojdbc14</artifactId>
+                  <version>${version.oracle}</version>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
     </profile>
     <profile>
       <id>oracle-11</id>
@@ -307,6 +381,23 @@
           <scope>test</scope>
         </dependency>
       </dependencies>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>sql-maven-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>com.oracle.jdbc</groupId>
+                  <artifactId>ojdbc6</artifactId>
+                  <version>${version.oracle}</version>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
     </profile>
     <profile>
       <id>oracle-12</id>
@@ -316,10 +407,58 @@
       <dependencies>
         <dependency>
           <groupId>com.oracle.jdbc</groupId>
-          <artifactId>ojdbc6</artifactId>
+          <artifactId>ojdbc7</artifactId>
           <scope>test</scope>
         </dependency>
       </dependencies>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>sql-maven-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>com.oracle.jdbc</groupId>
+                  <artifactId>ojdbc7</artifactId>
+                  <version>${version.oracle}</version>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
+    </profile>
+    <profile>
+      <id>oracle-18</id>
+      <properties>
+        <version.oracle>${version.oracle-18}</version.oracle>
+      </properties>
+      <dependencies>
+        <dependency>
+          <groupId>com.oracle.jdbc</groupId>
+          <artifactId>ojdbc8</artifactId>
+          <scope>test</scope>
+        </dependency>
+      </dependencies>
+      
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>sql-maven-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>com.oracle.jdbc</groupId>
+                  <artifactId>ojdbc8</artifactId>
+                  <version>${version.oracle}</version>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
     </profile>
 
     <profile>
@@ -339,6 +478,23 @@
           <scope>test</scope>
         </dependency>
       </dependencies>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>sql-maven-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>org.postgresql</groupId>
+                  <artifactId>postgresql</artifactId>
+                  <version>${version.postgresql}</version>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
     </profile>
     <profile>
       <id>postgresql-xa</id>
@@ -363,6 +519,23 @@
           <scope>test</scope>
         </dependency>
       </dependencies>
+      <build>
+        <pluginManagement>
+          <plugins>
+            <plugin>
+              <groupId>org.codehaus.mojo</groupId>
+              <artifactId>sql-maven-plugin</artifactId>
+              <dependencies>
+                <dependency>
+                  <groupId>com.microsoft.sqlserver</groupId>
+                  <artifactId>sqljdbc4</artifactId>
+                  <version>${version.sqlserver}</version>
+                </dependency>
+              </dependencies>
+            </plugin>
+          </plugins>
+        </pluginManagement>
+      </build>
     </profile>
   </profiles>
 

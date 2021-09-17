@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -92,12 +93,24 @@ public class TaskResourceImpl implements TaskResource {
   }
 
   @Override
-  public void complete(CompleteTaskDto dto) {
+  public Response complete(CompleteTaskDto dto) {
     TaskService taskService = engine.getTaskService();
 
     try {
       VariableMap variables = VariableValueDto.toMap(dto.getVariables(), engine, objectMapper);
-      taskService.complete(taskId, variables);
+      if (dto.isWithVariablesInReturn()) {
+        VariableMap taskVariables = taskService.completeWithVariablesInReturn(taskId, variables, false);
+
+        Map<String, VariableValueDto> body = VariableValueDto.fromMap(taskVariables, true);
+
+        return Response
+            .ok(body)
+            .type(MediaType.APPLICATION_JSON)
+            .build();
+      } else {
+        taskService.complete(taskId, variables);
+        return Response.noContent().build();
+      }
 
     } catch (RestException e) {
       String errorMessage = String.format("Cannot complete task %s: %s", taskId, e.getMessage());
@@ -116,12 +129,23 @@ public class TaskResourceImpl implements TaskResource {
     }
   }
 
-  public void submit(CompleteTaskDto dto) {
+  public Response submit(CompleteTaskDto dto) {
     FormService formService = engine.getFormService();
 
     try {
       VariableMap variables = VariableValueDto.toMap(dto.getVariables(), engine, objectMapper);
-      formService.submitTaskForm(taskId, variables);
+      if (dto.isWithVariablesInReturn()) {
+        VariableMap taskVariables = formService.submitTaskFormWithVariablesInReturn(taskId, variables, false);
+
+        Map<String, VariableValueDto> body = VariableValueDto.fromMap(taskVariables, true);
+        return Response
+            .ok(body)
+            .type(MediaType.APPLICATION_JSON)
+            .build();
+      } else {
+        formService.submitTaskForm(taskId, variables);
+        return Response.noContent().build();
+      }
 
     } catch (RestException e) {
       String errorMessage = String.format("Cannot submit task form %s: %s", taskId, e.getMessage());
@@ -129,7 +153,7 @@ public class TaskResourceImpl implements TaskResource {
 
     } catch (AuthorizationException e) {
       throw e;
-    
+
     } catch (FormFieldValidationException e) {
       String errorMessage = String.format("Cannot submit task form %s: %s", taskId, e.getMessage());
       throw new RestException(Status.BAD_REQUEST, e, errorMessage);
@@ -278,7 +302,7 @@ public class TaskResourceImpl implements TaskResource {
     TaskService taskService = engine.getTaskService();
     List<IdentityLink> identityLinks = taskService.getIdentityLinksForTask(taskId);
 
-    List<IdentityLinkDto> result = new ArrayList<IdentityLinkDto>();
+    List<IdentityLinkDto> result = new ArrayList<>();
     for (IdentityLink link : identityLinks) {
       if (type == null || type.equals(link.getType())) {
         result.add(IdentityLinkDto.fromIdentityLink(link));
@@ -344,7 +368,7 @@ public class TaskResourceImpl implements TaskResource {
 
     VariableMap startFormVariables = formService.getTaskFormVariables(taskId, formVariables, deserializeValues);
 
-    return VariableValueDto.fromVariableMap(startFormVariables);
+    return VariableValueDto.fromMap(startFormVariables);
   }
 
   public void updateTask(TaskDto taskDto) {

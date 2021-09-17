@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -83,11 +84,15 @@ public class FormServiceImpl extends ServiceImpl implements FormService {
   }
 
   public void submitTaskFormData(String taskId, Map<String, String> properties) {
-    commandExecutor.execute(new SubmitTaskFormCmd(taskId, (Map)properties));
+    submitTaskForm(taskId, (Map) properties);
   }
 
   public void submitTaskForm(String taskId, Map<String, Object> properties) {
-    commandExecutor.execute(new SubmitTaskFormCmd(taskId, properties));
+    commandExecutor.execute(new SubmitTaskFormCmd(taskId, properties, false, false));
+  }
+
+  public VariableMap submitTaskFormWithVariablesInReturn(String taskId, Map<String, Object> properties, boolean deserializeValues) {
+    return commandExecutor.execute(new SubmitTaskFormCmd(taskId, properties, true, deserializeValues));
   }
 
   public String getStartFormKey(String processDefinitionId) {

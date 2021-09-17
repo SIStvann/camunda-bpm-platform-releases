@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -71,6 +72,19 @@ public class FileValueSerializerTest {
     assertThat(valueFields.getTextValue2(), is(nullValue()));
   }
 
+  @Test
+  public void testWriteEmptyFilenameOnlyValue() {
+    String filename = "";
+    FileValue fileValue = Variables.fileValue(filename).create();
+    ValueFields valueFields = new MockValueFields();
+    
+    serializer.writeValue(fileValue, valueFields);
+    
+    assertThat(valueFields.getByteArrayValue(), is(nullValue()));
+    assertThat(valueFields.getTextValue(), is(filename));
+    assertThat(valueFields.getTextValue2(), is(nullValue()));
+  }
+  
   @Test
   public void testWriteMimetypeAndFilenameValue() {
     String filename = "test.txt";
@@ -234,6 +248,32 @@ public class FileValueSerializerTest {
   }
 
   @Test
+  public void testReadEmptyFilenameValue() {
+    MockValueFields valueFields = new MockValueFields();
+    String filename = "";
+    valueFields.setTextValue(filename);
+  
+    FileValue fileValue = serializer.readValue(valueFields, true);
+  
+    assertThat(fileValue.getFilename(), is(""));
+    assertThat(fileValue.getMimeType(), is(nullValue()));
+    assertThat(fileValue.getValue(), is(nullValue()));
+  }
+  
+  @Test
+  public void testReadNullFilenameValue() {
+    MockValueFields valueFields = new MockValueFields();
+    String filename = null;
+    valueFields.setTextValue(filename);
+  
+    FileValue fileValue = serializer.readValue(valueFields, true);
+  
+    assertThat(fileValue.getFilename(), is(""));
+    assertThat(fileValue.getMimeType(), is(nullValue()));
+    assertThat(fileValue.getValue(), is(nullValue()));
+  }
+
+  @Test
   public void testNameIsFile() {
     assertThat(serializer.getName(), is("file"));
   }
@@ -259,8 +299,9 @@ public class FileValueSerializerTest {
 
   private void checkStreamFromValue(TypedValue value, String expected) {
     InputStream stream = (InputStream) value.getValue();
-    Scanner scanner = new Scanner(stream);
-    assertThat(scanner.nextLine(), is(expected));
+    try (Scanner scanner = new Scanner(stream)) {
+      assertThat(scanner.nextLine(), is(expected));
+    }
   }
 
   private static class MockValueFields implements ValueFields {

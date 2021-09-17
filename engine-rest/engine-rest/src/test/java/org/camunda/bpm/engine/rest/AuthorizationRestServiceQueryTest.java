@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -39,6 +40,8 @@ import org.camunda.bpm.engine.authorization.AuthorizationQuery;
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.impl.AuthorizationServiceImpl;
 import org.camunda.bpm.engine.impl.IdentityServiceImpl;
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
+import org.camunda.bpm.engine.impl.cfg.auth.DefaultPermissionProvider;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.util.container.TestContainerRule;
@@ -63,6 +66,7 @@ public class AuthorizationRestServiceQueryTest extends AbstractRestServiceTest {
 
   protected AuthorizationService authorizationServiceMock;
   protected IdentityService identityServiceMock;
+  protected ProcessEngineConfigurationImpl processEngineConfigurationMock;
 
   @ClassRule
   public static TestContainerRule rule = new TestContainerRule();
@@ -71,9 +75,12 @@ public class AuthorizationRestServiceQueryTest extends AbstractRestServiceTest {
   public void setUpRuntimeData() {
     authorizationServiceMock = mock(AuthorizationServiceImpl.class);
     identityServiceMock = mock(IdentityServiceImpl.class);
+    processEngineConfigurationMock = mock(ProcessEngineConfigurationImpl.class);
 
     when(processEngine.getAuthorizationService()).thenReturn(authorizationServiceMock);
     when(processEngine.getIdentityService()).thenReturn(identityServiceMock);
+    when(processEngine.getProcessEngineConfiguration()).thenReturn(processEngineConfigurationMock);
+    when(processEngineConfigurationMock.getPermissionProvider()).thenReturn(new DefaultPermissionProvider());
   }
 
   private AuthorizationQuery setUpMockQuery(List<Authorization> list) {

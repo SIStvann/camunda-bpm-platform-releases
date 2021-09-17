@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -25,11 +26,13 @@ import org.camunda.bpm.engine.impl.cmd.optimize.OptimizeCompletedHistoricActivit
 import org.camunda.bpm.engine.impl.cmd.optimize.OptimizeCompletedHistoricProcessInstanceQueryCmd;
 import org.camunda.bpm.engine.impl.cmd.optimize.OptimizeCompletedHistoricTaskInstanceQueryCmd;
 import org.camunda.bpm.engine.impl.cmd.optimize.OptimizeHistoricDecisionInstanceQueryCmd;
+import org.camunda.bpm.engine.impl.cmd.optimize.OptimizeHistoricIdentityLinkLogQueryCmd;
 import org.camunda.bpm.engine.impl.cmd.optimize.OptimizeHistoricUserOperationsLogQueryCmd;
 import org.camunda.bpm.engine.impl.cmd.optimize.OptimizeHistoricVariableUpdateQueryCmd;
 import org.camunda.bpm.engine.impl.cmd.optimize.OptimizeRunningHistoricActivityInstanceQueryCmd;
 import org.camunda.bpm.engine.impl.cmd.optimize.OptimizeRunningHistoricProcessInstanceQueryCmd;
 import org.camunda.bpm.engine.impl.cmd.optimize.OptimizeRunningHistoricTaskInstanceQueryCmd;
+import org.camunda.bpm.engine.impl.persistence.entity.optimize.OptimizeHistoricIdentityLinkLogEntity;
 
 import java.util.Date;
 import java.util.List;
@@ -73,6 +76,14 @@ public class OptimizeService extends ServiceImpl {
                                                                   int maxResults) {
     return commandExecutor.execute(
       new OptimizeHistoricUserOperationsLogQueryCmd(occurredAfter, occurredAt, maxResults)
+    );
+  }
+
+  public List<OptimizeHistoricIdentityLinkLogEntity> getHistoricIdentityLinkLogs(Date occurredAfter,
+                                                                                 Date occurredAt,
+                                                                                 int maxResults) {
+    return commandExecutor.execute(
+      new OptimizeHistoricIdentityLinkLogQueryCmd(occurredAfter, occurredAt, maxResults)
     );
   }
 

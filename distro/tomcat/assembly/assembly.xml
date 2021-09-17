@@ -35,7 +35,6 @@
       <includes>
 
         <include>com.h2database:h2:jar</include>
-        <include>javax.mail:mail:jar</include>
 
         <include>org.camunda.bpm:camunda-engine:jar</include>
         <include>org.camunda.bpm.identity:camunda-identity-ldap:jar</include>
@@ -65,7 +64,6 @@
       <includes>
 
         <include>com.h2database:h2:jar</include>
-        <include>javax.mail:mail:jar</include>
 
         <include>org.camunda.bpm:camunda-engine:jar</include>
         <include>org.camunda.bpm.identity:camunda-identity-ldap:jar</include>
@@ -116,7 +114,18 @@
       <outputDirectory></outputDirectory>
       <fileMode>0755</fileMode>
     </file>
-    
+    <file>
+      <source>src/shutdown-camunda.bat</source>
+      <filtered>true</filtered>
+      <outputDirectory></outputDirectory>
+    </file>
+    <file>
+      <source>src/shutdown-camunda.sh</source>
+      <filtered>true</filtered>
+      <outputDirectory></outputDirectory>
+      <fileMode>0755</fileMode>
+    </file>
+
     <file>
       <source>src/conf/server.xml</source>
       <outputDirectory>server/apache-tomcat-${version.tomcat}/conf/</outputDirectory>

@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <!--
 
-    Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
-
-    Licensed under the Apache License, Version 2.0 (the "License");
-    you may not use this file except in compliance with the License.
+    Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+    under one or more contributor license agreements. See the NOTICE file
+    distributed with this work for additional information regarding copyright
+    ownership. Camunda licenses this file to you under the Apache License,
+    Version 2.0; you may not use this file except in compliance with the License.
     You may obtain a copy of the License at
 
         http://www.apache.org/licenses/LICENSE-2.0
@@ -17,7 +17,6 @@
     limitations under the License.
 
 -->
-
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd"> 
 
 <mapper namespace="org.camunda.bpm.engine.impl.persistence.entity.HistoricIdentityLinkLogEntity">
@@ -72,6 +71,29 @@
       TIMESTAMP_ = TIMESTAMP_
 
       where ROOT_PROC_INST_ID_ = #{rootProcessInstanceId, jdbcType=VARCHAR}
+  </update>
+
+  <update id="updateIdentityLinkLogByProcessInstanceId"
+          parameterType="java.util.Map">
+    update ${prefix}ACT_HI_IDENTITYLINK
+      set REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP}
+      where TASK_ID_ IN (
+        SELECT ID_
+        FROM ${prefix}ACT_HI_TASKINST
+        WHERE PROC_INST_ID_ = #{processInstanceId, jdbcType=VARCHAR}
+      )
+  </update>
+
+  <update id="updateIdentityLinkLogByProcessInstanceId_mysql"
+          parameterType="java.util.Map">
+    update ${prefix}ACT_HI_IDENTITYLINK
+      set REMOVAL_TIME_ = #{removalTime, jdbcType=TIMESTAMP},
+          TIMESTAMP_ = TIMESTAMP_
+      where TASK_ID_ IN (
+        SELECT ID_
+        FROM ${prefix}ACT_HI_TASKINST
+        WHERE PROC_INST_ID_ = #{processInstanceId, jdbcType=VARCHAR}
+      )
   </update>
   
   <!-- HISTORIC IDENTITY LINK DELETE -->
@@ -211,7 +233,7 @@
   <sql id="selectHistoricIdentityLinkByQueryCriteriaSql">
     from ${prefix}ACT_HI_IDENTITYLINK RES
     
-    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+    <if test="authCheck.shouldPerformAuthorizatioCheck &amp;&amp; !authCheck.revokeAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authCheckJoinWithoutOnClause"/>
       AUTH ON (AUTH.RESOURCE_ID_ in (RES.PROC_DEF_KEY_, '*'))
     </if>
@@ -254,7 +276,7 @@
           #{tenantId}
         </foreach>
       </if>
-      <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+      <if test="authCheck.shouldPerformAuthorizatioCheck &amp;&amp; authCheck.authUserId != null">
         and (
           (RES.PROC_DEF_KEY_ is not null
           <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheck"/>
@@ -266,4 +288,48 @@
       
     </where>
   </sql>
+
+  <resultMap id="optimizeHistoricIdentityLinkResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.optimize.OptimizeHistoricIdentityLinkLogEntity">
+    <id property="id" column="ID_" jdbcType="VARCHAR" />
+    <result property="type" column="TYPE_" jdbcType="VARCHAR" />
+    <result property="time" column="TIMESTAMP_" jdbcType="TIMESTAMP" />
+    <result property="userId" column="USER_ID_" jdbcType="VARCHAR" />
+    <result property="groupId" column="GROUP_ID_" jdbcType="VARCHAR" />
+    <result property="taskId" column="TASK_ID_" jdbcType="VARCHAR" />
+    <result property="rootProcessInstanceId" column="ROOT_PROC_INST_ID_" jdbcType="VARCHAR" />
+    <result property="processDefinitionId" column="PROC_DEF_ID_" jdbcType="VARCHAR" />
+    <result property="operationType" column="OPERATION_TYPE_" jdbcType="VARCHAR"/>
+    <result property="assignerId" column="ASSIGNER_ID_" jdbcType="VARCHAR" />
+    <result property="processDefinitionKey" column="PROC_DEF_KEY_" jdbcType="VARCHAR" />
+    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
+    <result property="removalTime" column="REMOVAL_TIME_" jdbcType="TIMESTAMP"/>
+    <result property="processInstanceId" column="PROC_INST_ID_" jdbcType="VARCHAR" />
+  </resultMap>
+
+  <select id="selectHistoricIdentityLinkPage" resultMap="optimizeHistoricIdentityLinkResultMap" parameterType="java.util.Map" >
+    <bind name="maxResults" value="parameter.maxResults" />
+
+    select RES.*, HTI.PROC_INST_ID_ FROM  (
+      ${optimizeLimitBeforeWithoutOffset}
+      select ${limitBeforeWithoutOffset} * from ${prefix}ACT_HI_IDENTITYLINK HIL
+
+      <where>
+        <if test="parameter.occurredAfter != null">
+          and HIL.TIMESTAMP_ &gt; #{parameter.occurredAfter}
+        </if>
+        <if test="parameter.occurredAt != null">
+          and HIL.TIMESTAMP_ = #{parameter.occurredAt}
+        </if>
+        <if test="parameter.occurredAfter == null and parameter.occurredAt == null">
+          and HIL.TIMESTAMP_ is not null
+        </if>
+      </where>
+
+      ORDER BY HIL.TIMESTAMP_ ASC
+      ${optimizeLimitAfterWithoutOffset}) RES
+    inner join ${prefix}ACT_HI_TASKINST HTI
+      on RES.TASK_ID_ = HTI.ID_
+    ORDER BY RES.TIMESTAMP_ ASC
+  </select>
+
 </mapper>

@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -21,6 +22,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.camunda.bpm.engine.EntityTypes;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.batch.Batch;
@@ -122,6 +124,7 @@ public class RestartProcessInstanceUserOperationLogTest {
     Assert.assertNull(asyncEntry.getProcessInstanceId());
     Assert.assertNull(asyncEntry.getOrgValue());
     Assert.assertEquals("true", asyncEntry.getNewValue());
+    Assert.assertEquals(UserOperationLogEntry.CATEGORY_OPERATOR, asyncEntry.getCategory());
 
     UserOperationLogEntry numInstancesEntry = entries.get("nrOfInstances");
     Assert.assertNotNull(numInstancesEntry);
@@ -132,6 +135,7 @@ public class RestartProcessInstanceUserOperationLogTest {
     Assert.assertNull(numInstancesEntry.getProcessInstanceId());
     Assert.assertNull(numInstancesEntry.getOrgValue());
     Assert.assertEquals("2", numInstancesEntry.getNewValue());
+    Assert.assertEquals(UserOperationLogEntry.CATEGORY_OPERATOR, numInstancesEntry.getCategory());
 
     Assert.assertEquals(asyncEntry.getOperationId(), numInstancesEntry.getOperationId());
   }
@@ -168,6 +172,7 @@ public class RestartProcessInstanceUserOperationLogTest {
     Assert.assertNull(asyncEntry.getProcessInstanceId());
     Assert.assertNull(asyncEntry.getOrgValue());
     Assert.assertEquals("false", asyncEntry.getNewValue());
+    Assert.assertEquals(UserOperationLogEntry.CATEGORY_OPERATOR, asyncEntry.getCategory());
 
     UserOperationLogEntry numInstancesEntry = entries.get("nrOfInstances");
     Assert.assertNotNull(numInstancesEntry);
@@ -178,6 +183,7 @@ public class RestartProcessInstanceUserOperationLogTest {
     Assert.assertNull(numInstancesEntry.getProcessInstanceId());
     Assert.assertNull(numInstancesEntry.getOrgValue());
     Assert.assertEquals("2", numInstancesEntry.getNewValue());
+    Assert.assertEquals(UserOperationLogEntry.CATEGORY_OPERATOR, numInstancesEntry.getCategory());
 
     Assert.assertEquals(asyncEntry.getOperationId(), numInstancesEntry.getOperationId());
   }
@@ -199,7 +205,7 @@ public class RestartProcessInstanceUserOperationLogTest {
     rule.getIdentityService().clearAuthentication();
 
     // then
-    Assert.assertEquals(0, rule.getHistoryService().createUserOperationLogQuery().count());
+    Assert.assertEquals(0, rule.getHistoryService().createUserOperationLogQuery().entityType(EntityTypes.PROCESS_INSTANCE).count());
   }
 
   @Test

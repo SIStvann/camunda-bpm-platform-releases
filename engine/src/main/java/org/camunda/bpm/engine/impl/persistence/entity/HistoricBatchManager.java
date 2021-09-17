@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -58,6 +59,10 @@ public class HistoricBatchManager extends AbstractManager {
 
   public HistoricBatchEntity findHistoricBatchById(String batchId) {
     return getDbEntityManager().selectById(HistoricBatchEntity.class, batchId);
+  }
+
+  public HistoricBatchEntity findHistoricBatchByJobId(String jobId) {
+    return (HistoricBatchEntity) getDbEntityManager().selectOne("selectHistoricBatchByJobId", jobId);
   }
 
   @SuppressWarnings("unchecked")
@@ -158,6 +163,23 @@ public class HistoricBatchManager extends AbstractManager {
     return getDbEntityManager()
       .deletePreserveOrder(HistoricBatchEntity.class, "deleteHistoricBatchesByRemovalTime",
         new ListQueryParameterObject(parameters, 0, batchSize));
+  }
+
+  public void addRemovalTimeById(String id, Date removalTime) {
+    CommandContext commandContext = Context.getCommandContext();
+
+    commandContext.getHistoricIncidentManager()
+      .addRemovalTimeToHistoricIncidentsByBatchId(id, removalTime);
+
+    commandContext.getHistoricJobLogManager()
+      .addRemovalTimeToJobLogByBatchId(id, removalTime);
+
+    Map<String, Object> parameters = new HashMap<>();
+    parameters.put("id", id);
+    parameters.put("removalTime", removalTime);
+
+    getDbEntityManager()
+      .updatePreserveOrder(HistoricBatchEntity.class, "updateHistoricBatchRemovalTimeById", parameters);
   }
 
 }

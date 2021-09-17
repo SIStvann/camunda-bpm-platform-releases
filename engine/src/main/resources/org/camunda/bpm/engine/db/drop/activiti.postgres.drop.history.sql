@@ -1,8 +1,9 @@
 --
--- Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
---
--- Licensed under the Apache License, Version 2.0 (the "License");
--- you may not use this file except in compliance with the License.
+-- Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+-- under one or more contributor license agreements. See the NOTICE file
+-- distributed with this work for additional information regarding copyright
+-- ownership. Camunda licenses this file to you under the Apache License,
+-- Version 2.0; you may not use this file except in compliance with the License.
 -- You may obtain a copy of the License at
 --
 --     http://www.apache.org/licenses/LICENSE-2.0
@@ -64,6 +65,7 @@ drop index ACT_IDX_HI_IDENT_LNK_TENANT_ID;
 drop index ACT_IDX_HI_IDENT_LNK_PROC_DEF_KEY;
 drop index ACT_IDX_HI_IDENT_LINK_TASK;
 drop index ACT_IDX_HI_IDENT_LINK_RM_TIME;
+drop index ACT_IDX_HI_IDENT_LNK_TIMESTAMP;
 
 drop index ACT_IDX_HI_VARINST_ROOT_PI;
 drop index ACT_IDX_HI_PROCVAR_PROC_INST;
@@ -105,6 +107,9 @@ drop index ACT_IDX_HI_OP_LOG_PROCDEF;
 drop index ACT_IDX_HI_OP_LOG_TASK;
 drop index ACT_IDX_HI_OP_LOG_RM_TIME;
 drop index ACT_IDX_HI_OP_LOG_TIMESTAMP;
+drop index ACT_IDX_HI_OP_LOG_USER_ID;
+drop index ACT_IDX_HI_OP_LOG_OP_TYPE;
+drop index ACT_IDX_HI_OP_LOG_ENTITY_TYPE;
 
 drop index ACT_IDX_HI_ATTACHMENT_CONTENT;
 drop index ACT_IDX_HI_ATTACHMENT_ROOT_PI;

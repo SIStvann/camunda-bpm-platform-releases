@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -239,7 +240,7 @@ public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource 
 
     List<ActivityStatistics> queryResults = query.list();
 
-    List<StatisticsResultDto> results = new ArrayList<StatisticsResultDto>();
+    List<StatisticsResultDto> results = new ArrayList<>();
     for (ActivityStatistics queryResult : queryResults) {
       StatisticsResultDto dto = ActivityStatisticsResultDto.fromActivityStatistics(queryResult);
       results.add(dto);
@@ -373,7 +374,7 @@ public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource 
 
     VariableMap startFormVariables = formService.getStartFormVariables(processDefinitionId, formVariables, deserializeValues);
 
-    return VariableValueDto.fromVariableMap(startFormVariables);
+    return VariableValueDto.fromMap(startFormVariables);
   }
 
   @Override

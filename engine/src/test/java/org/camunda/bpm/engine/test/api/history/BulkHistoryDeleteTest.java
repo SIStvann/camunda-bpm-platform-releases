@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -17,9 +18,11 @@ package org.camunda.bpm.engine.test.api.history;
 
 import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.CaseService;
+import org.camunda.bpm.engine.EntityTypes;
 import org.camunda.bpm.engine.ExternalTaskService;
 import org.camunda.bpm.engine.FormService;
 import org.camunda.bpm.engine.HistoryService;
+import org.camunda.bpm.engine.IdentityService;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
@@ -35,6 +38,7 @@ import org.camunda.bpm.engine.history.HistoricIdentityLinkLog;
 import org.camunda.bpm.engine.history.HistoricJobLog;
 import org.camunda.bpm.engine.history.HistoricTaskInstance;
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.history.event.HistoricDecisionInputInstanceEntity;
 import org.camunda.bpm.engine.impl.history.event.HistoricDecisionOutputInstanceEntity;
 import org.camunda.bpm.engine.impl.history.event.HistoricExternalTaskLogEntity;
@@ -56,6 +60,7 @@ import org.camunda.bpm.engine.test.dmn.businessruletask.TestPojo;
 import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -67,6 +72,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.camunda.bpm.engine.history.UserOperationLogEntry.CATEGORY_OPERATOR;
+import static org.camunda.bpm.engine.history.UserOperationLogEntry.OPERATION_TYPE_DELETE_HISTORY;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -91,6 +98,9 @@ public class BulkHistoryDeleteTest {
   private FormService formService;
   private ExternalTaskService externalTaskService;
   private CaseService caseService;
+  private IdentityService identityService;
+
+  public static final String USER_ID = "demo";
 
   @Rule
   public RuleChain ruleChain = RuleChain.outerRule(engineRule).around(testRule);
@@ -103,6 +113,14 @@ public class BulkHistoryDeleteTest {
     formService = engineRule.getFormService();
     externalTaskService = engineRule.getExternalTaskService();
     caseService = engineRule.getCaseService();
+
+    identityService = engineRule.getIdentityService();
+    identityService.setAuthenticatedUserId(USER_ID);
+  }
+
+  @After
+  public void tearDown() throws Exception {
+    identityService.clearAuthentication();
   }
 
   @Test
@@ -410,6 +428,31 @@ public class BulkHistoryDeleteTest {
     //check that decision inputs and outputs were removed
     assertDataDeleted(inputIds, inputByteArrayIds, outputIds, outputByteArrayIds);
 
+
+    List<UserOperationLogEntry> userOperationLogEntries = historyService.createUserOperationLogQuery()
+      .operationType(OPERATION_TYPE_DELETE_HISTORY)
+      .property("nrOfInstances")
+      .list();
+
+    assertEquals(1, userOperationLogEntries.size());
+
+    UserOperationLogEntry entry = userOperationLogEntries.get(0);
+    assertEquals(String.valueOf(historicDecisionInstances.size()), entry.getNewValue());
+    assertEquals(CATEGORY_OPERATOR, entry.getCategory());
+  }
+
+  @Test
+  @Deployment(resources = {"org/camunda/bpm/engine/test/dmn/businessruletask/DmnBusinessRuleTaskTest.testDecisionRef.bpmn20.xml",
+  "org/camunda/bpm/engine/test/api/history/testDmnWithPojo.dmn11.xml" })
+  public void testCleanupFakeHistoryDecisionData() {
+    //given
+    List<String> ids = Arrays.asList("aFake");
+
+    //when
+    historyService.deleteHistoricDecisionInstancesBulk(ids);
+
+    //then expect no exception
+    assertEquals(0, historyService.createHistoricDecisionInstanceQuery().count());
   }
 
   void assertDataDeleted(final List<String> inputIds, final List<String> inputByteArrayIds, final List<String> outputIds,
@@ -834,6 +877,35 @@ public class BulkHistoryDeleteTest {
     // then
     detailsList = historyService.createHistoricDetailQuery().list();
     assertEquals(0, detailsList.size());
+  }
+
+  @Test
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn" })
+  public void testCleanupHistoryCaseInstanceOperationLog() {
+    // given
+    // create case instances
+    int instanceCount = 10;
+    List<String> caseInstanceIds = prepareHistoricCaseInstance(instanceCount);
+
+    // assume
+    List<HistoricCaseInstance> caseInstanceList = historyService.createHistoricCaseInstanceQuery().list();
+    assertEquals(instanceCount, caseInstanceList.size());
+
+    // when
+    identityService.setAuthenticatedUserId(USER_ID);
+    historyService.deleteHistoricCaseInstancesBulk(caseInstanceIds);
+    identityService.clearAuthentication();
+
+    // then
+    assertEquals(1, historyService.createUserOperationLogQuery().operationType(OPERATION_TYPE_DELETE_HISTORY).count());
+    UserOperationLogEntry entry = historyService.createUserOperationLogQuery().operationType(OPERATION_TYPE_DELETE_HISTORY).singleResult();
+    assertEquals(UserOperationLogEntry.CATEGORY_OPERATOR, entry.getCategory());
+    assertEquals(EntityTypes.CASE_INSTANCE, entry.getEntityType());
+    assertEquals(OPERATION_TYPE_DELETE_HISTORY, entry.getOperationType());
+    assertNull(entry.getCaseInstanceId());
+    assertEquals("nrOfInstances", entry.getProperty());
+    assertNull(entry.getOrgValue());
+    assertEquals(String.valueOf(instanceCount), entry.getNewValue());
   }
 
   private List<String> prepareHistoricCaseInstance(int instanceCount) {

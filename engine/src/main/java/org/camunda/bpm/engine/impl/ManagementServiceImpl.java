@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -40,6 +41,7 @@ import org.camunda.bpm.engine.management.DeploymentStatisticsQuery;
 import org.camunda.bpm.engine.management.JobDefinitionQuery;
 import org.camunda.bpm.engine.management.MetricsQuery;
 import org.camunda.bpm.engine.management.ProcessDefinitionStatisticsQuery;
+import org.camunda.bpm.engine.management.SchemaLogQuery;
 import org.camunda.bpm.engine.management.TableMetaData;
 import org.camunda.bpm.engine.management.TablePageQuery;
 import org.camunda.bpm.engine.management.UpdateJobDefinitionSuspensionStateSelectBuilder;
@@ -134,6 +136,10 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
 
   public void setJobDuedate(String jobId, Date newDuedate) {
     commandExecutor.execute(new SetJobDuedateCmd(jobId, newDuedate));
+  }
+  
+  public void recalculateJobDuedate(String jobId, boolean creationDateBased) {
+    commandExecutor.execute(new RecalculateJobDuedateCmd(jobId, creationDateBased));
   }
 
   public void setJobPriority(String jobId, long priority) {
@@ -468,4 +474,7 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
     return new BatchStatisticsQueryImpl(commandExecutor);
   }
 
+  public SchemaLogQuery createSchemaLogQuery() {
+    return new SchemaLogQueryImpl(commandExecutor);
+  }
 }

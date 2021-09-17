@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -17,6 +18,7 @@ package org.camunda.bpm.engine.impl.bpmn.behavior;
 
 import org.camunda.bpm.engine.delegate.BpmnError;
 import org.camunda.bpm.engine.impl.PriorityProvider;
+import org.camunda.bpm.engine.impl.bpmn.helper.BpmnExceptionHandler;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.core.variable.mapping.value.ParameterValueProvider;
 import org.camunda.bpm.engine.impl.migration.instance.MigratingActivityInstance;
@@ -66,15 +68,13 @@ public class ExternalTaskActivityBehavior extends AbstractBpmnActivityBehavior i
   }
 
   /**
-   * Overrides the propagateBpmnError method to made it public.
-   * Is used to propagate the bpmn error from an external task.
+   * It's used to propagate the bpmn error from an external task.
    * @param error the error which should be propagated
    * @param execution the current activity execution
-   * @throws Exception throwsn an exception if no handler was found
+   * @throws Exception throws an exception if no handler was found
    */
-  @Override
   public void propagateBpmnError(BpmnError error, ActivityExecution execution) throws Exception {
-    super.propagateBpmnError(error, execution);
+    BpmnExceptionHandler.propagateBpmnError(error, execution);
   }
 
   @Override

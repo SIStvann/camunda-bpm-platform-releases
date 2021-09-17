@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -15,11 +16,16 @@
  */
 package org.camunda.bpm.engine.impl.cmd;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.camunda.bpm.engine.BadUserRequestException;
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.cfg.CommandChecker;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 import org.camunda.bpm.engine.impl.util.EnsureUtil;
 import org.camunda.bpm.engine.runtime.Incident;
 
@@ -56,6 +62,14 @@ public class CreateIncidentCmd implements Command<Incident> {
     for (CommandChecker checker : commandContext.getProcessEngineConfiguration().getCommandCheckers()) {
       checker.checkUpdateProcessInstance(execution);
     }
+    
+    List<PropertyChange> propertyChanges = new ArrayList<>();
+    propertyChanges.add(new PropertyChange("incidentType", null, incidentType));
+    propertyChanges.add(new PropertyChange("configuration", null, configuration));
+    
+    commandContext.getOperationLogManager().logProcessInstanceOperation(UserOperationLogEntry.OPERATION_TYPE_CREATE_INCIDENT, 
+        execution.getProcessInstanceId(), execution.getProcessDefinitionId(), null, 
+        propertyChanges);
 
     return execution.createIncident(incidentType, configuration, message);
   }

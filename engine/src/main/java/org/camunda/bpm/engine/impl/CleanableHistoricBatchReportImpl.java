@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -18,10 +19,13 @@ package org.camunda.bpm.engine.impl;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.camunda.bpm.engine.history.CleanableHistoricBatchReport;
 import org.camunda.bpm.engine.history.CleanableHistoricBatchReportResult;
+import org.camunda.bpm.engine.impl.batch.BatchJobHandler;
 import org.camunda.bpm.engine.impl.cfg.CommandChecker;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 
@@ -53,6 +57,11 @@ public class CleanableHistoricBatchReportImpl extends AbstractQuery<CleanableHis
     checkPermissions(commandContext);
 
     Map<String, Integer> batchOperationsForHistoryCleanup = commandContext.getProcessEngineConfiguration().getParsedBatchOperationsForHistoryCleanup();
+
+    if (isHistoryCleanupStrategyRemovalTimeBased()) {
+      addBatchOperationsWithoutTTL(batchOperationsForHistoryCleanup);
+    }
+
     return commandContext.getHistoricBatchManager().findCleanableHistoricBatchesReportCountByCriteria(this, batchOperationsForHistoryCleanup);
   }
 
@@ -64,7 +73,29 @@ public class CleanableHistoricBatchReportImpl extends AbstractQuery<CleanableHis
     checkPermissions(commandContext);
 
     Map<String, Integer> batchOperationsForHistoryCleanup = commandContext.getProcessEngineConfiguration().getParsedBatchOperationsForHistoryCleanup();
+
+    if (isHistoryCleanupStrategyRemovalTimeBased()) {
+      addBatchOperationsWithoutTTL(batchOperationsForHistoryCleanup);
+    }
+
     return commandContext.getHistoricBatchManager().findCleanableHistoricBatchesReportByCriteria(this, page, batchOperationsForHistoryCleanup);
+  }
+
+  protected void addBatchOperationsWithoutTTL(Map<String, Integer> batchOperations) {
+    Map<String, BatchJobHandler<?>> batchJobHandlers = Context.getProcessEngineConfiguration().getBatchHandlers();
+
+    Set<String> batchOperationKeys = null;
+    if (batchJobHandlers != null) {
+      batchOperationKeys = batchJobHandlers.keySet();
+    }
+
+    if (batchOperationKeys != null) {
+      for (String batchOperation : batchOperationKeys) {
+        Integer ttl = batchOperations.get(batchOperation);
+        batchOperations.put(batchOperation, ttl);
+
+      }
+    }
   }
 
   public Date getCurrentTimestamp() {

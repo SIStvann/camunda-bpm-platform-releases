@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -40,10 +41,10 @@ import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_USER_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.NON_EXISTING_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.createMockHistoricTaskInstance;
 import static org.camunda.bpm.engine.rest.util.DateTimeUtils.withTimezone;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -130,7 +131,7 @@ import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.value.FileValue;
-import org.fest.assertions.Assertions;
+import org.assertj.core.api.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -210,7 +211,7 @@ public class TaskRestServiceInteractionTest extends
     when(mockQuery.singleResult()).thenReturn(mockTask);
     when(taskServiceMock.createTaskQuery()).thenReturn(mockQuery);
 
-    List<IdentityLink> identityLinks = new ArrayList<IdentityLink>();
+    List<IdentityLink> identityLinks = new ArrayList<>();
     mockAssigneeIdentityLink = MockProvider.createMockUserAssigneeIdentityLink();
     identityLinks.add(mockAssigneeIdentityLink);
     mockOwnerIdentityLink = MockProvider.createMockUserOwnerIdentityLink();
@@ -453,6 +454,7 @@ public class TaskRestServiceInteractionTest extends
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_NAME, embeddedProcessDefinition.get("name"));
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_DESCRIPTION, embeddedProcessDefinition.get("description"));
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_VERSION, embeddedProcessDefinition.get("version"));
+    Assert.assertEquals(MockProvider.EXAMPLE_VERSION_TAG, embeddedProcessDefinition.get("versionTag"));
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_RESOURCE_NAME, embeddedProcessDefinition.get("resource"));
     Assert.assertEquals(MockProvider.EXAMPLE_DEPLOYMENT_ID, embeddedProcessDefinition.get("deploymentId"));
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_DIAGRAM_RESOURCE_NAME, embeddedProcessDefinition.get("diagram"));
@@ -691,13 +693,51 @@ public class TaskRestServiceInteractionTest extends
   }
 
   @Test
+  public void testSubmitFormWithVariablesInReturn() {
+    VariableMap variables = MockProvider.createMockSerializedVariables();
+    when(formServiceMock.submitTaskFormWithVariablesInReturn(EXAMPLE_TASK_ID, null, false)).thenReturn(variables);
+
+    Map<String, Object> queryParameters = new HashMap<>();
+    queryParameters.put("withVariablesInReturn", true);
+
+    given()
+      .pathParam("id", EXAMPLE_TASK_ID)
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(queryParameters)
+      .header("accept", MediaType.APPLICATION_JSON)
+    .expect()
+      .statusCode(Status.OK.getStatusCode())
+      //serialized variable
+      .body(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".value",
+              equalTo(MockProvider.EXAMPLE_VARIABLE_INSTANCE_SERIALIZED_VALUE))
+      .body(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".type",
+              equalTo("Object"))
+      .body(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".valueInfo.objectTypeName",
+              equalTo(ArrayList.class.getName()))
+      .body(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".valueInfo.serializationDataFormat",
+              equalTo(MockProvider.FORMAT_APPLICATION_JSON))
+      // deserialized variable should also returned as serialized variable
+      .body(MockProvider.EXAMPLE_DESERIALIZED_VARIABLE_INSTANCE_NAME + ".value",
+              equalTo(MockProvider.EXAMPLE_VARIABLE_INSTANCE_SERIALIZED_VALUE))
+      .body(MockProvider.EXAMPLE_DESERIALIZED_VARIABLE_INSTANCE_NAME + ".type",
+              equalTo("Object"))
+      .body(MockProvider.EXAMPLE_DESERIALIZED_VARIABLE_INSTANCE_NAME + ".valueInfo.objectTypeName",
+              equalTo(Object.class.getName()))
+      .body(MockProvider.EXAMPLE_DESERIALIZED_VARIABLE_INSTANCE_NAME + ".valueInfo.serializationDataFormat",
+              equalTo(MockProvider.FORMAT_APPLICATION_JSON))
+    .when().post(SUBMIT_FORM_URL);
+
+    verify(formServiceMock).submitTaskFormWithVariablesInReturn(EXAMPLE_TASK_ID, null, false);
+  }
+
+  @Test
   public void testSubmitFormWithParameters() {
     Map<String, Object> variables = VariablesBuilder.create()
         .variable("aVariable", "aStringValue")
         .variable("anotherVariable", 42)
         .variable("aThirdValue", Boolean.TRUE).getVariables();
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("variables", variables);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -707,7 +747,7 @@ public class TaskRestServiceInteractionTest extends
         .statusCode(Status.NO_CONTENT.getStatusCode())
       .when().post(SUBMIT_FORM_URL);
 
-    Map<String, Object> expectedVariables = new HashMap<String, Object>();
+    Map<String, Object> expectedVariables = new HashMap<>();
     expectedVariables.put("aVariable", "aStringValue");
     expectedVariables.put("anotherVariable", 42);
     expectedVariables.put("aThirdValue", Boolean.TRUE);
@@ -721,7 +761,7 @@ public class TaskRestServiceInteractionTest extends
         .variable("aVariable", Base64.encodeBase64String("someBytes".getBytes()), "Bytes")
         .getVariables();
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("variables", variables);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -744,7 +784,7 @@ public class TaskRestServiceInteractionTest extends
         .getVariables();
     ((Map<String, Object>)variables.get(variableKey)).put("valueInfo", Collections.<String, Object>singletonMap("filename", filename));
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("variables", variables);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -771,7 +811,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -793,7 +833,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -815,7 +855,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -837,7 +877,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -859,7 +899,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -881,7 +921,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1027,7 +1067,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testClaimTask() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("userId", EXAMPLE_USER_ID);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1042,7 +1082,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testMissingUserId() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("userId", null);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1131,7 +1171,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testSetAssignee() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("userId", EXAMPLE_USER_ID);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1146,7 +1186,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testMissingUserIdSetAssignee() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("userId", null);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1191,7 +1231,7 @@ public class TaskRestServiceInteractionTest extends
   }
 
   protected Map<String, Object> toExpectedJsonMap(IdentityLink identityLink) {
-    Map<String, Object> result = new HashMap<String, Object>();
+    Map<String, Object> result = new HashMap<>();
     result.put("userId", identityLink.getUserId());
     result.put("groupId", identityLink.getGroupId());
     result.put("type", identityLink.getType());
@@ -1257,7 +1297,7 @@ public class TaskRestServiceInteractionTest extends
     String taskId = EXAMPLE_TASK_ID;
     String type = "someType";
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("userId", userId);
     json.put("taskId", taskId);
     json.put("type", type);
@@ -1278,7 +1318,7 @@ public class TaskRestServiceInteractionTest extends
     String taskId = EXAMPLE_TASK_ID;
     String type = "someType";
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("groupId", groupId);
     json.put("taskId", taskId);
     json.put("type", type);
@@ -1300,7 +1340,7 @@ public class TaskRestServiceInteractionTest extends
     String taskId = EXAMPLE_TASK_ID;
     String type = "someType";
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("groupId", groupId);
     json.put("userId", userId);
     json.put("taskId", taskId);
@@ -1325,7 +1365,7 @@ public class TaskRestServiceInteractionTest extends
     String taskId = EXAMPLE_TASK_ID;
     String type = "someType";
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("taskId", taskId);
     json.put("type", type);
 
@@ -1349,7 +1389,7 @@ public class TaskRestServiceInteractionTest extends
     String taskId = EXAMPLE_TASK_ID;
     String type = "someType";
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("groupId", groupId);
     json.put("taskId", taskId);
     json.put("type", type);
@@ -1375,7 +1415,7 @@ public class TaskRestServiceInteractionTest extends
     String taskId = EXAMPLE_TASK_ID;
     String type = "someType";
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("userId", userId);
     json.put("taskId", taskId);
     json.put("type", type);
@@ -1403,7 +1443,7 @@ public class TaskRestServiceInteractionTest extends
     String userId = EXAMPLE_USER_ID;
     String type = "someIdentityLinkType";
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("userId", userId);
     json.put("type", type);
 
@@ -1426,7 +1466,7 @@ public class TaskRestServiceInteractionTest extends
     String groupId = MockProvider.EXAMPLE_GROUP_ID;
     String type = "someIdentityLinkType";
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("groupId", groupId);
     json.put("type", type);
 
@@ -1449,7 +1489,7 @@ public class TaskRestServiceInteractionTest extends
     String groupId = MockProvider.EXAMPLE_GROUP_ID;
     String type = "someIdentityLinkType";
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("groupId", groupId);
     json.put("type", type);
 
@@ -1476,7 +1516,7 @@ public class TaskRestServiceInteractionTest extends
     String userId = MockProvider.EXAMPLE_USER_ID;
     String type = "someIdentityLinkType";
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("userId", userId);
     json.put("type", type);
 
@@ -1514,7 +1554,7 @@ public class TaskRestServiceInteractionTest extends
         .variable("anotherVariable", 42)
         .variable("aThirdValue", Boolean.TRUE).getVariables();
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("variables", variables);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1524,12 +1564,51 @@ public class TaskRestServiceInteractionTest extends
         .statusCode(Status.NO_CONTENT.getStatusCode())
       .when().post(COMPLETE_TASK_URL);
 
-    Map<String, Object> expectedVariables = new HashMap<String, Object>();
+    Map<String, Object> expectedVariables = new HashMap<>();
     expectedVariables.put("aVariable", "aStringValue");
     expectedVariables.put("anotherVariable", 42);
     expectedVariables.put("aThirdValue", Boolean.TRUE);
 
     verify(taskServiceMock).complete(eq(EXAMPLE_TASK_ID), argThat(new EqualsMap(expectedVariables)));
+  }
+
+  @Test
+  public void testCompleteTaskWithVariablesInReturn() {
+    VariableMap variables = MockProvider.createMockSerializedVariables();
+    when(taskServiceMock.completeWithVariablesInReturn(EXAMPLE_TASK_ID, null, false)).thenReturn(variables);
+
+    Map<String, Object> json = new HashMap<>();
+    json.put("withVariablesInReturn", Boolean.TRUE);
+
+    given()
+      .pathParam("id", EXAMPLE_TASK_ID)
+      .header("accept", MediaType.APPLICATION_JSON)
+      .contentType(POST_JSON_CONTENT_TYPE).body(json)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+        //serialized variable
+        .body(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".value",
+                equalTo(MockProvider.EXAMPLE_VARIABLE_INSTANCE_SERIALIZED_VALUE))
+        .body(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".type",
+                equalTo("Object"))
+        .body(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".valueInfo.objectTypeName",
+                equalTo(ArrayList.class.getName()))
+        .body(MockProvider.EXAMPLE_VARIABLE_INSTANCE_NAME + ".valueInfo.serializationDataFormat",
+                equalTo(MockProvider.FORMAT_APPLICATION_JSON))
+        // deserialized variable should also returned as serialized variable
+        .body(MockProvider.EXAMPLE_DESERIALIZED_VARIABLE_INSTANCE_NAME + ".value",
+                equalTo(MockProvider.EXAMPLE_VARIABLE_INSTANCE_SERIALIZED_VALUE))
+        .body(MockProvider.EXAMPLE_DESERIALIZED_VARIABLE_INSTANCE_NAME + ".type",
+                equalTo("Object"))
+        .body(MockProvider.EXAMPLE_DESERIALIZED_VARIABLE_INSTANCE_NAME + ".valueInfo.objectTypeName",
+                equalTo(Object.class.getName()))
+        .body(MockProvider.EXAMPLE_DESERIALIZED_VARIABLE_INSTANCE_NAME + ".valueInfo.serializationDataFormat",
+                equalTo(MockProvider.FORMAT_APPLICATION_JSON))
+    .when()
+      .post(COMPLETE_TASK_URL);
+
+    verify(taskServiceMock).completeWithVariablesInReturn(EXAMPLE_TASK_ID, null, false);
   }
 
   @Test
@@ -1540,7 +1619,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1562,7 +1641,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1584,7 +1663,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1606,7 +1685,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1628,7 +1707,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1650,7 +1729,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1702,7 +1781,7 @@ public class TaskRestServiceInteractionTest extends
         .variable("anotherVariable", 42)
         .variable("aThirdValue", Boolean.TRUE).getVariables();
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("variables", variables);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1712,7 +1791,7 @@ public class TaskRestServiceInteractionTest extends
         .statusCode(Status.NO_CONTENT.getStatusCode())
       .when().post(RESOLVE_TASK_URL);
 
-    Map<String, Object> expectedVariables = new HashMap<String, Object>();
+    Map<String, Object> expectedVariables = new HashMap<>();
     expectedVariables.put("aVariable", "aStringValue");
     expectedVariables.put("anotherVariable", 42);
     expectedVariables.put("aThirdValue", Boolean.TRUE);
@@ -1728,7 +1807,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1750,7 +1829,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1772,7 +1851,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1794,7 +1873,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1816,7 +1895,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1838,7 +1917,7 @@ public class TaskRestServiceInteractionTest extends
 
     Map<String, Object> variableJson = VariablesBuilder.create().variable(variableKey, variableValue, variableType).getVariables();
 
-    Map<String, Object> variables = new HashMap<String, Object>();
+    Map<String, Object> variables = new HashMap<>();
     variables.put("variables", variableJson);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1908,7 +1987,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testDelegateTask() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("userId", EXAMPLE_USER_ID);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -1925,7 +2004,7 @@ public class TaskRestServiceInteractionTest extends
   public void testUnsuccessfulDelegateTask() {
     doThrow(new ProcessEngineException("expected exception")).when(taskServiceMock).delegateTask(any(String.class), any(String.class));
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("userId", EXAMPLE_USER_ID);
 
     given().pathParam("id", EXAMPLE_TASK_ID)
@@ -2140,7 +2219,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testAddCompleteTaskComment() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("message", EXAMPLE_TASK_COMMENT_FULL_MESSAGE);
 
     Response response = given()
@@ -2164,7 +2243,7 @@ public class TaskRestServiceInteractionTest extends
 
     mockHistoryDisabled();
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("message", EXAMPLE_TASK_COMMENT_FULL_MESSAGE);
 
     given()
@@ -2184,7 +2263,7 @@ public class TaskRestServiceInteractionTest extends
     when(historicTaskInstanceQueryMock.taskId(eq(NON_EXISTING_ID))).thenReturn(historicTaskInstanceQueryMock);
     when(historicTaskInstanceQueryMock.singleResult()).thenReturn(null);
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("message", EXAMPLE_TASK_COMMENT_FULL_MESSAGE);
 
     given()
@@ -2203,7 +2282,7 @@ public class TaskRestServiceInteractionTest extends
   public void testAddCommentToNonExistingTaskWithHistoryDisabled() {
     mockHistoryDisabled();
 
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("message", EXAMPLE_TASK_COMMENT_FULL_MESSAGE);
 
     given()
@@ -2710,7 +2789,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPostCreateTask() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("id", "anyTaskId");
     json.put("name", "A Task");
@@ -2754,7 +2833,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPostCreateTaskPartialProperties() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("name", "A Task");
     json.put("description", "Some description");
@@ -2792,7 +2871,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPostCreateTaskDelegationStateResolved() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("delegationState", "RESOLVED");
 
@@ -2815,7 +2894,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPostCreateTaskDelegationStatePending() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("delegationState", "PENDING");
 
@@ -2838,7 +2917,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPostCreateTaskUnsupportedDelegationState() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("delegationState", "unsupported");
 
@@ -2860,7 +2939,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPostCreateTaskLowercaseDelegationState() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("delegationState", "pending");
 
@@ -2883,7 +2962,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPostCreateTask_NotValidValueException() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("id", "anyTaskId");
 
@@ -2906,7 +2985,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPostCreateTaskThrowsAuthorizationException() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("id", "anyTaskId");
 
     String message = "expected exception";
@@ -2926,7 +3005,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testSaveNewTaskThrowsAuthorizationException() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("id", "anyTaskId");
 
     Task newTask = mock(Task.class);
@@ -2949,7 +3028,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPutUpdateTask() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("id", "anyTaskId");
     json.put("name", "A Task");
@@ -2990,7 +3069,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPutUpdateTaskPartialProperties() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("name", "A Task");
     json.put("description", "Some description");
@@ -3043,7 +3122,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPutUpdateTaskDelegationStateResolved() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("delegationState", "RESOLVED");
 
@@ -3063,7 +3142,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPutUpdateTaskDelegationStatePending() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("delegationState", "PENDING");
 
@@ -3086,7 +3165,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPutUpdateTaskUnsupportedDelegationState() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("delegationState", "unsupported");
 
@@ -3109,7 +3188,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPutUpdateTaskLowercaseDelegationState() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
 
     json.put("delegationState", "pending");
 
@@ -3132,7 +3211,7 @@ public class TaskRestServiceInteractionTest extends
 
   @Test
   public void testPutUpdateTaskThrowsAuthorizationException() {
-    Map<String, Object> json = new HashMap<String, Object>();
+    Map<String, Object> json = new HashMap<>();
     json.put("delegationState", "pending");
 
     String message = "expected exception";

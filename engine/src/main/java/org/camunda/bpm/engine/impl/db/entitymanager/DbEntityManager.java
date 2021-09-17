@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -321,7 +322,7 @@ public class DbEntityManager implements Session, EntityLoadListener {
     try {
       final List<List<DbOperation>> batches = CollectionUtil.partition(operationsToFlush, BATCH_SIZE);
       for (List<DbOperation> batch : batches) {
-        flushDbOperations(batch);
+        flushDbOperations(batch, operationsToFlush);
       }
     } finally {
       if (isIgnoreForeignKeysForNextFlush) {
@@ -332,7 +333,7 @@ public class DbEntityManager implements Session, EntityLoadListener {
     }
   }
 
-  protected void flushDbOperations(List<DbOperation> operationsToFlush) {
+  protected void flushDbOperations(List<DbOperation> operationsToFlush, List<DbOperation> allOperations) {
     // execute the flush
     for (DbOperation dbOperation : operationsToFlush) {
       boolean doOptimisticLockingException = false;
@@ -342,7 +343,7 @@ public class DbEntityManager implements Session, EntityLoadListener {
         //some of the exceptions are considered to be optimistic locking exception
         doOptimisticLockingException = isOptimisticLockingException(dbOperation, e);
         if (!doOptimisticLockingException) {
-          throw LOG.flushDbOperationException(operationsToFlush, dbOperation, e);
+          throw LOG.flushDbOperationException(allOperations, dbOperation, e);
         }
       }
       if (dbOperation.isFailed() || doOptimisticLockingException) {
@@ -358,7 +359,7 @@ public class DbEntityManager implements Session, EntityLoadListener {
         //some of the exceptions are considered to be optimistic locking exception
         DbOperation failedOperation = hasOptimisticLockingException(operationsToFlush, e);
         if (failedOperation == null) {
-          throw LOG.flushDbOperationsException(operationsToFlush, e);
+          throw LOG.flushDbOperationsException(allOperations, e);
         } else {
           handleOptimisticLockingException(failedOperation);
         }

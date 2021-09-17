@@ -1,8 +1,9 @@
 /*
- * Copyright © 2012 - 2018 camunda services GmbH and various authors (info@camunda.com)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
+ * Copyright Camunda Services GmbH and/or licensed to Camunda Services GmbH
+ * under one or more contributor license agreements. See the NOTICE file
+ * distributed with this work for additional information regarding copyright
+ * ownership. Camunda licenses this file to you under the Apache License,
+ * Version 2.0; you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
  *     http://www.apache.org/licenses/LICENSE-2.0
@@ -21,6 +22,7 @@ import java.io.Serializable;
 import java.util.Collections;
 
 import org.camunda.bpm.engine.IdentityService;
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cfg.CommandChecker;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
@@ -31,6 +33,7 @@ import org.camunda.bpm.engine.impl.jobexecutor.JobExecutorContext;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutorLogger;
 import org.camunda.bpm.engine.impl.jobexecutor.JobFailureCollector;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 
 /**
  * @author Tom Baeyens
@@ -81,6 +84,10 @@ public class ExecuteJobsCmd implements Command<Void>, Serializable {
       for(CommandChecker checker : commandContext.getProcessEngineConfiguration().getCommandCheckers()) {
         checker.checkUpdateJob(job);
       }
+      // write a user operation log since we're not called by the job executor
+      commandContext.getOperationLogManager().logJobOperation(UserOperationLogEntry.OPERATION_TYPE_EXECUTE, 
+          jobId, job.getJobDefinitionId(), job.getProcessInstanceId(), job.getProcessDefinitionId(), 
+          job.getProcessDefinitionKey(), PropertyChange.EMPTY_CHANGE);
     } else {
       jobExecutorContext.setCurrentJob(job);
 
