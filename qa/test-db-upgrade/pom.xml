@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.camunda.bpm.qa</groupId>
     <artifactId>camunda-qa</artifactId>
-    <version>7.13.0</version>
+    <version>7.14.0</version>
   </parent>
 
   <properties>
@@ -17,9 +17,7 @@
 
          See CAM-6338
     -->
-    <camunda.version.old>
-      7.12.0
-    </camunda.version.old>
+    <camunda.version.old>7.13.0</camunda.version.old>
   </properties>
 
   <artifactId>camunda-qa-db-upgrade</artifactId>
@@ -400,6 +398,19 @@
       </build>
     </profile>
   </profiles>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-framework-bom</artifactId>
+        <version>${version.spring.framework}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
 
     <dependency>
@@ -488,6 +499,12 @@
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.github.tomakehurst</groupId>
+      <artifactId>wiremock</artifactId>
       <scope>test</scope>
     </dependency>
 
