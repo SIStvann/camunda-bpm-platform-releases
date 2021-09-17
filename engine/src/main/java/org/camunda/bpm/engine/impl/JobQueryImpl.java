@@ -14,6 +14,7 @@
 package org.camunda.bpm.engine.impl;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -21,6 +22,7 @@ import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
+import org.camunda.bpm.engine.impl.util.CompareUtil;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.JobQuery;
 
@@ -50,16 +52,14 @@ public class JobQueryImpl extends AbstractQuery<JobQuery, Job> implements JobQue
   protected Date duedateLowerThan;
   protected Date duedateHigherThanOrEqual;
   protected Date duedateLowerThanOrEqual;
+  protected Long priorityHigherThanOrEqual;
+  protected Long priorityLowerThanOrEqual;
   protected boolean withException;
   protected String exceptionMessage;
   protected boolean noRetriesLeft;
   protected SuspensionState suspensionState;
 
   public JobQueryImpl() {
-  }
-
-  public JobQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public JobQueryImpl(CommandExecutor commandExecutor) {
@@ -166,6 +166,17 @@ public class JobQueryImpl extends AbstractQuery<JobQuery, Job> implements JobQue
     return this;
   }
 
+
+  public JobQuery priorityHigherThanOrEquals(long priority) {
+    this.priorityHigherThanOrEqual = priority;
+    return this;
+  }
+
+  public JobQuery priorityLowerThanOrEquals(long priority) {
+    this.priorityLowerThanOrEqual = priority;
+    return this;
+  }
+
   public JobQuery withException() {
     this.withException = true;
     return this;
@@ -190,6 +201,36 @@ public class JobQueryImpl extends AbstractQuery<JobQuery, Job> implements JobQue
   public JobQuery suspended() {
     suspensionState = SuspensionState.SUSPENDED;
     return this;
+  }
+
+  @Override
+  protected boolean hasExcludingConditions() {
+    return super.hasExcludingConditions()
+      || CompareUtil.areNotInAscendingOrder(priorityHigherThanOrEqual, priorityLowerThanOrEqual)
+      || hasExcludingDueDateParameters();
+  }
+
+  private boolean hasExcludingDueDateParameters() {
+    List<Date> dueDates = new ArrayList<Date>();
+    if (duedateHigherThan != null && duedateHigherThanOrEqual != null) {
+      dueDates.add(CompareUtil.min(duedateHigherThan, duedateHigherThanOrEqual));
+      dueDates.add(CompareUtil.max(duedateHigherThan, duedateHigherThanOrEqual));
+    } else if (duedateHigherThan != null) {
+      dueDates.add(duedateHigherThan);
+    } else if (duedateHigherThanOrEqual != null) {
+      dueDates.add(duedateHigherThanOrEqual);
+    }
+
+    if (duedateLowerThan != null && duedateLowerThanOrEqual != null) {
+      dueDates.add(CompareUtil.min(duedateLowerThan, duedateLowerThanOrEqual));
+      dueDates.add(CompareUtil.max(duedateLowerThan, duedateLowerThanOrEqual));
+    } else if (duedateLowerThan != null) {
+      dueDates.add(duedateLowerThan);
+    } else if (duedateLowerThanOrEqual != null) {
+      dueDates.add(duedateLowerThanOrEqual);
+    }
+
+    return CompareUtil.areNotInAscendingOrder(dueDates);
   }
 
   //sorting //////////////////////////////////////////
@@ -220,6 +261,10 @@ public class JobQueryImpl extends AbstractQuery<JobQuery, Job> implements JobQue
 
   public JobQuery orderByJobRetries() {
     return orderBy(JobQueryProperty.RETRIES);
+  }
+
+  public JobQuery orderByJobPriority() {
+    return orderBy(JobQueryProperty.PRIORITY);
   }
 
   //results //////////////////////////////////////////

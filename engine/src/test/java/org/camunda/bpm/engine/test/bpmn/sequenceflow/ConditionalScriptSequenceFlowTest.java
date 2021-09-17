@@ -16,6 +16,7 @@ package org.camunda.bpm.engine.test.bpmn.sequenceflow;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
@@ -39,6 +40,16 @@ public class ConditionalScriptSequenceFlowTest extends PluggableProcessEngineTes
       taskService.complete(task.getId());
     }
 
+  }
+
+  @Deployment
+  public void testScriptExpressionWithNonBooleanResult() {
+    try {
+      runtimeService.startProcessInstanceByKey("process");
+      fail("expected exception: invalid return value in script");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("condition script returns non-Boolean", e.getMessage());
+    }
   }
 
   @Deployment(resources = {

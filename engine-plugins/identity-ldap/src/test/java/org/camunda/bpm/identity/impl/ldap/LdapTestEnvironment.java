@@ -45,19 +45,31 @@ public class LdapTestEnvironment {
   
   private static final String BASE_DN = "o=camunda,c=org";
   
-  private DirectoryService service;
-  private LdapServer ldapService;
+  protected DirectoryService service;
+  protected LdapServer ldapService;
+  protected String configFilePath = "ldap.properties";
+  protected String workingDirectory = "target/ldap-work";
 
-  public void init() throws Exception {
-    
-    Properties properties = loadTestProperties();    
+  public LdapTestEnvironment() {}
+
+  protected void initializeDirectory() throws Exception {
+    initializeDirectory(null);
+  }
+
+  protected void initializeDirectory(String workingDirectory) throws Exception {
+
+    if(null == workingDirectory) {
+      workingDirectory = this.workingDirectory;
+    }
+
+    Properties properties = loadTestProperties();
     String port = properties.getProperty("ldap.server.port");
-    
+
     service = new DefaultDirectoryService();
-    service.setWorkingDirectory(new File("target/ldap-work"));
-    
+    service.setWorkingDirectory(new File(workingDirectory));
+
     service.getChangeLog().setEnabled(false);
-    service.setDenormalizeOpAttrsEnabled(true);    
+    service.setDenormalizeOpAttrsEnabled(true);
 
     Partition camundaPartition = createPartition("camunda", BASE_DN);
     createIndex(camundaPartition, "objectClass", "ou", "uid");
@@ -67,16 +79,20 @@ public class LdapTestEnvironment {
     ldapService.setDirectoryService(service);
 
     service.startup();
-    ldapService.start();
 
     // Create the root entry
     if (!service.getAdminSession().exists(camundaPartition.getSuffixDn())) {
       LdapDN dn = new LdapDN(BASE_DN);
       ServerEntry entry = service.newEntry(dn);
-      entry.add("objectClass", "top", "domain"); 
+      entry.add("objectClass", "top", "domain");
       entry.add("dc", "camunda");
       service.getAdminSession().add(entry);
     }
+  }
+
+  public void init() throws Exception {
+    initializeDirectory();
+    ldapService.start();
 
     createGroup("office-berlin");
     String dnRoman = createUserUid("roman", "office-berlin", "Roman", "Smirnov", "roman@camunda.org");
@@ -116,7 +132,7 @@ public class LdapTestEnvironment {
     return dn.toNormName();
   }
 
-  private void createUser(String user, String firstname, String lastname,
+  protected void createUser(String user, String firstname, String lastname,
       String email, LdapDN dn) throws Exception, NamingException,
       UnsupportedEncodingException {
     if (!service.getAdminSession().exists(dn)) {
@@ -176,6 +192,7 @@ public class LdapTestEnvironment {
 
   public void shutdown() {
     try {
+      ldapService.stop();
       service.shutdown();
     } catch (Exception e) {
       LOG.log(Level.SEVERE, "exception while shutting down ldap", e);
@@ -184,7 +201,7 @@ public class LdapTestEnvironment {
   
   protected Properties loadTestProperties() throws IOException {
     Properties properties = new Properties();
-    File file = IoUtil.getFile("ldap.properties");
+    File file = IoUtil.getFile(configFilePath);
     FileInputStream propertiesStream= null;
     try {
       propertiesStream = new FileInputStream(file);

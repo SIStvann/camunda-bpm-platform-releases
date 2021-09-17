@@ -16,7 +16,6 @@ import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsEmpty
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsNull;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
-import java.util.Arrays;
 import java.util.List;
 
 import org.camunda.bpm.engine.exception.NotValidException;
@@ -25,6 +24,8 @@ import org.camunda.bpm.engine.history.HistoricJobLogQuery;
 import org.camunda.bpm.engine.history.JobState;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
+import org.camunda.bpm.engine.impl.util.CollectionUtil;
+import org.camunda.bpm.engine.impl.util.CompareUtil;
 
 /**
  * @author Roman Smirnov
@@ -47,12 +48,10 @@ public class HistoricJobLogQueryImpl extends AbstractQuery<HistoricJobLogQuery, 
   protected String processDefinitionKey;
   protected String deploymentId;
   protected JobState state;
+  protected Long jobPriorityHigherThanOrEqual;
+  protected Long jobPriorityLowerThanOrEqual;
 
   public HistoricJobLogQueryImpl() {
-  }
-
-  public HistoricJobLogQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public HistoricJobLogQueryImpl(CommandExecutor commandExecutor) {
@@ -98,7 +97,7 @@ public class HistoricJobLogQueryImpl extends AbstractQuery<HistoricJobLogQuery, 
   }
 
   public HistoricJobLogQuery activityIdIn(String... activityIds) {
-    List<String> activityIdList = Arrays.asList(activityIds);
+    List<String> activityIdList = CollectionUtil.asArrayList(activityIds);
     ensureNotContainsNull("activityIds", activityIdList);
     ensureNotContainsEmptyString("activityIds", activityIdList);
     this.activityIds = activityIds;
@@ -106,7 +105,7 @@ public class HistoricJobLogQueryImpl extends AbstractQuery<HistoricJobLogQuery, 
   }
 
   public HistoricJobLogQuery executionIdIn(String... executionIds) {
-    List<String> executionIdList = Arrays.asList(executionIds);
+    List<String> executionIdList = CollectionUtil.asArrayList(executionIds);
     ensureNotContainsNull("executionIds", executionIdList);
     ensureNotContainsEmptyString("executionIds", executionIdList);
     this.executionIds = executionIds;
@@ -137,6 +136,16 @@ public class HistoricJobLogQueryImpl extends AbstractQuery<HistoricJobLogQuery, 
     return this;
   }
 
+  public HistoricJobLogQuery jobPriorityHigherThanOrEquals(long priority) {
+    this.jobPriorityHigherThanOrEqual = priority;
+    return this;
+  }
+
+  public HistoricJobLogQuery jobPriorityLowerThanOrEquals(long priority) {
+    this.jobPriorityLowerThanOrEqual = priority;
+    return this;
+  }
+
   public HistoricJobLogQuery creationLog() {
     setState(JobState.CREATED);
     return this;
@@ -155,6 +164,12 @@ public class HistoricJobLogQueryImpl extends AbstractQuery<HistoricJobLogQuery, 
   public HistoricJobLogQuery deletionLog() {
     setState(JobState.DELETED);
     return this;
+  }
+
+  @Override
+  protected boolean hasExcludingConditions() {
+    return super.hasExcludingConditions()
+      || CompareUtil.areNotInAscendingOrder(jobPriorityHigherThanOrEqual, jobPriorityLowerThanOrEqual);
   }
 
   // order by //////////////////////////////////////////////
@@ -176,6 +191,11 @@ public class HistoricJobLogQueryImpl extends AbstractQuery<HistoricJobLogQuery, 
 
   public HistoricJobLogQuery orderByJobRetries() {
     orderBy(HistoricJobLogQueryProperty.RETRIES);
+    return this;
+  }
+
+  public HistoricJobLogQuery orderByJobPriority() {
+    orderBy(HistoricJobLogQueryProperty.PRIORITY);
     return this;
   }
 

@@ -33,7 +33,7 @@ public class FoxDeleteProcessInstanceCmd implements Command<Void>, Serializable 
 
     commandContext
       .getTaskManager()
-      .deleteTasksByProcessInstanceId(processInstanceId, deleteReason, false);
+      .deleteTasksByProcessInstanceId(processInstanceId, deleteReason, false, false);
 
     for (PvmExecutionImpl currentExecution : this.collectExecutionToDelete(execution)) {
       currentExecution.deleteCascade2(deleteReason);
@@ -41,7 +41,6 @@ public class FoxDeleteProcessInstanceCmd implements Command<Void>, Serializable 
     return null;
   }
 
-  @SuppressWarnings("unchecked")
   public List<PvmExecutionImpl> collectExecutionToDelete(PvmExecutionImpl execution) {
     List<PvmExecutionImpl> result = new ArrayList<PvmExecutionImpl>();
     for (PvmExecutionImpl currentExecution : execution.getExecutions()) {

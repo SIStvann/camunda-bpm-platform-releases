@@ -143,11 +143,17 @@ public class HistoricCaseInstanceTest extends CmmnProcessEngineTestCase {
     assertCount(0, historicQuery().createdBefore(beforeCreate));
     assertCount(1, historicQuery().createdBefore(closed));
 
+    assertCount(0, historicQuery().createdBefore(beforeCreate).createdAfter(closed));
+
     assertCount(1, historicQuery().closedAfter(created));
     assertCount(0, historicQuery().closedAfter(afterClose));
 
     assertCount(0, historicQuery().closedBefore(created));
     assertCount(1, historicQuery().closedBefore(afterClose));
+
+    assertCount(0, historicQuery().closedBefore(created).closedAfter(afterClose));
+
+    assertCount(1, historicQuery().closedBefore(afterClose).closedAfter(created));
   }
 
   @Deployment(resources={"org/camunda/bpm/engine/test/api/cmmn/emptyStageCase.cmmn"})
@@ -207,6 +213,7 @@ public class HistoricCaseInstanceTest extends CmmnProcessEngineTestCase {
     caseInstanceIds.add("unknown2");
 
     assertCount(2, historicQuery().caseInstanceIds(caseInstanceIds));
+    assertCount(0, historicQuery().caseInstanceIds(caseInstanceIds).caseInstanceId("someOtherId"));
 
     assertCount(1, historicQuery().caseDefinitionId(oneTaskCase.getCaseDefinitionId()));
 
@@ -215,6 +222,8 @@ public class HistoricCaseInstanceTest extends CmmnProcessEngineTestCase {
     assertCount(2, historicQuery().caseDefinitionKeyNotIn(Arrays.asList("unknown")));
     assertCount(1, historicQuery().caseDefinitionKeyNotIn(Arrays.asList("oneTaskCase")));
     assertCount(0, historicQuery().caseDefinitionKeyNotIn(Arrays.asList("oneTaskCase", "twoTaskCase")));
+    assertCount(0, historicQuery().caseDefinitionKeyNotIn(Arrays.asList("oneTaskCase")).caseDefinitionKey("oneTaskCase"));
+
 
     try {
       // oracle handles empty string like null which seems to lead to undefined behavior of the LIKE comparison

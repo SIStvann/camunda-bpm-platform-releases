@@ -6,7 +6,7 @@
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-parent</artifactId>
     <relativePath>../parent</relativePath>
-    <version>7.3.0</version>
+    <version>7.4.0</version>
   </parent>
 
   <groupId>org.camunda.bpm</groupId>
@@ -34,7 +34,7 @@
     <version.postgresql>9.3-1102-jdbc4</version.postgresql>
 
     <!-- needed for sql script and backward compatibility checks -->
-    <camunda.version.old>7.2.0</camunda.version.old>
+    <camunda.version.old>7.3.0</camunda.version.old>
   </properties>
 
   <dependencyManagement>
@@ -221,7 +221,7 @@
         <database.password>sa</database.password>
         <database.port>18080</database.port>
         <!-- This url has to consistent for the subprojects: {server}-runtime and webapp-integration-tests -->
-        <database.url>jdbc:h2:${database.host}${database.name};MVCC=TRUE;AUTO_SERVER=TRUE;AUTO_SERVER_PORT=${database.port};LOCK_TIMEOUT=10000</database.url>
+        <database.url>jdbc:h2:${database.host}${database.name};MVCC=TRUE;AUTO_SERVER=TRUE;AUTO_SERVER_PORT=${database.port};LOCK_TIMEOUT=10000;DB_CLOSE_ON_EXIT=FALSE</database.url>
 
         <database.type>h2</database.type>
         <database.driver>org.h2.Driver</database.driver>

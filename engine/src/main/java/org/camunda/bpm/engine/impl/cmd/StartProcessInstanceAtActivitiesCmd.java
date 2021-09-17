@@ -15,8 +15,10 @@ package org.camunda.bpm.engine.impl.cmd;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotEmpty;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
+import java.util.List;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.exception.NotValidException;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.ProcessInstanceModificationBuilderImpl;
 import org.camunda.bpm.engine.impl.ProcessInstantiationBuilderImpl;
 import org.camunda.bpm.engine.impl.context.Context;
@@ -37,6 +39,8 @@ import org.camunda.bpm.engine.runtime.ProcessInstance;
  *
  */
 public class StartProcessInstanceAtActivitiesCmd implements Command<ProcessInstance> {
+
+  private final static CommandLogger LOG = ProcessEngineLogger.CMD_LOGGER;
 
   protected ProcessInstantiationBuilderImpl instantiationBuilder;
 
@@ -89,14 +93,19 @@ public class StartProcessInstanceAtActivitiesCmd implements Command<ProcessInsta
     processInstance.setPreserveScope(true);
 
     // apply modifications
-    for (AbstractProcessInstanceModificationCommand instruction : modificationBuilder.getModificationOperations()) {
+    List<AbstractProcessInstanceModificationCommand> instructions = modificationBuilder.getModificationOperations();
+
+    for (int i = 0; i < instructions.size(); i++) {
+      AbstractProcessInstanceModificationCommand instruction = instructions.get(i);
+      LOG.debugStartingInstruction(processInstance.getId(), i, instruction.describe());
+
       instruction.setProcessInstanceId(processInstance.getId());
       instruction.setSkipCustomListeners(modificationBuilder.isSkipCustomListeners());
       instruction.setSkipIoMappings(modificationBuilder.isSkipIoMappings());
       instruction.execute(commandContext);
     }
 
-    if (processInstance.getExecutions().isEmpty() && processInstance.isEnded()) {
+    if (!processInstance.hasChildren() && processInstance.isEnded()) {
       // process instance has ended regularly but this has not been propagated yet
       // due to preserveScope setting
       processInstance.propagateEnd();

@@ -14,18 +14,15 @@
 package org.camunda.bpm.engine.impl.test;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Callable;
-import java.util.logging.Level;
-
-import junit.framework.AssertionFailedError;
-
+import org.apache.ibatis.logging.LogFactory;
 import org.camunda.bpm.engine.AuthorizationService;
 import org.camunda.bpm.engine.CaseService;
+import org.camunda.bpm.engine.DecisionService;
+import org.camunda.bpm.engine.ExternalTaskService;
 import org.camunda.bpm.engine.FilterService;
 import org.camunda.bpm.engine.FormService;
 import org.camunda.bpm.engine.HistoryService;
@@ -38,20 +35,17 @@ import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
 import org.camunda.bpm.engine.impl.ProcessEngineImpl;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
-import org.camunda.bpm.engine.impl.db.PersistenceSession;
-import org.camunda.bpm.engine.impl.interceptor.Command;
-import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
-import org.camunda.bpm.engine.impl.util.LogUtil.ThreadLogMode;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.runtime.CaseInstance;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
-import org.junit.Assert;
+import org.slf4j.Logger;
+
+import junit.framework.AssertionFailedError;
 
 
 /**
@@ -59,19 +53,14 @@ import org.junit.Assert;
  */
 public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
 
+  private final static Logger LOG = TestLogger.TEST_LOGGER.getLogger();
+
   static {
-    // this ensures that mybatis uses the jdk logging
-//    LogFactory.useJdkLogging();
-    // with an upgrade of mybatis, this might have to become org.mybatis.generator.logging.LogFactory.forceJavaLogging();
+    // this ensures that mybatis uses slf4j logging
+    LogFactory.useSlf4jLogging();
   }
 
-  private static final List<String> TABLENAMES_EXCLUDED_FROM_DB_CLEAN_CHECK = Arrays.asList(
-    "ACT_GE_PROPERTY",
-    "ACT_RU_METER_LOG"
-  );
-
   protected ProcessEngine processEngine;
-  protected ThreadLogMode threadRenderingMode = DEFAULT_THREAD_LOG_MODE;
 
   protected String deploymentId;
   protected Throwable exception;
@@ -87,6 +76,8 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
   protected AuthorizationService authorizationService;
   protected CaseService caseService;
   protected FilterService filterService;
+  protected ExternalTaskService externalTaskService;
+  protected DecisionService decisionService;
 
   protected abstract void initializeProcessEngine();
 
@@ -101,83 +92,37 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
       initializeServices();
     }
 
-    log.severe(EMPTY_LINE);
-
     try {
 
       deploymentId = TestHelper.annotationDeploymentSetUp(processEngine, getClass(), getName());
 
       super.runBare();
 
-    }  catch (AssertionFailedError e) {
-      log.severe(EMPTY_LINE);
-      log.log(Level.SEVERE, "ASSERTION FAILED: "+e, e);
+    }
+    catch (AssertionFailedError e) {
+      LOG.error("ASSERTION FAILED: " + e, e);
       exception = e;
       throw e;
 
-    } catch (Throwable e) {
-      log.severe(EMPTY_LINE);
-      log.log(Level.SEVERE, "EXCEPTION: "+e, e);
+    }
+    catch (Throwable e) {
+      LOG.error("EXCEPTION: " + e, e);
       exception = e;
       throw e;
 
-    } finally {
+    }
+    finally {
       TestHelper.annotationDeploymentTearDown(processEngine, deploymentId, getClass(), getName());
       identityService.clearAuthentication();
-      assertAndEnsureCleanDb();
+      TestHelper.assertAndEnsureCleanDbAndCache(processEngine);
       ClockUtil.reset();
 
-      // Can't do this in the teardown, as the teardown will be called as part of the super.runBare
+      // Can't do this in the teardown, as the teardown will be called as part
+      // of the super.runBare
       closeDownProcessEngine();
       clearServiceReferences();
     }
   }
-
-  /** Each test is assumed to clean up all DB content it entered.
-   * After a test method executed, this method scans all tables to see if the DB is completely clean.
-   * It throws AssertionFailed in case the DB is not clean.
-   * If the DB is not clean, it is cleaned by performing a create a drop. */
-  protected void assertAndEnsureCleanDb() throws Throwable {
-    log.fine("verifying that db is clean after test");
-    Map<String, Long> tableCounts = managementService.getTableCount();
-
-    StringBuilder outputMessage = new StringBuilder();
-    for (String tableName : tableCounts.keySet()) {
-      String tableNameWithoutPrefix = tableName.replace(processEngineConfiguration.getDatabaseTablePrefix(), "");
-      if (!TABLENAMES_EXCLUDED_FROM_DB_CLEAN_CHECK.contains(tableNameWithoutPrefix)) {
-        Long count = tableCounts.get(tableName);
-        if (count != 0L) {
-          outputMessage.append("  " + tableName + ": " + count + " record(s)\n");
-        }
-      }
-    }
-    if (outputMessage.length() > 0) {
-      outputMessage.insert(0, "DB NOT CLEAN: \n");
-      log.severe(EMPTY_LINE);
-      log.severe(outputMessage.toString());
-
-      log.info("dropping and recreating db");
-
-      CommandExecutor commandExecutor = ((ProcessEngineImpl) processEngine).getProcessEngineConfiguration().getCommandExecutorTxRequired();
-      commandExecutor.execute(new Command<Object>() {
-        public Object execute(CommandContext commandContext) {
-          PersistenceSession persistenceSession = commandContext.getSession(PersistenceSession.class);
-          persistenceSession.dbSchemaDrop();
-          persistenceSession.dbSchemaCreate();
-          return null;
-        }
-      });
-
-      if (exception != null) {
-        throw exception;
-      } else {
-        Assert.fail(outputMessage.toString());
-      }
-    } else {
-      log.info("database was clean");
-    }
-  }
-
 
   protected void initializeServices() {
     processEngineConfiguration = ((ProcessEngineImpl) processEngine).getProcessEngineConfiguration();
@@ -191,6 +136,8 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     authorizationService = processEngine.getAuthorizationService();
     caseService = processEngine.getCaseService();
     filterService = processEngine.getFilterService();
+    externalTaskService = processEngine.getExternalTaskService();
+    decisionService = processEngine.getDecisionService();
   }
 
   protected void clearServiceReferences() {
@@ -205,6 +152,8 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     authorizationService = null;
     caseService = null;
     filterService = null;
+    externalTaskService = null;
+    decisionService = null;
   }
 
   public void assertProcessEnded(final String processInstanceId) {
@@ -325,20 +274,46 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     }
   }
 
+  /**
+   * Execute all available jobs recursively till no more jobs found.
+   */
   public void executeAvailableJobs() {
+    executeAvailableJobs(0, Integer.MAX_VALUE, true);
+  }
+
+  /**
+   * Execute all available jobs recursively till no more jobs found or the number of executions is higher than expected.
+   *
+   * @param expectedExecutions number of expected job executions
+   *
+   * @throws AssertionFailedError when execute less or more jobs than expected
+   *
+   * @see #executeAvailableJobs()
+   */
+  public void executeAvailableJobs(int expectedExecutions){
+    executeAvailableJobs(0, expectedExecutions, false);
+  }
+
+  private void executeAvailableJobs(int jobsExecuted, int expectedExecutions, boolean ignoreLessExecutions) {
     List<Job> jobs = managementService.createJobQuery().withRetriesLeft().list();
 
     if (jobs.isEmpty()) {
+      assertTrue("executed less jobs than expected. expected <" + expectedExecutions + "> actual <" + jobsExecuted + ">",
+          jobsExecuted == expectedExecutions || ignoreLessExecutions);
       return;
     }
 
     for (Job job : jobs) {
       try {
         managementService.executeJob(job.getId());
+        jobsExecuted += 1;
       } catch (Exception e) {}
     }
 
-    executeAvailableJobs();
+    assertTrue("executed more jobs than expected. expected <" + expectedExecutions + "> actual <" + jobsExecuted + ">",
+        jobsExecuted <= expectedExecutions);
+
+    executeAvailableJobs(jobsExecuted, expectedExecutions, ignoreLessExecutions);
   }
 
   public boolean areJobsAvailable() {
@@ -368,6 +343,7 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     public boolean isTimeLimitExceeded() {
       return timeLimitExceeded;
     }
+    @Override
     public void run() {
       timeLimitExceeded = true;
       thread.interrupt();

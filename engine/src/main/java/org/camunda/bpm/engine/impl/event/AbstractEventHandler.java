@@ -29,7 +29,7 @@ import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
  */
 public abstract class AbstractEventHandler implements EventHandler {
 
-  public void handleEvent(EventSubscriptionEntity eventSubscription, Object payload, CommandContext commandContext) {
+  public void handleIntermediateEvent(EventSubscriptionEntity eventSubscription, Object payload, CommandContext commandContext) {
 
     PvmExecutionImpl execution = eventSubscription.getExecution();
     ActivityImpl activity = eventSubscription.getActivity();
@@ -55,5 +55,10 @@ public abstract class AbstractEventHandler implements EventHandler {
 
       execution.executeEventHandlerActivity(activity);
     }
+  }
+
+  @Override
+  public void handleEvent(EventSubscriptionEntity eventSubscription, Object payload, CommandContext commandContext) {
+    handleIntermediateEvent(eventSubscription, payload, commandContext);
   }
 }

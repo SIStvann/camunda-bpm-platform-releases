@@ -435,6 +435,8 @@ public abstract class AbstractCaseExecutionRestServiceQueryTest extends Abstract
     queryParameters.put("businessKey", aBusinessKey);
     queryParameters.put("activityId", anActivityId);
     queryParameters.put("required", "true");
+    queryParameters.put("repeatable", "true");
+    queryParameters.put("repetition", "true");
     queryParameters.put("active", "true");
     queryParameters.put("enabled", "true");
     queryParameters.put("disabled", "true");

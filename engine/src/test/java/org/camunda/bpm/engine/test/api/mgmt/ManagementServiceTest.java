@@ -18,31 +18,31 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-import junit.framework.Assert;
-
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.exception.NotFoundException;
+import org.camunda.bpm.engine.exception.NullValueException;
 import org.camunda.bpm.engine.history.HistoricIncident;
-import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.ProcessEngineImpl;
 import org.camunda.bpm.engine.impl.cmd.AcquireJobsCmd;
-import org.camunda.bpm.engine.impl.incident.FailedJobIncidentHandler;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
+import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricIncidentEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricIncidentManager;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.JobManager;
 import org.camunda.bpm.engine.impl.persistence.entity.MessageEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
-import org.camunda.bpm.engine.impl.test.TestHelper;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.management.JobDefinition;
 import org.camunda.bpm.engine.management.TableMetaData;
+import org.camunda.bpm.engine.runtime.Incident;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.JobQuery;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.test.Deployment;
+import org.junit.Assert;
 
 
 /**
@@ -324,8 +324,6 @@ public class ManagementServiceTest extends PluggableProcessEngineTestCase {
     assertEquals(3, job.getRetries());
 
     deleteJobAndIncidents(job);
-
-    TestHelper.clearOpLog(processEngineConfiguration);
   }
 
   protected void createJob(final int retries, final String owner, final Date lockExpirationTime) {
@@ -383,7 +381,7 @@ public class ManagementServiceTest extends PluggableProcessEngineTestCase {
   protected void deleteJobAndIncidents(final Job job) {
     final List<HistoricIncident> incidents =
         historyService.createHistoricIncidentQuery()
-        .incidentType(FailedJobIncidentHandler.INCIDENT_HANDLER_TYPE).list();
+        .incidentType(Incident.FAILED_JOB_HANDLER_TYPE).list();
 
     CommandExecutor commandExecutor = processEngineConfiguration.getCommandExecutorTxRequired();
     commandExecutor.execute(new Command<Void>() {
@@ -444,7 +442,8 @@ public class ManagementServiceTest extends PluggableProcessEngineTestCase {
 
     // Acquire job by running the acquire command manually
     ProcessEngineImpl processEngineImpl = (ProcessEngineImpl) processEngine;
-    AcquireJobsCmd acquireJobsCmd = new AcquireJobsCmd(processEngineImpl.getProcessEngineConfiguration().getJobExecutor());
+    JobExecutor jobExecutor = processEngineImpl.getProcessEngineConfiguration().getJobExecutor();
+    AcquireJobsCmd acquireJobsCmd = new AcquireJobsCmd(jobExecutor);
     CommandExecutor commandExecutor = processEngineImpl.getProcessEngineConfiguration().getCommandExecutorTxRequired();
     commandExecutor.execute(acquireJobsCmd);
 
@@ -584,8 +583,61 @@ public class ManagementServiceTest extends PluggableProcessEngineTestCase {
     assertEquals(processEngineConfiguration.getHistoryLevel().getId(), historyLevel);
   }
 
-  protected void cleanOpLog(String jobId) {
-    UserOperationLogEntry entry = historyService.createUserOperationLogQuery().jobId(jobId).singleResult();
-    historyService.deleteUserOperationLogEntry(entry.getId());
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/mgmt/asyncTaskProcess.bpmn20.xml")
+  public void testSetJobPriority() {
+    // given
+    runtimeService
+      .createProcessInstanceByKey("asyncTaskProcess")
+      .startBeforeActivity("task")
+      .execute();
+
+    Job job = managementService.createJobQuery().singleResult();
+
+    // when
+    managementService.setJobPriority(job.getId(), 42);
+
+    // then
+    job = managementService.createJobQuery().singleResult();
+
+    assertEquals(42, job.getPriority());
   }
+
+  public void testSetJobPriorityForNonExistingJob() {
+    try {
+      managementService.setJobPriority("nonExistingJob", 42);
+      fail("should not succeed");
+    } catch (NotFoundException e) {
+      assertTextPresentIgnoreCase("No job found with id 'nonExistingJob'", e.getMessage());
+    }
+  }
+
+  public void testSetJobPriorityForNullJob() {
+    try {
+      managementService.setJobPriority(null, 42);
+      fail("should not succeed");
+    } catch (NullValueException e) {
+      assertTextPresentIgnoreCase("Job id must not be null", e.getMessage());
+    }
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/mgmt/asyncTaskProcess.bpmn20.xml")
+  public void testSetJobPriorityToExtremeValues() {
+    runtimeService
+      .createProcessInstanceByKey("asyncTaskProcess")
+      .startBeforeActivity("task")
+      .execute();
+
+    Job job = managementService.createJobQuery().singleResult();
+
+    // it is possible to set the max integer value
+    managementService.setJobPriority(job.getId(), Long.MAX_VALUE);
+    job = managementService.createJobQuery().singleResult();
+    assertEquals(Long.MAX_VALUE, job.getPriority());
+
+    // it is possible to set the min integer value
+    managementService.setJobPriority(job.getId(), Long.MIN_VALUE + 1); // +1 for informix
+    job = managementService.createJobQuery().singleResult();
+    assertEquals(Long.MIN_VALUE + 1, job.getPriority());
+  }
+
 }

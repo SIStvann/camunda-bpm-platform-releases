@@ -43,12 +43,20 @@
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/Authorization.xml" />
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/Filter.xml" />
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/Metrics.xml" />
+    <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/ExternalTask.xml" />
 
     <!-- CMMN -->
 
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/CaseDefinition.xml" />
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/CaseExecution.xml" />
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/CaseSentryPart.xml" />
+
+    <!-- DMN -->
+
+    <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/DecisionDefinition.xml" />
+    <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/HistoricDecisionInstance.xml" />
+    <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/HistoricDecisionInputInstance.xml" />
+    <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/HistoricDecisionOutputInstance.xml" />
 
 	</mappers>
 </configuration>

@@ -42,6 +42,7 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
   protected String processDefinitionId;
   protected Set<String> processInstanceIds;
   protected String processDefinitionKey;
+  protected String deploymentId;
   protected String superProcessInstanceId;
   protected String subProcessInstanceId;
   protected SuspensionState suspensionState;
@@ -58,10 +59,6 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
   protected List<EventSubscriptionQueryValue> eventSubscriptions;
 
   public ProcessInstanceQueryImpl() {
-  }
-
-  public ProcessInstanceQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public ProcessInstanceQueryImpl(CommandExecutor commandExecutor) {
@@ -102,6 +99,12 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
   public ProcessInstanceQueryImpl processDefinitionKey(String processDefinitionKey) {
     ensureNotNull("Process definition key", processDefinitionKey);
     this.processDefinitionKey = processDefinitionKey;
+    return this;
+  }
+
+  public ProcessInstanceQuery deploymentId(String deploymentId) {
+    ensureNotNull("Deployment id", deploymentId);
+    this.deploymentId = deploymentId;
     return this;
   }
 
@@ -226,6 +229,10 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
 
   public String getProcessDefinitionKey() {
     return processDefinitionKey;
+  }
+
+  public String getDeploymentId() {
+    return deploymentId;
   }
 
   public String getActivityId() {

@@ -25,12 +25,14 @@ import static org.camunda.bpm.engine.authorization.Permissions.UPDATE;
 import static org.camunda.bpm.engine.authorization.Permissions.UPDATE_INSTANCE;
 import static org.camunda.bpm.engine.authorization.Permissions.UPDATE_TASK;
 import static org.camunda.bpm.engine.authorization.Resources.AUTHORIZATION;
+import static org.camunda.bpm.engine.authorization.Resources.DECISION_DEFINITION;
 import static org.camunda.bpm.engine.authorization.Resources.DEPLOYMENT;
 import static org.camunda.bpm.engine.authorization.Resources.PROCESS_DEFINITION;
 import static org.camunda.bpm.engine.authorization.Resources.PROCESS_INSTANCE;
 import static org.camunda.bpm.engine.authorization.Resources.TASK;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,6 +41,7 @@ import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.IdentityService;
 import org.camunda.bpm.engine.authorization.Authorization;
 import org.camunda.bpm.engine.authorization.Groups;
+import org.camunda.bpm.engine.authorization.MissingAuthorization;
 import org.camunda.bpm.engine.authorization.Permission;
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resource;
@@ -50,8 +53,10 @@ import org.camunda.bpm.engine.impl.AuthorizationQueryImpl;
 import org.camunda.bpm.engine.impl.DeploymentQueryImpl;
 import org.camunda.bpm.engine.impl.DeploymentStatisticsQueryImpl;
 import org.camunda.bpm.engine.impl.EventSubscriptionQueryImpl;
+import org.camunda.bpm.engine.impl.ExternalTaskQueryImpl;
 import org.camunda.bpm.engine.impl.HistoricActivityInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.HistoricActivityStatisticsQueryImpl;
+import org.camunda.bpm.engine.impl.HistoricDecisionInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.HistoricDetailQueryImpl;
 import org.camunda.bpm.engine.impl.HistoricIncidentQueryImpl;
 import org.camunda.bpm.engine.impl.HistoricJobLogQueryImpl;
@@ -63,16 +68,24 @@ import org.camunda.bpm.engine.impl.JobDefinitionQueryImpl;
 import org.camunda.bpm.engine.impl.JobQueryImpl;
 import org.camunda.bpm.engine.impl.ProcessDefinitionQueryImpl;
 import org.camunda.bpm.engine.impl.ProcessDefinitionStatisticsQueryImpl;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.TaskQueryImpl;
 import org.camunda.bpm.engine.impl.UserOperationLogQueryImpl;
 import org.camunda.bpm.engine.impl.VariableInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.AuthorizationCheck;
+import org.camunda.bpm.engine.impl.db.CompositePermissionCheck;
 import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
+import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
 import org.camunda.bpm.engine.impl.db.PermissionCheck;
+import org.camunda.bpm.engine.impl.db.PermissionCheckBuilder;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionQueryImpl;
 import org.camunda.bpm.engine.impl.identity.Authentication;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.AbstractManager;
+import org.camunda.bpm.engine.impl.util.CollectionUtil;
 
 /**
  * @author Daniel Meyer
@@ -81,6 +94,7 @@ import org.camunda.bpm.engine.impl.persistence.AbstractManager;
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class AuthorizationManager extends AbstractManager {
 
+  protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
   public static final String DEFAULT_AUTHORIZATION_CHECK = "defaultAuthorizationCheck";
 
   public Authorization createNewAuthorization(int type) {
@@ -88,6 +102,7 @@ public class AuthorizationManager extends AbstractManager {
     return new AuthorizationEntity(type);
   }
 
+  @Override
   public void insert(DbEntity authorization) {
     checkAuthorization(CREATE, AUTHORIZATION, null);
     getDbEntityManager().insert(authorization);
@@ -131,6 +146,7 @@ public class AuthorizationManager extends AbstractManager {
     getDbEntityManager().merge(authorization);
   }
 
+  @Override
   public void delete(DbEntity authorization) {
     checkAuthorization(DELETE, AUTHORIZATION, authorization.getId());
     deleteAuthorizationsByResourceId(AUTHORIZATION, authorization.getId());
@@ -138,6 +154,15 @@ public class AuthorizationManager extends AbstractManager {
   }
 
   // authorization checks ///////////////////////////////////////////
+
+  public void checkAuthorization(PermissionCheck... permissionChecks) {
+    ensureNotNull("permissionChecks", (Object[]) permissionChecks);
+    for (PermissionCheck permissionCheck : permissionChecks) {
+      ensureNotNull("permissionCheck", permissionCheck);
+    }
+
+    checkAuthorization(CollectionUtil.asArrayList(permissionChecks));
+  }
 
   public void checkAuthorization(List<PermissionCheck> permissionChecks) {
     Authentication currentAuthentication = getCurrentAuthentication();
@@ -149,41 +174,26 @@ public class AuthorizationManager extends AbstractManager {
       boolean isAuthorized = isAuthorized(userId, currentAuthentication.getGroupIds(), permissionChecks);
       if (!isAuthorized) {
 
-        if (permissionChecks.size() == 1) {
-          PermissionCheck permissionCheck = permissionChecks.get(0);
-          String permissionName = permissionCheck.getPermission().getName();
-          String resourceType = permissionCheck.getResource().resourceName();
-          String resourceId = permissionCheck.getResourceId();
-          throw new AuthorizationException(userId, permissionName, resourceType, resourceId);
-        } else {
+        List<MissingAuthorization> info = new ArrayList<MissingAuthorization>();
 
-          String message = "The user with id '" + userId +
-                           "' does not have one of the following permissions: ";
-
-          for (int i = 0; i < permissionChecks.size(); i++) {
-
-            if (i > 0) {
-              message = message + " or ";
-            }
-
-            PermissionCheck permissionCheck = permissionChecks.get(i);
-            String permissionName = permissionCheck.getPermission().getName();
-            String resourceType = permissionCheck.getResource().resourceName();
-            String resourceId = permissionCheck.getResourceId();
-
-            message = message + "'"+permissionName+"' permission " +
-                "on resource '" + (resourceId != null ? (resourceId+"' of type '") : "" ) + resourceType + "'";
-          }
-          throw new AuthorizationException(message);
+        for (PermissionCheck check: permissionChecks) {
+          info.add(new MissingAuthorization(
+              check.getPermission().getName(),
+              check.getResource().resourceName(),
+              check.getResourceId()));
         }
+
+        throw new AuthorizationException(userId, info);
       }
     }
   }
+
 
   public void checkAuthorization(Permission permission, Resource resource) {
     checkAuthorization(permission, resource, null);
   }
 
+  @Override
   public void checkAuthorization(Permission permission, Resource resource, String resourceId) {
 
     final Authentication currentAuthentication = getCurrentAuthentication();
@@ -193,7 +203,11 @@ public class AuthorizationManager extends AbstractManager {
 
       boolean isAuthorized = isAuthorized(currentAuthentication.getUserId(), currentAuthentication.getGroupIds(), permission, resource, resourceId);
       if (!isAuthorized) {
-        throw new AuthorizationException(currentAuthentication.getUserId(), permission.getName(), resource.resourceName(), resourceId);
+        throw new AuthorizationException(
+            currentAuthentication.getUserId(),
+            permission.getName(),
+            resource.resourceName(),
+            resourceId);
       }
     }
 
@@ -220,20 +234,23 @@ public class AuthorizationManager extends AbstractManager {
     permCheck.setResource(resource);
     permCheck.setResourceId(resourceId);
 
-    return isAuthorized(userId, groupIds, Arrays.asList(permCheck));
+    ArrayList<PermissionCheck> permissionChecks = new ArrayList<PermissionCheck>();
+    permissionChecks.add(permCheck);
+
+    return isAuthorized(userId, groupIds, permissionChecks);
   }
 
   public boolean isAuthorized(String userId, List<String> groupIds, List<PermissionCheck> permissionChecks) {
     AuthorizationCheck authCheck = new AuthorizationCheck();
     authCheck.setAuthUserId(userId);
     authCheck.setAuthGroupIds(groupIds);
-    authCheck.setPermissionChecks(permissionChecks);
+    authCheck.setAtomicPermissionChecks(permissionChecks);
     return getDbEntityManager().selectBoolean("isUserAuthorizedForResource", authCheck);
   }
 
   // authorization checks on queries ////////////////////////////////
 
-  public void configureQuery(AbstractQuery query) {
+  public void configureQuery(ListQueryParameterObject query) {
     final Authentication currentAuthentication = getCurrentAuthentication();
     CommandContext commandContext = getCommandContext();
 
@@ -256,6 +273,7 @@ public class AuthorizationManager extends AbstractManager {
     }
   }
 
+  @Override
   public void configureQuery(AbstractQuery query, Resource resource) {
     configureQuery(query, resource, "RES.ID_");
   }
@@ -269,7 +287,7 @@ public class AuthorizationManager extends AbstractManager {
     addPermissionCheck(query, resource, queryParam, permission);
   }
 
-  protected void addPermissionCheck(AbstractQuery query, Resource resource, String queryParam, Permission permission) {
+  protected void addPermissionCheck(ListQueryParameterObject query, Resource resource, String queryParam, Permission permission) {
     CommandContext commandContext = getCommandContext();
     if (isAuthorizationEnabled() && getCurrentAuthentication() != null && commandContext.isAuthorizationCheckEnabled()) {
       PermissionCheck permCheck = new PermissionCheck();
@@ -277,7 +295,14 @@ public class AuthorizationManager extends AbstractManager {
       permCheck.setResourceIdQueryParam(queryParam);
       permCheck.setPermission(permission);
 
-      query.addPermissionCheck(permCheck);
+      query.addAtomicPermissionCheck(permCheck);
+    }
+  }
+
+  protected void addPermissionCheck(AuthorizationCheck authCheck, CompositePermissionCheck compositeCheck) {
+    CommandContext commandContext = getCommandContext();
+    if (isAuthorizationEnabled() && getCurrentAuthentication() != null && commandContext.isAuthorizationCheckEnabled()) {
+      authCheck.setPermissionChecks(compositeCheck);
     }
   }
 
@@ -317,7 +342,7 @@ public class AuthorizationManager extends AbstractManager {
           .memberOfGroup(Groups.CAMUNDA_ADMIN)
           .count();
       if (count == 0) {
-        throw new AuthorizationException("The user '"+userId+"' is not a member of group '"+Groups.CAMUNDA_ADMIN+"'.");
+        throw LOG.notAMemberException(userId, Groups.CAMUNDA_ADMIN);
       }
     }
   }
@@ -408,7 +433,7 @@ public class AuthorizationManager extends AbstractManager {
     secondCheck.setResourceId(processDefinition.getKey());
     secondCheck.setAuthorizationNotFoundReturnValue(0l);
 
-    checkAuthorization(Arrays.asList(firstCheck, secondCheck));
+    checkAuthorization(firstCheck, secondCheck);
   }
 
   public void checkReadProcessInstance(JobEntity job) {
@@ -434,7 +459,7 @@ public class AuthorizationManager extends AbstractManager {
     secondCheck.setResourceId(job.getProcessDefinitionKey());
     secondCheck.setAuthorizationNotFoundReturnValue(0l);
 
-    checkAuthorization(Arrays.asList(firstCheck, secondCheck));
+    checkAuthorization(firstCheck, secondCheck);
   }
 
   public void checkReadHistoricJobLog(HistoricJobLogEventEntity historicJobLog) {
@@ -473,7 +498,7 @@ public class AuthorizationManager extends AbstractManager {
     secondCheck.setResourceId(processDefinition.getKey());
     secondCheck.setAuthorizationNotFoundReturnValue(0l);
 
-    checkAuthorization(Arrays.asList(firstCheck, secondCheck));
+    checkAuthorization(firstCheck, secondCheck);
   }
 
   public void checkUpdateProcessInstance(JobEntity job) {
@@ -492,14 +517,14 @@ public class AuthorizationManager extends AbstractManager {
 
     // ... OR ...
 
-    // - READ_INSTANCE on PROCESS_DEFINITION
+    // - UPDATE_INSTANCE on PROCESS_DEFINITION
     PermissionCheck secondCheck = new PermissionCheck();
     secondCheck.setPermission(UPDATE_INSTANCE);
     secondCheck.setResource(PROCESS_DEFINITION);
     secondCheck.setResourceId(job.getProcessDefinitionKey());
     secondCheck.setAuthorizationNotFoundReturnValue(0l);
 
-    checkAuthorization(Arrays.asList(firstCheck, secondCheck));
+    checkAuthorization(firstCheck, secondCheck);
   }
 
   public void checkUpdateProcessInstanceByProcessDefinitionId(String processDefinitionId) {
@@ -528,7 +553,7 @@ public class AuthorizationManager extends AbstractManager {
     secondCheck.setResourceId(processDefinitionKey);
     secondCheck.setAuthorizationNotFoundReturnValue(0l);
 
-    checkAuthorization(Arrays.asList(firstCheck, secondCheck));
+    checkAuthorization(firstCheck, secondCheck);
   }
 
   // delete permission /////////////////////////////////////////////////
@@ -554,7 +579,7 @@ public class AuthorizationManager extends AbstractManager {
     secondCheck.setResourceId(processDefinition.getKey());
     secondCheck.setAuthorizationNotFoundReturnValue(0l);
 
-    checkAuthorization(Arrays.asList(firstCheck, secondCheck));
+    checkAuthorization(firstCheck, secondCheck);
   }
 
   public void checkDeleteHistoricProcessInstance(HistoricProcessInstance instance) {
@@ -596,7 +621,7 @@ public class AuthorizationManager extends AbstractManager {
       readTaskPermissionCheck.setResourceId(processDefinition.getKey());
       readTaskPermissionCheck.setAuthorizationNotFoundReturnValue(0l);
 
-      checkAuthorization(Arrays.asList(readPermissionCheck, readTaskPermissionCheck));
+      checkAuthorization(readPermissionCheck, readTaskPermissionCheck);
 
     } else {
 
@@ -645,7 +670,7 @@ public class AuthorizationManager extends AbstractManager {
       updateTaskPermissionCheck.setResourceId(processDefinition.getKey());
       updateTaskPermissionCheck.setAuthorizationNotFoundReturnValue(0l);
 
-      checkAuthorization(Arrays.asList(updatePermissionCheck, updateTaskPermissionCheck));
+      checkAuthorization(updatePermissionCheck, updateTaskPermissionCheck);
 
     } else {
 
@@ -706,6 +731,14 @@ public class AuthorizationManager extends AbstractManager {
         checkAuthorization(DELETE_HISTORY, PROCESS_DEFINITION, processDefinitionKey);
       }
     }
+  }
+
+  public void checkDeleteHistoricDecisionInstance(String decisionDefinitionKey) {
+    checkAuthorization(DELETE_HISTORY, DECISION_DEFINITION, decisionDefinitionKey);
+  }
+
+  public void checkEvaluateDecision(String decisionDefinitionKey) {
+    checkAuthorization(CREATE_INSTANCE, DECISION_DEFINITION, decisionDefinitionKey);
   }
 
   /* QUERIES */
@@ -864,6 +897,10 @@ public class AuthorizationManager extends AbstractManager {
 
   public void configureHistoricActivityStatisticsQuery(HistoricActivityStatisticsQueryImpl query) {
     configureQuery(query, PROCESS_DEFINITION, "PROC_DEF_KEY_", READ_HISTORY);
+  }
+
+  public void configureHistoricDecisionInstanceQuery(HistoricDecisionInstanceQueryImpl query) {
+    configureQuery(query, DECISION_DEFINITION, "DEC_DEF_KEY_", READ_HISTORY);
   }
 
   // user operation log query ///////////////////////////////
@@ -1055,6 +1092,44 @@ public class AuthorizationManager extends AbstractManager {
 
       }
     }
+  }
+
+  public void configureExternalTaskQuery(ExternalTaskQueryImpl query) {
+    configureQuery(query);
+    addPermissionCheck(query, PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ);
+    addPermissionCheck(query, PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_INSTANCE);
+  }
+
+  public void configureExternalTaskFetch(ListQueryParameterObject parameter) {
+    configureQuery(parameter);
+
+    CompositePermissionCheck permissionCheck = new PermissionCheckBuilder()
+      .conjunctive()
+      .composite()
+        .disjunctive()
+        .atomicCheck(PROCESS_INSTANCE, "RES.PROC_INST_ID_", READ)
+        .atomicCheck(PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", READ_INSTANCE)
+        .done()
+      .composite()
+        .disjunctive()
+        .atomicCheck(PROCESS_INSTANCE, "RES.PROC_INST_ID_", UPDATE)
+        .atomicCheck(PROCESS_DEFINITION, "RES.PROC_DEF_KEY_", UPDATE_INSTANCE)
+        .done()
+      .build();
+
+    addPermissionCheck(parameter, permissionCheck);
+  }
+
+  public void configureDecisionDefinitionQuery(DecisionDefinitionQueryImpl query) {
+    configureQuery(query, DECISION_DEFINITION, "RES.KEY_");
+  }
+
+  public void checkReadDecisionDefinition(DecisionDefinitionEntity decisionDefinition) {
+    checkReadDecisionDefinition(decisionDefinition.getKey());
+  }
+
+  public void checkReadDecisionDefinition(String decisionDefinitionKey) {
+    checkAuthorization(READ, DECISION_DEFINITION, decisionDefinitionKey);
   }
 
 }

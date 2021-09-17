@@ -146,6 +146,7 @@ create table ACT_HI_ATTACHMENT (
 
 create table ACT_HI_OP_LOG (
     ID_ nvarchar(64) not null,
+    DEPLOYMENT_ID_ nvarchar(64),
     PROC_DEF_ID_ nvarchar(64),
     PROC_DEF_KEY_ nvarchar(255),
     PROC_INST_ID_ nvarchar(64),
@@ -191,13 +192,14 @@ create table ACT_HI_JOB_LOG (
     JOB_ID_ nvarchar(64) not null,
     JOB_DUEDATE_ datetime2,
     JOB_RETRIES_ integer,
+    JOB_PRIORITY_ numeric(19,0) NOT NULL DEFAULT 0,
     JOB_EXCEPTION_MSG_ nvarchar(4000),
     JOB_EXCEPTION_STACK_ID_ nvarchar(64),
     JOB_STATE_ integer,
     JOB_DEF_ID_ nvarchar(64),
     JOB_DEF_TYPE_ nvarchar(255),
     JOB_DEF_CONFIGURATION_ nvarchar(255),
-    ACT_ID_ nvarchar(64),
+    ACT_ID_ nvarchar(255),
     EXECUTION_ID_ nvarchar(64),
     PROCESS_INSTANCE_ID_ nvarchar(64),
     PROCESS_DEF_ID_ nvarchar(64),

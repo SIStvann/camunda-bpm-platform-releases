@@ -18,7 +18,6 @@ import java.util.List;
 import org.camunda.bpm.engine.delegate.ExecutionListener;
 import org.camunda.bpm.engine.delegate.TaskListener;
 import org.camunda.bpm.engine.impl.bpmn.behavior.UserTaskActivityBehavior;
-import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParseListener;
 import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.history.event.HistoryEventTypes;
@@ -122,8 +121,8 @@ public class HistoryParseListener implements BpmnParseListener {
 
     if (historyLevel.isHistoryEventProduced(HistoryEventTypes.TASK_INSTANCE_CREATE, null)) {
       TaskDefinition taskDefinition = ((UserTaskActivityBehavior) activity.getActivityBehavior()).getTaskDefinition();
-      taskDefinition.addTaskListener(TaskListener.EVENTNAME_ASSIGNMENT, USER_TASK_ASSIGNMENT_HANDLER);
-      taskDefinition.addTaskListener(TaskListener.EVENTNAME_CREATE, USER_TASK_ID_HANDLER);
+      taskDefinition.addBuiltInTaskListener(TaskListener.EVENTNAME_ASSIGNMENT, USER_TASK_ASSIGNMENT_HANDLER);
+      taskDefinition.addBuiltInTaskListener(TaskListener.EVENTNAME_CREATE, USER_TASK_ID_HANDLER);
     }
   }
 
@@ -136,10 +135,7 @@ public class HistoryParseListener implements BpmnParseListener {
   }
 
   public void parseSubProcess(Element subProcessElement, ScopeImpl scope, ActivityImpl activity) {
-    Object property = activity.getProperty(BpmnParse.PROPERTYNAME_TRIGGERED_BY_EVENT);
-    if(property == null || !(Boolean) property) {
-      addActivityHandlers(activity);
-    }
+    addActivityHandlers(activity);
   }
 
   public void parseStartEvent(Element startEventElement, ScopeImpl scope, ActivityImpl activity) {
@@ -217,6 +213,9 @@ public class HistoryParseListener implements BpmnParseListener {
   }
 
   public void parseBoundaryMessageEventDefinition(Element element, boolean interrupting, ActivityImpl messageActivity) {
+  }
+
+  public void parseBoundaryEscalationEventDefinition(Element escalationEventDefinition, boolean interrupting, ActivityImpl boundaryEventActivity) {
   }
 
   // helper methods ///////////////////////////////////////////////////////////

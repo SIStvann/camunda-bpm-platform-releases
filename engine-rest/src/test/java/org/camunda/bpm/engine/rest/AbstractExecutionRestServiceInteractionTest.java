@@ -1,10 +1,14 @@
 package org.camunda.bpm.engine.rest;
 
 import static com.jayway.restassured.RestAssured.given;
+import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_ID;
+import static org.hamcrest.CoreMatchers.either;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
@@ -31,7 +35,7 @@ import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.RuntimeServiceImpl;
-import org.camunda.bpm.engine.impl.core.variable.type.ObjectTypeImpl;
+import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
 import org.camunda.bpm.engine.rest.helper.EqualsList;
@@ -49,14 +53,19 @@ import org.camunda.bpm.engine.runtime.EventSubscriptionQuery;
 import org.camunda.bpm.engine.runtime.Execution;
 import org.camunda.bpm.engine.runtime.ExecutionQuery;
 import org.camunda.bpm.engine.variable.Variables;
+import org.camunda.bpm.engine.variable.type.SerializableValueType;
 import org.camunda.bpm.engine.variable.type.ValueType;
+import org.camunda.bpm.engine.variable.value.BooleanValue;
+import org.camunda.bpm.engine.variable.value.FileValue;
 import org.camunda.bpm.engine.variable.value.ObjectValue;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.type.TypeFactory;
+import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.jayway.restassured.http.ContentType;
 import com.jayway.restassured.response.Response;
 
@@ -328,8 +337,8 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
       .then().expect().statusCode(Status.OK.getStatusCode())
       .body(variableKey + ".value", equalTo(payload))
       .body(variableKey + ".type", equalTo("Object"))
-      .body(variableKey + ".valueInfo." + ObjectTypeImpl.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
-      .body(variableKey + ".valueInfo." + ObjectTypeImpl.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
+      .body(variableKey + ".valueInfo." + SerializableValueType.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
+      .body(variableKey + ".valueInfo." + SerializableValueType.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
       .when().get(EXECUTION_LOCAL_VARIABLES_URL);
 
     // then
@@ -358,8 +367,8 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
     .then().expect().statusCode(Status.OK.getStatusCode())
       .body(variableKey + ".value", equalTo("a serialized value"))
       .body(variableKey + ".type", equalTo("Object"))
-      .body(variableKey + ".valueInfo." + ObjectTypeImpl.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
-      .body(variableKey + ".valueInfo." + ObjectTypeImpl.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
+      .body(variableKey + ".valueInfo." + SerializableValueType.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
+      .body(variableKey + ".valueInfo." + SerializableValueType.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
       .when().get(EXECUTION_LOCAL_VARIABLES_URL);
 
     // then
@@ -547,8 +556,8 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
       .then().expect().statusCode(Status.OK.getStatusCode())
       .body("value", equalTo(payload))
       .body("type", equalTo("Object"))
-      .body("valueInfo." + ObjectTypeImpl.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
-      .body("valueInfo." + ObjectTypeImpl.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
+      .body("valueInfo." + SerializableValueType.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
+      .body("valueInfo." + SerializableValueType.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
       .when().get(SINGLE_EXECUTION_LOCAL_VARIABLE_URL);
 
     // then
@@ -577,8 +586,8 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
     .then().expect().statusCode(Status.OK.getStatusCode())
       .body("value", equalTo("a serialized value"))
       .body("type", equalTo("Object"))
-      .body("valueInfo." + ObjectTypeImpl.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
-      .body("valueInfo." + ObjectTypeImpl.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
+      .body("valueInfo." + SerializableValueType.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
+      .body("valueInfo." + SerializableValueType.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
       .when().get(SINGLE_EXECUTION_LOCAL_VARIABLE_URL);
 
     // then
@@ -629,6 +638,128 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
       .body("message", equalTo(message))
     .when()
       .get(SINGLE_EXECUTION_LOCAL_VARIABLE_URL);
+  }
+
+  @Test
+  public void testGetFileVariable() {
+    String variableKey = "aVariableKey";
+    final byte[] byteContent = "some bytes".getBytes();
+    String filename = "test.txt";
+    String mimeType = "text/plain";
+    FileValue variableValue = Variables.fileValue(filename).file(byteContent).mimeType(mimeType).create();
+
+    when(runtimeServiceMock.getVariableLocalTyped(eq(MockProvider.EXAMPLE_EXECUTION_ID), eq(variableKey), anyBoolean())).thenReturn(variableValue);
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .contentType(ContentType.JSON.toString())
+    .and()
+      .body("valueInfo.mimeType", equalTo(mimeType))
+      .body("valueInfo.filename", equalTo(filename))
+      .body("value", nullValue())
+    .when().get(SINGLE_EXECUTION_LOCAL_VARIABLE_URL);
+  }
+
+  @Test
+  public void testGetNullFileVariable() {
+    String variableKey = "aVariableKey";
+    String filename = "test.txt";
+    String mimeType = "text/plain";
+    FileValue variableValue = Variables.fileValue(filename).mimeType(mimeType).create();
+
+    when(runtimeServiceMock.getVariableLocalTyped(eq(MockProvider.EXAMPLE_EXECUTION_ID), eq(variableKey), anyBoolean()))
+      .thenReturn(variableValue);
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .contentType(ContentType.TEXT.toString())
+    .and()
+      .body(is(equalTo("")))
+    .when().get(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
+  }
+
+  @Test
+  public void testGetFileVariableDownloadWithType() {
+    String variableKey = "aVariableKey";
+    final byte[] byteContent = "some bytes".getBytes();
+    String filename = "test.txt";
+    FileValue variableValue = Variables.fileValue(filename).file(byteContent).mimeType(ContentType.TEXT.toString()).create();
+
+    when(runtimeServiceMock.getVariableLocalTyped(eq(MockProvider.EXAMPLE_EXECUTION_ID), eq(variableKey), anyBoolean())).thenReturn(variableValue);
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .contentType(ContentType.TEXT.toString())
+    .and()
+      .body(is(equalTo(new String(byteContent))))
+    .when().get(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
+  }
+
+  @Test
+  public void testGetFileVariableDownloadWithTypeAndEncoding() {
+    String variableKey = "aVariableKey";
+    final byte[] byteContent = "some bytes".getBytes();
+    String filename = "test.txt";
+    String encoding = "UTF-8";
+    FileValue variableValue = Variables.fileValue(filename).file(byteContent).mimeType(ContentType.TEXT.toString()).encoding(encoding).create();
+
+    when(runtimeServiceMock.getVariableLocalTyped(eq(MockProvider.EXAMPLE_EXECUTION_ID), eq(variableKey), anyBoolean())).thenReturn(variableValue);
+
+    Response response = given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .body(is(equalTo(new String(byteContent))))
+    .when().get(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
+
+    String contentType = response.contentType().replaceAll(" ", "");
+    assertThat(contentType, is(ContentType.TEXT + ";charset=" + encoding));
+  }
+
+  @Test
+  public void testGetFileVariableDownloadWithoutType() {
+    String variableKey = "aVariableKey";
+    final byte[] byteContent = "some bytes".getBytes();
+    String filename = "test.txt";
+    FileValue variableValue = Variables.fileValue(filename).file(byteContent).create();
+
+    when(runtimeServiceMock.getVariableLocalTyped(eq(MockProvider.EXAMPLE_EXECUTION_ID), eq(variableKey), anyBoolean())).thenReturn(variableValue);
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .contentType(MediaType.APPLICATION_OCTET_STREAM)
+    .and()
+      .body(is(equalTo(new String(byteContent))))
+      .header("Content-Disposition", containsString(filename))
+    .when().get(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
+  }
+
+  @Test
+  public void testCannotDownloadVariableOtherThanFile() {
+    String variableKey = "aVariableKey";
+    BooleanValue variableValue = Variables.booleanValue(true);
+
+    when(runtimeServiceMock.getVariableLocalTyped(eq(EXAMPLE_TASK_ID), eq(variableKey), anyBoolean())).thenReturn(variableValue);
+
+    given()
+      .pathParam("id", EXAMPLE_TASK_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+    .when().get(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
   }
 
   @Test
@@ -880,14 +1011,14 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
   }
 
   @Test
-  public void testPutSingleLocalBinaryVariable() throws Exception {
+  public void testPutSingleLocalBinaryVariable() {
     byte[] bytes = "someContent".getBytes();
 
     String variableKey = "aVariableKey";
 
     given()
       .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID).pathParam("varId", variableKey)
-      .multiPart("data", "unspecified", bytes)
+      .multiPart("data", null, bytes)
     .expect()
       .statusCode(Status.NO_CONTENT.getStatusCode())
     .when()
@@ -899,14 +1030,74 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
   }
 
   @Test
-  public void testPutSingleLocalBinaryVariableWithNoValue() throws Exception {
+  public void testPutSingleLocalBinaryVariableWithValueType() {
+    byte[] bytes = "someContent".getBytes();
+
+    String variableKey = "aVariableKey";
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID).pathParam("varId", variableKey)
+      .multiPart("data", null, bytes)
+      .multiPart("valueType", "Bytes", "text/plain")
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .post(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
+
+    verify(runtimeServiceMock).setVariableLocal(
+        eq(MockProvider.EXAMPLE_EXECUTION_ID), eq(variableKey),
+        argThat(EqualsPrimitiveValue.bytesValue(bytes)));
+  }
+
+  @Test
+  public void testPutSingleLocalBinaryVariableWithUnknownValueType() {
+    byte[] bytes = "someContent".getBytes();
+
+    String variableKey = "aVariableKey";
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID).pathParam("varId", variableKey)
+      .multiPart("data", null, bytes)
+      .multiPart("valueType", "SomeUnknownType", "text/plain")
+    .expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .body("type", equalTo(RestException.class.getSimpleName()))
+      .body("message", equalTo("Unsupported value type 'SomeUnknownType'"))
+    .when()
+      .post(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
+
+    verify(runtimeServiceMock, never()).setVariableLocal(anyString(), anyString(), any(Object.class));
+  }
+
+  @Test
+  public void testPutSingleLocalBinaryVariableWithValueTypeOfWrongMimeType() {
+    byte[] bytes = "someContent".getBytes();
+
+    String variableKey = "aVariableKey";
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID).pathParam("varId", variableKey)
+      .multiPart("data", null, bytes)
+      .multiPart("valueType", "{ \"type\": \"Bytes\"", "application/json")
+    .expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .body("type", equalTo(InvalidRequestException.class.getSimpleName()))
+      .body("message", equalTo("Form part with name 'valueType' must have a text/plain value"))
+    .when()
+      .post(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
+
+    verify(runtimeServiceMock, never()).setVariableLocal(anyString(), anyString(), any(Object.class));
+  }
+
+  @Test
+  public void testPutSingleLocalBinaryVariableWithNoValue() {
     byte[] bytes = new byte[0];
 
     String variableKey = "aVariableKey";
 
     given()
       .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID).pathParam("varId", variableKey)
-      .multiPart("data", "unspecified", bytes)
+      .multiPart("data", null, bytes)
     .expect()
       .statusCode(Status.NO_CONTENT.getStatusCode())
     .when()
@@ -925,7 +1116,7 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
 
     ObjectMapper mapper = new ObjectMapper();
     String jsonBytes = mapper.writeValueAsString(serializable);
-    String typeName = TypeFactory.type(serializable.getClass()).toCanonical();
+    String typeName = TypeFactory.defaultInstance().constructType(serializable.getClass()).toCanonical();
 
     String variableKey = "aVariableKey";
 
@@ -950,7 +1141,7 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
 
     ObjectMapper mapper = new ObjectMapper();
     String jsonBytes = mapper.writeValueAsString(serializable);
-    String typeName = TypeFactory.type(serializable.getClass()).toCanonical();
+    String typeName = TypeFactory.defaultInstance().constructType(serializable.getClass()).toCanonical();
 
     String variableKey = "aVariableKey";
 
@@ -989,7 +1180,7 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
   }
 
   @Test
-  public void testPutSingleLocalVariableFromSerialized() throws Exception {
+  public void testPutSingleLocalVariableFromSerialized() {
     String serializedValue = "{\"prop\" : \"value\"}";
     Map<String, Object> requestJson = VariablesBuilder
         .getObjectValueMap(serializedValue, ValueType.OBJECT.getName(), "aDataFormat", "aRootType");
@@ -1014,7 +1205,7 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
   }
 
   @Test
-  public void testPutSingleLocalVariableFromInvalidSerialized() throws Exception {
+  public void testPutSingleLocalVariableFromInvalidSerialized() {
     String serializedValue = "{\"prop\" : \"value\"}";
 
     Map<String, Object> requestJson = VariablesBuilder
@@ -1095,6 +1286,109 @@ public abstract class AbstractExecutionRestServiceInteractionTest extends Abstra
       .when().delete(SINGLE_EXECUTION_LOCAL_VARIABLE_URL);
 
     verify(runtimeServiceMock).removeVariableLocal(eq(MockProvider.EXAMPLE_EXECUTION_ID), eq(variableKey));
+  }
+
+  @Test
+  public void testPostSingleLocalFileVariableWithEncodingAndMimeType() {
+
+    byte[] value = "some text".getBytes();
+    String variableKey = "aVariableKey";
+    String encoding = "utf-8";
+    String filename = "test.txt";
+    String mimetype = MediaType.TEXT_PLAIN;
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID).pathParam("varId", variableKey)
+      .multiPart("data", filename, value, mimetype + "; encoding="+encoding)
+      .multiPart("valueType", "File", "text/plain")
+      .header("accept", MediaType.APPLICATION_JSON)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .post(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
+
+    ArgumentCaptor<FileValue> captor = ArgumentCaptor.forClass(FileValue.class);
+    verify(runtimeServiceMock).setVariableLocal(eq(MockProvider.EXAMPLE_EXECUTION_ID), eq(variableKey),
+        captor.capture());
+    FileValue captured = captor.getValue();
+    assertThat(captured.getEncoding(), is(encoding));
+    assertThat(captured.getFilename(), is(filename));
+    assertThat(captured.getMimeType(), is(mimetype));
+    assertThat(IoUtil.readInputStream(captured.getValue(), null), is(value));
+  }
+
+  @Test
+  public void testPostSingleLocalFileVariableWithMimeType() {
+
+    byte[] value = "some text".getBytes();
+    String variableKey = "aVariableKey";
+    String filename = "test.txt";
+    String mimetype = MediaType.TEXT_PLAIN;
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID).pathParam("varId", variableKey)
+      .multiPart("data", filename, value, mimetype)
+      .multiPart("valueType", "File", "text/plain")
+      .header("accept", MediaType.APPLICATION_JSON)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .post(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
+
+    ArgumentCaptor<FileValue> captor = ArgumentCaptor.forClass(FileValue.class);
+    verify(runtimeServiceMock).setVariableLocal(eq(MockProvider.EXAMPLE_EXECUTION_ID), eq(variableKey),
+        captor.capture());
+    FileValue captured = captor.getValue();
+    assertThat(captured.getEncoding(), is(nullValue()));
+    assertThat(captured.getFilename(), is(filename));
+    assertThat(captured.getMimeType(), is(mimetype));
+    assertThat(IoUtil.readInputStream(captured.getValue(), null), is(value));
+  }
+
+  @Test
+  public void testPostSingleLocalFileVariableWithEncoding() {
+
+    byte[] value = "some text".getBytes();
+    String variableKey = "aVariableKey";
+    String encoding = "utf-8";
+    String filename = "test.txt";
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID).pathParam("varId", variableKey)
+      .multiPart("data", filename, value, "encoding="+encoding)
+      .multiPart("valueType", "File", "text/plain")
+      .header("accept", MediaType.APPLICATION_JSON)
+    .expect()
+    //when the user passes an encoding, he has to provide the type, too
+    .statusCode(Status.BAD_REQUEST.getStatusCode())
+    .when()
+      .post(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
+  }
+
+  @Test
+  public void testPostSingleLocalFileVariableOnlyFilename() throws Exception {
+
+    String variableKey = "aVariableKey";
+    String filename = "test.txt";
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_EXECUTION_ID).pathParam("varId", variableKey)
+      .multiPart("data", filename, new byte[0])
+      .multiPart("valueType", "File", "text/plain")
+      .header("accept", MediaType.APPLICATION_JSON)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .post(SINGLE_EXECUTION_LOCAL_BINARY_VARIABLE_URL);
+
+    ArgumentCaptor<FileValue> captor = ArgumentCaptor.forClass(FileValue.class);
+    verify(runtimeServiceMock).setVariableLocal(eq(MockProvider.EXAMPLE_EXECUTION_ID), eq(variableKey),
+        captor.capture());
+    FileValue captured = captor.getValue();
+    assertThat(captured.getEncoding(), is(nullValue()));
+    assertThat(captured.getFilename(), is(filename));
+    assertThat(captured.getMimeType(), is(MediaType.APPLICATION_OCTET_STREAM));
+    assertThat(captured.getValue().available(), is(0));
   }
 
   @Test

@@ -18,9 +18,9 @@ import java.util.List;
 
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.impl.AbstractVariableQueryImpl;
-import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.Page;
 import org.camunda.bpm.engine.impl.QueryOperator;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.cmmn.execution.CaseExecutionState;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
@@ -49,12 +49,9 @@ public class CaseExecutionQueryImpl extends AbstractVariableQueryImpl<CaseExecut
   protected String subProcessInstanceId;
   protected String superCaseInstanceId;
   protected String subCaseInstanceId;
+  protected String deploymentId;
 
   public CaseExecutionQueryImpl() {
-  }
-
-  public CaseExecutionQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public CaseExecutionQueryImpl(CommandExecutor commandExecutor) {
@@ -252,7 +249,12 @@ public class CaseExecutionQueryImpl extends AbstractVariableQueryImpl<CaseExecut
     return subCaseInstanceId;
   }
 
+  public String getDeploymentId() {
+    return deploymentId;
+  }
+
   public Boolean isRequired() {
     return required;
   }
+
 }

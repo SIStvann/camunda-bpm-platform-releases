@@ -123,6 +123,16 @@ public class DefaultProcessEngineRestServiceImpl extends AbstractProcessEngineRe
     return super.getMetricsRestService(null);
   }
 
+  @Path(DecisionDefinitionRestService.PATH)
+  public DecisionDefinitionRestService getDecisionDefinitionRestService() {
+    return super.getDecisionDefinitionRestService(null);
+  }
+
+  @Path(ExternalTaskRestService.PATH)
+  public ExternalTaskRestService getExternalTaskRestService() {
+    return super.getExternalTaskRestService(null);
+  }
+
   @Override
   protected URI getRelativeEngineUri(String engineName) {
     // the default engine

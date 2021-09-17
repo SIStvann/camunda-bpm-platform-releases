@@ -16,17 +16,15 @@ package org.camunda.bpm.engine.impl;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.history.HistoricVariableInstanceQuery;
+import org.camunda.bpm.engine.impl.cmd.CommandLogger;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricVariableInstanceEntity;
+import org.camunda.bpm.engine.impl.variable.serializer.AbstractTypedValueSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.VariableSerializers;
-import org.camunda.bpm.engine.variable.type.ValueType;
 
 /**
  * @author Christian Lipphardt (camunda)
@@ -34,9 +32,10 @@ import org.camunda.bpm.engine.variable.type.ValueType;
 public class HistoricVariableInstanceQueryImpl extends AbstractQuery<HistoricVariableInstanceQuery, HistoricVariableInstance> implements
         HistoricVariableInstanceQuery {
 
-  private final static Logger LOGGER = Logger.getLogger(HistoricVariableInstanceQueryImpl.class.getName());
+  private final static CommandLogger LOG = ProcessEngineLogger.CMD_LOGGER;
 
   private static final long serialVersionUID = 1L;
+
   protected String variableId;
   protected String processInstanceId;
   protected String caseInstanceId;
@@ -52,10 +51,6 @@ public class HistoricVariableInstanceQueryImpl extends AbstractQuery<HistoricVar
   protected boolean isCustomObjectDeserializationEnabled = true;
 
   public HistoricVariableInstanceQueryImpl() {
-  }
-
-  public HistoricVariableInstanceQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public HistoricVariableInstanceQueryImpl(CommandExecutor commandExecutor) {
@@ -164,7 +159,7 @@ public class HistoricVariableInstanceQueryImpl extends AbstractQuery<HistoricVar
 
           } catch(Exception t) {
             // do not fail if one of the variables fails to load
-            LOGGER.log(Level.FINE, "Exception while getting value for variable", t);
+            LOG.exceptionWhileGettingValueForVariable(t);
           }
         }
 
@@ -175,7 +170,8 @@ public class HistoricVariableInstanceQueryImpl extends AbstractQuery<HistoricVar
 
   protected boolean shouldFetchValue(HistoricVariableInstanceEntity entity) {
     // do not fetch values for byte arrays eagerly (unless requested by the user)
-    return isByteArrayFetchingEnabled || !ValueType.BYTES.equals(entity.getSerializer().getType());
+    return isByteArrayFetchingEnabled
+        || !AbstractTypedValueSerializer.BINARY_VALUE_TYPES.contains(entity.getSerializer().getType().getName());
   }
 
   // order by /////////////////////////////////////////////////////////////////

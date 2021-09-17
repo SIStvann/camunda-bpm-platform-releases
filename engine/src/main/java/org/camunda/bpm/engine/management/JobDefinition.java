@@ -12,6 +12,7 @@
  */
 package org.camunda.bpm.engine.management;
 
+import org.camunda.bpm.engine.ManagementService;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 
 /**
@@ -31,24 +32,24 @@ public interface JobDefinition {
   /**
    * @return the Id of the job definition.
    */
-  public abstract String getId();
+  String getId();
 
   /**
    * @return the id of the {@link ProcessDefinition} this job definition is associated with.
    */
-  public abstract String getProcessDefinitionId();
+  String getProcessDefinitionId();
 
   /**
    * @return the key of the {@link ProcessDefinition} this job definition is associated with.
    */
-  public abstract String getProcessDefinitionKey();
+  String getProcessDefinitionKey();
 
   /**
    * The Type of a job. Asynchronous continuation, timer, ...
    *
    * @return the type of a Job.
    */
-  public abstract String getJobType();
+  String getJobType();
 
   /**
    * The configuration of a job definition provides details about the jobs which will be created.
@@ -56,14 +57,14 @@ public interface JobDefinition {
    *
    * @return the configuration of this job definition.
    */
-  public abstract String getJobConfiguration();
+  String getJobConfiguration();
 
   /**
    * The Id of the activity (from BPMN 2.0 Xml) this Job Definition is associated with.
    *
    * @return the activity id for this Job Definition.
    */
-  public abstract String getActivityId();
+  String getActivityId();
 
 
   /**
@@ -73,5 +74,17 @@ public interface JobDefinition {
    * @return true if this Job Definition is currently suspended.
    */
   boolean isSuspended();
+
+  /**
+   * <p>Returns the execution priority for jobs of this definition, if it was set using the
+   * {@link ManagementService} API. When a job is assigned a priority, the job definition's overriding
+   * priority (if set) is used instead of the values defined in the BPMN XML.</p>
+   *
+   * @return the priority that overrides the default/BPMN XML priority or <code>null</code> if
+   *   no overriding priority is set
+   *
+   * @since 7.4
+   */
+  Long getOverridingJobPriority();
 
 }

@@ -17,6 +17,8 @@ import java.util.Date;
 
 import org.camunda.bpm.engine.AuthorizationService;
 import org.camunda.bpm.engine.CaseService;
+import org.camunda.bpm.engine.DecisionService;
+import org.camunda.bpm.engine.ExternalTaskService;
 import org.camunda.bpm.engine.FilterService;
 import org.camunda.bpm.engine.FormService;
 import org.camunda.bpm.engine.HistoryService;
@@ -41,10 +43,10 @@ import org.junit.runner.Description;
  *
  * <pre>
  * public class YourTest {
- * 
+ *
  *   &#64;Rule
  *   public ProcessEngineRule processEngineRule = new ProcessEngineRule();
- * 
+ *
  *   ...
  * }
  * </pre>
@@ -83,6 +85,8 @@ public class ProcessEngineRule extends TestWatcher implements ProcessEngineServi
   protected String configurationResourceCompat = "activiti.cfg.xml";
   protected String deploymentId = null;
 
+  protected boolean ensureCleanAfterTest = false;
+
   protected ProcessEngine processEngine;
   protected RepositoryService repositoryService;
   protected RuntimeService runtimeService;
@@ -94,16 +98,33 @@ public class ProcessEngineRule extends TestWatcher implements ProcessEngineServi
   protected FilterService filterService;
   protected AuthorizationService authorizationService;
   protected CaseService caseService;
+  protected ExternalTaskService externalTaskService;
+  protected DecisionService decisionService;
 
   public ProcessEngineRule() {
+    this(false);
+  }
+
+  public ProcessEngineRule(boolean ensureCleanAfterTest) {
+    this.ensureCleanAfterTest = ensureCleanAfterTest;
   }
 
   public ProcessEngineRule(String configurationResource) {
+    this(configurationResource, false);
+  }
+
+  public ProcessEngineRule(String configurationResource, boolean ensureCleanAfterTest) {
     this.configurationResource = configurationResource;
+    this.ensureCleanAfterTest = ensureCleanAfterTest;
   }
 
   public ProcessEngineRule(ProcessEngine processEngine) {
+    this(processEngine, false);
+  }
+
+  public ProcessEngineRule(ProcessEngine processEngine, boolean ensureCleanAfterTest) {
     this.processEngine = processEngine;
+    this.ensureCleanAfterTest = ensureCleanAfterTest;
   }
 
   @Override
@@ -141,13 +162,35 @@ public class ProcessEngineRule extends TestWatcher implements ProcessEngineServi
     authorizationService = processEngine.getAuthorizationService();
     caseService = processEngine.getCaseService();
     filterService = processEngine.getFilterService();
+    externalTaskService = processEngine.getExternalTaskService();
+    decisionService = processEngine.getDecisionService();
+  }
+
+  protected void clearServiceReferences() {
+    repositoryService = null;
+    runtimeService = null;
+    taskService = null;
+    formService = null;
+    historyService = null;
+    identityService = null;
+    managementService = null;
+    authorizationService = null;
+    caseService = null;
+    filterService = null;
+    externalTaskService = null;
+    decisionService = null;
   }
 
   @Override
   public void finished(Description description) {
     TestHelper.annotationDeploymentTearDown(processEngine, deploymentId, description.getTestClass(), description.getMethodName());
+    if (ensureCleanAfterTest) {
+      TestHelper.assertAndEnsureCleanDbAndCache(processEngine);
+    }
 
     ClockUtil.reset();
+
+    clearServiceReferences();
   }
 
   public void setCurrentTime(Date currentTime) {
@@ -267,6 +310,24 @@ public class ProcessEngineRule extends TestWatcher implements ProcessEngineServi
 
   public void setFilterService(FilterService filterService) {
     this.filterService = filterService;
+  }
+
+  @Override
+  public ExternalTaskService getExternalTaskService() {
+    return externalTaskService;
+  }
+
+  public void setExternalTaskService(ExternalTaskService externalTaskService) {
+    this.externalTaskService = externalTaskService;
+  }
+
+  @Override
+  public DecisionService getDecisionService() {
+    return decisionService;
+  }
+
+  public void setDecisionService(DecisionService decisionService) {
+    this.decisionService = decisionService;
   }
 
 }

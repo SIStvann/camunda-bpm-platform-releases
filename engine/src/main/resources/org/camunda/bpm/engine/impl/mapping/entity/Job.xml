@@ -59,6 +59,14 @@
       </if>
     </where>
   </update>
+  
+  <update id="updateJobPriorityByDefinitionId" parameterType="java.util.Map">
+    <!-- this does not increment revision; it is ok if this update is overwritten by parallel operations -->
+    update ${prefix}ACT_RU_JOB set
+      PRIORITY_ = #{priority, jdbcType=INTEGER}
+    where
+      JOB_DEF_ID_ = #{jobDefinitionId, jdbcType=VARCHAR}
+  </update>
 
   <!-- JOB RESULTMAP (FOR TIMER AND MESSAGE) -->
 
@@ -81,6 +89,7 @@
     <result property="deploymentId" column="DEPLOYMENT_ID_" jdbcType="VARCHAR" />
     <result property="suspensionState" column="SUSPENSION_STATE_" jdbcType="INTEGER"/>
     <result property="jobDefinitionId" column="JOB_DEF_ID_" jdbcType="VARCHAR" />
+    <result property="priority" column="PRIORITY_" jdbcType="BIGINT" />
     <result property="sequenceCounter" column="SEQUENCE_COUNTER_" jdbcType="BIGINT" />
     <discriminator javaType="string" column="TYPE_">
       <case value="message" resultMap="messageResultMap"/>
@@ -111,7 +120,7 @@
     where (RES.RETRIES_ &gt; 0)
       and (RES.DUEDATE_ is null or RES.DUEDATE_ &lt;= #{parameter.now, jdbcType=TIMESTAMP})
       and (RES.LOCK_OWNER_ is null or RES.LOCK_EXP_TIME_ &lt; #{parameter.now, jdbcType=TIMESTAMP})
-      and (RES.SUSPENSION_STATE_ = 1 or RES.SUSPENSION_STATE_ is null)
+      and RES.SUSPENSION_STATE_ = 1
 
       <if test="parameter.deploymentAware">
         and (RES.DEPLOYMENT_ID_ is null
@@ -140,7 +149,7 @@
       and (LOCK_OWNER_ is null or LOCK_EXP_TIME_ &lt; #{parameter.now, jdbcType=TIMESTAMP})
       and (EXCLUSIVE_ = ${trueConstant})
       and (PROCESS_INSTANCE_ID_ = #{parameter.pid})
-      and (RES.SUSPENSION_STATE_ = 1 or RES.SUSPENSION_STATE_ is null)
+      and RES.SUSPENSION_STATE_ = 1
     ${limitAfter}
   </select>
 
@@ -240,6 +249,12 @@
       <if test="duedateLowerThanOrEqual != null">
         and RES.DUEDATE_ &lt;= #{duedateLowerThanOrEqual}
       </if>
+      <if test="priorityHigherThanOrEqual != null">
+        and RES.PRIORITY_ &gt;= #{priorityHigherThanOrEqual}
+      </if>
+      <if test="priorityLowerThanOrEqual != null">
+        and RES.PRIORITY_ &lt;= #{priorityLowerThanOrEqual}
+      </if>
       <if test="withException">
       	and (RES.EXCEPTION_MSG_ is not null or RES.EXCEPTION_STACK_ID_ is not null)
       </if>
@@ -294,6 +309,7 @@
             DEPLOYMENT_ID_,
             SUSPENSION_STATE_,
             JOB_DEF_ID_,
+            PRIORITY_,
             SEQUENCE_COUNTER_,
             REV_
           )
@@ -316,6 +332,7 @@
             #{deploymentId, jdbcType=VARCHAR},
             #{suspensionState, jdbcType=INTEGER},
             #{jobDefinitionId, jdbcType=VARCHAR},
+            #{priority, jdbcType=BIGINT},
             #{sequenceCounter, jdbcType=BIGINT},
             1
     )
@@ -339,6 +356,7 @@
        JOB_DEF_ID_ = #{jobDefinitionId, jdbcType=VARCHAR},
        DEPLOYMENT_ID_ = #{deploymentId, jdbcType=VARCHAR},
        HANDLER_CFG_ = #{jobHandlerConfiguration, jdbcType=VARCHAR},
+       PRIORITY_ = #{priority, jdbcType=BIGINT},
        SEQUENCE_COUNTER_ = #{sequenceCounter, jdbcType=BIGINT}
     </set>
     where ID_= #{id, jdbcType=VARCHAR}
@@ -388,6 +406,7 @@
             DEPLOYMENT_ID_,
             SUSPENSION_STATE_,
             JOB_DEF_ID_,
+            PRIORITY_,
             SEQUENCE_COUNTER_,
             REV_
             )
@@ -409,6 +428,7 @@
             #{deploymentId, jdbcType=VARCHAR},
             #{suspensionState, jdbcType=INTEGER},
             #{jobDefinitionId, jdbcType=VARCHAR},
+            #{priority, jdbcType=BIGINT},
             #{sequenceCounter, jdbcType=BIGINT},
             1
     )
@@ -431,6 +451,7 @@
        JOB_DEF_ID_ = #{jobDefinitionId, jdbcType=VARCHAR},
        DEPLOYMENT_ID_ = #{deploymentId, jdbcType=VARCHAR},
        HANDLER_CFG_ = #{jobHandlerConfiguration, jdbcType=VARCHAR},
+       PRIORITY_ = #{priority, jdbcType=BIGINT},
        SEQUENCE_COUNTER_ = #{sequenceCounter, jdbcType=BIGINT}
     </set>
     where ID_= #{id, jdbcType=VARCHAR}

@@ -15,9 +15,13 @@ package org.camunda.bpm.engine.test.api.runtime;
 
 import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.assertThat;
 import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.describeActivityInstanceTree;
+import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
 import static org.junit.Assert.assertThat;
 
 import java.util.ArrayList;
@@ -32,6 +36,8 @@ import java.util.Set;
 import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.delegate.ExecutionListener;
+import org.camunda.bpm.engine.delegate.TaskListener;
 import org.camunda.bpm.engine.exception.NullValueException;
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
 import org.camunda.bpm.engine.history.HistoricDetail;
@@ -52,6 +58,7 @@ import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener;
 import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener.RecordedEvent;
+import org.camunda.bpm.engine.test.examples.bpmn.tasklistener.RecorderTaskListener;
 import org.camunda.bpm.engine.test.util.TestExecutionListener;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
@@ -170,19 +177,34 @@ public class RuntimeServiceTest extends PluggableProcessEngineTestCase {
 
     // then
     List<RecordedEvent> recordedEvents = RecorderExecutionListener.getRecordedEvents();
-    assertEquals(5, recordedEvents.size());
+    assertEquals(10, recordedEvents.size());
 
-    Set<String> endActivityIds = new HashSet<String>();
+    Set<RecordedEvent> startEvents = new HashSet<RecordedEvent>();
+    Set<RecordedEvent> endEvents = new HashSet<RecordedEvent>();
     for (RecordedEvent event : recordedEvents) {
-      endActivityIds.add(event.getActivityId());
+      if(event.getEventName().equals(ExecutionListener.EVENTNAME_START)){
+        startEvents.add(event);
+      } else if(event.getEventName().equals(ExecutionListener.EVENTNAME_END)){
+        endEvents.add(event);
+      }
     }
 
-    assertEquals(5, endActivityIds.size());
-    assertTrue(endActivityIds.contains("innerTask1"));
-    assertTrue(endActivityIds.contains("innerTask2"));
-    assertTrue(endActivityIds.contains("outerTask"));
-    assertTrue(endActivityIds.contains("subProcess"));
-
+    assertThat(startEvents, hasSize(5));
+    assertThat(endEvents, hasSize(5));
+    for (RecordedEvent startEvent : startEvents) {
+      assertThat(startEvent.getActivityId(), is(anyOf(equalTo("innerTask1"),
+          equalTo("innerTask2"), equalTo("outerTask"), equalTo("subProcess"), equalTo("theStart"))));
+      for (RecordedEvent endEvent : endEvents) {
+        if(startEvent.getActivityId().equals(endEvent.getActivityId())){
+          assertThat(startEvent.getActivityInstanceId(), is(endEvent.getActivityInstanceId()));
+          assertThat(startEvent.getExecutionId(), is(endEvent.getExecutionId()));
+        }
+      }
+    }
+    for (RecordedEvent recordedEvent : endEvents) {
+      assertThat(recordedEvent.getActivityId(), is(anyOf(equalTo("innerTask1"),
+          equalTo("innerTask2"), equalTo("outerTask"), equalTo("subProcess"), nullValue())));
+    }
   }
 
   @Deployment(resources={
@@ -242,6 +264,32 @@ public class RuntimeServiceTest extends PluggableProcessEngineTestCase {
     // the custom listener is not invoked
     assertTrue(TestExecutionListener.collectedEvents.size() == 0);
     TestExecutionListener.reset();
+  }
+
+  @Deployment
+  public void testDeleteProcessInstanceSkipCustomTaskListeners() {
+
+    // given a process instance
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
+
+    // and an empty task listener invocation storage
+    RecorderTaskListener.clear();
+
+    // if we do not skip the custom listeners
+    runtimeService.deleteProcessInstance(instance.getId(), null, false);
+
+    // then the the custom listener is invoked
+    assertEquals(1, RecorderTaskListener.getRecordedEvents().size());
+    assertEquals(TaskListener.EVENTNAME_DELETE, RecorderTaskListener.getRecordedEvents().get(0).getEvent());
+
+    // if we do skip the custom listeners
+    instance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
+    RecorderTaskListener.clear();
+
+    runtimeService.deleteProcessInstance(instance.getId(), null, true);
+
+    // then the the custom listener is not invoked
+    assertTrue(RecorderTaskListener.getRecordedEvents().isEmpty());
   }
 
   @Deployment(resources={

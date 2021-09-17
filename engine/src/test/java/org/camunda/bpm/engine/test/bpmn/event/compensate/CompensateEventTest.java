@@ -18,22 +18,27 @@ import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.describeAc
 import static org.camunda.bpm.engine.test.util.ExecutionAssert.assertThat;
 import static org.camunda.bpm.engine.test.util.ExecutionAssert.describeExecutionTree;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
-import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricVariableInstanceQuery;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
+import org.camunda.bpm.engine.impl.event.MessageEventHandler;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
+import org.camunda.bpm.engine.runtime.EventSubscription;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.bpmn.event.compensate.helper.BookFlightService;
+import org.camunda.bpm.engine.test.bpmn.event.compensate.helper.CancelFlightService;
+import org.camunda.bpm.engine.test.bpmn.event.compensate.helper.GetVariablesDelegate;
 import org.camunda.bpm.engine.test.bpmn.event.compensate.helper.SetVariablesDelegate;
 import org.camunda.bpm.engine.test.util.ExecutionTree;
-
 
 /**
  * @author Daniel Meyer
@@ -50,6 +55,23 @@ public class CompensateEventTest extends PluggableProcessEngineTestCase {
     runtimeService.signal(processInstance.getId());
     assertProcessEnded(processInstance.getId());
 
+  }
+
+  @Deployment
+  public void testCompensateSubprocessInsideSubprocess() {
+    String processInstanceId = runtimeService.startProcessInstanceByKey("compensateProcess").getId();
+
+    completeTask("Book Hotel");
+    completeTask("Book Flight");
+
+    // throw compensation event
+    completeTask("throw compensation");
+
+    // execute compensation handlers
+    completeTask("Cancel Hotel");
+    completeTask("Cancel Flight");
+
+    assertProcessEnded(processInstanceId);
   }
 
   @Deployment
@@ -75,20 +97,6 @@ public class CompensateEventTest extends PluggableProcessEngineTestCase {
     List<Task> compensationHandlerTasks = taskService.createTaskQuery().taskDefinitionKey("undoBookHotel").list();
     assertEquals(5, compensationHandlerTasks.size());
 
-    assertThat(
-      describeActivityInstanceTree(processInstance.getId())
-        .activity("parallelTask")
-        .beginScope("throwCompensate")
-          .beginScope("scope")
-            .activity("undoBookHotel")
-            .activity("undoBookHotel")
-            .activity("undoBookHotel")
-            .activity("undoBookHotel")
-            .activity("undoBookHotel")
-        .done()
-        );
-
-
     ActivityInstance rootActivityInstance = runtimeService.getActivityInstance(processInstance.getId());
     List<ActivityInstance> compensationHandlerInstances = getInstancesForActivityId(rootActivityInstance, "undoBookHotel");
     assertEquals(5, compensationHandlerInstances.size());
@@ -102,7 +110,6 @@ public class CompensateEventTest extends PluggableProcessEngineTestCase {
 
     runtimeService.signal(processInstance.getId());
     assertProcessEnded(processInstance.getId());
-
   }
 
   @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensateParallelSubprocessCompHandlerWaitstate.bpmn20.xml")
@@ -187,7 +194,6 @@ public class CompensateEventTest extends PluggableProcessEngineTestCase {
     // process has not yet thrown compensation
     // when throw compensation
     runtimeService.signal(instance.getId());
-
     // then
     Task compensationTask = taskService.createTaskQuery().singleResult();
     assertNotNull(compensationTask);
@@ -223,18 +229,84 @@ public class CompensateEventTest extends PluggableProcessEngineTestCase {
     assertProcessEnded(instance.getId());
   }
 
-  @Deployment(resources={
-          "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCallActivityCompensationHandler.bpmn20.xml",
-          "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensationHandler.bpmn20.xml"
-  })
+  @Deployment
+  public void testCompensateConcurrentMiActivity() {
+    String processInstanceId = runtimeService.startProcessInstanceByKey("compensateProcess").getId();
+
+    // complete 4 of 5 user tasks
+    completeTasks("Book Hotel", 4);
+
+    // throw compensation event
+    completeTaskWithVariable("Request Vacation", "accept", false);
+
+    // should not compensate activity before multi instance activity is completed
+    assertEquals(0, taskService.createTaskQuery().taskName("Cancel Hotel").count());
+
+    // complete last open task and end process instance
+    completeTask("Book Hotel");
+    assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment
+  public void testCompensateConcurrentMiSubprocess() {
+    String processInstanceId = runtimeService.startProcessInstanceByKey("compensateProcess").getId();
+
+    // complete 4 of 5 user tasks
+    completeTasks("Book Hotel", 4);
+
+    // throw compensation event
+    completeTaskWithVariable("Request Vacation", "accept", false);
+
+    // should not compensate activity before multi instance activity is completed
+    assertEquals(0, taskService.createTaskQuery().taskName("Cancel Hotel").count());
+
+    // complete last open task and end process instance
+    completeTask("Book Hotel");
+
+    runtimeService.signal(processInstanceId);
+    assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment
+  public void testCompensateActivityRefMiActivity() {
+    String processInstanceId = runtimeService.startProcessInstanceByKey("compensateProcess").getId();
+
+    completeTasks("Book Hotel", 5);
+
+    // throw compensation event for activity
+    completeTaskWithVariable("Request Vacation", "accept", false);
+
+    // execute compensation handlers for each execution of the subprocess
+    assertEquals(5, taskService.createTaskQuery().count());
+    completeTasks("Cancel Hotel", 5);
+
+    assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment
+  public void testCompensateActivityRefMiSubprocess() {
+    String processInstanceId = runtimeService.startProcessInstanceByKey("compensateProcess").getId();
+
+    completeTasks("Book Hotel", 5);
+
+    // throw compensation event for activity
+    completeTaskWithVariable("Request Vacation", "accept", false);
+
+    // execute compensation handlers for each execution of the subprocess
+    assertEquals(5, taskService.createTaskQuery().count());
+    completeTasks("Cancel Hotel", 5);
+
+    assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCallActivityCompensationHandler.bpmn20.xml",
+      "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensationHandler.bpmn20.xml" })
   public void testCallActivityCompensationHandler() {
 
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
 
-    if(!processEngineConfiguration.getHistory().equals(ProcessEngineConfiguration.HISTORY_NONE)) {
-      assertEquals(5, historyService.createHistoricActivityInstanceQuery()
-              .activityId("undoBookHotel")
-              .count());
+    if (!processEngineConfiguration.getHistory().equals(ProcessEngineConfiguration.HISTORY_NONE)) {
+      assertEquals(5, historyService.createHistoricActivityInstanceQuery().activityId("undoBookHotel").count());
     }
 
     runtimeService.signal(processInstance.getId());
@@ -242,194 +314,157 @@ public class CompensateEventTest extends PluggableProcessEngineTestCase {
 
     assertEquals(0, runtimeService.createProcessInstanceQuery().count());
 
-    if(!processEngineConfiguration.getHistory().equals(ProcessEngineConfiguration.HISTORY_NONE)) {
-      assertEquals(6, historyService.createHistoricProcessInstanceQuery()
-              .count());
+    if (!processEngineConfiguration.getHistory().equals(ProcessEngineConfiguration.HISTORY_NONE)) {
+      assertEquals(6, historyService.createHistoricProcessInstanceQuery().count());
     }
 
   }
 
   @Deployment
   public void testCompensateMiSubprocessVariableSnapshots() {
-
     // see referenced java delegates in the process definition.
 
-    SetVariablesDelegate.variablesMap.clear();
+    List<String> hotels = Arrays.asList("Rupert", "Vogsphere", "Milliways", "Taunton", "Ysolldins");
 
-    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
+    SetVariablesDelegate.setValues(hotels);
 
-    if(!processEngineConfiguration.getHistory().equals(ProcessEngineConfiguration.HISTORY_NONE)) {
+    // SetVariablesDelegate take the first element of static list and set the value as local variable
+    // GetVariablesDelegate read the variable and add the value to static list
+
+    runtimeService.startProcessInstanceByKey("compensateProcess");
+
+    if (!processEngineConfiguration.getHistory().equals(ProcessEngineConfiguration.HISTORY_NONE)) {
       assertEquals(5, historyService.createHistoricActivityInstanceQuery().activityId("undoBookHotel").count());
     }
 
+    assertTrue(GetVariablesDelegate.values.containsAll(hotels));
+  }
+
+  @Deployment
+  public void testCompensateMiSubprocessWithCompensationEventSubprocessVariableSnapshots() {
+    // see referenced java delegates in the process definition.
+
+    List<String> hotels = Arrays.asList("Rupert", "Vogsphere", "Milliways", "Taunton", "Ysolldins");
+
+    SetVariablesDelegate.setValues(hotels);
+
+    // SetVariablesDelegate take the first element of static list and set the value as local variable
+    // GetVariablesDelegate read the variable and add the value to static list
+
+    runtimeService.startProcessInstanceByKey("compensateProcess");
+
+    if (!processEngineConfiguration.getHistory().equals(ProcessEngineConfiguration.HISTORY_NONE)) {
+      assertEquals(5, historyService.createHistoricActivityInstanceQuery().activityId("undoBookHotel").count());
+    }
+
+    assertTrue(GetVariablesDelegate.values.containsAll(hotels));
+  }
+
+  /**
+   * enable test case when bug is fixed
+   *
+   * @see https://app.camunda.com/jira/browse/CAM-4268
+   */
+  @Deployment
+  public void FAILING_testCompensateMiSubprocessVariableSnapshotOfElementVariable() {
+    Map<String, Object> variables = new HashMap<String, Object>();
+    // multi instance collection
+    List<String> flights = Arrays.asList("STS-14", "STS-28");
+    variables.put("flights", flights);
+
+    // see referenced java delegates in the process definition
+    // java delegates read element variable (flight) and add the variable value
+    // to a static list
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess", variables);
+
+    if (!processEngineConfiguration.getHistory().equals(ProcessEngineConfiguration.HISTORY_NONE)) {
+      assertEquals(flights.size(), historyService.createHistoricActivityInstanceQuery().activityId("undoBookFlight").count());
+    }
+
+    // java delegates should be invoked for each element in collection
+    assertEquals(flights, BookFlightService.bookedFlights);
+    assertEquals(flights, CancelFlightService.canceledFlights);
+
     assertProcessEnded(processInstance.getId());
-
   }
 
-  public void testMultipleCompensationCatchEventsFails() {
-    try {
-      repositoryService.createDeployment()
-        .addClasspathResource("org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testMultipleCompensationCatchEventsFails.bpmn20.xml")
-        .deploy();
-      fail("exception expected");
-    } catch (Exception e) {
-      if(!e.getMessage().contains("multiple boundary events with compensateEventDefinition not supported on same activity")) {
-        fail("different exception expected");
-      }
-    }
-  }
-
-  public void testMultipleCompensationCatchEventsCompensationAttributeMissingFails() {
-    try {
-      repositoryService.createDeployment()
-        .addClasspathResource("org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testMultipleCompensationCatchEventsCompensationAttributeMissingFails.bpmn20.xml")
-        .deploy();
-      fail("exception expected");
-    } catch (Exception e) {
-      if(!e.getMessage().contains("compensation boundary catch must be connected to element with isForCompensation=true")) {
-        fail("different exception expected");
-      }
-    }
-  }
-
-  public void testInvalidActivityRefFails() {
-    try {
-      repositoryService.createDeployment()
-        .addClasspathResource("org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testInvalidActivityRefFails.bpmn20.xml")
-        .deploy();
-      fail("exception expected");
-    } catch (Exception e) {
-      if(!e.getMessage().contains("Invalid attribute value for 'activityRef':")) {
-        fail("different exception expected");
-      }
-    }
-  }
-
-  @Deployment(resources={"org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensationTriggeredByEventSubProcessActivityRef.bpmn20.xml"})
+  @Deployment(resources = {
+      "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensationTriggeredByEventSubProcessActivityRef.bpmn20.xml" })
   public void testCompensateActivityRefTriggeredByEventSubprocess() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
     assertProcessEnded(processInstance.getId());
 
     HistoricVariableInstanceQuery historicVariableInstanceQuery = historyService.createHistoricVariableInstanceQuery()
-      .processInstanceId(processInstance.getId())
-      .variableName("undoBookHotel");
+        .processInstanceId(processInstance.getId()).variableName("undoBookHotel");
 
-    if(processEngineConfiguration.getHistoryLevel().getId() >= ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT) {
+    if (processEngineConfiguration.getHistoryLevel().getId() >= ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT) {
       assertEquals(1, historicVariableInstanceQuery.count());
       assertEquals("undoBookHotel", historicVariableInstanceQuery.list().get(0).getVariableName());
       assertEquals(5, historicVariableInstanceQuery.list().get(0).getValue());
 
-      assertEquals(0, historyService.createHistoricVariableInstanceQuery()
-       .processInstanceId(processInstance.getId())
-       .variableName("undoBookFlight")
-       .count());
+      assertEquals(0, historyService.createHistoricVariableInstanceQuery().processInstanceId(processInstance.getId()).variableName("undoBookFlight").count());
     }
   }
 
-  @Deployment(resources={"org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensationTriggeredByEventSubProcessInSubProcessActivityRef.bpmn20.xml"})
+  @Deployment(resources = {
+      "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensationTriggeredByEventSubProcessInSubProcessActivityRef.bpmn20.xml" })
   public void testCompensateActivityRefTriggeredByEventSubprocessInSubProcess() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
     assertProcessEnded(processInstance.getId());
 
     HistoricVariableInstanceQuery historicVariableInstanceQuery = historyService.createHistoricVariableInstanceQuery()
-      .processInstanceId(processInstance.getId())
-      .variableName("undoBookHotel");
+        .processInstanceId(processInstance.getId()).variableName("undoBookHotel");
 
-    if(processEngineConfiguration.getHistoryLevel().getId() >= ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT) {
+    if (processEngineConfiguration.getHistoryLevel().getId() >= ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT) {
       assertEquals(1, historicVariableInstanceQuery.count());
       assertEquals("undoBookHotel", historicVariableInstanceQuery.list().get(0).getVariableName());
       assertEquals(5, historicVariableInstanceQuery.list().get(0).getValue());
 
-      assertEquals(0, historyService.createHistoricVariableInstanceQuery()
-        .processInstanceId(processInstance.getId())
-        .variableName("undoBookFlight")
-        .count());
+      assertEquals(0, historyService.createHistoricVariableInstanceQuery().processInstanceId(processInstance.getId()).variableName("undoBookFlight").count());
     }
   }
 
-  public void testIllegalCompensateActivityRefParentScope() {
-
-    try {
-      String id = repositoryService.createDeployment()
-        .addClasspathResource("org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testIllegalCompensateActivityRefParentScope.bpmn20.xml")
-        .deploy()
-        .getId();
-      repositoryService.deleteDeployment(id, true);
-      fail("Exception expected!");
-
-    } catch (ProcessEngineException e) {
-      if(!e.getMessage().contains("Invalid attribute value for 'activityRef': no activity with id 'someServiceInMainProcess' in scope 'subProcess'")) {
-        fail("different exception expected");
-      }
-    }
-
-  }
-
-  public void testIllegalCompensateActivityRefNestedScope() {
-
-    try {
-      String id = repositoryService.createDeployment()
-        .addClasspathResource("org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testIllegalCompensateActivityRefNestedScope.bpmn20.xml")
-        .deploy()
-        .getId();
-      repositoryService.deleteDeployment(id, true);
-      fail("Exception expected!");
-
-    } catch (ProcessEngineException e) {
-      if(!e.getMessage().contains("Invalid attribute value for 'activityRef': no activity with id 'someServiceInNestedScope' in scope 'subProcess'")) {
-        fail("different exception expected");
-      }
-    }
-
-  }
-
-  @Deployment(resources={"org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensationInEventSubProcessActivityRef.bpmn20.xml"})
+  @Deployment(resources = { "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensationInEventSubProcessActivityRef.bpmn20.xml" })
   public void testCompensateActivityRefInEventSubprocess() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
     assertProcessEnded(processInstance.getId());
 
+    HistoricVariableInstanceQuery historicVariableInstanceQuery = historyService.createHistoricVariableInstanceQuery().variableName("undoBookSecondHotel");
 
-    HistoricVariableInstanceQuery historicVariableInstanceQuery = historyService.createHistoricVariableInstanceQuery()
-      .variableName("undoBookSecondHotel");
-
-    if(processEngineConfiguration.getHistoryLevel().getId() >= ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT) {
+    if (processEngineConfiguration.getHistoryLevel().getId() >= ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT) {
       assertEquals(1, historicVariableInstanceQuery.count());
       assertEquals("undoBookSecondHotel", historicVariableInstanceQuery.list().get(0).getVariableName());
       assertEquals(5, historicVariableInstanceQuery.list().get(0).getValue());
 
-      assertEquals(0, historyService.createHistoricVariableInstanceQuery()
-        .processInstanceId(processInstance.getId())
-        .variableName("undoBookFlight")
-        .count());
+      assertEquals(0, historyService.createHistoricVariableInstanceQuery().processInstanceId(processInstance.getId()).variableName("undoBookFlight").count());
 
-      assertEquals(0, historyService.createHistoricVariableInstanceQuery()
-        .processInstanceId(processInstance.getId())
-        .variableName("undoBookHotel")
-        .count());
+      assertEquals(0, historyService.createHistoricVariableInstanceQuery().processInstanceId(processInstance.getId()).variableName("undoBookHotel").count());
     }
   }
 
-  @Deployment(resources={"org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensationInEventSubProcess.bpmn20.xml"})
+  /**
+   * enable test case when bug is fixed
+   *
+   * @see https://app.camunda.com/jira/browse/CAM-4304
+   */
+  @Deployment(resources = { "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensationInEventSubProcess.bpmn20.xml" })
   public void testCompensateInEventSubprocess() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
     assertProcessEnded(processInstance.getId());
 
-    HistoricVariableInstanceQuery historicVariableInstanceQuery = historyService.createHistoricVariableInstanceQuery()
-        .variableName("undoBookSecondHotel");
+    HistoricVariableInstanceQuery historicVariableInstanceQuery = historyService.createHistoricVariableInstanceQuery().variableName("undoBookSecondHotel");
 
-    if(processEngineConfiguration.getHistoryLevel().getId() >= ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT) {
+    if (processEngineConfiguration.getHistoryLevel().getId() >= ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT) {
       assertEquals(1, historicVariableInstanceQuery.count());
       assertEquals("undoBookSecondHotel", historicVariableInstanceQuery.list().get(0).getVariableName());
       assertEquals(5, historicVariableInstanceQuery.list().get(0).getValue());
 
-      historicVariableInstanceQuery = historyService.createHistoricVariableInstanceQuery()
-          .variableName("undoBookFlight");
+      historicVariableInstanceQuery = historyService.createHistoricVariableInstanceQuery().variableName("undoBookFlight");
 
       assertEquals(1, historicVariableInstanceQuery.count());
       assertEquals(5, historicVariableInstanceQuery.list().get(0).getValue());
 
-      historicVariableInstanceQuery = historyService.createHistoricVariableInstanceQuery()
-          .variableName("undoBookHotel");
+      historicVariableInstanceQuery = historyService.createHistoricVariableInstanceQuery().variableName("undoBookHotel");
 
       assertEquals(1, historicVariableInstanceQuery.count());
       assertEquals(5, historicVariableInstanceQuery.list().get(0).getValue());
@@ -470,9 +505,9 @@ public class CompensateEventTest extends PluggableProcessEngineTestCase {
     // then
     ActivityInstance tree = runtimeService.getActivityInstance(processInstanceId);
     assertThat(tree).hasStructure(
-      describeActivityInstanceTree(instance.getProcessDefinitionId())
-        .activity("task")
-      .done());
+        describeActivityInstanceTree(instance.getProcessDefinitionId())
+          .activity("task")
+        .done());
   }
 
   @Deployment
@@ -487,9 +522,9 @@ public class CompensateEventTest extends PluggableProcessEngineTestCase {
 
     // then (1)
     ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
-    assertThat(executionTree)
-      .matches(
-        describeExecutionTree(null).scope()
+    assertThat(executionTree).matches(
+        describeExecutionTree(null)
+        .scope()
           .child("task1").concurrent().noScope().up()
           .child("task2").concurrent().noScope().up()
           .child("subProcess").eventScope().scope().up()
@@ -497,10 +532,10 @@ public class CompensateEventTest extends PluggableProcessEngineTestCase {
 
     ActivityInstance tree = runtimeService.getActivityInstance(processInstanceId);
     assertThat(tree).hasStructure(
-      describeActivityInstanceTree(instance.getProcessDefinitionId())
-        .activity("task1")
-        .activity("task2")
-      .done());
+        describeActivityInstanceTree(instance.getProcessDefinitionId())
+          .activity("task1")
+          .activity("task2")
+        .done());
 
     // when (2)
     taskId = taskService.createTaskQuery().taskDefinitionKey("task1").singleResult().getId();
@@ -508,17 +543,17 @@ public class CompensateEventTest extends PluggableProcessEngineTestCase {
 
     // then (2)
     executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
-    assertThat(executionTree)
-      .matches(
-        describeExecutionTree("task2").scope()
+    assertThat(executionTree).matches(
+        describeExecutionTree("task2")
+        .scope()
           .child("subProcess").eventScope().scope().up()
         .done());
 
     tree = runtimeService.getActivityInstance(processInstanceId);
     assertThat(tree).hasStructure(
-      describeActivityInstanceTree(instance.getProcessDefinitionId())
-        .activity("task2")
-      .done());
+        describeActivityInstanceTree(instance.getProcessDefinitionId())
+          .activity("task2")
+        .done());
 
     // when (3)
     taskId = taskService.createTaskQuery().taskDefinitionKey("task2").singleResult().getId();
@@ -526,6 +561,499 @@ public class CompensateEventTest extends PluggableProcessEngineTestCase {
 
     // then (3)
     assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment
+  public void testCompensationEndEventWithScope() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
+
+    if (!processEngineConfiguration.getHistory().equals(ProcessEngineConfiguration.HISTORY_NONE)) {
+      assertEquals(5, historyService.createHistoricActivityInstanceQuery().activityId("undoBookHotel").count());
+      assertEquals(5, historyService.createHistoricActivityInstanceQuery().activityId("undoBookFlight").count());
+    }
+
+    assertProcessEnded(processInstance.getId());
+  }
+
+  @Deployment
+  public void testCompensationEndEventWithActivityRef() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
+
+    if (!processEngineConfiguration.getHistory().equals(ProcessEngineConfiguration.HISTORY_NONE)) {
+      assertEquals(5, historyService.createHistoricActivityInstanceQuery().activityId("undoBookHotel").count());
+      assertEquals(0, historyService.createHistoricActivityInstanceQuery().activityId("undoBookFlight").count());
+    }
+
+    assertProcessEnded(processInstance.getId());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.activityWithCompensationEndEvent.bpmn20.xml")
+  public void testActivityInstanceTreeForCompensationEndEvent(){
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
+
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(
+       describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("end")
+          .activity("undoBookHotel")
+      .done());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.compensationMiActivity.bpmn20.xml")
+  public void testActivityInstanceTreeForMiActivity(){
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
+
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(
+       describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("end")
+          .beginMiBody("bookHotel")
+            .activity("undoBookHotel")
+            .activity("undoBookHotel")
+            .activity("undoBookHotel")
+            .activity("undoBookHotel")
+            .activity("undoBookHotel")
+      .done());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensateParallelSubprocessCompHandlerWaitstate.bpmn20.xml")
+  public void testActivityInstanceTreeForParallelMiActivityInSubprocess() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
+
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("parallelTask")
+        .activity("throwCompensate")
+        .beginScope("scope")
+          .beginMiBody("bookHotel")
+            .activity("undoBookHotel")
+            .activity("undoBookHotel")
+            .activity("undoBookHotel")
+            .activity("undoBookHotel")
+            .activity("undoBookHotel")
+        .done());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.compensationMiSubprocess.bpmn20.xml")
+  public void testActivityInstanceTreeForMiSubprocess(){
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
+
+    completeTasks("Book Hotel", 5);
+    // throw compensation event
+    completeTask("throwCompensation");
+
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("throwingCompensation")
+        .beginMiBody("scope")
+          .activity("undoBookHotel")
+          .activity("undoBookHotel")
+          .activity("undoBookHotel")
+          .activity("undoBookHotel")
+          .activity("undoBookHotel")
+      .done());
+  }
+
+  /**
+   * CAM-4903
+   */
+  @Deployment
+  public void FAILING_testActivityInstanceTreeForMiSubProcessDefaultHandler() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
+
+    completeTasks("Book Hotel", 5);
+    // throw compensation event
+    completeTask("throwCompensation");
+
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("throwingCompensation")
+        .beginMiBody("scope")
+          .beginScope("scope")
+            .activity("undoBookHotel")
+          .endScope()
+          .beginScope("scope")
+            .activity("undoBookHotel")
+          .endScope()
+          .beginScope("scope")
+            .activity("undoBookHotel")
+          .endScope()
+          .beginScope("scope")
+            .activity("undoBookHotel")
+          .endScope()
+          .beginScope("scope")
+            .activity("undoBookHotel")
+      .done());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.activityWithCompensationEndEvent.bpmn20.xml")
+  public void testCancelProcessInstanceWithActiveCompensation() {
+    // given
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("compensateProcess");
+
+    // when
+    runtimeService.deleteProcessInstance(processInstance.getId(), null);
+
+    // then
+    assertProcessEnded(processInstance.getId());
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensationEventSubProcess.bpmn20.xml" })
+  public void testCompensationEventSubProcessWithScope() {
+    String processInstanceId = runtimeService.startProcessInstanceByKey("bookingProcess").getId();
+
+    completeTask("Book Flight");
+    completeTask("Book Hotel");
+
+    // throw compensation event for current scope (without activityRef)
+    completeTaskWithVariable("Validate Booking", "valid", false);
+
+    // first - compensate book flight
+    assertEquals(1, taskService.createTaskQuery().count());
+    completeTask("Cancel Flight");
+    // second - compensate book hotel
+    assertEquals(1, taskService.createTaskQuery().count());
+    completeTask("Cancel Hotel");
+    // third - additional compensation handler
+    completeTask("Update Customer Record");
+
+    assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment
+  public void testCompensationEventSubProcessWithActivityRef() {
+    String processInstanceId = runtimeService.startProcessInstanceByKey("bookingProcess").getId();
+
+    completeTask("Book Hotel");
+    completeTask("Book Flight");
+
+    // throw compensation event for specific scope (with activityRef = subprocess)
+    completeTaskWithVariable("Validate Booking", "valid", false);
+
+    // compensate the activity within this scope
+    assertEquals(1, taskService.createTaskQuery().count());
+    completeTask("Cancel Hotel");
+
+    assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testCompensationEventSubProcess.bpmn20.xml" })
+  public void testActivityInstanceTreeForCompensationEventSubProcess() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("bookingProcess");
+
+    completeTask("Book Flight");
+    completeTask("Book Hotel");
+
+    // throw compensation event
+    completeTaskWithVariable("Validate Booking", "valid", false);
+
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(
+          describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+            .activity("throwCompensation")
+            .beginScope("booking-subprocess")
+              .activity("cancelFlight")
+              .beginScope("compensationSubProcess")
+                .activity("compensateFlight")
+         .done());
+  }
+
+  @Deployment
+  public void testCompensateMiSubprocessWithCompensationEventSubProcess() {
+    Map<String, Object> variables = new HashMap<String, Object>();
+    // multi instance collection
+    variables.put("flights", Arrays.asList("STS-14", "STS-28"));
+
+    String processInstanceId = runtimeService.startProcessInstanceByKey("bookingProcess", variables).getId();
+
+    completeTask("Book Flight");
+    completeTask("Book Hotel");
+
+    completeTask("Book Flight");
+    completeTask("Book Hotel");
+
+    // throw compensation event
+    completeTaskWithVariable("Validate Booking", "valid", false);
+
+    // execute compensation handlers for each execution of the subprocess
+    completeTasks("Cancel Flight", 2);
+    completeTasks("Cancel Hotel", 2);
+    completeTasks("Update Customer Record", 2);
+
+    assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment
+  public void testCompensateParallelMiSubprocessWithCompensationEventSubProcess() {
+    Map<String, Object> variables = new HashMap<String, Object>();
+    // multi instance collection
+    variables.put("flights", Arrays.asList("STS-14", "STS-28"));
+
+    String processInstanceId = runtimeService.startProcessInstanceByKey("bookingProcess", variables).getId();
+
+    completeTasks("Book Flight", 2);
+    completeTasks("Book Hotel", 2);
+
+    // throw compensation event
+    completeTaskWithVariable("Validate Booking", "valid", false);
+
+    // execute compensation handlers for each execution of the subprocess
+    completeTasks("Cancel Flight", 2);
+    completeTasks("Cancel Hotel", 2);
+    completeTasks("Update Customer Record", 2);
+
+    assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment
+  public void testCompensationEventSubprocessWithoutBoundaryEvents() {
+    String processInstanceId = runtimeService.startProcessInstanceByKey("compensateProcess").getId();
+
+    completeTask("Book Hotel");
+    completeTask("Book Flight");
+
+    // throw compensation event
+    completeTask("throw compensation");
+
+    // execute compensation handlers
+    completeTask("Cancel Flight");
+    completeTask("Cancel Hotel");
+
+    assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment
+  public void testCompensationEventSubprocessReThrowCompensationEvent() {
+    String processInstanceId = runtimeService.startProcessInstanceByKey("compensateProcess").getId();
+
+    completeTask("Book Hotel");
+    completeTask("Book Flight");
+
+    // throw compensation event
+    completeTask("throw compensation");
+
+    // execute compensation handler and re-throw compensation event
+    completeTask("Cancel Hotel");
+    // execute compensation handler at subprocess
+    completeTask("Cancel Flight");
+
+    assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment
+  public void testCompensationEventSubprocessConsumeCompensationEvent() {
+    String processInstanceId = runtimeService.startProcessInstanceByKey("compensateProcess").getId();
+
+    completeTask("Book Hotel");
+    completeTask("Book Flight");
+
+    // throw compensation event
+    completeTask("throw compensation");
+
+    // execute compensation handler and consume compensation event
+    completeTask("Cancel Hotel");
+    // compensation handler at subprocess (Cancel Flight) should not be executed
+    assertProcessEnded(processInstanceId);
+  }
+
+  @Deployment
+  public void testSubprocessCompensationHandler() {
+
+    // given a process instance
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("subProcessCompensationHandler");
+
+    // when throwing compensation
+    Task beforeCompensationTask = taskService.createTaskQuery().singleResult();
+    taskService.complete(beforeCompensationTask.getId());
+
+    // then the compensation handler has been activated
+    // and the user task in the sub process can be successfully completed
+    Task subProcessTask = taskService.createTaskQuery().singleResult();
+    assertNotNull(subProcessTask);
+    assertEquals("subProcessTask", subProcessTask.getTaskDefinitionKey());
+
+    taskService.complete(subProcessTask.getId());
+
+    // and the task following compensation can be successfully completed
+    Task afterCompensationTask = taskService.createTaskQuery().singleResult();
+    assertNotNull(afterCompensationTask);
+    assertEquals("beforeEnd", afterCompensationTask.getTaskDefinitionKey());
+
+    taskService.complete(afterCompensationTask.getId());
+
+    // and the process has successfully ended
+    assertProcessEnded(processInstance.getId());
+
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testSubprocessCompensationHandler.bpmn20.xml")
+  public void testSubprocessCompensationHandlerActivityInstanceTree() {
+
+    // given a process instance
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("subProcessCompensationHandler");
+
+    // when throwing compensation
+    Task beforeCompensationTask = taskService.createTaskQuery().singleResult();
+    taskService.complete(beforeCompensationTask.getId());
+
+    // then the activity instance tree is correct
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("throwCompensate")
+          .beginScope("compensationHandler")
+            .activity("subProcessTask")
+       .done());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testSubprocessCompensationHandler.bpmn20.xml")
+  public void testSubprocessCompensationHandlerDeleteProcessInstance() {
+
+    // given a process instance in compensation
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("subProcessCompensationHandler");
+    Task beforeCompensationTask = taskService.createTaskQuery().singleResult();
+    taskService.complete(beforeCompensationTask.getId());
+
+    // when deleting the process instance
+    runtimeService.deleteProcessInstance(processInstance.getId(), null);
+
+    // then the process instance is ended
+    assertProcessEnded(processInstance.getId());
+  }
+
+  /**
+   * CAM-4387
+   */
+  @Deployment
+  public void FAILING_testSubprocessCompensationHandlerWithEventSubprocess() {
+    // given a process instance in compensation
+    runtimeService.startProcessInstanceByKey("subProcessCompensationHandlerWithEventSubprocess");
+    Task beforeCompensationTask = taskService.createTaskQuery().singleResult();
+    taskService.complete(beforeCompensationTask.getId());
+
+    // when the event subprocess is triggered that is defined as part of the compensation handler
+    runtimeService.correlateMessage("Message");
+
+    // then activity instance tree is correct
+    Task task = taskService.createTaskQuery().singleResult();
+    assertNotNull(task);
+    assertEquals("eventSubProcessTask", task.getTaskDefinitionKey());
+  }
+
+  /**
+   * CAM-4387
+   */
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/event/compensate/CompensateEventTest.testSubprocessCompensationHandlerWithEventSubprocess.bpmn20.xml")
+  public void FAILING_testSubprocessCompensationHandlerWithEventSubprocessActivityInstanceTree() {
+    // given a process instance in compensation
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("subProcessCompensationHandlerWithEventSubprocess");
+    Task beforeCompensationTask = taskService.createTaskQuery().singleResult();
+    taskService.complete(beforeCompensationTask.getId());
+
+    // when the event subprocess is triggered that is defined as part of the compensation handler
+    runtimeService.correlateMessage("Message");
+
+    // then the event subprocess has been triggered
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .activity("throwCompensate")
+          .beginScope("compensationHandler")
+            .beginScope("eventSubProcess")
+              .activity("eventSubProcessTask")
+       .done());
+  }
+
+  /**
+   * CAM-4387
+   */
+  @Deployment
+  public void FAILING_testReceiveTaskCompensationHandler() {
+    // given a process instance
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("receiveTaskCompensationHandler");
+
+    // when triggering compensation
+    Task beforeCompensationTask = taskService.createTaskQuery().singleResult();
+    taskService.complete(beforeCompensationTask.getId());
+
+    // then there is a message event subscription for the receive task compensation handler
+    EventSubscription eventSubscription = runtimeService.createEventSubscriptionQuery().singleResult();
+    assertNotNull(eventSubscription);
+    assertEquals(MessageEventHandler.EVENT_HANDLER_TYPE, eventSubscription.getEventType());
+
+    // and triggering the message completes compensation
+    runtimeService.correlateMessage("Message");
+
+    Task afterCompensationTask = taskService.createTaskQuery().singleResult();
+    assertNotNull(afterCompensationTask);
+    assertEquals("beforeEnd", afterCompensationTask.getTaskDefinitionKey());
+
+    taskService.complete(afterCompensationTask.getId());
+
+    // and the process has successfully ended
+    assertProcessEnded(processInstance.getId());
+  }
+
+  @Deployment
+  public void testConcurrentScopeCompensation() {
+    // given a process instance with two concurrent tasks, one of which is waiting
+    // before throwing compensation
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("concurrentScopeCompensation");
+    Task beforeCompensationTask = taskService.createTaskQuery().taskDefinitionKey("beforeCompensationTask").singleResult();
+    Task concurrentTask = taskService.createTaskQuery().taskDefinitionKey("concurrentTask").singleResult();
+
+    // when throwing compensation such that two subprocesses are compensated
+    taskService.complete(beforeCompensationTask.getId());
+
+    // then both compensation handlers have been executed
+    if (processEngineConfiguration.getHistoryLevel().getId() >= ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT) {
+      HistoricVariableInstanceQuery historicVariableInstanceQuery = historyService
+          .createHistoricVariableInstanceQuery().variableName("compensateScope1Task");
+
+      assertEquals(1, historicVariableInstanceQuery.count());
+      assertEquals(1, historicVariableInstanceQuery.list().get(0).getValue());
+
+      historicVariableInstanceQuery = historyService
+          .createHistoricVariableInstanceQuery().variableName("compensateScope2Task");
+
+      assertEquals(1, historicVariableInstanceQuery.count());
+      assertEquals(1, historicVariableInstanceQuery.list().get(0).getValue());
+    }
+
+    // and after completing the concurrent task, the process instance ends successfully
+    taskService.complete(concurrentTask.getId());
+    assertProcessEnded(processInstance.getId());
+  }
+
+  private void completeTask(String taskName) {
+    completeTasks(taskName, 1);
+  }
+
+  private void completeTasks(String taskName, int times) {
+    List<Task> tasks = taskService.createTaskQuery().taskName(taskName).list();
+
+    assertTrue("Actual there are " + tasks.size() + " open tasks with name '" + taskName + "'. Expected at least " + times, times <= tasks.size());
+
+    Iterator<Task> taskIterator = tasks.iterator();
+    for (int i = 0; i < times; i++) {
+      Task task = taskIterator.next();
+      taskService.complete(task.getId());
+    }
+  }
+
+  private void completeTaskWithVariable(String taskName, String variable, Object value) {
+    Task task = taskService.createTaskQuery().taskName(taskName).singleResult();
+    assertNotNull("No open task with name '" + taskName + "'", task);
+
+    Map<String, Object> variables = new HashMap<String, Object>();
+    if (variable != null) {
+      variables.put(variable, value);
+    }
+
+    taskService.complete(task.getId(), variables);
   }
 
 }

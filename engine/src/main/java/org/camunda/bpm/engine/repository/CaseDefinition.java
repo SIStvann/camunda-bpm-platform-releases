@@ -12,41 +12,10 @@
  */
 package org.camunda.bpm.engine.repository;
 
-import org.camunda.bpm.engine.RepositoryService;
-
 /**
  * @author Roman Smirnov
  *
  */
-public interface CaseDefinition {
+public interface CaseDefinition extends ResourceDefinition {
 
-  /** unique identifier */
-  String getId();
-
-  /** category name which is derived from the targetNamespace attribute in the definitions element */
-  String getCategory();
-
-  /** label used for display purposes */
-  String getName();
-
-  /** unique name for all versions this case definitions */
-  String getKey();
-
-  /** version of this case definition */
-  int getVersion();
-
-  /** name of {@link RepositoryService#getResourceAsStream(String, String) the resource} 
-   * of this case definition.
-   */
-  String getResourceName();
-
-  /** The deployment in which this case definition is contained. */
-  String getDeploymentId();
-
-  /**
-   * The diagram resource name.
-   * 
-   * @return the name of the diagram resource. e.G. of the case PNG file.
-   */
-  String getDiagramResourceName();
 }

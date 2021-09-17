@@ -34,6 +34,10 @@ public class Meter {
     counter.incrementAndGet();
   }
 
+  public void markTimes(long times) {
+    counter.addAndGet(times);
+  }
+
   public String getName() {
     return name;
   }

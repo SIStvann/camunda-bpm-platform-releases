@@ -12,6 +12,7 @@
  */
 package org.camunda.bpm.engine.impl.interceptor;
 
+import org.camunda.bpm.dmn.engine.DmnDecision;
 import org.camunda.bpm.engine.impl.delegate.DelegateInvocation;
 
 /**
@@ -24,6 +25,7 @@ import org.camunda.bpm.engine.impl.delegate.DelegateInvocation;
  * <li>{@link org.camunda.bpm.engine.delegate.ExecutionListener}</li>
  * <li>{@link org.camunda.bpm.engine.delegate.Expression}</li>
  * <li>{@link org.camunda.bpm.engine.delegate.TaskListener}</li>
+ * <li>{@link DmnDecision}</li>
  * </ul>
  *
  * The interceptor is passed in an instance of {@link DelegateInvocation}.
@@ -34,6 +36,6 @@ import org.camunda.bpm.engine.impl.delegate.DelegateInvocation;
  */
 public interface DelegateInterceptor {
 
-  public void handleInvocation(DelegateInvocation invocation) throws Exception;
+  void handleInvocation(DelegateInvocation invocation) throws Exception;
 
 }

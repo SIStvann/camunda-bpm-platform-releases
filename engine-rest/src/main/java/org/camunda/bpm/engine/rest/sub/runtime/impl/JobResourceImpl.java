@@ -18,9 +18,11 @@ import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.ManagementService;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.rest.dto.runtime.JobDto;
 import org.camunda.bpm.engine.rest.dto.runtime.JobDuedateDto;
-import org.camunda.bpm.engine.rest.dto.runtime.JobRetriesDto;
+import org.camunda.bpm.engine.rest.dto.runtime.JobPriorityDto;
+import org.camunda.bpm.engine.rest.dto.runtime.RetriesDto;
 import org.camunda.bpm.engine.rest.dto.runtime.JobSuspensionStateDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
@@ -63,7 +65,7 @@ public class JobResourceImpl implements JobResource {
   }
 
   @Override
-  public void setJobRetries(JobRetriesDto dto) {
+  public void setJobRetries(RetriesDto dto) {
     try {
       ManagementService managementService = engine.getManagementService();
       managementService.setJobRetries(jobId, dto.getRetries());
@@ -103,6 +105,24 @@ public class JobResourceImpl implements JobResource {
   public void updateSuspensionState(JobSuspensionStateDto dto) {
     dto.setJobId(jobId);
     dto.updateSuspensionState(engine);
+  }
+
+  @Override
+  public void setJobPriority(JobPriorityDto dto) {
+    if (dto.getPriority() == null) {
+      throw new RestException(Status.BAD_REQUEST, "Priority for job '" + jobId + "' cannot be null.");
+    }
+
+    try {
+      ManagementService managementService = engine.getManagementService();
+      managementService.setJobPriority(jobId, dto.getPriority());
+    } catch (AuthorizationException e) {
+      throw e;
+    } catch (NotFoundException e) {
+      throw new InvalidRequestException(Status.NOT_FOUND, e.getMessage());
+    } catch (ProcessEngineException e) {
+      throw new RestException(Status.INTERNAL_SERVER_ERROR, e.getMessage());
+    }
   }
 
 }

@@ -16,6 +16,7 @@ import static org.camunda.bpm.engine.impl.util.CallableElementUtil.getProcessDef
 
 import java.util.Map;
 
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cmmn.execution.CmmnActivityExecution;
 import org.camunda.bpm.engine.impl.pvm.PvmProcessInstance;
 import org.camunda.bpm.engine.impl.pvm.process.ProcessDefinitionImpl;
@@ -26,21 +27,12 @@ import org.camunda.bpm.engine.impl.pvm.process.ProcessDefinitionImpl;
  */
 public class ProcessTaskActivityBehavior extends ProcessOrCaseTaskActivityBehavior {
 
+  protected static final CmmnBehaviorLogger LOG = ProcessEngineLogger.CMNN_BEHAVIOR_LOGGER;
+
   protected void triggerCallableElement(CmmnActivityExecution execution, Map<String, Object> variables, String businessKey) {
     ProcessDefinitionImpl definition = getProcessDefinitionToCall(execution, getCallableElement());
     PvmProcessInstance processInstance = execution.createSubProcessInstance(definition, businessKey);
     processInstance.start(variables);
-  }
-
-  public void onManualCompletion(CmmnActivityExecution execution) {
-    // Throw always an exception!
-    // It should not be possible to complete a process
-    // task manually. If the called process instance has
-    // been completed, the associated process task will
-    // be notified to complete automatically.
-    String id = execution.getId();
-    String message = "It is not possible to complete case execution '"+id+"' which associated with a process task manually.";
-    throw createIllegalStateTransitionException("complete", message, execution);
   }
 
   protected String getTypeName() {

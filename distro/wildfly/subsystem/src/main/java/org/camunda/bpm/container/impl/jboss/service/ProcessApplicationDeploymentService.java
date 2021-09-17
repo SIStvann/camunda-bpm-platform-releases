@@ -201,11 +201,11 @@ public class ProcessApplicationDeploymentService implements Service<ProcessAppli
       throw new IllegalArgumentException(b.toString());
     }
   }
-  
+
   protected boolean isValidValueForResumePreviousBy(String resumePreviousBy) {
     return resumePreviousBy.equals(ResumePreviousBy.RESUME_BY_DEPLOYMENT_NAME) || resumePreviousBy.equals(ResumePreviousBy.RESUME_BY_PROCESS_DEFINITION_KEY);
   }
-  
+
   /**
    * @param deploymentMap2
    * @param deploymentName

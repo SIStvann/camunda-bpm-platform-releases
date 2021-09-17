@@ -19,17 +19,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.camunda.bpm.engine.ProcessEngineException;
-import org.camunda.bpm.engine.SuspendedEntityInteractionException;
 import org.camunda.bpm.engine.delegate.Expression;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
 import org.camunda.bpm.engine.impl.form.handler.StartFormHandler;
+import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.impl.pvm.process.ProcessDefinitionImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
+import org.camunda.bpm.engine.impl.repository.ResourceDefinitionEntity;
 import org.camunda.bpm.engine.impl.task.TaskDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.task.IdentityLinkType;
@@ -39,9 +43,10 @@ import org.camunda.bpm.engine.task.IdentityLinkType;
  * @author Tom Baeyens
  * @author Daniel Meyer
  */
-public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements ProcessDefinition, DbEntity, HasDbRevision {
+public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements ProcessDefinition, ResourceDefinitionEntity, DbEntity, HasDbRevision {
 
   private static final long serialVersionUID = 1L;
+  protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
 
   protected String key;
   protected int revision = 1;
@@ -61,13 +66,18 @@ public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements Pr
   protected Set<Expression> candidateStarterUserIdExpressions = new HashSet<Expression>();
   protected Set<Expression> candidateStarterGroupIdExpressions = new HashSet<Expression>();
 
+  // firstVersion is true, when version == 1 or when
+  // this definition does not have any previous definitions
+  protected boolean firstVersion = false;
+  protected String previousProcessDefinitionId;
+
   public ProcessDefinitionEntity() {
     super(null);
   }
 
   protected void ensureNotSuspended() {
     if (isSuspended()) {
-      throw new SuspendedEntityInteractionException("Process definition " + id + " is suspended.");
+      throw LOG.suspendedEntityException("Process Definition", id);
     }
   }
 
@@ -165,7 +175,7 @@ public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements Pr
    */
   public void updateModifiedFieldsFromEntity(ProcessDefinitionEntity updatingProcessDefinition) {
     if (!this.key.equals(updatingProcessDefinition.key) || !this.deploymentId.equals(updatingProcessDefinition.deploymentId)) {
-      throw new ProcessEngineException("Cannot update entity from an unrelated process definition");
+      throw LOG.updateUnrelatedProcessDefinitionEntityException();
     }
 
     // TODO: add a guard once the mismatch between revisions in deployment cache and database has been resolved
@@ -174,6 +184,78 @@ public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements Pr
 
   }
 
+  // previous process definition //////////////////////////////////////////////
+
+  public ProcessDefinitionEntity getPreviousDefinition() {
+    ProcessDefinitionEntity previousProcessDefinition = null;
+
+    String previousProcessDefinitionId = getPreviousProcessDefinitionId();
+    if (previousProcessDefinitionId != null) {
+
+      previousProcessDefinition = loadProcessDefinition(previousProcessDefinitionId);
+
+      if (previousProcessDefinition == null) {
+        resetPreviousProcessDefinitionId();
+        previousProcessDefinitionId = getPreviousProcessDefinitionId();
+
+        if (previousProcessDefinitionId != null) {
+          previousProcessDefinition = loadProcessDefinition(previousProcessDefinitionId);
+        }
+      }
+    }
+
+    return previousProcessDefinition;
+  }
+
+  /**
+   * Returns the cached version if exists; does not update the entity from the database in that case
+   */
+  protected ProcessDefinitionEntity loadProcessDefinition(String processDefinitionId) {
+    ProcessEngineConfigurationImpl configuration = Context.getProcessEngineConfiguration();
+    DeploymentCache deploymentCache = configuration.getDeploymentCache();
+
+    ProcessDefinitionEntity processDefinition = deploymentCache.findProcessDefinitionFromCache(processDefinitionId);
+
+    if (processDefinition == null) {
+      CommandContext commandContext = Context.getCommandContext();
+      ProcessDefinitionManager processDefinitionManager = commandContext.getProcessDefinitionManager();
+      processDefinition = processDefinitionManager.findLatestProcessDefinitionById(processDefinitionId);
+
+      if (processDefinition != null) {
+        processDefinition = deploymentCache.resolveProcessDefinition(processDefinition);
+      }
+    }
+
+    return processDefinition;
+
+  }
+
+  protected String getPreviousProcessDefinitionId() {
+    ensurePreviousProcessDefinitionIdInitialized();
+    return previousProcessDefinitionId;
+  }
+
+  protected void resetPreviousProcessDefinitionId() {
+    previousProcessDefinitionId = null;
+    ensurePreviousProcessDefinitionIdInitialized();
+  }
+
+  protected void setPreviousProcessDefinitionId(String previousProcessDefinitionId) {
+    this.previousProcessDefinitionId = previousProcessDefinitionId;
+  }
+
+  protected void ensurePreviousProcessDefinitionIdInitialized() {
+    if (previousProcessDefinitionId == null && !firstVersion) {
+      previousProcessDefinitionId = Context
+          .getCommandContext()
+          .getProcessDefinitionManager()
+          .findPreviousProcessDefinitionIdByKeyAndVersion(key, version);
+
+      if (previousProcessDefinitionId == null) {
+        firstVersion = true;
+      }
+    }
+  }
 
   // getters and setters //////////////////////////////////////////////////////
 
@@ -209,6 +291,7 @@ public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements Pr
 
   public void setVersion(int version) {
     this.version = version;
+    firstVersion = (this.version == 1);
   }
 
   public void setId(String id) {

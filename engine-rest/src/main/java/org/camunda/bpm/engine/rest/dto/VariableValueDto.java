@@ -12,23 +12,32 @@
  */
 package org.camunda.bpm.engine.rest.dto;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
+
+import javax.activation.MimeType;
+import javax.activation.MimeTypeParseException;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response.Status;
+
 import org.camunda.bpm.engine.ProcessEngine;
+import org.camunda.bpm.engine.impl.digest._apacheCommonsCodec.Base64;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
+import org.camunda.bpm.engine.rest.mapper.MultipartFormData.FormPart;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
+import org.camunda.bpm.engine.variable.type.FileValueType;
 import org.camunda.bpm.engine.variable.type.PrimitiveValueType;
 import org.camunda.bpm.engine.variable.type.SerializableValueType;
 import org.camunda.bpm.engine.variable.type.ValueType;
 import org.camunda.bpm.engine.variable.type.ValueTypeResolver;
+import org.camunda.bpm.engine.variable.value.FileValue;
 import org.camunda.bpm.engine.variable.value.SerializableValue;
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
-import javax.ws.rs.core.Response.Status;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Map.Entry;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  *
@@ -105,11 +114,27 @@ public class VariableValueDto {
         }
         return ((SerializableValueType) valueType).createValueFromSerialized((String) value, valueInfo);
       }
-      else {
+      else if(valueType instanceof FileValueType) {
+        TypedValue typedValue = valueType.createValue(value, valueInfo);
+        if (typedValue instanceof FileValue && value instanceof String) {
+          return fileValueWithDecodedString((FileValue) typedValue, (String) value);
+        } else {
+          return typedValue;
+        }
+
+      } else {
         return valueType.createValue(value, valueInfo);
       }
     }
 
+  }
+
+  protected FileValue fileValueWithDecodedString(FileValue fileValue, String value) {
+    return Variables.fileValue(fileValue.getFilename())
+                    .file(Base64.decodeBase64(value))
+                    .mimeType(fileValue.getMimeType())
+                    .encoding(fileValue.getEncoding())
+                    .create();
   }
 
   public static VariableMap toMap(Map<String, VariableValueDto> variables, ProcessEngine processEngine, ObjectMapper objectMapper) {
@@ -133,9 +158,12 @@ public class VariableValueDto {
 
   public static void fromTypedValue(VariableValueDto dto, TypedValue typedValue) {
 
-    String typeName = typedValue.getType().getName();
-    dto.setType(toRestApiTypeName(typeName));
-    dto.setValueInfo(typedValue.getType().getValueInfo(typedValue));
+    ValueType type = typedValue.getType();
+    if (type != null) {
+      String typeName = type.getName();
+      dto.setType(toRestApiTypeName(typeName));
+      dto.setValueInfo(type.getValueInfo(typedValue));
+    }
 
     if(typedValue instanceof SerializableValue) {
       SerializableValue serializableValue = (SerializableValue) typedValue;
@@ -147,6 +175,9 @@ public class VariableValueDto {
         dto.setValue(serializableValue.getValueSerialized());
       }
 
+    }
+    else if(typedValue instanceof FileValue){
+      //do not set the value for FileValues since we don't want to send megabytes over the network without explicit request
     }
     else {
       dto.setValue(typedValue.getValue());
@@ -168,6 +199,41 @@ public class VariableValueDto {
       result.put(name, fromTypedValue(variables.getValueTyped(name)));
     }
     return result;
+  }
+
+  public static VariableValueDto fromFormPart(String type, FormPart binaryDataFormPart) {
+    VariableValueDto dto = new VariableValueDto();
+
+    dto.type = type;
+    dto.value = binaryDataFormPart.getBinaryContent();
+
+    if (ValueType.FILE.getName().equals(fromRestApiTypeName(type))) {
+
+      String contentType = binaryDataFormPart.getContentType();
+      if (contentType == null) {
+        contentType = MediaType.APPLICATION_OCTET_STREAM;
+      }
+
+      dto.valueInfo = new HashMap<String, Object>();
+      dto.valueInfo.put(FileValueType.VALUE_INFO_FILE_NAME, binaryDataFormPart.getFileName());
+      MimeType mimeType = null;
+      try {
+        mimeType = new MimeType(contentType);
+      } catch (MimeTypeParseException e) {
+        throw new RestException(Status.BAD_REQUEST, "Invalid mime type given");
+      }
+
+      dto.valueInfo.put(FileValueType.VALUE_INFO_FILE_MIME_TYPE, mimeType.getBaseType());
+
+      String encoding = mimeType.getParameter("encoding");
+      if (encoding != null) {
+        dto.valueInfo.put(FileValueType.VALUE_INFO_FILE_ENCODING, encoding);
+      }
+    }
+
+    return dto;
+
+
   }
 
 }

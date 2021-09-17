@@ -28,7 +28,7 @@ import org.camunda.bpm.engine.history.HistoricCaseInstanceQuery;
 import org.camunda.bpm.engine.impl.cmmn.execution.CaseExecutionState;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
-
+import org.camunda.bpm.engine.impl.util.CompareUtil;
 
 /**
  * @author Sebastian Menski
@@ -58,10 +58,6 @@ public class HistoricCaseInstanceQueryImpl extends AbstractVariableQueryImpl<His
   protected String caseDefinitionKey;
 
   public HistoricCaseInstanceQueryImpl() {
-  }
-
-  public HistoricCaseInstanceQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public HistoricCaseInstanceQueryImpl(CommandExecutor commandExecutor) {
@@ -132,13 +128,23 @@ public class HistoricCaseInstanceQueryImpl extends AbstractVariableQueryImpl<His
   }
 
   public HistoricCaseInstanceQuery closedAfter(Date date) {
+    if (state!= null && (!state.equals(CaseExecutionState.CLOSED.getStateCode()))) {
+      throw new NotValidException("Already querying for case instance state '" + state + "'");
+    }
+
     closedAfter = date;
-    return closed();
+    state = CaseExecutionState.CLOSED.getStateCode();
+    return this;
   }
 
   public HistoricCaseInstanceQuery closedBefore(Date date) {
+    if (state!= null && (!state.equals(CaseExecutionState.CLOSED.getStateCode()))) {
+      throw new NotValidException("Already querying for case instance state '" + state + "'");
+    }
+
     closedBefore = date;
-    return closed();
+    state = CaseExecutionState.CLOSED.getStateCode();
+    return this;
   }
 
   public HistoricCaseInstanceQuery superCaseInstanceId(String superCaseInstanceId) {
@@ -240,6 +246,15 @@ public class HistoricCaseInstanceQueryImpl extends AbstractVariableQueryImpl<His
     return commandContext
       .getHistoricCaseInstanceManager()
       .findHistoricCaseInstancesByQueryCriteria(this, page);
+  }
+
+  @Override
+  protected boolean hasExcludingConditions() {
+    return super.hasExcludingConditions()
+      || CompareUtil.areNotInAscendingOrder(createdAfter, createdBefore)
+      || CompareUtil.areNotInAscendingOrder(closedAfter, closedBefore)
+      || CompareUtil.elementIsNotContainedInList(caseInstanceId, caseInstanceIds)
+      || CompareUtil.elementIsContainedInList(caseDefinitionKey, caseKeyNotIn);
   }
 
   public String getBusinessKey() {

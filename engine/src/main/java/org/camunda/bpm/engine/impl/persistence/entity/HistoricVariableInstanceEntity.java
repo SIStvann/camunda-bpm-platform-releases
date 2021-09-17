@@ -17,17 +17,18 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.DbEntity;
 import org.camunda.bpm.engine.impl.db.DbEntityLifecycleAware;
+import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
 import org.camunda.bpm.engine.impl.history.event.HistoricVariableUpdateEventEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.util.ByteArrayField;
+import org.camunda.bpm.engine.impl.persistence.entity.util.TypedValueField;
 import org.camunda.bpm.engine.impl.variable.serializer.TypedValueSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.ValueFields;
-import org.camunda.bpm.engine.impl.variable.serializer.VariableSerializers;
-import org.camunda.bpm.engine.variable.type.ValueType;
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
 /**
@@ -36,6 +37,7 @@ import org.camunda.bpm.engine.variable.value.TypedValue;
 public class HistoricVariableInstanceEntity implements ValueFields, HistoricVariableInstance, DbEntity, HasDbRevision, Serializable, DbEntityLifecycleAware {
 
   private static final long serialVersionUID = 1L;
+  protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
 
   protected String id;
 
@@ -54,20 +56,15 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
 
   protected String name;
   protected int revision;
-  protected String serializerName;
-  protected TypedValueSerializer<?> serializer;
 
   protected Long longValue;
   protected Double doubleValue;
   protected String textValue;
   protected String textValue2;
 
-  protected ByteArrayEntity byteArrayValue;
-  protected String byteArrayId;
+  protected ByteArrayField byteArrayField = new ByteArrayField(this);
 
-  protected TypedValue cachedValue;
-
-  protected String errorMessage;
+  protected TypedValueField typedValueField = new TypedValueField(this, false);
 
   public HistoricVariableInstanceEntity() {
   }
@@ -89,13 +86,15 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
     this.caseInstanceId = historyEvent.getCaseInstanceId();
     this.caseExecutionId = historyEvent.getCaseExecutionId();
     this.name = historyEvent.getVariableName();
-    this.serializerName = historyEvent.getSerializerName();
     this.longValue = historyEvent.getLongValue();
     this.doubleValue = historyEvent.getDoubleValue();
     this.textValue = historyEvent.getTextValue();
     this.textValue2 = historyEvent.getTextValue2();
 
-    deleteByteArrayValue();
+    setSerializerName(historyEvent.getSerializerName());
+
+    byteArrayField.deleteByteArrayValue();
+
     if(historyEvent.getByteValue() != null) {
       setByteArrayValue(historyEvent.getByteValue());
     }
@@ -103,7 +102,8 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
   }
 
   public void delete() {
-    deleteByteArrayValue();
+    byteArrayField.deleteByteArrayValue();
+
     Context
       .getCommandContext()
       .getDbEntityManager()
@@ -112,12 +112,12 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
 
   public Object getPersistentState() {
     List<Object> state = new ArrayList<Object>(5);
-    state.add(serializerName);
+    state.add(getSerializerName());
     state.add(textValue);
     state.add(textValue2);
     state.add(doubleValue);
     state.add(longValue);
-    state.add(byteArrayId);
+    state.add(getByteArrayId());
     return state;
   }
 
@@ -126,141 +126,60 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
   }
 
   public Object getValue() {
-    TypedValue typedValue = getTypedValue();
-    if(typedValue != null) {
-      return typedValue.getValue();
-    } else {
-      return null;
-    }
+    return typedValueField.getValue();
   }
 
   public TypedValue getTypedValue() {
-    return getTypedValue(true);
+    return typedValueField.getTypedValue();
   }
 
   public TypedValue getTypedValue(boolean deserializeValue) {
-    if (cachedValue == null && errorMessage == null) {
-      try {
-        cachedValue = getSerializer().readValue(this, deserializeValue);
-      }
-      catch(RuntimeException e) {
-        // intercept the error message
-        this.errorMessage = e.getMessage();
-        throw e;
-      }
-    }
-    return cachedValue;
+    return typedValueField.getTypedValue(deserializeValue);
   }
 
   public TypedValueSerializer<?> getSerializer() {
-    ensureSerializerInitialized();
-    return serializer;
+    return typedValueField.getSerializer();
   }
-
-  protected void ensureSerializerInitialized() {
-    if (serializerName != null && serializer == null) {
-      serializer = getSerializers().getSerializerByName(serializerName);
-      if (serializer == null) {
-        throw new ProcessEngineException("No serializer defined for variable instance '" + this + "'.");
-      }
-    }
-  }
-
-  public static VariableSerializers getSerializers() {
-    if(Context.getCommandContext() != null) {
-      return Context.getProcessEngineConfiguration()
-          .getVariableSerializers();
-    } else {
-      throw new ProcessEngineException("Cannot work with serializers outside of command context.");
-    }
-  }
-
- // byte array value /////////////////////////////////////////////////////////
-
-  // i couldn't find a easy readable way to extract the common byte array value logic
-  // into a common class.  therefor it's duplicated in VariableInstanceEntity,
-  // HistoricVariableInstance and HistoricDetailVariableInstanceUpdateEntity
 
   public String getByteArrayValueId() {
-    return byteArrayId;
+    return byteArrayField.getByteArrayId();
   }
 
   public String getByteArrayId() {
-    return byteArrayId;
+    return byteArrayField.getByteArrayId();
   }
 
   public void setByteArrayId(String byteArrayId) {
-    this.byteArrayId = byteArrayId;
-    this.byteArrayValue = null;
+    byteArrayField.setByteArrayId(byteArrayId);
   }
 
-  public ByteArrayEntity getByteArrayValue() {
-    if ((byteArrayValue == null) && (byteArrayId != null)) {
-      // no lazy fetching outside of command context
-      if(Context.getCommandContext() != null) {
-        byteArrayValue = Context
-          .getCommandContext()
-          .getDbEntityManager()
-          .selectById(ByteArrayEntity.class, byteArrayId);
-      }
-    }
-    return byteArrayValue;
+  public byte[] getByteArrayValue() {
+    return byteArrayField.getByteArrayValue();
   }
 
   public void setByteArrayValue(byte[] bytes) {
-    ByteArrayEntity byteArrayValue = null;
-    deleteByteArrayValue();
-    if (bytes!=null) {
-      byteArrayValue = new ByteArrayEntity(name, bytes);
-      Context
-        .getCommandContext()
-        .getDbEntityManager()
-        .insert(byteArrayValue);
-    }
-    this.byteArrayValue = byteArrayValue;
-    if (byteArrayValue != null) {
-      this.byteArrayId = byteArrayValue.getId();
-    } else {
-      this.byteArrayId = null;
-    }
-  }
-
-  protected void deleteByteArrayValue() {
-    if (byteArrayId != null) {
-      // the next apparently useless line is probably to ensure consistency in the DbSqlSession
-      // cache, but should be checked and docced here (or removed if it turns out to be unnecessary)
-      getByteArrayValue();
-      Context
-        .getCommandContext()
-        .getByteArrayManager()
-        .deleteByteArrayById(this.byteArrayId);
-      byteArrayId = null;
-    }
+    byteArrayField.setByteArrayValue(bytes);
   }
 
   // entity lifecycle /////////////////////////////////////////////////////////
 
   public void postLoad() {
     // make sure the serializer is initialized
-    ensureSerializerInitialized();
+    typedValueField.postLoad();
   }
 
   // getters and setters //////////////////////////////////////////////////////
 
   public String getSerializerName() {
-    return serializerName;
+    return typedValueField.getSerializerName();
   }
 
   public void setSerializerName(String serializerName) {
-    this.serializerName = serializerName;
+    typedValueField.setSerializerName(serializerName);
   }
 
   public String getTypeName() {
-    if(serializerName == null) {
-      return ValueType.NULL.getName();
-    } else {
-      return getSerializer().getType().getName();
-    }
+    return typedValueField.getTypeName();
   }
 
   public String getVariableTypeName() {
@@ -320,7 +239,7 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
   }
 
   public void setByteArrayValue(ByteArrayEntity byteArrayValue) {
-    this.byteArrayValue = byteArrayValue;
+    byteArrayField.setByteArrayValue(byteArrayValue);
   }
 
   public String getId() {
@@ -417,7 +336,7 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
   }
 
   public String getErrorMessage() {
-    return errorMessage;
+    return typedValueField.getErrorMessage();
   }
 
   @Override
@@ -436,12 +355,12 @@ public class HistoricVariableInstanceEntity implements ValueFields, HistoricVari
       + ", caseExecutionId=" + caseExecutionId
       + ", name=" + name
       + ", revision=" + revision
-      + ", serializerName=" + serializerName
+      + ", serializerName=" + getSerializerName()
       + ", longValue=" + longValue
       + ", doubleValue=" + doubleValue
       + ", textValue=" + textValue
       + ", textValue2=" + textValue2
-      + ", byteArrayId=" + byteArrayId
+      + ", byteArrayId=" + getByteArrayId()
       + "]";
   }
 

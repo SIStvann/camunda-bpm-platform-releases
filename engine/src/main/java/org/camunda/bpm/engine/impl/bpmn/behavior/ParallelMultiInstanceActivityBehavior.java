@@ -25,8 +25,9 @@ import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
  */
 public class ParallelMultiInstanceActivityBehavior extends MultiInstanceActivityBehavior {
 
+  @Override
   protected void createInstances(ActivityExecution execution, int nrOfInstances) throws Exception {
-    PvmActivity nestedActivity = execution.getActivity().getActivities().get(0);
+    PvmActivity innerActivity = getInnerActivity(execution);
 
     prepareScopeExecution(execution, nrOfInstances);
 
@@ -40,12 +41,11 @@ public class ParallelMultiInstanceActivityBehavior extends MultiInstanceActivity
     }
 
     // start the concurrent child executions
-    for (int i = 0; i < nrOfInstances; i++) {
+    // start executions in reverse order (order will be reversed again in command context with the effect that they are
+    // actually be started in correct order :) )
+    for (int i = (nrOfInstances - 1); i >= 0; i--) {
       ActivityExecution activityExecution = concurrentExecutions.get(i);
-      // check for active execution: the completion condition may be satisfied before all executions are started
-      if(activityExecution.isActive()) {
-        performInstance(activityExecution, nestedActivity, i);
-      }
+      performInstance(activityExecution, innerActivity, i);
     }
   }
 
@@ -58,6 +58,7 @@ public class ParallelMultiInstanceActivityBehavior extends MultiInstanceActivity
     scopeExecution.inactivate();
   }
 
+  @Override
   public void concurrentChildExecutionEnded(ActivityExecution scopeExecution, ActivityExecution endedExecution) {
 
     int nrOfCompletedInstances = getLoopVariable(scopeExecution, NUMBER_OF_COMPLETED_INSTANCES) + 1;
@@ -75,7 +76,7 @@ public class ParallelMultiInstanceActivityBehavior extends MultiInstanceActivity
     if(completionConditionSatisfied(endedExecution) ||
         allExecutionsEnded(scopeExecution, endedExecution)) {
 
-      ArrayList<ActivityExecution> childExecutions = new ArrayList<ActivityExecution>(scopeExecution.getExecutions());
+      ArrayList<ActivityExecution> childExecutions = new ArrayList<ActivityExecution>(((PvmExecutionImpl) scopeExecution).getNonEventScopeExecutions());
       for (ActivityExecution childExecution : childExecutions) {
         // delete all not-ended instances; these are either active (for non-scope tasks) or inactive but have no activity id (for subprocesses, etc.)
         if (childExecution.isActive() || childExecution.getActivity() == null) {
@@ -93,13 +94,15 @@ public class ParallelMultiInstanceActivityBehavior extends MultiInstanceActivity
   }
 
   protected boolean allExecutionsEnded(ActivityExecution scopeExecution, ActivityExecution endedExecution) {
-    return endedExecution.findInactiveConcurrentExecutions(endedExecution.getActivity()).size() == scopeExecution.getExecutions().size();
+    return getLocalLoopVariable(scopeExecution, NUMBER_OF_ACTIVE_INSTANCES) <= 0;
   }
 
+  @Override
   public void complete(ActivityExecution scopeExecution) {
     // can't happen
   }
 
+  @Override
   public ActivityExecution initializeScope(ActivityExecution scopeExecution) {
 
     prepareScopeExecution(scopeExecution, 1);
@@ -114,6 +117,7 @@ public class ParallelMultiInstanceActivityBehavior extends MultiInstanceActivity
     return concurrentChild;
   }
 
+  @Override
   public void concurrentExecutionCreated(ActivityExecution scopeExecution, ActivityExecution concurrentExecution) {
     int nrOfInstances = getLoopVariable(scopeExecution, NUMBER_OF_INSTANCES);
     setLoopVariable(scopeExecution, NUMBER_OF_INSTANCES, nrOfInstances + 1);
@@ -123,6 +127,7 @@ public class ParallelMultiInstanceActivityBehavior extends MultiInstanceActivity
     setLoopVariable(concurrentExecution, LOOP_COUNTER, nrOfInstances);
   }
 
+  @Override
   public void concurrentExecutionDeleted(ActivityExecution scopeExecution, ActivityExecution concurrentExecution) {
     int nrOfActiveInstances = getLoopVariable(scopeExecution, NUMBER_OF_ACTIVE_INSTANCES);
     setLoopVariable(scopeExecution, NUMBER_OF_ACTIVE_INSTANCES, nrOfActiveInstances - 1);

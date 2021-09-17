@@ -32,5 +32,4 @@ public class CaseInstanceRestServiceInteractionTest extends AbstractCaseInstance
   public static void tearDownEmbeddedRuntime() {
     serverBootstrap.stop();
   }
-
 }

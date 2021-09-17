@@ -12,10 +12,12 @@
  */
 package org.camunda.bpm.engine.test.bpmn.async;
 
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.assertThat;
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.describeActivityInstanceTree;
+
 import java.util.HashMap;
 import java.util.Map;
 
-import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
 import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricFormField;
@@ -25,6 +27,7 @@ import org.camunda.bpm.engine.history.HistoricVariableUpdate;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
+import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.task.Task;
@@ -101,7 +104,7 @@ public class AsyncStartEventTest extends PluggableProcessEngineTestCase {
     if(processEngineConfiguration.getHistoryLevel().getId() > ProcessEngineConfigurationImpl.HISTORYLEVEL_ACTIVITY) {
       HistoricVariableInstance variable = historyService.createHistoricVariableInstanceQuery().singleResult();
       assertNotNull(variable);
-      assertEquals("foo", variable.getVariableName());
+      assertEquals("foo", variable.getName());
       assertEquals("bar", variable.getValue());
       assertEquals(processInstanceId, variable.getActivityInstanceId());
 
@@ -122,6 +125,17 @@ public class AsyncStartEventTest extends PluggableProcessEngineTestCase {
       }
 
     }
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/async/AsyncStartEventTest.testAsyncStartEvent.bpmn20.xml")
+  public void testAsyncStartEventActivityInstance() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("asyncStartEvent");
+
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .transition("startEvent")
+        .done());
   }
 
   @Deployment
@@ -176,7 +190,7 @@ public class AsyncStartEventTest extends PluggableProcessEngineTestCase {
 
       HistoricVariableInstance variable = historyService.createHistoricVariableInstanceQuery().singleResult();
       assertNotNull(variable);
-      assertEquals("foo", variable.getVariableName());
+      assertEquals("foo", variable.getName());
       assertEquals("bar", variable.getValue());
       assertEquals(processInstanceId, variable.getActivityInstanceId());
 
@@ -256,7 +270,7 @@ public class AsyncStartEventTest extends PluggableProcessEngineTestCase {
 
       HistoricVariableInstance variable = historyService.createHistoricVariableInstanceQuery().singleResult();
       assertNotNull(variable);
-      assertEquals("foo", variable.getVariableName());
+      assertEquals("foo", variable.getName());
       assertEquals("bar", variable.getValue());
       assertEquals(processInstanceId, variable.getActivityInstanceId());
 
@@ -324,6 +338,34 @@ public class AsyncStartEventTest extends PluggableProcessEngineTestCase {
       assertEquals(theStartActivityInstanceId, historicFormUpdate.getActivityInstanceId());
 
     }
+  }
+
+  @Deployment
+  public void testAsyncSubProcessStartEvent() {
+    runtimeService.startProcessInstanceByKey("process");
+
+    Task task = taskService.createTaskQuery().singleResult();
+    assertNull("The subprocess user task should not have been reached yet", task);
+
+    assertEquals(1, runtimeService.createExecutionQuery().activityId("StartEvent_2").count());
+
+    executeAvailableJobs();
+    task = taskService.createTaskQuery().singleResult();
+
+    assertEquals(0, runtimeService.createExecutionQuery().activityId("StartEvent_2").count());
+    assertNotNull("The subprocess user task should have been reached", task);
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/async/AsyncStartEventTest.testAsyncSubProcessStartEvent.bpmn")
+  public void testAsyncSubProcessStartEventActivityInstance() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("process");
+
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("SubProcess_1")
+            .transition("StartEvent_2")
+        .done());
   }
 
 }

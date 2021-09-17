@@ -25,6 +25,7 @@ import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.runtime.EventSubscription;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.engine.runtime.TransitionInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener;
@@ -730,49 +731,6 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
     assertProcessEnded(processInstanceId);
   }
 
-  /**
-   * TODO: fix CAM-3574
-   */
-  @Deployment(resources = NESTED_PARALLEL_ONE_TASK_PROCESS)
-  public void FAILING_testScopeCancellationInNestedOneTaskProcess() {
-    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("nestedOneTaskProcess");
-    String processInstanceId = processInstance.getId();
-
-    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
-
-    runtimeService
-      .createProcessInstanceModification(processInstance.getId())
-      .cancelActivityInstance(getInstanceIdForActivity(tree, "subProcess"))
-      .execute();
-
-    assertProcessNotEnded(processInstanceId);
-
-    // assert activity instance
-    ActivityInstance updatedTree = runtimeService.getActivityInstance(processInstanceId);
-    assertNotNull(updatedTree);
-    assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
-
-    assertThat(updatedTree).hasStructure(
-      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
-        .activity("outerTask")
-      .done());
-
-    // assert executions
-    ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
-
-    assertThat(executionTree)
-    .matches(
-      describeExecutionTree("outerTask").scope()
-        .done());
-
-    // assert successful completion of process
-    Task task = taskService.createTaskQuery().singleResult();
-    taskService.complete(task.getId());
-    assertProcessEnded(processInstanceId);
-
-    assertProcessEnded(processInstanceId);
-  }
-
   @Deployment(resources = NESTED_PARALLEL_ONE_TASK_PROCESS)
   public void testCancellationAndCreationInNestedOneTaskProcess() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("nestedOneTaskProcess");
@@ -1018,14 +976,12 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
     assertTrue(!getInstanceIdForActivity(tree, "innerTask").equals(getInstanceIdForActivity(updatedTree, "innerTask")));
 
-
-// TODO: fix CAM-3574
-//    assertThat(updatedTree).hasStructure(
-//      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
-//        .activity("outerTask")
-//        .beginScope("subProcess")
-//          .activity("innerTask")
-//      .done());
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("outerTask")
+        .beginScope("subProcess")
+          .activity("innerTask")
+      .done());
 
     // assert executions
     ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
@@ -1095,11 +1051,8 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
     assertProcessEnded(processInstanceId);
   }
 
-  /**
-   * TODO: fix CAM-3574
-   */
   @Deployment(resources = NESTED_PARALLEL_CONCURRENT_PROCESS)
-  public void FAILING_testScopeCancellationInNestedConcurrentProcess() {
+  public void testScopeCancellationInNestedConcurrentProcess() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("nestedParallelGateway");
     String processInstanceId = processInstance.getId();
 
@@ -1120,8 +1073,6 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
     assertThat(updatedTree).hasStructure(
       describeActivityInstanceTree(processInstance.getProcessDefinitionId())
         .activity("outerTask")
-        .beginScope("subProcess")
-          .activity("innerTask2")
       .done());
 
     // assert executions
@@ -1129,20 +1080,13 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
 
     assertThat(executionTree)
     .matches(
-      describeExecutionTree("fork").scope()
-//      TODO: fix with CAM-3580
-//      describeExecutionTree(null).scope()
-        .child("outerTask").concurrent().noScope().up()
-        .child(null).concurrent().noScope()
-          .child("innerTask2").scope()
+      describeExecutionTree("outerTask").scope()
       .done());
 
     // assert successful completion of process
-    List<Task> tasks = taskService.createTaskQuery().list();
-    assertEquals(2, tasks.size());
-    for (Task task : tasks) {
-      taskService.complete(task.getId());
-    }
+    Task task = taskService.createTaskQuery().singleResult();
+    assertNotNull(task);
+    taskService.complete(task.getId());
     assertProcessEnded(processInstanceId);
   }
 
@@ -1167,14 +1111,13 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
     assertTrue(!getInstanceIdForActivity(tree, "innerTask1").equals(getInstanceIdForActivity(updatedTree, "innerTask1")));
 
-// TODO: fix CAM-3574
-//    assertThat(updatedTree).hasStructure(
-//      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
-//        .activity("outerTask")
-//        .beginScope("subProcess")
-//          .activity("innerTask1")
-//          .activity("innerTask2")
-//      .done());
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("outerTask")
+        .beginScope("subProcess")
+          .activity("innerTask1")
+          .activity("innerTask2")
+      .done());
 
     // assert executions
     ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
@@ -1219,14 +1162,13 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
     assertTrue(!getInstanceIdForActivity(tree, "innerTask1").equals(getInstanceIdForActivity(updatedTree, "innerTask1")));
 
-// TODO: fix CAM-3574
-//    assertThat(updatedTree).hasStructure(
-//      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
-//        .activity("outerTask")
-//        .beginScope("subProcess")
-//          .activity("innerTask1")
-//          .activity("innerTask2")
-//      .done());
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("outerTask")
+        .beginScope("subProcess")
+          .activity("innerTask1")
+          .activity("innerTask2")
+      .done());
 
     // assert executions
     ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
@@ -1269,13 +1211,12 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
     assertNotNull(updatedTree);
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-// TODO: fix CAM-3574
-//    assertThat(updatedTree).hasStructure(
-//      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
-//        .activity("outerTask")
-//        .beginScope("subProcess")
-//          .activity("innerTask2")
-//      .done());
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("outerTask")
+        .beginScope("subProcess")
+          .activity("innerTask2")
+      .done());
 
     // assert executions
     ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
@@ -1298,11 +1239,8 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
     assertProcessEnded(processInstanceId);
   }
 
-  /**
-   * TODO: fix CAM-3574
-   */
   @Deployment(resources = NESTED_PARALLEL_CONCURRENT_SCOPE_TASKS_PROCESS)
-  public void FAILING_testScopeCancellationInNestedConcurrentScopeTasksProcess() {
+  public void testScopeCancellationInNestedConcurrentScopeTasksProcess() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("nestedParallelGatewayScopeTasks");
     String processInstanceId = processInstance.getId();
 
@@ -1320,34 +1258,23 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
     assertNotNull(updatedTree);
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
 
-// TODO: fix CAM-3574
-//    assertThat(updatedTree).hasStructure(
-//      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
-//        .activity("outerTask")
-//        .beginScope("subProcess")
-//          .activity("innerTask2")
-//      .done());
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("outerTask")
+      .done());
 
     // assert executions
     ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
 
     assertThat(executionTree)
     .matches(
-      describeExecutionTree("fork").scope()
-//      TODO: fix with CAM-3580
-//      describeExecutionTree(null).scope()
-        .child("outerTask").concurrent().noScope().up()
-        .child(null).concurrent().noScope()
-          .child(null).scope()
-            .child("innerTask2").scope()
+      describeExecutionTree("outerTask").scope()
       .done());
 
     // assert successful completion of process
-    List<Task> tasks = taskService.createTaskQuery().list();
-    assertEquals(2, tasks.size());
-    for (Task task : tasks) {
-      taskService.complete(task.getId());
-    }
+    Task task = taskService.createTaskQuery().singleResult();
+    assertNotNull(task);
+    taskService.complete(task.getId());
     assertProcessEnded(processInstanceId);
   }
 
@@ -1372,14 +1299,13 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
     assertTrue(!getInstanceIdForActivity(tree, "innerTask1").equals(getInstanceIdForActivity(updatedTree, "innerTask1")));
 
-// TODO: fix CAM-3574
-//    assertThat(updatedTree).hasStructure(
-//      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
-//        .activity("outerTask")
-//        .beginScope("subProcess")
-//          .activity("innerTask1")
-//          .activity("innerTask2")
-//      .done());
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("outerTask")
+        .beginScope("subProcess")
+          .activity("innerTask1")
+          .activity("innerTask2")
+      .done());
 
     // assert executions
     ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);
@@ -1427,14 +1353,13 @@ public class ProcessInstanceModificationCancellationTest extends PluggableProces
     assertEquals(processInstanceId, updatedTree.getProcessInstanceId());
     assertTrue(!getInstanceIdForActivity(tree, "innerTask1").equals(getInstanceIdForActivity(updatedTree, "innerTask1")));
 
-// TODO: fix CAM-3574
-//    assertThat(updatedTree).hasStructure(
-//      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
-//        .activity("outerTask")
-//        .beginScope("subProcess")
-//          .activity("innerTask1")
-//          .activity("innerTask2")
-//      .done());
+    assertThat(updatedTree).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .activity("outerTask")
+        .beginScope("subProcess")
+          .activity("innerTask1")
+          .activity("innerTask2")
+      .done());
 
     // assert executions
     ExecutionTree executionTree = ExecutionTree.forExecution(processInstanceId, processEngine);

@@ -22,6 +22,7 @@ import org.camunda.bpm.engine.impl.AbstractQuery;
 import org.camunda.bpm.engine.impl.Page;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
+import org.camunda.bpm.engine.impl.util.CompareUtil;
 import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.CaseDefinitionQuery;
 
@@ -48,10 +49,6 @@ public class CaseDefinitionQueryImpl extends AbstractQuery<CaseDefinitionQuery, 
   protected boolean latest = false;
 
   public CaseDefinitionQueryImpl() {
-  }
-
-  public CaseDefinitionQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public CaseDefinitionQueryImpl(CommandExecutor commandExecutor) {
@@ -115,7 +112,7 @@ public class CaseDefinitionQueryImpl extends AbstractQuery<CaseDefinitionQuery, 
 
   public CaseDefinitionQuery caseDefinitionVersion(Integer caseDefinitionVersion) {
     ensureNotNull(NotValidException.class, "version", caseDefinitionVersion);
-    ensurePositive(NotValidException.class, "version", caseDefinitionVersion);
+    ensurePositive(NotValidException.class, "version", caseDefinitionVersion.longValue());
     this.version = caseDefinitionVersion;
     return this;
   }
@@ -165,6 +162,11 @@ public class CaseDefinitionQueryImpl extends AbstractQuery<CaseDefinitionQuery, 
   public CaseDefinitionQuery orderByDeploymentId() {
     orderBy(CaseDefinitionQueryProperty.DEPLOYMENT_ID);
     return this;
+  }
+
+  @Override
+  protected boolean hasExcludingConditions() {
+    return super.hasExcludingConditions() || CompareUtil.elementIsNotContainedInArray(id, ids);
   }
 
   //results ////////////////////////////////////////////

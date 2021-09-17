@@ -184,7 +184,7 @@ public class ProcessApplicationDeploymentService implements Service<ProcessAppli
       }
     }
   }
-  
+
   protected void enableResumingOfPreviousVersions(ProcessApplicationDeploymentBuilder deploymentBuilder) throws IllegalArgumentException {
     deploymentBuilder.resumePreviousVersions();
     String resumePreviousBy = processArchive.getProperties().get(ProcessArchiveXml.PROP_RESUME_PREVIOUS_BY);

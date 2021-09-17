@@ -12,15 +12,16 @@
  */
 package org.camunda.bpm.engine.impl;
 
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
 import java.io.Serializable;
 import java.util.List;
+
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
 import org.camunda.bpm.engine.management.JobDefinition;
 import org.camunda.bpm.engine.management.JobDefinitionQuery;
-
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 /**
  * @author roman.smirnov
@@ -36,12 +37,9 @@ public class JobDefinitionQueryImpl extends AbstractQuery<JobDefinitionQuery, Jo
   protected String jobType;
   protected String jobConfiguration;
   protected SuspensionState suspensionState;
+  protected Boolean withOverridingJobPriority;
 
   public JobDefinitionQueryImpl() {
-  }
-
-  public JobDefinitionQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public JobDefinitionQueryImpl(CommandExecutor commandExecutor) {
@@ -91,6 +89,11 @@ public class JobDefinitionQueryImpl extends AbstractQuery<JobDefinitionQuery, Jo
 
   public JobDefinitionQuery suspended() {
     this.suspensionState = SuspensionState.SUSPENDED;
+    return this;
+  }
+
+  public JobDefinitionQuery withOverridingJobPriority() {
+    this.withOverridingJobPriority = true;
     return this;
   }
 
@@ -164,6 +167,10 @@ public class JobDefinitionQueryImpl extends AbstractQuery<JobDefinitionQuery, Jo
 
   public SuspensionState getSuspensionState() {
     return suspensionState;
+  }
+
+  public Boolean getWithOverridingJobPriority() {
+    return withOverridingJobPriority;
   }
 
 }

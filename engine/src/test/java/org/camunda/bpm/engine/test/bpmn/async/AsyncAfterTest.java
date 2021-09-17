@@ -12,9 +12,13 @@
  */
 package org.camunda.bpm.engine.test.bpmn.async;
 
+import static org.hamcrest.collection.IsCollectionWithSize.hasSize;
+import static org.junit.Assert.assertThat;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
@@ -63,6 +67,24 @@ public class AsyncAfterTest extends PluggableProcessEngineTestCase {
 
     // if the waiting job is executed, the process instance should end
     managementService.executeJob(job.getId());
+    assertProcessEnded(pi.getId());
+  }
+
+  @Deployment
+  public void testAsyncAfterMultiInstanceUserTask() {
+    // start process instance
+    ProcessInstance pi = runtimeService.startProcessInstanceByKey("process");
+
+    List<Task> list = taskService.createTaskQuery().list();
+    // multiinstance says three in the bpmn
+    assertThat(list, hasSize(3));
+
+    for (Task task : list) {
+      taskService.complete(task.getId());
+    }
+
+    waitForJobExecutorToProcessAllJobs(TimeUnit.MILLISECONDS.convert(5L, TimeUnit.SECONDS));
+
     assertProcessEnded(pi.getId());
   }
 
@@ -529,6 +551,66 @@ public class AsyncAfterTest extends PluggableProcessEngineTestCase {
 
     assertEquals(2, taskService.createTaskQuery().count());
   }
+  
+  @Deployment
+  public void testAsyncAfterParallelMultiInstanceWithServiceTask() {
+    // start process instance
+    ProcessInstance pi = runtimeService.startProcessInstanceByKey("testProcess");
+    
+    // listeners and behavior should be invoked by now
+    assertListenerStartInvoked(pi);
+    assertBehaviorInvoked(pi, 5);
+    assertListenerEndInvoked(pi);
+    
+    // the process should wait *after* execute all service tasks
+    executeAvailableJobs(1);
+    
+    assertProcessEnded(pi.getId());
+  }
+
+  @Deployment
+  public void testAsyncAfterServiceWrappedInParallelMultiInstance(){
+    // start process instance
+    ProcessInstance pi = runtimeService.startProcessInstanceByKey("testProcess");
+    
+    // listeners and behavior should be invoked by now
+    assertListenerStartInvoked(pi);
+    assertBehaviorInvoked(pi, 5);
+    assertListenerEndInvoked(pi);
+
+    // the process should wait *after* execute each service task wrapped in the multi-instance body
+    assertEquals(5L, managementService.createJobQuery().count());
+    // execute all jobs - one for each service task
+    executeAvailableJobs(5);
+
+    assertProcessEnded(pi.getId());
+  }
+  
+  @Deployment
+  public void testAsyncAfterServiceWrappedInSequentialMultiInstance(){
+    // start process instance
+    ProcessInstance pi = runtimeService.startProcessInstanceByKey("testProcess");
+    
+    // listeners and behavior should be invoked by now
+    assertListenerStartInvoked(pi);
+    assertBehaviorInvoked(pi, 1);
+    assertListenerEndInvoked(pi);
+
+    // the process should wait *after* execute each service task step-by-step 
+    assertEquals(1L, managementService.createJobQuery().count());
+    // execute all jobs - one for each service task wrapped in the multi-instance body
+    executeAvailableJobs(5);
+    
+    // behavior should be invoked for each service task
+    assertBehaviorInvoked(pi, 5);
+    
+    // the process should wait on user task after execute all service tasks
+    Task task = taskService.createTaskQuery().singleResult();
+    assertNotNull(task);
+    taskService.complete(task.getId());
+    
+    assertProcessEnded(pi.getId());
+  }
 
   @Deployment
   public void FAILING_testAsyncAfterOnParallelGatewayJoin() {
@@ -557,7 +639,7 @@ public class AsyncAfterTest extends PluggableProcessEngineTestCase {
     // the process should stay in the user task
     Task task = taskService.createTaskQuery().singleResult();
     assertNotNull(task);
-  }
+  }  
 
   protected Job fetchFirstJobByHandlerConfiguration(List<Job> jobs, String configuration) {
     for (Job job : jobs) {
@@ -585,6 +667,13 @@ public class AsyncAfterTest extends PluggableProcessEngineTestCase {
 
   protected void assertBehaviorInvoked(Execution e) {
     assertTrue((Boolean) runtimeService.getVariable(e.getId(), "behaviorInvoked"));
+  }
+  
+  private void assertBehaviorInvoked(ProcessInstance pi, int times) {
+    Long behaviorInvoked = (Long) runtimeService.getVariable(pi.getId(), "behaviorInvoked");
+    assertNotNull("behavior was not invoked", behaviorInvoked);
+    assertEquals(times , behaviorInvoked.intValue());
+
   }
 
   protected void assertNotListenerStartInvoked(Execution e) {

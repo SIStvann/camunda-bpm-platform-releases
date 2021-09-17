@@ -24,15 +24,19 @@ import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerActivateProcessDefinitionHandler;
+import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.CaseDefinitionQuery;
+import org.camunda.bpm.engine.repository.DecisionDefinition;
+import org.camunda.bpm.engine.repository.DecisionDefinitionQuery;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.examples.bpmn.tasklistener.RecorderTaskListener;
 import org.camunda.bpm.engine.test.util.TestExecutionListener;
 
 /**
@@ -107,7 +111,7 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
     runtimeService.startProcessInstanceByKey("testProcess");
 
     repositoryService.deleteDeployment(deploymentId, true, false);
-    assertTrue(TestExecutionListener.collectedEvents.size() == 1);
+    assertEquals(1, TestExecutionListener.collectedEvents.size());
     TestExecutionListener.reset();
 
     deploymentId = deploymentBuilder.deploy().getId();
@@ -115,9 +119,34 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
     runtimeService.startProcessInstanceByKey("testProcess");
 
     repositoryService.deleteDeployment(deploymentId, true, true);
-    assertTrue(TestExecutionListener.collectedEvents.size() == 0);
+    assertTrue(TestExecutionListener.collectedEvents.isEmpty());
     TestExecutionListener.reset();
 
+  }
+
+  public void testDeleteDeploymentSkipCustomTaskListeners() {
+    DeploymentBuilder deploymentBuilder =
+        repositoryService
+          .createDeployment()
+          .addClasspathResource("org/camunda/bpm/engine/test/api/repository/RepositoryServiceTest.testDeleteProcessInstanceSkipCustomTaskListeners.bpmn20.xml");
+
+    String deploymentId = deploymentBuilder.deploy().getId();
+
+    runtimeService.startProcessInstanceByKey("testProcess");
+
+    RecorderTaskListener.getRecordedEvents().clear();
+
+    repositoryService.deleteDeployment(deploymentId, true, false);
+    assertEquals(1, RecorderTaskListener.getRecordedEvents().size());
+    RecorderTaskListener.clear();
+
+    deploymentId = deploymentBuilder.deploy().getId();
+
+    runtimeService.startProcessInstanceByKey("testProcess");
+
+    repositoryService.deleteDeployment(deploymentId, true, true);
+    assertTrue(RecorderTaskListener.getRecordedEvents().isEmpty());
+    RecorderTaskListener.clear();
   }
 
   public void testDeleteDeploymentNullDeploymentId() {
@@ -148,6 +177,35 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
 
     // Try to delete the deployment, no exception should be thrown
     repositoryService.deleteDeployment(processDefinition.getDeploymentId(), true);
+  }
+
+  @Deployment(resources = {
+      "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml",
+      "org/camunda/bpm/engine/test/repository/one.cmmn"})
+  public void testDeleteDeploymentClearsCache() {
+
+    // fetch definition ids
+    String processDefinitionId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
+    String caseDefinitionId = repositoryService.createCaseDefinitionQuery().singleResult().getId();
+    // fetch CMMN model to be placed to in the cache
+    repositoryService.getCmmnModelInstance(caseDefinitionId);
+
+    DeploymentCache deploymentCache = processEngineConfiguration.getDeploymentCache();
+
+    // ensure definitions and models are part of the cache
+    assertTrue(deploymentCache.getProcessDefinitionCache().containsKey(processDefinitionId));
+    assertTrue(deploymentCache.getBpmnModelInstanceCache().containsKey(processDefinitionId));
+    assertTrue(deploymentCache.getCaseDefinitionCache().containsKey(caseDefinitionId));
+    assertTrue(deploymentCache.getCmmnModelInstanceCache().containsKey(caseDefinitionId));
+
+    // when the deployment is deleted
+    repositoryService.deleteDeployment(deploymentId, true);
+
+    // then the definitions and models are removed from the cache
+    assertFalse(deploymentCache.getProcessDefinitionCache().containsKey(processDefinitionId));
+    assertFalse(deploymentCache.getBpmnModelInstanceCache().containsKey(processDefinitionId));
+    assertFalse(deploymentCache.getCaseDefinitionCache().containsKey(caseDefinitionId));
+    assertFalse(deploymentCache.getCmmnModelInstanceCache().containsKey(caseDefinitionId));
   }
 
   public void testFindDeploymentResourceNamesNullDeploymentId() {
@@ -363,6 +421,69 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
       fail();
     } catch (NotValidException e) {
       assertTextPresent("caseDefinitionId is null", e.getMessage());
+    }
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/repository/one.dmn" })
+  public void testGetDecisionDefinition() {
+    DecisionDefinitionQuery query = repositoryService.createDecisionDefinitionQuery();
+
+    DecisionDefinition decisionDefinition = query.singleResult();
+    String decisionDefinitionId = decisionDefinition.getId();
+
+    DecisionDefinition definition = repositoryService.getDecisionDefinition(decisionDefinitionId);
+
+    assertNotNull(definition);
+    assertEquals(decisionDefinitionId, definition.getId());
+  }
+
+  public void testGetDecisionDefinitionByInvalidId() {
+    try {
+      repositoryService.getDecisionDefinition("invalid");
+      fail();
+    } catch (NotFoundException e) {
+      assertTextPresent("no deployed decision definition found with id 'invalid'", e.getMessage());
+    }
+
+    try {
+      repositoryService.getDecisionDefinition(null);
+      fail();
+    } catch (NotValidException e) {
+      assertTextPresent("decisionDefinitionId is null", e.getMessage());
+    }
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/repository/one.dmn" })
+  public void testGetDecisionModel() throws Exception {
+    DecisionDefinitionQuery query = repositoryService.createDecisionDefinitionQuery();
+
+    DecisionDefinition decisionDefinition = query.singleResult();
+    String decisionDefinitionId = decisionDefinition.getId();
+
+    InputStream decisionModel = repositoryService.getDecisionModel(decisionDefinitionId);
+
+    assertNotNull(decisionModel);
+
+    byte[] readInputStream = IoUtil.readInputStream(decisionModel, "decisionModel");
+    String model = new String(readInputStream, "UTF-8");
+
+    assertTrue(model.contains("<decision id=\"one\" name=\"One\">"));
+
+    IoUtil.closeSilently(decisionModel);
+  }
+
+  public void testGetDecisionModelByInvalidId() throws Exception {
+    try {
+      repositoryService.getDecisionModel("invalid");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("no deployed decision definition found with id 'invalid'", e.getMessage());
+    }
+
+    try {
+      repositoryService.getDecisionModel(null);
+      fail();
+    } catch (NotValidException e) {
+      assertTextPresent("decisionDefinitionId is null", e.getMessage());
     }
   }
 

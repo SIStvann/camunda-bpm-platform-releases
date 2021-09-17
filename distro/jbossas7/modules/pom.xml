@@ -8,7 +8,7 @@
   <parent>
     <groupId>org.camunda.bpm.jboss</groupId>
     <artifactId>camunda-jboss</artifactId>
-    <version>7.3.0</version>
+    <version>7.4.0</version>
   </parent>
 
   <properties>
@@ -36,10 +36,6 @@
         <exclusion>
           <groupId>joda-time</groupId>
           <artifactId>joda-time</artifactId>
-        </exclusion>
-        <exclusion>
-          <groupId>org.slf4j</groupId>
-          <artifactId>slf4j-api</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
@@ -95,7 +91,8 @@
       <groupId>org.camunda.template-engines</groupId>
       <artifactId>camunda-template-engines-freemarker</artifactId>
     </dependency>
-    
+
+    <!-- exclude slf4j as it is part of jboss distro -->
     <dependency>
       <groupId>org.slf4j</groupId>
       <artifactId>slf4j-api</artifactId>
@@ -164,7 +161,6 @@
                     </chainedmapper>
                   </mapper>
                 </copy>
-
 
                 <copy todir="target/modules" flatten="false">
                   <fileset dir="src/main/modules" />

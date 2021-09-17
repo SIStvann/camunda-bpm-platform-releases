@@ -15,16 +15,20 @@ package org.camunda.bpm.engine.impl.cmd;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.Callable;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
+import org.camunda.bpm.engine.impl.cfg.TransactionLogger;
 import org.camunda.bpm.engine.impl.cfg.TransactionState;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.deploy.DeleteDeploymentFailListener;
 import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
+import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
+import org.camunda.bpm.engine.impl.persistence.entity.UserOperationLogManager;
 
 /**
  * @author Joram Barrez
@@ -32,9 +36,9 @@ import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
  */
 public class DeleteDeploymentCmd implements Command<Void>, Serializable {
 
-  private static final long serialVersionUID = 1L;
+  private final static TransactionLogger TX_LOG = ProcessEngineLogger.TX_LOGGER;
 
-  private static Logger log = Logger.getLogger(DeleteDeploymentCmd.class.getName());
+  private static final long serialVersionUID = 1L;
 
   protected String deploymentId;
   protected boolean cascade;
@@ -53,6 +57,10 @@ public class DeleteDeploymentCmd implements Command<Void>, Serializable {
     AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
     authorizationManager.checkDeleteDeployment(deploymentId);
 
+    UserOperationLogManager logManager = commandContext.getOperationLogManager();
+    List<PropertyChange> propertyChanges = Arrays.asList(new PropertyChange("cascade", null, cascade));
+    logManager.logDeploymentOperation(UserOperationLogEntry.OPERATION_TYPE_DELETE, deploymentId, propertyChanges);
+
     commandContext
       .getDeploymentManager()
       .deleteDeployment(deploymentId, cascade, skipCustomListeners);
@@ -69,8 +77,9 @@ public class DeleteDeploymentCmd implements Command<Void>, Serializable {
     } finally {
       try {
         commandContext.getTransactionContext().addTransactionListener(TransactionState.ROLLED_BACK, listener);
-      } catch (Exception e) {
-        log.log(Level.FINE, "Could not register transaction synchronization. Probably the TX has already been rolled back by application code.", e);
+      }
+      catch (Exception e) {
+        TX_LOG.debugTransactionOperation("Could not register transaction synchronization. Probably the TX has already been rolled back by application code.");
         listener.execute(commandContext);
       }
     }

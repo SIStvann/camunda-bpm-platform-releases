@@ -94,4 +94,18 @@ public interface ProcessEngineServices {
    */
   FilterService getFilterService();
 
+  /**
+   * Returns the engine's {@link ExternalTaskService}.
+   *
+   * @return the {@link ExternalTaskService} object.
+   */
+  ExternalTaskService getExternalTaskService();
+
+  /**
+   * Returns the engine's {@link DecisionService}.
+   *
+   * @return the {@link DecisionService} object.
+   */
+  DecisionService getDecisionService();
+
 }

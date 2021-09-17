@@ -17,12 +17,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.impl.Page;
 import org.camunda.bpm.engine.impl.ProcessDefinitionQueryImpl;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cfg.auth.ResourceAuthorizationProvider;
+import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.persistence.AbstractManager;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 
@@ -33,6 +34,8 @@ import org.camunda.bpm.engine.repository.ProcessDefinition;
  * @author Saeid Mirzaei
  */
 public class ProcessDefinitionManager extends AbstractManager {
+
+  protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
 
   // insert ///////////////////////////////////////////////////////////
 
@@ -77,7 +80,7 @@ public class ProcessDefinitionManager extends AbstractManager {
     if (results.size() == 1) {
       return results.get(0);
     } else if (results.size() > 1) {
-      throw new ProcessEngineException("There are " + results.size() + " process definitions with key = '" + processDefinitionKey + "' and version = '" + processDefinitionVersion + "'.");
+      throw LOG.toManyProcessDefinitionsException(results.size(), processDefinitionKey, processDefinitionVersion);
     }
     return null;
   }
@@ -89,20 +92,24 @@ public class ProcessDefinitionManager extends AbstractManager {
   }
 
   public List<ProcessDefinition> findProcessDefinitionsStartableByUser(String user) {
-    return   new ProcessDefinitionQueryImpl().startableByUser(user).list();
+    return new ProcessDefinitionQueryImpl().startableByUser(user).list();
   }
 
-  public List<User> findProcessDefinitionPotentialStarterUsers() {
-    return null;
-  }
-
-  public List<Group> findProcessDefinitionPotentialStarterGroups() {
-    return null;
+  public String findPreviousProcessDefinitionIdByKeyAndVersion(String processDefinitionKey, Integer version) {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("key", processDefinitionKey);
+    params.put("version", version);
+    return (String) getDbEntityManager().selectOne("selectPreviousProcessDefinitionIdByKeyAndVersion", params);
   }
 
   @SuppressWarnings("unchecked")
   public List<ProcessDefinition> findProcessDefinitionsByDeploymentId(String deploymentId) {
     return getDbEntityManager().selectList("selectProcessDefinitionByDeploymentId", deploymentId);
+  }
+
+  @SuppressWarnings("unchecked")
+  public List<ProcessDefinition> findProcessDefinitionsByKeyIn(String... keys) {
+    return getDbEntityManager().selectList("selectProcessDefinitionByKeyIn", keys);
   }
 
   // update ///////////////////////////////////////////////////////////

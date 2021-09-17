@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.camunda.bpm.application.ProcessApplicationReference;
 import org.camunda.bpm.engine.BadUserRequestException;
@@ -29,6 +28,7 @@ import org.camunda.bpm.engine.IdentityService;
 import org.camunda.bpm.engine.OptimisticLockingException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.TaskAlreadyClaimedException;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cfg.TransactionContext;
 import org.camunda.bpm.engine.impl.cfg.TransactionContextFactory;
@@ -41,6 +41,8 @@ import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.context.ProcessApplicationContextUtil;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.db.sql.DbSqlSession;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionManager;
+import org.camunda.bpm.engine.impl.history.event.HistoricDecisionInstanceManager;
 import org.camunda.bpm.engine.impl.identity.Authentication;
 import org.camunda.bpm.engine.impl.identity.ReadOnlyIdentityProvider;
 import org.camunda.bpm.engine.impl.identity.WritableIdentityProvider;
@@ -53,6 +55,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.DeploymentManager;
 import org.camunda.bpm.engine.impl.persistence.entity.EventSubscriptionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionManager;
+import org.camunda.bpm.engine.impl.persistence.entity.ExternalTaskManager;
 import org.camunda.bpm.engine.impl.persistence.entity.FilterManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricActivityInstanceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricCaseActivityInstanceManager;
@@ -87,9 +90,10 @@ import org.camunda.bpm.engine.impl.pvm.runtime.AtomicOperation;
  */
 public class CommandContext {
 
-  private static Logger log = Logger.getLogger(CommandContext.class.getName());
+  private final static ContextLogger LOG = ProcessEngineLogger.CONTEXT_LOGGER;
 
   protected boolean authorizationCheckEnabled = true;
+  protected boolean userOperationLogEnabled = true;
 
   protected TransactionContext transactionContext;
   protected Map<Class< ? >, SessionFactory> sessionFactories;
@@ -97,6 +101,11 @@ public class CommandContext {
   protected List<Session> sessionList = new ArrayList<Session>();
   protected ProcessEngineConfigurationImpl processEngineConfiguration;
   protected FailedJobCommandFactory failedJobCommandFactory;
+
+  protected List<AtomicOperationInvocation> queuedInvocations = new ArrayList<AtomicOperationInvocation>();
+  protected BpmnStackTrace bpmnStackTrace = new BpmnStackTrace();
+
+  protected boolean isExecuting = false;
 
   protected List<CommandContextListener> commandContextListeners = new LinkedList<CommandContextListener>();
 
@@ -111,32 +120,71 @@ public class CommandContext {
     this.transactionContext = transactionContextFactory.openTransactionContext(this);
   }
 
-  public void performOperation(final AtomicOperation executionOperation, final ExecutionEntity execution) {
+  public void performOperation(AtomicOperation executionOperation, ExecutionEntity execution) {
+    performOperation(executionOperation, execution, false);
+  }
 
-    ProcessApplicationReference targetProcessApplication = getTargetProcessApplication(execution);
+  public void performOperationAsync(AtomicOperation executionOperation, ExecutionEntity execution) {
+    performOperation(executionOperation, execution, true);
+  }
 
+  public void performOperation(final AtomicOperation executionOperation, final ExecutionEntity execution, final boolean performAsync) {
+    AtomicOperationInvocation invocation = new AtomicOperationInvocation(executionOperation, execution, performAsync);
+    queuedInvocations.add(0, invocation);
+    performNext();
+  }
+
+  protected void performNext() {
+    AtomicOperationInvocation nextInvocation = queuedInvocations.get(0);
+
+    if(nextInvocation.operation.isAsyncCapable() && isExecuting) {
+      // will be picked up by while loop below
+      return;
+    }
+
+    ProcessApplicationReference targetProcessApplication = getTargetProcessApplication(nextInvocation.execution);
     if(requiresContextSwitch(targetProcessApplication)) {
 
       Context.executeWithinProcessApplication(new Callable<Void>() {
         public Void call() throws Exception {
-          performOperation(executionOperation, execution);
+          performNext();
           return null;
         }
 
       }, targetProcessApplication);
-
-    } else {
-      try {
-        Context.setExecutionContext(execution);
-        if (log.isLoggable(Level.FINEST)) {
-          log.finest("AtomicOperation: " + executionOperation + " on " + this);
+    }
+    else {
+      if(!nextInvocation.operation.isAsyncCapable()) {
+        // if operation is not async capable, perform right away.
+        invokeNext();
+      }
+      else {
+        try  {
+          isExecuting = true;
+          while (!queuedInvocations.isEmpty()) {
+            // assumption: all operations are executed within the same process application...
+            nextInvocation = queuedInvocations.get(0);
+            invokeNext();
+          }
         }
-        executionOperation.execute(execution);
-      } finally {
-        Context.removeExecutionContext();
+        finally {
+          isExecuting = false;
+        }
       }
     }
+  }
 
+  protected void invokeNext() {
+    AtomicOperationInvocation invocation = queuedInvocations.remove(0);
+    try {
+      invocation.execute(bpmnStackTrace);
+    }
+    catch(RuntimeException e) {
+      // log bpmn stacktrace
+      bpmnStackTrace.printStackTrace(Context.getProcessEngineConfiguration().isBpmnStacktraceVerbose());
+      // rethrow
+      throw e;
+    }
   }
 
   public void performOperation(final CmmnAtomicOperation executionOperation, final CaseExecutionEntity execution) {
@@ -155,14 +203,17 @@ public class CommandContext {
     } else {
       try {
         Context.setExecutionContext(execution);
-        if (log.isLoggable(Level.FINEST)) {
-          log.finest("AtomicOperation: " + executionOperation + " on " + this);
-        }
+        LOG.debugExecutingAtomicOperation(executionOperation, execution);
+
         executionOperation.execute(execution);
       } finally {
         Context.removeExecutionContext();
       }
     }
+  }
+
+  public ProcessEngineConfigurationImpl getProcessEngineConfiguration() {
+    return processEngineConfiguration;
   }
 
   protected ProcessApplicationReference getTargetProcessApplication(ExecutionEntity execution) {
@@ -210,13 +261,13 @@ public class CommandContext {
 
             Level loggingLevel = Level.SEVERE;
             if (shouldLogInfo(commandInvocationContext.getThrowable())) {
-              loggingLevel = Level.INFO; // reduce log level, because this is not really a technical exception
+              LOG.infoException(commandInvocationContext.getThrowable());
             }
             else if (shouldLogFine(commandInvocationContext.getThrowable())) {
-              loggingLevel = Level.FINE;
+              LOG.debugException(commandInvocationContext.getThrowable());
             }
-            if (log.isLoggable(loggingLevel)) {
-              log.log(loggingLevel, "Error while closing command context", commandInvocationContext.getThrowable());
+            else {
+              LOG.errorException(commandInvocationContext.getThrowable());
             }
             transactionContext.rollback();
           }
@@ -252,8 +303,9 @@ public class CommandContext {
     for (CommandContextListener listener : commandContextListeners) {
       try {
         listener.onCommandFailed(this, t);
-      } catch(Throwable ex) {
-        log.log(Level.SEVERE, "Exception while invoking onCommandFailed()", t);
+      }
+      catch(Throwable ex) {
+        LOG.exceptionWhileInvokingOnCommandFailed(t);
       }
     }
   }
@@ -446,10 +498,26 @@ public class CommandContext {
     return getSession(CaseSentryPartManager.class);
   }
 
+  // DMN //////////////////////////////////////////////////////////////////////
+
+  public DecisionDefinitionManager getDecisionDefinitionManager() {
+    return getSession(DecisionDefinitionManager.class);
+  }
+
+  public HistoricDecisionInstanceManager getHistoricDecisionInstanceManager() {
+    return getSession(HistoricDecisionInstanceManager.class);
+  }
+
   // Filter ////////////////////////////////////////////////////////////////////
 
   public FilterManager getFilterManager() {
     return getSession(FilterManager.class);
+  }
+
+  // External Tasks ////////////////////////////////////////////////////////////
+
+  public ExternalTaskManager getExternalTaskManager() {
+    return getSession(ExternalTaskManager.class);
   }
 
   // getters and setters //////////////////////////////////////////////////////
@@ -528,5 +596,21 @@ public class CommandContext {
 
   public void setAuthorizationCheckEnabled(boolean authorizationCheckEnabled) {
     this.authorizationCheckEnabled = authorizationCheckEnabled;
+  }
+
+  public void enableUserOperationLog() {
+    userOperationLogEnabled = true;
+  }
+
+  public void disableUserOperationLog() {
+    userOperationLogEnabled = false;
+  }
+
+  public boolean isUserOperationLogEnabled() {
+    return userOperationLogEnabled;
+  }
+
+  public void setLogUserOperationEnabled(boolean userOperationLogEnabled) {
+    this.userOperationLogEnabled = userOperationLogEnabled;
   }
 }

@@ -13,9 +13,12 @@
 
 package org.camunda.bpm.engine.impl.db;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import org.camunda.bpm.engine.ProcessEngine;
-import org.camunda.bpm.engine.ProcessEngineException;
-import org.camunda.bpm.engine.WrongDbException;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.entitymanager.operation.DbBulkOperation;
@@ -27,6 +30,9 @@ import org.camunda.bpm.engine.impl.history.HistoryLevel;
  * @author Sebastian Menski
  */
 public abstract class AbstractPersistenceSession implements PersistenceSession {
+
+  protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
+  protected List<EntityLoadListener> listeners = new ArrayList<EntityLoadListener>(1);
 
   public void executeDbOperation(DbOperation operation) {
     switch(operation.getOperationType()) {
@@ -71,13 +77,13 @@ public abstract class AbstractPersistenceSession implements PersistenceSession {
     if ( (!processEngineConfiguration.isDbHistoryUsed())
          && (!configuredHistoryLevel.equals(HistoryLevel.HISTORY_LEVEL_NONE))
        ) {
-      throw new ProcessEngineException("historyLevel config is higher then 'none' and dbHistoryUsed is set to false");
+      throw LOG.databaseHistoryLevelException(configuredHistoryLevel.getName());
     }
 
     if (isEngineTablePresent()) {
       String dbVersion = getDbVersion();
       if (!ProcessEngine.VERSION.equals(dbVersion)) {
-        throw new WrongDbException(ProcessEngine.VERSION, dbVersion);
+        throw LOG.wrongDbVersionException(ProcessEngine.VERSION, dbVersion);
       }
     } else {
       dbSchemaCreateEngine();
@@ -98,6 +104,14 @@ public abstract class AbstractPersistenceSession implements PersistenceSession {
     if (processEngineConfiguration.isCmmnEnabled() && processEngineConfiguration.isDbHistoryUsed()) {
       dbSchemaCreateCmmnHistory();
     }
+
+    if (processEngineConfiguration.isDmnEnabled()) {
+      dbSchemaCreateDmn();
+
+      if(processEngineConfiguration.isDbHistoryUsed()) {
+        dbSchemaCreateDmnHistory();
+      }
+    }
   }
 
   protected abstract void dbSchemaCreateIdentity();
@@ -110,8 +124,21 @@ public abstract class AbstractPersistenceSession implements PersistenceSession {
 
   protected abstract void dbSchemaCreateCmmnHistory();
 
+  protected abstract void dbSchemaCreateDmn();
+
+  protected abstract void dbSchemaCreateDmnHistory();
+
+
   public void dbSchemaDrop() {
     ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
+
+    if (processEngineConfiguration.isDmnEnabled()) {
+      dbSchemaDropDmn();
+
+      if(processEngineConfiguration.isDbHistoryUsed()) {
+        dbSchemaDropDmnHistory();
+      }
+    }
 
     if (processEngineConfiguration.isCmmnEnabled()) {
       dbSchemaDropCmmn();
@@ -142,6 +169,10 @@ public abstract class AbstractPersistenceSession implements PersistenceSession {
 
   protected abstract void dbSchemaDropCmmnHistory();
 
+  protected abstract void dbSchemaDropDmn();
+
+  protected abstract void dbSchemaDropDmnHistory();
+
   public void dbSchemaPrune() {
     ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
     if (isHistoryTablePresent() && !processEngineConfiguration.isDbHistoryUsed()) {
@@ -153,8 +184,14 @@ public abstract class AbstractPersistenceSession implements PersistenceSession {
     if (isCmmnTablePresent() && !processEngineConfiguration.isCmmnEnabled()) {
       dbSchemaDropCmmn();
     }
-    if (isCmmnHistoryTablePresent() && !processEngineConfiguration.isCmmnEnabled()) {
-      dbSchemaCreateCmmnHistory();
+    if (isCmmnHistoryTablePresent() && (!processEngineConfiguration.isCmmnEnabled() || !processEngineConfiguration.isDbHistoryUsed())) {
+      dbSchemaDropCmmnHistory();
+    }
+    if (isDmnTablePresent() && !processEngineConfiguration.isDmnEnabled()) {
+      dbSchemaDropDmn();
+    }
+    if(isDmnHistoryTablePresent() && (!processEngineConfiguration.isDmnEnabled() || !processEngineConfiguration.isDbHistoryUsed())) {
+      dbSchemaDropDmnHistory();
     }
   }
 
@@ -167,6 +204,10 @@ public abstract class AbstractPersistenceSession implements PersistenceSession {
   public abstract boolean isCmmnTablePresent();
 
   public abstract boolean isCmmnHistoryTablePresent();
+
+  public abstract boolean isDmnTablePresent();
+
+  public abstract boolean isDmnHistoryTablePresent();
 
   public void dbSchemaUpdate() {
     ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
@@ -191,5 +232,31 @@ public abstract class AbstractPersistenceSession implements PersistenceSession {
       dbSchemaCreateCmmnHistory();
     }
 
+    if (!isDmnTablePresent() && processEngineConfiguration.isDmnEnabled()) {
+      dbSchemaCreateDmn();
+    }
+
+    if(!isDmnHistoryTablePresent() && processEngineConfiguration.isDmnEnabled() && processEngineConfiguration.isDbHistoryUsed()) {
+      dbSchemaCreateDmnHistory();
+    }
+
+  }
+
+  public List<String> getTableNamesPresent() {
+    return Collections.emptyList();
+  }
+
+  public void addEntityLoadListener(EntityLoadListener listener) {
+    this.listeners.add(listener);
+  }
+
+
+  protected void fireEntityLoaded(Object result) {
+    if(result != null && result instanceof DbEntity) {
+      DbEntity entity = (DbEntity) result;
+      for (EntityLoadListener entityLoadListener : listeners) {
+        entityLoadListener.onEntityLoaded(entity);
+      }
+    }
   }
 }

@@ -31,6 +31,7 @@ create table ACT_RE_DEPLOYMENT (
     ID_ varchar(64) not null,
     NAME_ varchar(255),
     DEPLOY_TIME_ timestamp,
+    SOURCE_ varchar(255),
     primary key (ID_)
 );
 
@@ -75,8 +76,9 @@ create table ACT_RU_JOB (
     HANDLER_TYPE_ varchar(255),
     HANDLER_CFG_ varchar(4000),
     DEPLOYMENT_ID_ varchar(64),
-    SUSPENSION_STATE_ integer,
+    SUSPENSION_STATE_ integer not null default 1,
     JOB_DEF_ID_ varchar(64),
+    PRIORITY_ bigint not null default 0,
     SEQUENCE_COUNTER_ bigint,
     primary key (ID_)
 );
@@ -90,6 +92,7 @@ create table ACT_RU_JOBDEF (
     JOB_TYPE_ varchar(255) not null,
     JOB_CONFIGURATION_ varchar(255),
     SUSPENSION_STATE_ integer,
+    JOB_PRIORITY_ bigint,
     primary key (ID_)
 );
 
@@ -220,11 +223,30 @@ create table ACT_RU_FILTER (
 );
 
 create table ACT_RU_METER_LOG (
-    ID_ varchar(64) not null,
-    NAME_ varchar(64) not null,
-    VALUE_ bigint,
-    TIMESTAMP_ timestamp not null,
-    primary key (ID_)
+  ID_ varchar(64) not null,
+  NAME_ varchar(64) not null,
+  REPORTER_ varchar(255),
+  VALUE_ bigint,
+  TIMESTAMP_ timestamp not null,
+  primary key (ID_)
+);
+
+create table ACT_RU_EXT_TASK (
+  ID_ varchar(64) not null,
+  REV_ integer not null,
+  WORKER_ID_ varchar(255),
+  TOPIC_NAME_ varchar(255),
+  RETRIES_ integer,
+  ERROR_MSG_ varchar(4000),
+  LOCK_EXP_TIME_ timestamp,
+  SUSPENSION_STATE_ integer,
+  EXECUTION_ID_ varchar(64),
+  PROC_INST_ID_ varchar(64),
+  PROC_DEF_ID_ varchar(64),
+  PROC_DEF_KEY_ varchar(255),
+  ACT_ID_ varchar(255),
+  ACT_INST_ID_ varchar(64),
+  primary key (ID_)
 );
 
 create index ACT_IDX_EXEC_BUSKEY on ACT_RU_EXECUTION(BUSINESS_KEY_);
@@ -241,6 +263,7 @@ create unique index ACT_UNIQ_AUTH_USER on ACT_RU_AUTHORIZATION(TYPE_,UNI_USER_ID
 create unique index ACT_UNIQ_AUTH_GROUP on ACT_RU_AUTHORIZATION(TYPE_,UNI_GROUP_ID_,RESOURCE_TYPE_,UNI_RESOURCE_ID_);
 create unique index ACT_UNIQ_VARIABLE on ACT_RU_VARIABLE(VAR_SCOPE_,NAME_);
 create index ACT_IDX_METER_LOG on ACT_RU_METER_LOG(NAME_,TIMESTAMP_);
+create index ACT_IDX_EXT_TASK_TOPIC ON ACT_RU_EXT_TASK(TOPIC_NAME_);
 
 alter table ACT_GE_BYTEARRAY
     add constraint ACT_FK_BYTEARR_DEPL 
@@ -346,6 +369,11 @@ alter table ACT_RU_INCIDENT
     foreign key (ROOT_CAUSE_INCIDENT_ID_)
     references ACT_RU_INCIDENT (ID_);
 
+alter table ACT_RU_EXT_TASK
+    add constraint ACT_FK_EXT_TASK_EXE 
+    foreign key (EXECUTION_ID_) 
+    references ACT_RU_EXECUTION (ID_);
+
 -- indexes for concurrency problems - https://app.camunda.com/jira/browse/CAM-1646 --
 create index ACT_IDX_EXECUTION_PROC on ACT_RU_EXECUTION(PROC_DEF_ID_);
 create index ACT_IDX_EXECUTION_PARENT on ACT_RU_EXECUTION(PARENT_ID_);
@@ -366,3 +394,13 @@ create index ACT_IDX_VARIABLE_PROCINST on ACT_RU_VARIABLE(PROC_INST_ID_);
 create index ACT_IDX_TASK_EXEC on ACT_RU_TASK(EXECUTION_ID_);
 create index ACT_IDX_TASK_PROCINST on ACT_RU_TASK(PROC_INST_ID_);
 create index ACT_IDX_TASK_PROC_DEF_ID on ACT_RU_TASK(PROC_DEF_ID_);
+-- index for deadlock problem - https://app.camunda.com/jira/browse/CAM-4440 --
+create index ACT_IDX_AUTH_RESOURCE_ID on ACT_RU_AUTHORIZATION(RESOURCE_ID_);
+
+-- indexes to improve deployment
+create index ACT_IDX_BYTEARRAY_NAME on ACT_GE_BYTEARRAY(NAME_);
+create index ACT_IDX_DEPLOYMENT_NAME on ACT_RE_DEPLOYMENT(NAME_);
+create index ACT_IDX_JOBDEF_PROC_DEF_ID ON ACT_RU_JOBDEF(PROC_DEF_ID_);
+create index ACT_IDX_JOB_HANDLER_TYPE ON ACT_RU_JOB(HANDLER_TYPE_);
+create index ACT_IDX_EVENT_SUBSCR_EVT_NAME ON ACT_RU_EVENT_SUBSCR(EVENT_NAME_);
+create index ACT_IDX_PROCDEF_DEPLOYMENT_ID ON ACT_RE_PROCDEF(DEPLOYMENT_ID_);

@@ -91,4 +91,11 @@ public interface Job {
    * @return true if this Job is currently suspended.
    */
   boolean isSuspended();
+
+  /**
+   * The job's priority that is a hint to job acquisition.
+   *
+   * @since 7.4
+   */
+  long getPriority();
 }

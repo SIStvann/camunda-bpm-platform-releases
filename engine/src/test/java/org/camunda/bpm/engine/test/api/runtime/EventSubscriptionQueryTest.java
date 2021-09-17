@@ -184,6 +184,28 @@ public class EventSubscriptionQueryTest extends PluggableProcessEngineTestCase {
     cleanDb();
   }
 
+  @Deployment
+  public void testMultipleEventSubscriptions() {
+    String message = "cancelation-requested";
+
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("testProcess");
+
+    assertTrue(areJobsAvailable());
+
+    long eventSubscriptionCount = runtimeService.createEventSubscriptionQuery().count();
+    assertEquals(2, eventSubscriptionCount);
+
+    EventSubscription messageEvent = runtimeService.createEventSubscriptionQuery().eventType("message").singleResult();
+    assertEquals(message, messageEvent.getEventName());
+
+    EventSubscription compensationEvent = runtimeService.createEventSubscriptionQuery().eventType("compensate").singleResult();
+    assertNull(compensationEvent.getEventName());
+
+    runtimeService.createMessageCorrelation(message).processInstanceId(processInstance.getId()).correlate();
+
+    assertProcessEnded(processInstance.getId());
+  }
+
 
   protected void createExampleEventSubscriptions() {
     processEngineConfiguration.getCommandExecutorTxRequired()
@@ -222,7 +244,7 @@ public class EventSubscriptionQueryTest extends PluggableProcessEngineTestCase {
     processEngineConfiguration.getCommandExecutorTxRequired()
     .execute(new Command<Void>() {
       public Void execute(CommandContext commandContext) {
-        final List<EventSubscription> subscriptions = new EventSubscriptionQueryImpl(commandContext).list();
+        final List<EventSubscription> subscriptions = new EventSubscriptionQueryImpl().list();
         for (EventSubscription eventSubscriptionEntity : subscriptions) {
           ((EventSubscriptionEntity) eventSubscriptionEntity).delete();
         }

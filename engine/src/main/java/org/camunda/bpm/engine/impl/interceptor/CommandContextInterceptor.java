@@ -14,11 +14,9 @@
 package org.camunda.bpm.engine.impl.interceptor;
 
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import org.camunda.bpm.engine.delegate.ProcessEngineServicesAware;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
+import org.camunda.bpm.engine.impl.cmd.CommandLogger;
 import org.camunda.bpm.engine.impl.context.Context;
 
 /**
@@ -52,7 +50,7 @@ import org.camunda.bpm.engine.impl.context.Context;
  */
 public class CommandContextInterceptor extends CommandInterceptor {
 
-  private final static Logger LOGGER = Logger.getLogger(CommandContextInterceptor.class.getName());
+  private final static CommandLogger LOG = CommandLogger.CMD_LOGGER;
 
   protected CommandContextFactory commandContextFactory;
   protected ProcessEngineConfigurationImpl processEngineConfiguration;
@@ -82,11 +80,11 @@ public class CommandContextInterceptor extends CommandInterceptor {
 
     try {
       if(openNew) {
-        LOGGER.log(Level.FINE, "Opening new command context.");
+        LOG.debugOpeningNewCommandContext();
         context = commandContextFactory.createCommandContext();
 
       } else {
-        LOGGER.log(Level.FINE, "Reusing existing command context.");
+        LOG.debugReusingExistingCommandContext();
 
       }
 
@@ -102,7 +100,7 @@ public class CommandContextInterceptor extends CommandInterceptor {
     } finally {
       try {
         if (openNew) {
-          LOGGER.log(Level.FINE, "Closing command context.");
+          LOG.closingCommandContext();
           context.close(commandInvocationContext);
         } else {
           commandInvocationContext.rethrow();

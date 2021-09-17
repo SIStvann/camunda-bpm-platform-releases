@@ -17,8 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.logging.Logger;
-
 import org.camunda.bpm.engine.ProcessEngineServices;
 import org.camunda.bpm.engine.delegate.BpmnModelExecutionContext;
 import org.camunda.bpm.engine.delegate.ProcessEngineServicesAware;
@@ -46,8 +44,6 @@ public class ExecutionImpl extends PvmExecutionImpl implements
 
   private static final long serialVersionUID = 1L;
 
-  private static Logger log = Logger.getLogger(ExecutionImpl.class.getName());
-
   private static AtomicInteger idGenerator = new AtomicInteger();
 
   // current position /////////////////////////////////////////////////////////
@@ -74,8 +70,6 @@ public class ExecutionImpl extends PvmExecutionImpl implements
   /** reference to a subcaseinstance, not-null if currently subcase is started from this execution */
   protected CaseExecutionImpl subCaseInstance;
 
-  protected ExecutionImpl replacedBy;
-
   // variables/////////////////////////////////////////////////////////////////
 
   protected SimpleVariableStore variableStore = new SimpleVariableStore();
@@ -94,7 +88,6 @@ public class ExecutionImpl extends PvmExecutionImpl implements
     createdExecution.setSequenceCounter(getSequenceCounter());
 
     // manage the bidirectional parent-child relation
-    getExecutions().add(createdExecution);
     createdExecution.setParent(this);
 
     // initialize the new execution
@@ -137,12 +130,15 @@ public class ExecutionImpl extends PvmExecutionImpl implements
     return parent;
   }
 
-  /** all updates need to go through this setter as subclasses can override this method */
-  public void setParent(PvmExecutionImpl parent) {
+  public void setParentExecution(PvmExecutionImpl parent) {
     this.parent = (ExecutionImpl) parent;
   }
 
   // executions ///////////////////////////////////////////////////////////////
+
+  public List<ExecutionImpl> getExecutionsAsCopy() {
+    return new ArrayList<ExecutionImpl>(getExecutions());
+  }
 
   /** ensures initialization and returns the non-null executions list */
   public List<ExecutionImpl> getExecutions() {
@@ -291,14 +287,8 @@ public class ExecutionImpl extends PvmExecutionImpl implements
     return variableStore;
   }
 
-  public PvmExecutionImpl getReplacedBy() {
-    return replacedBy;
-  }
-
-  public void setReplacedBy(PvmExecutionImpl replacedBy) {
-    this.replacedBy = (ExecutionImpl) replacedBy;
-    // set execution to this activity instance
-    super.setReplacedBy(replacedBy);
+  public ExecutionImpl getReplacedBy() {
+    return (ExecutionImpl) replacedBy;
   }
 
   public void setExecutions(List<ExecutionImpl> executions) {

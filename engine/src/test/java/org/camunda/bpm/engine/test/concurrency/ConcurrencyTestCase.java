@@ -26,11 +26,13 @@ public abstract class ConcurrencyTestCase extends PluggableProcessEngineTestCase
 
   protected List<ControllableCommand<?>> controllableCommands;
 
+  @Override
   protected void setUp() throws Exception {
     controllableCommands = new ArrayList<ControllableCommand<?>>();
     super.setUp();
   }
 
+  @Override
   protected void tearDown() throws Exception {
 
     // wait for all spawned threads to end
@@ -71,7 +73,7 @@ public abstract class ConcurrencyTestCase extends PluggableProcessEngineTestCase
   }
 
 
-  static abstract class ControllableCommand<T> implements Command<T> {
+  public static abstract class ControllableCommand<T> implements Command<T> {
 
     protected final ThreadControl monitor;
 
@@ -79,9 +81,13 @@ public abstract class ConcurrencyTestCase extends PluggableProcessEngineTestCase
       this.monitor = new ThreadControl();
     }
 
+    public ControllableCommand(ThreadControl threadControl) {
+      this.monitor = threadControl;
+    }
+
   }
 
-  static class ThreadControl {
+  public static class ThreadControl {
 
     protected volatile boolean syncAvailable = false;
 
@@ -90,7 +96,20 @@ public abstract class ConcurrencyTestCase extends PluggableProcessEngineTestCase
     protected volatile boolean reportFailure;
     protected volatile Exception exception;
 
+    protected boolean ignoreSync = false;
+
+    public ThreadControl() {
+    }
+
+    public ThreadControl(Thread executingThread) {
+      this.executingThread = executingThread;
+    }
+
     public void waitForSync() {
+      waitForSync(Long.MAX_VALUE);
+    }
+
+    public void waitForSync(long timeout) {
       synchronized (this) {
         if(exception != null) {
           if (reportFailure) {
@@ -103,7 +122,7 @@ public abstract class ConcurrencyTestCase extends PluggableProcessEngineTestCase
         try {
           if(!syncAvailable) {
             try {
-              wait();
+              wait(timeout);
             } catch (InterruptedException e) {
               if (!reportFailure || exception == null) {
                 fail("unexpected interruption");
@@ -117,6 +136,11 @@ public abstract class ConcurrencyTestCase extends PluggableProcessEngineTestCase
     }
 
     public void waitUntilDone() {
+      waitUntilDone(false);
+    }
+
+    public void waitUntilDone(boolean ignoreUpcomingSyncs) {
+      ignoreSync = ignoreUpcomingSyncs;
       makeContinue();
       join();
     }
@@ -133,6 +157,10 @@ public abstract class ConcurrencyTestCase extends PluggableProcessEngineTestCase
 
     public void sync() {
       synchronized (this) {
+        if (ignoreSync) {
+          return;
+        }
+
         syncAvailable = true;
         try {
           notifyAll();
@@ -154,6 +182,11 @@ public abstract class ConcurrencyTestCase extends PluggableProcessEngineTestCase
       }
     }
 
+    public void makeContinueAndWaitForSync() {
+      makeContinue();
+      waitForSync();
+    }
+
     public void reportInterrupts() {
       this.reportFailure = true;
     }
@@ -165,7 +198,6 @@ public abstract class ConcurrencyTestCase extends PluggableProcessEngineTestCase
     public Throwable getException() {
       return exception;
     }
-
   }
 
 }

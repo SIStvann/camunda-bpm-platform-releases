@@ -12,7 +12,9 @@
  */
 package org.camunda.bpm.engine.test.history;
 
+import java.math.BigInteger;
 import java.util.Date;
+import java.util.Random;
 
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricJobLog;
@@ -28,6 +30,7 @@ import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventJobHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventSubprocessJobHandler;
 import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogEventEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.MessageEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.impl.util.JobExceptionUtil;
@@ -73,6 +76,7 @@ public class HistoricJobLogTest extends PluggableProcessEngineTestCase {
     assertEquals(job.getProcessDefinitionId(), historicJob.getProcessDefinitionId());
     assertEquals(job.getProcessDefinitionKey(), historicJob.getProcessDefinitionKey());
     assertEquals(job.getDeploymentId(), historicJob.getDeploymentId());
+    assertEquals(job.getPriority(), historicJob.getJobPriority());
 
     assertTrue(historicJob.isCreationLog());
     assertFalse(historicJob.isFailureLog());
@@ -116,6 +120,7 @@ public class HistoricJobLogTest extends PluggableProcessEngineTestCase {
     assertEquals(job.getProcessDefinitionKey(), historicJob.getProcessDefinitionKey());
     assertEquals(job.getDeploymentId(), historicJob.getDeploymentId());
     assertEquals(FailingDelegate.EXCEPTION_MESSAGE, historicJob.getJobExceptionMessage());
+    assertEquals(job.getPriority(), historicJob.getJobPriority());
 
     assertFalse(historicJob.isCreationLog());
     assertTrue(historicJob.isFailureLog());
@@ -155,6 +160,7 @@ public class HistoricJobLogTest extends PluggableProcessEngineTestCase {
     assertEquals(job.getProcessDefinitionId(), historicJob.getProcessDefinitionId());
     assertEquals(job.getProcessDefinitionKey(), historicJob.getProcessDefinitionKey());
     assertEquals(job.getDeploymentId(), historicJob.getDeploymentId());
+    assertEquals(job.getPriority(), historicJob.getJobPriority());
 
     assertFalse(historicJob.isCreationLog());
     assertFalse(historicJob.isFailureLog());
@@ -194,6 +200,7 @@ public class HistoricJobLogTest extends PluggableProcessEngineTestCase {
     assertEquals(job.getProcessDefinitionId(), historicJob.getProcessDefinitionId());
     assertEquals(job.getProcessDefinitionKey(), historicJob.getProcessDefinitionKey());
     assertEquals(job.getDeploymentId(), historicJob.getDeploymentId());
+    assertEquals(job.getPriority(), historicJob.getJobPriority());
 
     assertFalse(historicJob.isCreationLog());
     assertFalse(historicJob.isFailureLog());
@@ -253,6 +260,25 @@ public class HistoricJobLogTest extends PluggableProcessEngineTestCase {
     assertEquals("serviceTask", historicJob.getActivityId());
     assertEquals(AsyncContinuationJobHandler.TYPE, historicJob.getJobDefinitionType());
     assertEquals(MessageJobDeclaration.ASYNC_AFTER, historicJob.getJobDefinitionConfiguration());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/history/HistoricJobLogTest.testAsyncContinuationWithLongId.bpmn20.xml"})
+  public void testSuccessfulHistoricJobLogEntryStoredForLongActivityId() {
+    runtimeService.startProcessInstanceByKey("process", Variables.createVariables().putValue("fail", false));
+
+    Job job = managementService
+        .createJobQuery()
+        .singleResult();
+
+    managementService.executeJob(job.getId());
+
+    HistoricJobLog historicJob = historyService
+        .createHistoricJobLogQuery()
+        .successLog()
+        .singleResult();
+    assertNotNull(historicJob);
+    assertEquals("serviceTaskIdIsReallyLongAndItShouldBeMoreThan64CharsSoItWill" +
+        "BlowAnyActivityIdColumnWhereSizeIs64OrLessSoWeAlignItTo255LikeEverywhereElse", historicJob.getActivityId());
   }
 
   @Deployment(resources = {"org/camunda/bpm/engine/test/history/HistoricJobLogTest.testStartTimerEvent.bpmn20.xml"})
@@ -1083,6 +1109,43 @@ public class HistoricJobLogTest extends PluggableProcessEngineTestCase {
     assertNotNull(stacktrace);
     assertTextPresent(ThrowExceptionWithoutMessageDelegate.class.getName(), stacktrace);
   }
+
+  @Deployment
+  public void testThrowExceptionMessageTruncation() {
+    // given
+    String exceptionMessage = randomString(10000);
+    ThrowExceptionWithOverlongMessageDelegate delegate =
+        new ThrowExceptionWithOverlongMessageDelegate(exceptionMessage);
+
+    runtimeService.startProcessInstanceByKey("process", Variables.createVariables().putValue("delegate", delegate));
+    Job job = managementService.createJobQuery().singleResult();
+
+    // when
+    try {
+      managementService.executeJob(job.getId());
+      fail();
+    } catch (Exception e) {
+      // expected
+    }
+
+    // then
+    HistoricJobLog failedHistoricJobLog = historyService
+        .createHistoricJobLogQuery()
+        .failureLog()
+        .singleResult();
+
+    assertNotNull(failedHistoricJobLog);
+    assertEquals(exceptionMessage.substring(0, JobEntity.MAX_EXCEPTION_MESSAGE_LENGTH),
+        failedHistoricJobLog.getJobExceptionMessage());
+  }
+
+  /**
+   * returns a random of the given size using characters [0-1]
+   */
+  protected static String randomString(int numCharacters) {
+    return new BigInteger(numCharacters, new Random()).toString(2);
+  }
+
 
   public void testDeleteByteArray() {
     final String processDefinitionId = "myProcessDefition";

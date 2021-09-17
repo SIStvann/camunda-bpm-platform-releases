@@ -19,6 +19,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
+import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
 import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.persistence.entity.MessageEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
@@ -30,6 +31,7 @@ import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener;
+import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener.RecordedEvent;
 import org.camunda.bpm.engine.variable.Variables;
 
 /**
@@ -99,16 +101,16 @@ public class AsyncTaskTest extends PluggableProcessEngineTestCase {
   }
 
   @Deployment
-  public void testAsyncServiceSequentialMultiInstance() {
+  public void testAsyncSequentialMultiInstanceWithServiceTask() {
     NUM_INVOCATIONS = 0;
     // start process
     runtimeService.startProcessInstanceByKey("asyncService");
-    // now there should be one job for the multi-instance body:
-    assertEquals(1, managementService.createJobQuery().count());
+
     // the service was not invoked:
     assertEquals(0, NUM_INVOCATIONS);
 
-    executeAvailableJobs();
+    // now there should be one job for the multi-instance body to execute:
+    executeAvailableJobs(1);
 
     // the service was invoked
     assertEquals(5, NUM_INVOCATIONS);
@@ -118,21 +120,178 @@ public class AsyncTaskTest extends PluggableProcessEngineTestCase {
 
 
   @Deployment
-  public void testAsyncServiceParallelMultiInstance() {
+  public void testAsyncParallelMultiInstanceWithServiceTask() {
     NUM_INVOCATIONS = 0;
     // start process
     runtimeService.startProcessInstanceByKey("asyncService");
-    // now there should be one job for the multi-instance body:
-    assertEquals(1, managementService.createJobQuery().count());
+
     // the service was not invoked:
     assertEquals(0, NUM_INVOCATIONS);
 
-    executeAvailableJobs();
+    // now there should be one job for the multi-instance body to execute:
+    executeAvailableJobs(1);
 
     // the service was invoked
     assertEquals(5, NUM_INVOCATIONS);
     // and the job is done
     assertEquals(0, managementService.createJobQuery().count());
+  }
+
+  @Deployment
+  public void testAsyncServiceWrappedInSequentialMultiInstance() {
+    NUM_INVOCATIONS = 0;
+    // start process
+    runtimeService.startProcessInstanceByKey("asyncService");
+
+    // the service was not invoked:
+    assertEquals(0, NUM_INVOCATIONS);
+
+    // now there should be one job for the first service task wrapped in the multi-instance body:
+    assertEquals(1, managementService.createJobQuery().count());
+    // execute all jobs - one for each service task:
+    executeAvailableJobs(5);
+
+    // the service was invoked
+    assertEquals(5, NUM_INVOCATIONS);
+    // and the job is done
+    assertEquals(0, managementService.createJobQuery().count());
+  }
+
+  @Deployment
+  public void testAsyncServiceWrappedInParallelMultiInstance() {
+    NUM_INVOCATIONS = 0;
+    // start process
+    runtimeService.startProcessInstanceByKey("asyncService");
+
+    // the service was not invoked:
+    assertEquals(0, NUM_INVOCATIONS);
+
+    // now there should be one job for each service task wrapped in the multi-instance body:
+    assertEquals(5, managementService.createJobQuery().count());
+    // execute all jobs:
+    executeAvailableJobs(5);
+
+    // the service was invoked
+    assertEquals(5, NUM_INVOCATIONS);
+    // and the job is done
+    assertEquals(0, managementService.createJobQuery().count());
+  }
+
+  @Deployment
+  public void testAsyncBeforeAndAfterOfServiceWrappedInParallelMultiInstance() {
+    NUM_INVOCATIONS = 0;
+    // start process
+    runtimeService.startProcessInstanceByKey("asyncService");
+
+    // the service was not invoked:
+    assertEquals(0, NUM_INVOCATIONS);
+
+    // now there should be one job for each service task wrapped in the multi-instance body:
+    assertEquals(5, managementService.createJobQuery().count());
+    // execute all jobs - one for asyncBefore and another for asyncAfter:
+    executeAvailableJobs(5+5);
+
+    // the service was invoked
+    assertEquals(5, NUM_INVOCATIONS);
+    // and the job is done
+    assertEquals(0, managementService.createJobQuery().count());
+  }
+
+  @Deployment
+  public void testAsyncBeforeSequentialMultiInstanceWithAsyncAfterServiceWrappedInMultiInstance() {
+    NUM_INVOCATIONS = 0;
+    // start process
+    runtimeService.startProcessInstanceByKey("asyncService");
+
+    // the service was not invoked:
+    assertEquals(0, NUM_INVOCATIONS);
+
+    // now there should be one job for the multi-instance body:
+    assertEquals(1, managementService.createJobQuery().count());
+    // execute all jobs - one for multi-instance body and one for each service task wrapped in the multi-instance body:
+    executeAvailableJobs(1+5);
+
+    // the service was invoked
+    assertEquals(5, NUM_INVOCATIONS);
+    // and the job is done
+    assertEquals(0, managementService.createJobQuery().count());
+  }
+
+  protected void assertTransitionInstances(String processInstanceId, String activityId, int numInstances) {
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstanceId);
+
+    assertEquals(numInstances, tree.getTransitionInstances(activityId).length);
+  }
+
+  @Deployment
+  public void testAsyncBeforeAndAfterParallelMultiInstanceWithAsyncBeforeAndAfterServiceWrappedInMultiInstance() {
+    NUM_INVOCATIONS = 0;
+    // start process
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("asyncService");
+
+    // the service was not invoked:
+    assertEquals(0, NUM_INVOCATIONS);
+
+    // now there should be one job for the multi-instance body:
+    assertEquals(1, managementService.createJobQuery().count());
+    assertTransitionInstances(processInstance.getId(), "service" + BpmnParse.MULTI_INSTANCE_BODY_ID_SUFFIX, 1);
+
+    // when the mi body before job is executed
+    Job job = managementService.createJobQuery().singleResult();
+    managementService.executeJob(job.getId());
+
+    // then there are five inner async before jobs
+    List<Job> innerBeforeJobs = managementService.createJobQuery().list();
+    assertEquals(5, innerBeforeJobs.size());
+    assertTransitionInstances(processInstance.getId(), "service", 5);
+    assertEquals(0, NUM_INVOCATIONS);
+
+    // when executing all inner jobs
+    for (Job innerBeforeJob : innerBeforeJobs) {
+      managementService.executeJob(innerBeforeJob.getId());
+    }
+    assertEquals(5, NUM_INVOCATIONS);
+
+    // then there are five async after jobs
+    List<Job> innerAfterJobs = managementService.createJobQuery().list();
+    assertEquals(5, innerAfterJobs.size());
+    assertTransitionInstances(processInstance.getId(), "service", 5);
+
+    // when executing all inner jobs
+    for (Job innerAfterJob : innerAfterJobs) {
+      managementService.executeJob(innerAfterJob.getId());
+    }
+
+    // then there is one mi body after job
+    job = managementService.createJobQuery().singleResult();
+    assertNotNull(job);
+    assertTransitionInstances(processInstance.getId(), "service" + BpmnParse.MULTI_INSTANCE_BODY_ID_SUFFIX, 1);
+
+    // when executing this job, the process ends
+    managementService.executeJob(job.getId());
+    assertProcessEnded(processInstance.getId());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/async/AsyncTaskTest.testAsyncServiceWrappedInParallelMultiInstance.bpmn20.xml")
+  public void testAsyncServiceWrappedInParallelMultiInstanceActivityInstance() {
+    // given a process instance
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("asyncService");
+
+    // when there are five jobs for the inner activity
+    assertEquals(5, managementService.createJobQuery().count());
+
+    // then they are represented in the activity instance tree by transition instances
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+
+    assertThat(tree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("service#multiInstanceBody")
+            .transition("service")
+            .transition("service")
+            .transition("service")
+            .transition("service")
+            .transition("service")
+        .done());
   }
 
   @Deployment
@@ -471,7 +630,7 @@ public class AsyncTaskTest extends PluggableProcessEngineTestCase {
    * CAM-3707
    */
   @Deployment
-  public void FAILING_testDeleteShouldNotInvokeListeners() {
+  public void testDeleteShouldNotInvokeListeners() {
     RecorderExecutionListener.clear();
 
     // given
@@ -490,10 +649,36 @@ public class AsyncTaskTest extends PluggableProcessEngineTestCase {
   }
 
   /**
+   * CAM-3707
+   */
+  @Deployment
+  public void testDeleteInScopeShouldNotInvokeListeners() {
+    RecorderExecutionListener.clear();
+
+    // given
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("asyncListenerSubProcess",
+        Variables.createVariables().putValue("listener", new RecorderExecutionListener()));
+    assertEquals(1, managementService.createJobQuery().count());
+
+    // when deleting the process instance
+    runtimeService.deleteProcessInstance(instance.getId(), "");
+
+    // then the async task end listener has not been executed but the listeners of the sub
+    // process and the process
+
+    List<RecordedEvent> recordedEvents = RecorderExecutionListener.getRecordedEvents();
+    assertEquals(2, recordedEvents.size());
+    assertEquals("subProcess", recordedEvents.get(0).getActivityId());
+    assertNull(recordedEvents.get(1).getActivityId()); // process instance end event has no activity id
+
+    RecorderExecutionListener.clear();
+  }
+
+  /**
    * CAM-3708
    */
   @Deployment
-  public void FAILING_testDeleteShouldNotInvokeOutputMapping() {
+  public void testDeleteShouldNotInvokeOutputMapping() {
     // given
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("asyncOutputMapping");
     assertEquals(1, managementService.createJobQuery().count());
@@ -507,6 +692,29 @@ public class AsyncTaskTest extends PluggableProcessEngineTestCase {
       assertEquals(0, historyService.createHistoricVariableInstanceQuery().count());
     }
 
+  }
+
+  /**
+   * CAM-3708
+   */
+  @Deployment
+  public void testDeleteInScopeShouldNotInvokeOutputMapping() {
+    // given
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("asyncOutputMappingSubProcess");
+    assertEquals(1, managementService.createJobQuery().count());
+
+    // when
+    runtimeService.deleteProcessInstance(instance.getId(), "");
+
+    // then
+    if (processEngineConfiguration.getHistoryLevel().getId() >= HistoryLevel.HISTORY_LEVEL_AUDIT.getId()) {
+      // the output mapping of the task has not been executed because the
+      // activity was not active yet
+      assertEquals(0, historyService.createHistoricVariableInstanceQuery().variableName("taskOutputMappingExecuted").count());
+
+      // but the containing sub process output mapping was executed
+      assertEquals(1, historyService.createHistoricVariableInstanceQuery().variableName("subProcessOutputMappingExecuted").count());
+    }
   }
 
 }

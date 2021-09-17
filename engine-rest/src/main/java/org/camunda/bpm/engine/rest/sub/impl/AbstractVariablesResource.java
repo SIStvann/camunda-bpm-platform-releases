@@ -13,13 +13,13 @@
 package org.camunda.bpm.engine.rest.sub.impl;
 
 import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.AuthorizationException;
@@ -36,6 +36,7 @@ import org.camunda.bpm.engine.rest.sub.VariableResource;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.value.BytesValue;
+import org.camunda.bpm.engine.variable.value.FileValue;
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
 import com.fasterxml.jackson.databind.JavaType;
@@ -44,6 +45,8 @@ import com.fasterxml.jackson.databind.type.TypeFactory;
 
 
 public abstract class AbstractVariablesResource implements VariableResource {
+
+  protected static final String DEFAULT_BINARY_VALUE_TYPE = "Bytes";
 
   protected ProcessEngine engine;
   protected String resourceId;
@@ -94,18 +97,31 @@ public abstract class AbstractVariablesResource implements VariableResource {
     return value;
   }
 
-  public InputStream getVariableBinary(String variableName) {
+  public Response getVariableBinary(String variableName) {
     TypedValue typedValue = getTypedValueForVariable(variableName, false);
-    if(typedValue instanceof BytesValue) {
-      byte[] valueBytes = ((BytesValue)typedValue).getValue();
+
+    if (typedValue instanceof BytesValue) {
+      byte[] valueBytes = ((BytesValue) typedValue).getValue();
       if (valueBytes == null) {
         valueBytes = new byte[0];
       }
 
-      return new ByteArrayInputStream(valueBytes);
+      return Response.ok(new ByteArrayInputStream(valueBytes), MediaType.APPLICATION_OCTET_STREAM).build();
     }
-    else {
-      throw new InvalidRequestException(Status.BAD_REQUEST, "Variable '"+variableName+"' is not of type 'Bytes' but of type '"+typedValue.getType()+"'.");
+    else if (typedValue instanceof FileValue) {
+      FileValue fileValue = (FileValue) typedValue;
+      String type = fileValue.getMimeType() != null ? fileValue.getMimeType() : MediaType.APPLICATION_OCTET_STREAM;
+
+      if(fileValue.getEncoding() != null){
+        type += "; charset=" + fileValue.getEncoding();
+      }
+
+      return Response.ok(fileValue.getValue(), type)
+              .header("Content-Disposition", "attachment; filename=" + fileValue.getFilename())
+              .build();
+    } else {
+      throw new InvalidRequestException(Status.BAD_REQUEST, "Variable '" + variableName + "' is not of type 'Bytes' or 'File' but of type '" + typedValue.getType()
+          + "'.");
     }
   }
 
@@ -132,15 +148,16 @@ public abstract class AbstractVariablesResource implements VariableResource {
 
   public void setBinaryVariable(String variableKey, MultipartFormData payload) {
     FormPart dataPart = payload.getNamedPart("data");
-    FormPart valueTypePart = payload.getNamedPart("type");
+    FormPart objectTypePart = payload.getNamedPart("type");
+    FormPart valueTypePart = payload.getNamedPart("valueType");
 
-    if(valueTypePart != null) {
+    if(objectTypePart != null) {
       Object object = null;
 
       if(dataPart.getContentType()!=null
           && dataPart.getContentType().toLowerCase().contains(MediaType.APPLICATION_JSON)) {
 
-        object = deserializeJsonObject(valueTypePart.getTextContent(), dataPart.getBinaryContent());
+        object = deserializeJsonObject(objectTypePart.getTextContent(), dataPart.getBinaryContent());
 
       } else {
         throw new InvalidRequestException(Status.BAD_REQUEST, "Unrecognized content type for serialized java type: "+dataPart.getContentType());
@@ -150,8 +167,22 @@ public abstract class AbstractVariablesResource implements VariableResource {
         setVariableEntity(variableKey, Variables.objectValue(object).create());
       }
     } else {
+
+      String valueTypeName = DEFAULT_BINARY_VALUE_TYPE;
+      if (valueTypePart != null) {
+        if (valueTypePart.getTextContent() == null) {
+          throw new InvalidRequestException(Status.BAD_REQUEST,
+              "Form part with name 'valueType' must have a text/plain value");
+        }
+
+        valueTypeName = valueTypePart.getTextContent();
+      }
+
+      VariableValueDto valueDto = VariableValueDto.fromFormPart(valueTypeName, dataPart);
       try {
-        setVariableEntity(variableKey, Variables.byteArrayValue(dataPart.getBinaryContent()));
+
+        TypedValue typedValue = valueDto.toTypedValue(engine, objectMapper);
+        setVariableEntity(variableKey, typedValue);
       } catch (AuthorizationException e) {
         throw e;
       } catch (ProcessEngineException e) {

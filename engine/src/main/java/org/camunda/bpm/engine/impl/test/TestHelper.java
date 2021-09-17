@@ -22,28 +22,37 @@ import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.logging.Logger;
 
+import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.ProcessEngineImpl;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.SchemaOperationsProcessEngineBuild;
-import org.camunda.bpm.engine.impl.UserOperationLogQueryImpl;
 import org.camunda.bpm.engine.impl.bpmn.deployer.BpmnDeployer;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cmmn.deployer.CmmnDeployer;
+import org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionEntity;
 import org.camunda.bpm.engine.impl.db.PersistenceSession;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
+import org.camunda.bpm.engine.impl.dmn.deployer.DmnDeployer;
+import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
+import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.PropertyEntity;
 import org.camunda.bpm.engine.impl.util.ClassNameUtil;
 import org.camunda.bpm.engine.impl.util.ReflectUtil;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
+import org.camunda.bpm.model.cmmn.CmmnModelInstance;
+import org.junit.Assert;
+import org.slf4j.Logger;
 
 
 /**
@@ -51,7 +60,7 @@ import org.camunda.bpm.engine.test.Deployment;
  */
 public abstract class TestHelper {
 
-  private static Logger log = Logger.getLogger(TestHelper.class.getName());
+  private static Logger LOG = ProcessEngineLogger.TEST_LOGGER.getLogger();
 
   public static final String EMPTY_LINE = "                                                                                           ";
 
@@ -66,6 +75,7 @@ public abstract class TestHelper {
   static {
     RESOURCE_SUFFIXES.addAll(Arrays.asList(BpmnDeployer.BPMN_RESOURCE_SUFFIXES));
     RESOURCE_SUFFIXES.addAll(Arrays.asList(CmmnDeployer.CMMN_RESOURCE_SUFFIXES));
+    RESOURCE_SUFFIXES.addAll(Arrays.asList(DmnDeployer.DMN_RESOURCE_SUFFIXES));
   }
 
   /**
@@ -79,6 +89,8 @@ public abstract class TestHelper {
   public static String annotationDeploymentSetUp(ProcessEngine processEngine, Class<?> testClass, String methodName, Deployment deploymentAnnotation) {
     String deploymentId = null;
     Method method = null;
+    boolean onMethod = true;
+
     try {
       method = testClass.getDeclaredMethod(methodName, (Class<?>[])null);
     } catch (Exception e) {
@@ -91,12 +103,17 @@ public abstract class TestHelper {
     if (deploymentAnnotation == null) {
       deploymentAnnotation = method.getAnnotation(Deployment.class);
     }
+    // if not found on method, try on class level
+    if (deploymentAnnotation == null) {
+      onMethod = false;
+      deploymentAnnotation = testClass.getAnnotation(Deployment.class);
+    }
 
     if (deploymentAnnotation != null) {
-      log.fine("annotation @Deployment creates deployment for "+ClassNameUtil.getClassNameWithoutPackage(testClass)+"."+methodName);
+      LOG.debug("annotation @Deployment creates deployment for {}.{}", ClassNameUtil.getClassNameWithoutPackage(testClass), methodName);
       String[] resources = deploymentAnnotation.resources();
       if (resources.length == 0 && method != null) {
-        String name = method.getName();
+        String name = onMethod ? method.getName() : null;
         String resource = getBpmnProcessDefinitionResource(testClass, name);
         resources = new String[]{resource};
       }
@@ -120,7 +137,7 @@ public abstract class TestHelper {
   }
 
   public static void annotationDeploymentTearDown(ProcessEngine processEngine, String deploymentId, Class<?> testClass, String methodName) {
-    log.fine("annotation @Deployment deletes deployment for "+ClassNameUtil.getClassNameWithoutPackage(testClass)+"."+methodName);
+    LOG.debug("annotation @Deployment deletes deployment for {}.{}", ClassNameUtil.getClassNameWithoutPackage(testClass), methodName);
     if(deploymentId != null) {
       processEngine.getRepositoryService().deleteDeployment(deploymentId, true);
     }
@@ -135,7 +152,7 @@ public abstract class TestHelper {
    */
   public static String getBpmnProcessDefinitionResource(Class< ? > type, String name) {
     for (String suffix : RESOURCE_SUFFIXES) {
-      String resource = type.getName().replace('.', '/') + "." + name + "." + suffix;
+      String resource = createResourceName(type, name, suffix);
       InputStream inputStream = ReflectUtil.getResourceAsStream(resource);
       if (inputStream == null) {
         continue;
@@ -143,45 +160,178 @@ public abstract class TestHelper {
         return resource;
       }
     }
-    return type.getName().replace('.', '/') + "." + name + "." + BpmnDeployer.BPMN_RESOURCE_SUFFIXES[0];
+    return createResourceName(type, name, BpmnDeployer.BPMN_RESOURCE_SUFFIXES[0]);
   }
 
-  /** Each test is assumed to clean up all DB content it entered.
-   * After a test method executed, this method scans all tables to see if the DB is completely clean.
-   * It throws AssertionFailed in case the DB is not clean.
-   * If the DB is not clean, it is cleaned by performing a create a drop. */
+  private static String createResourceName(Class< ? > type, String name, String suffix) {
+    StringBuffer r = new StringBuffer(type.getName().replace('.', '/'));
+    if (name != null) {
+      r.append("." + name);
+    }
+    return r.append("." + suffix).toString();
+  }
+
+  public static void assertAndEnsureCleanDbAndCache(ProcessEngine processEngine) {
+    String cacheMessage = assertAndEnsureCleanDeploymentCache(processEngine, false);
+    String dbMessage = assertAndEnsureCleanDb(processEngine, false);
+
+    StringBuilder message = new StringBuilder();
+    if (cacheMessage != null) {
+      message.append(cacheMessage);
+    }
+    if (dbMessage != null) {
+      message.append(dbMessage);
+    }
+
+    if (message.length() > 0) {
+      Assert.fail(message.toString());
+    }
+  }
+
+  /**
+   * Ensures that the deployment cache is empty after a test. If not the cache
+   * will be cleared.
+   *
+   * @param processEngine the {@link ProcessEngine} to test
+   * @throws AssertionError if the deployment cache was not clean
+   */
+  public static void assertAndEnsureCleanDeploymentCache(ProcessEngine processEngine) {
+    assertAndEnsureCleanDb(processEngine, true);
+  }
+
+  /**
+   * Ensures that the deployment cache is empty after a test. If not the cache
+   * will be cleared.
+   *
+   * @param processEngine the {@link ProcessEngine} to test
+   * @param fail if true the method will throw an {@link AssertionError} if the deployment cache is not clean
+   * @return the deployment cache summary if fail is set to false or null if deployment cache was clean
+   * @throws AssertionError if the deployment cache was not clean and fail is set to true
+   */
+  public static String assertAndEnsureCleanDeploymentCache(ProcessEngine processEngine, boolean fail) {
+    StringBuilder outputMessage = new StringBuilder();
+    ProcessEngineConfigurationImpl processEngineConfiguration = ((ProcessEngineImpl) processEngine).getProcessEngineConfiguration();
+    DeploymentCache deploymentCache = processEngineConfiguration.getDeploymentCache();
+
+    Map<String, ProcessDefinitionEntity> processDefinitionCache = deploymentCache.getProcessDefinitionCache();
+    if (!processDefinitionCache.isEmpty()) {
+      outputMessage.append("\tProcess Definition Cache: ").append(processDefinitionCache.keySet()).append("\n");
+      processDefinitionCache.clear();
+    }
+
+    Map<String, BpmnModelInstance> bpmnModelInstanceCache = deploymentCache.getBpmnModelInstanceCache();
+    if (!bpmnModelInstanceCache.isEmpty()) {
+      outputMessage.append("\tBPMN Model Instance Cache: ").append(bpmnModelInstanceCache.keySet()).append("\n");
+      bpmnModelInstanceCache.clear();
+    }
+
+    Map<String, CaseDefinitionEntity> caseDefinitionCache = deploymentCache.getCaseDefinitionCache();
+    if (!caseDefinitionCache.isEmpty()) {
+      outputMessage.append("\tCase Definition Cache: ").append(caseDefinitionCache.keySet()).append("\n");
+      caseDefinitionCache.clear();
+    }
+
+    Map<String, CmmnModelInstance> cmmnModelInstanceCache = deploymentCache.getCmmnModelInstanceCache();
+    if (!cmmnModelInstanceCache.isEmpty()) {
+      outputMessage.append("\tCMMN Model Instance Cache: ").append(cmmnModelInstanceCache.keySet()).append("\n");
+      cmmnModelInstanceCache.clear();
+    }
+
+    if (outputMessage.length() > 0) {
+      outputMessage.insert(0, "Deployment cache not clean:\n");
+      LOG.error(outputMessage.toString());
+
+      if (fail) {
+        Assert.fail(outputMessage.toString());
+      }
+
+      return outputMessage.toString();
+    }
+    else {
+      LOG.debug("Deployment cache was clean");
+      return null;
+    }
+  }
+
+  /**
+   * Ensures that the database is clean after the test. This means the test has to remove
+   * all resources it entered to the database.
+   * If the DB is not clean, it is cleaned by performing a create a drop.
+   *
+   * @param processEngine the {@link ProcessEngine} to check
+   * @throws AssertionError if the database was not clean
+   */
   public static void assertAndEnsureCleanDb(ProcessEngine processEngine) {
-    log.fine("verifying that db is clean after test");
+    assertAndEnsureCleanDb(processEngine, true);
+  }
+
+  /**
+   * Ensures that the database is clean after the test. This means the test has to remove
+   * all resources it entered to the database.
+   * If the DB is not clean, it is cleaned by performing a create a drop.
+   *
+   * @param processEngine the {@link ProcessEngine} to check
+   * @param fail if true the method will throw an {@link AssertionError} if the database is not clean
+   * @return the database summary if fail is set to false or null if database was clean
+   * @throws AssertionError if the database was not clean and fail is set to true
+   */
+  public static String assertAndEnsureCleanDb(ProcessEngine processEngine, boolean fail) {
+    ProcessEngineConfigurationImpl processEngineConfiguration = ((ProcessEngineImpl) processEngine).getProcessEngineConfiguration();
+    String databaseTablePrefix = processEngineConfiguration.getDatabaseTablePrefix().trim();
+
+    // clear user operation log in case some operations are
+    // executed with an authenticated user
+    clearUserOperationLog(processEngineConfiguration);
+
+    LOG.debug("verifying that db is clean after test");
     Map<String, Long> tableCounts = processEngine.getManagementService().getTableCount();
+
     StringBuilder outputMessage = new StringBuilder();
     for (String tableName : tableCounts.keySet()) {
-      if (!TABLENAMES_EXCLUDED_FROM_DB_CLEAN_CHECK.contains(tableName)) {
+      String tableNameWithoutPrefix = tableName.replace(databaseTablePrefix, "");
+      if (!TABLENAMES_EXCLUDED_FROM_DB_CLEAN_CHECK.contains(tableNameWithoutPrefix)) {
         Long count = tableCounts.get(tableName);
         if (count!=0L) {
-          outputMessage.append("  "+tableName + ": " + count + " record(s) ");
+          outputMessage.append("\t").append(tableName).append(": ").append(count).append(" record(s)\n");
         }
       }
     }
+
     if (outputMessage.length() > 0) {
       outputMessage.insert(0, "DB NOT CLEAN: \n");
-      log.severe(EMPTY_LINE);
-      log.severe(outputMessage.toString());
+      LOG.error(outputMessage.toString());
 
-      ((ProcessEngineImpl)processEngine)
-        .getProcessEngineConfiguration()
-        .getCommandExecutorTxRequired()
-        .execute(new Command<Object>() {
-          public Object execute(CommandContext commandContext) {
-            PersistenceSession persistenceSession = commandContext.getSession(PersistenceSession.class);
-            persistenceSession.dbSchemaDrop();
-            persistenceSession.dbSchemaCreate();
-            SchemaOperationsProcessEngineBuild.dbCreateHistoryLevel(commandContext.getDbEntityManager());
-            return null;
-          }
-        });
+      /** skip drop and recreate if a table prefix is used */
+      if (databaseTablePrefix.isEmpty()) {
+        LOG.error("Dropping and recreating database");
 
-      throw new AssertionError(outputMessage.toString());
+        processEngineConfiguration
+          .getCommandExecutorTxRequired()
+          .execute(new Command<Object>() {
+            public Object execute(CommandContext commandContext) {
+              PersistenceSession persistenceSession = commandContext.getSession(PersistenceSession.class);
+              persistenceSession.dbSchemaDrop();
+              persistenceSession.dbSchemaCreate();
+              SchemaOperationsProcessEngineBuild.dbCreateHistoryLevel(commandContext.getDbEntityManager());
+              return null;
+            }
+          });
+      }
+      else {
+        LOG.info("Skipping recreating of database as a table prefix is used");
+      }
+
+      if (fail) {
+        Assert.fail(outputMessage.toString());
+      }
+      else {
+        return outputMessage.toString();
+      }
+
+    } else {
+      LOG.debug("Database was clean");
     }
+    return null;
   }
 
   public static void waitForJobExecutorToProcessAllJobs(ProcessEngineConfigurationImpl processEngineConfiguration, long maxMillisToWait, long intervalMillis) {
@@ -238,11 +388,11 @@ public abstract class TestHelper {
   public static ProcessEngine getProcessEngine(String configurationResource) {
     ProcessEngine processEngine = processEngines.get(configurationResource);
     if (processEngine==null) {
-      log.fine("==== BUILDING PROCESS ENGINE ========================================================================");
+      LOG.debug("==== BUILDING PROCESS ENGINE ========================================================================");
       processEngine = ProcessEngineConfiguration
         .createProcessEngineConfigurationFromResource(configurationResource)
         .buildProcessEngine();
-      log.fine("==== PROCESS ENGINE CREATED =========================================================================");
+      LOG.debug("==== PROCESS ENGINE CREATED =========================================================================");
       processEngines.put(configurationResource, processEngine);
     }
     return processEngine;
@@ -309,28 +459,14 @@ public abstract class TestHelper {
       });
   }
 
-  /**
-   * Required when user operations are logged that are not directly associated with a single deployment
-   * (e.g. runtimeService.suspendProcessDefinitionByKey(..) with cascade to process instances)
-   * and therefore cannot be cleaned up automatically during undeployment.
-   */
-  public static void clearOpLog(ProcessEngineConfigurationImpl processEngineConfiguration) {
-    processEngineConfiguration.getCommandExecutorTxRequired()
-      .execute(new Command<Void>() {
-
-        public Void execute(CommandContext commandContext) {
-          List<UserOperationLogEntry> logEntries =
-              commandContext.getOperationLogManager()
-                .findOperationLogEntriesByQueryCriteria(new UserOperationLogQueryImpl(), null);
-
-          for (UserOperationLogEntry entry : logEntries) {
-            commandContext.getOperationLogManager().deleteOperationLogEntryById(entry.getId());
-          }
-
-          return null;
-        }
-
-      });
+  public static void clearUserOperationLog(ProcessEngineConfigurationImpl processEngineConfiguration) {
+    if (processEngineConfiguration.getHistoryLevel().equals(HistoryLevel.HISTORY_LEVEL_FULL)) {
+      HistoryService historyService = processEngineConfiguration.getHistoryService();
+      List<UserOperationLogEntry> logs = historyService.createUserOperationLogQuery().list();
+      for (UserOperationLogEntry log : logs) {
+        historyService.deleteUserOperationLogEntry(log.getId());
+      }
+    }
   }
 
 }

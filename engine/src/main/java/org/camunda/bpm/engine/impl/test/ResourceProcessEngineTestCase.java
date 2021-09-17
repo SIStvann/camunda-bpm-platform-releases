@@ -14,25 +14,24 @@
 package org.camunda.bpm.engine.impl.test;
 
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
-import org.camunda.bpm.engine.ProcessEngines;
 
 
 /**
  * @author Tom Baeyens
  * @author Joram Barrez
  */
-public class ResourceProcessEngineTestCase extends AbstractProcessEngineTestCase {
+public abstract class ResourceProcessEngineTestCase extends AbstractProcessEngineTestCase {
 
   protected String engineConfigurationResource;
 
-  public ResourceProcessEngineTestCase(String activitiConfigurationResource) {
-    this.engineConfigurationResource = activitiConfigurationResource;
+  public ResourceProcessEngineTestCase(String configurationResource) {
+    this.engineConfigurationResource = configurationResource;
   }
 
   @Override
   protected void closeDownProcessEngine() {
     super.closeDownProcessEngine();
-    ProcessEngines.unregister(processEngine);
+    processEngine.close();
     processEngine = null;
   }
 

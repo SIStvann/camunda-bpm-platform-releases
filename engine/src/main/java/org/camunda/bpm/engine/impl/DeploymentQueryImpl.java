@@ -21,6 +21,7 @@ import java.util.List;
 
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
+import org.camunda.bpm.engine.impl.util.CompareUtil;
 import org.camunda.bpm.engine.repository.Deployment;
 import org.camunda.bpm.engine.repository.DeploymentQuery;
 
@@ -36,14 +37,12 @@ public class DeploymentQueryImpl extends AbstractQuery<DeploymentQuery, Deployme
   protected String deploymentId;
   protected String name;
   protected String nameLike;
+  protected boolean sourceQueryParamEnabled;
+  protected String source;
   protected Date deploymentBefore;
   protected Date deploymentAfter;
 
   public DeploymentQueryImpl() {
-  }
-
-  public DeploymentQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public DeploymentQueryImpl(CommandExecutor commandExecutor) {
@@ -68,6 +67,12 @@ public class DeploymentQueryImpl extends AbstractQuery<DeploymentQuery, Deployme
     return this;
   }
 
+  public DeploymentQuery deploymentSource(String source) {
+    sourceQueryParamEnabled = true;
+    this.source = source;
+    return this;
+  }
+
   public DeploymentQuery deploymentBefore(Date before) {
     ensureNotNull("deploymentBefore", before);
     this.deploymentBefore = before;
@@ -78,6 +83,11 @@ public class DeploymentQueryImpl extends AbstractQuery<DeploymentQuery, Deployme
     ensureNotNull("deploymentAfter", after);
     this.deploymentAfter = after;
     return this;
+  }
+
+  @Override
+  protected boolean hasExcludingConditions() {
+    return super.hasExcludingConditions() || CompareUtil.areNotInAscendingOrder(deploymentAfter, deploymentBefore);
   }
 
   //sorting ////////////////////////////////////////////////////////
@@ -124,6 +134,14 @@ public class DeploymentQueryImpl extends AbstractQuery<DeploymentQuery, Deployme
 
   public String getNameLike() {
     return nameLike;
+  }
+
+  public boolean isSourceQueryParamEnabled() {
+    return sourceQueryParamEnabled;
+  }
+
+  public String getSource() {
+    return source;
   }
 
   public Date getDeploymentBefore() {

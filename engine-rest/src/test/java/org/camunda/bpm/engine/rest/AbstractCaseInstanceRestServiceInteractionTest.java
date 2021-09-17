@@ -13,11 +13,14 @@
 package org.camunda.bpm.engine.rest;
 
 import static com.jayway.restassured.RestAssured.given;
+import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_ID;
+import static org.hamcrest.CoreMatchers.either;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertThat;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.anyString;
@@ -43,7 +46,7 @@ import javax.ws.rs.core.Response.Status;
 import org.camunda.bpm.engine.CaseService;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.exception.NotValidException;
-import org.camunda.bpm.engine.impl.core.variable.type.ObjectTypeImpl;
+import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.rest.dto.runtime.VariableNameDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
@@ -62,15 +65,20 @@ import org.camunda.bpm.engine.runtime.CaseInstance;
 import org.camunda.bpm.engine.runtime.CaseInstanceQuery;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
+import org.camunda.bpm.engine.variable.type.SerializableValueType;
 import org.camunda.bpm.engine.variable.type.ValueType;
+import org.camunda.bpm.engine.variable.value.BooleanValue;
+import org.camunda.bpm.engine.variable.value.FileValue;
 import org.camunda.bpm.engine.variable.value.ObjectValue;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.codehaus.jackson.map.type.TypeFactory;
+import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Matchers;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.jayway.restassured.http.ContentType;
 import com.jayway.restassured.response.Response;
 
@@ -200,8 +208,8 @@ public abstract class AbstractCaseInstanceRestServiceInteractionTest extends Abs
       .body(EXAMPLE_VARIABLE_KEY + ".value.property1", equalTo("aPropertyValue"))
       .body(EXAMPLE_VARIABLE_KEY + ".value.property2", equalTo(true))
       .body(EXAMPLE_VARIABLE_KEY + ".type", equalTo(VariableTypeHelper.toExpectedValueTypeName(ValueType.OBJECT)))
-      .body(EXAMPLE_VARIABLE_KEY + ".valueInfo." + ObjectTypeImpl.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ExampleVariableObject.class.getName()))
-      .body(EXAMPLE_VARIABLE_KEY + ".valueInfo." + ObjectTypeImpl.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
+      .body(EXAMPLE_VARIABLE_KEY + ".valueInfo." + SerializableValueType.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ExampleVariableObject.class.getName()))
+      .body(EXAMPLE_VARIABLE_KEY + ".valueInfo." + SerializableValueType.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
       .when().get(CASE_INSTANCE_VARIABLES_URL);
 
     Assert.assertEquals("Should return exactly one variable", 1, response.jsonPath().getMap("").size());
@@ -231,8 +239,8 @@ public abstract class AbstractCaseInstanceRestServiceInteractionTest extends Abs
     .then().expect().statusCode(Status.OK.getStatusCode())
       .body(variableKey + ".value", equalTo("a serialized value"))
       .body(variableKey + ".type", equalTo("Object"))
-      .body(variableKey + ".valueInfo." + ObjectTypeImpl.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
-      .body(variableKey + ".valueInfo." + ObjectTypeImpl.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
+      .body(variableKey + ".valueInfo." + SerializableValueType.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
+      .body(variableKey + ".valueInfo." + SerializableValueType.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
       .when().get(CASE_INSTANCE_VARIABLES_URL);
 
     // then
@@ -518,8 +526,8 @@ public abstract class AbstractCaseInstanceRestServiceInteractionTest extends Abs
       .then().expect().statusCode(Status.OK.getStatusCode())
       .body("value", equalTo(payload))
       .body("type", equalTo("Object"))
-      .body("valueInfo." + ObjectTypeImpl.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
-      .body("valueInfo." + ObjectTypeImpl.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
+      .body("valueInfo." + SerializableValueType.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
+      .body("valueInfo." + SerializableValueType.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
       .when().get(SINGLE_CASE_INSTANCE_VARIABLE_URL);
 
     // then
@@ -548,8 +556,8 @@ public abstract class AbstractCaseInstanceRestServiceInteractionTest extends Abs
     .then().expect().statusCode(Status.OK.getStatusCode())
       .body("value", equalTo("a serialized value"))
       .body("type", equalTo("Object"))
-      .body("valueInfo." + ObjectTypeImpl.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
-      .body("valueInfo." + ObjectTypeImpl.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
+      .body("valueInfo." + SerializableValueType.VALUE_INFO_SERIALIZATION_DATA_FORMAT, equalTo("application/json"))
+      .body("valueInfo." + SerializableValueType.VALUE_INFO_OBJECT_TYPE_NAME, equalTo(ArrayList.class.getName()))
       .when().get(SINGLE_CASE_INSTANCE_VARIABLE_URL);
 
     // then
@@ -568,6 +576,130 @@ public abstract class AbstractCaseInstanceRestServiceInteractionTest extends Abs
       .body("type", is(RestException.class.getSimpleName()))
       .body("message", is("Cannot get case execution variable " + variableKey + ": expected exception"))
       .when().get(SINGLE_CASE_INSTANCE_VARIABLE_URL);
+  }
+
+  @Test
+  public void testGetFileVariable() {
+    String variableKey = "aVariableKey";
+    final byte[] byteContent = "some bytes".getBytes();
+    String filename = "test.txt";
+    String mimeType = "text/plain";
+    FileValue variableValue = Variables.fileValue(filename).file(byteContent).mimeType(mimeType).create();
+
+    when(caseServiceMock.getVariableTyped(MockProvider.EXAMPLE_CASE_INSTANCE_ID, variableKey, true))
+    .thenReturn(variableValue);
+
+    given().pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID).pathParam("varId", variableKey)
+      .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .contentType(ContentType.JSON.toString())
+      .and()
+        .body("valueInfo.mimeType", equalTo(mimeType))
+        .body("valueInfo.filename", equalTo(filename))
+        .body("value", nullValue())
+      .when().get(SINGLE_CASE_INSTANCE_VARIABLE_URL);
+  }
+
+  @Test
+  public void testGetNullFileVariable() {
+    String variableKey = "aVariableKey";
+    String filename = "test.txt";
+    String mimeType = "text/plain";
+    FileValue variableValue = Variables.fileValue(filename).mimeType(mimeType).create();
+
+    when(caseServiceMock.getVariableTyped(eq(MockProvider.EXAMPLE_CASE_INSTANCE_ID), eq(variableKey), anyBoolean()))
+    .thenReturn(variableValue);
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .contentType(ContentType.TEXT.toString())
+    .and()
+      .body(is(equalTo("")))
+    .when().get(SINGLE_CASE_INSTANCE_BINARY_VARIABLE_URL);
+  }
+
+  @Test
+  public void testGetFileVariableDownloadWithType() {
+    String variableKey = "aVariableKey";
+    final byte[] byteContent = "some bytes".getBytes();
+    String filename = "test.txt";
+    FileValue variableValue = Variables.fileValue(filename).file(byteContent).mimeType(ContentType.TEXT.toString()).create();
+
+    when(caseServiceMock.getVariableTyped(eq(MockProvider.EXAMPLE_CASE_INSTANCE_ID), eq(variableKey), anyBoolean()))
+    .thenReturn(variableValue);
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .contentType(ContentType.TEXT.toString())
+    .and()
+      .body(is(equalTo(new String(byteContent))))
+    .when().get(SINGLE_CASE_INSTANCE_BINARY_VARIABLE_URL);
+  }
+
+  @Test
+  public void testGetFileVariableDownloadWithTypeAndEncoding() {
+    String variableKey = "aVariableKey";
+    final byte[] byteContent = "some bytes".getBytes();
+    String filename = "test.txt";
+    String encoding = "UTF-8";
+    FileValue variableValue = Variables.fileValue(filename).file(byteContent).mimeType(ContentType.TEXT.toString()).encoding(encoding).create();
+
+    when(caseServiceMock.getVariableTyped(eq(MockProvider.EXAMPLE_CASE_INSTANCE_ID), eq(variableKey), anyBoolean()))
+    .thenReturn(variableValue);
+
+    Response response = given()
+      .pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .body(is(equalTo(new String(byteContent))))
+    .when().get(SINGLE_CASE_INSTANCE_BINARY_VARIABLE_URL);
+
+    String contentType = response.contentType().replaceAll(" ", "");
+    assertThat(contentType, is(ContentType.TEXT + ";charset=" + encoding));
+  }
+
+  @Test
+  public void testGetFileVariableDownloadWithoutType() {
+    String variableKey = "aVariableKey";
+    final byte[] byteContent = "some bytes".getBytes();
+    String filename = "test.txt";
+    FileValue variableValue = Variables.fileValue(filename).file(byteContent).create();
+
+    when(caseServiceMock.getVariableTyped(eq(MockProvider.EXAMPLE_CASE_INSTANCE_ID), eq(variableKey), anyBoolean()))
+    .thenReturn(variableValue);
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .contentType(MediaType.APPLICATION_OCTET_STREAM)
+    .and()
+      .body(is(equalTo(new String(byteContent))))
+      .header("Content-Disposition", containsString(filename))
+    .when().get(SINGLE_CASE_INSTANCE_BINARY_VARIABLE_URL);
+  }
+
+  @Test
+  public void testCannotDownloadVariableOtherThanFile() {
+    String variableKey = "aVariableKey";
+    BooleanValue variableValue = Variables.booleanValue(true);
+
+    when(caseServiceMock.getVariableLocalTyped(eq(EXAMPLE_TASK_ID), eq(variableKey), anyBoolean())).thenReturn(variableValue);
+
+    given()
+      .pathParam("id", EXAMPLE_TASK_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+    .when().get(SINGLE_CASE_INSTANCE_BINARY_VARIABLE_URL);
   }
 
   @Test
@@ -835,7 +967,28 @@ public abstract class AbstractCaseInstanceRestServiceInteractionTest extends Abs
 
     given()
       .pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID).pathParam("varId", variableKey)
-      .multiPart("data", "unspecified", bytes)
+      .multiPart("data", null, bytes)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .post(SINGLE_CASE_INSTANCE_BINARY_VARIABLE_URL);
+
+    verify(caseServiceMock).withCaseExecution(MockProvider.EXAMPLE_CASE_INSTANCE_ID);
+    verify(caseExecutionCommandBuilderMock).setVariable(eq(variableKey),
+        argThat(EqualsPrimitiveValue.bytesValue(bytes)));
+    verify(caseExecutionCommandBuilderMock).execute();
+  }
+
+  @Test
+  public void testPutSingleBinaryVariableWithValueType() throws Exception {
+    byte[] bytes = "someContent".getBytes();
+
+    String variableKey = "aVariableKey";
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID).pathParam("varId", variableKey)
+      .multiPart("data", null, bytes)
+      .multiPart("valueType", "Bytes", "text/plain")
     .expect()
       .statusCode(Status.NO_CONTENT.getStatusCode())
     .when()
@@ -855,7 +1008,7 @@ public abstract class AbstractCaseInstanceRestServiceInteractionTest extends Abs
 
     given()
       .pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID).pathParam("varId", variableKey)
-      .multiPart("data", "unspecified", bytes)
+      .multiPart("data", null, bytes)
     .expect()
       .statusCode(Status.NO_CONTENT.getStatusCode())
     .when()
@@ -875,7 +1028,7 @@ public abstract class AbstractCaseInstanceRestServiceInteractionTest extends Abs
 
     ObjectMapper mapper = new ObjectMapper();
     String jsonBytes = mapper.writeValueAsString(serializable);
-    String typeName = TypeFactory.type(serializable.getClass()).toCanonical();
+    String typeName = TypeFactory.defaultInstance().constructType(serializable.getClass()).toCanonical();
 
     String variableKey = "aVariableKey";
 
@@ -902,7 +1055,7 @@ public abstract class AbstractCaseInstanceRestServiceInteractionTest extends Abs
 
     ObjectMapper mapper = new ObjectMapper();
     String jsonBytes = mapper.writeValueAsString(serializable);
-    String typeName = TypeFactory.type(serializable.getClass()).toCanonical();
+    String typeName = TypeFactory.defaultInstance().constructType(serializable.getClass()).toCanonical();
 
     String variableKey = "aVariableKey";
 
@@ -947,6 +1100,107 @@ public abstract class AbstractCaseInstanceRestServiceInteractionTest extends Abs
       .body("type", is(RestException.class.getSimpleName()))
       .body("message", is("Cannot put case execution variable " + variableKey + ": expected exception"))
       .when().put(SINGLE_CASE_INSTANCE_VARIABLE_URL);
+  }
+
+  @Test
+  public void testPostSingleFileVariableWithEncodingAndMimeType() throws Exception {
+    byte[] value = "some text".getBytes();
+    String variableKey = "aVariableKey";
+    String encoding = "utf-8";
+    String filename = "test.txt";
+    String mimetype = MediaType.TEXT_PLAIN;
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID).pathParam("varId", variableKey)
+      .multiPart("data", filename, value, mimetype + "; encoding="+encoding)
+      .multiPart("valueType", "File", "text/plain")
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .post(SINGLE_CASE_INSTANCE_BINARY_VARIABLE_URL);
+
+    ArgumentCaptor<FileValue> captor = ArgumentCaptor.forClass(FileValue.class);
+    verify(caseServiceMock).withCaseExecution(MockProvider.EXAMPLE_CASE_INSTANCE_ID);
+    verify(caseExecutionCommandBuilderMock).setVariable(eq(variableKey), captor.capture());
+    FileValue captured = captor.getValue();
+    assertThat(captured.getEncoding(), is(encoding));
+    assertThat(captured.getFilename(), is(filename));
+    assertThat(captured.getMimeType(), is(mimetype));
+    assertThat(IoUtil.readInputStream(captured.getValue(), null), is(value));
+  }
+
+  @Test
+  public void testPostSingleFileVariableWithMimeType() throws Exception {
+
+    byte[] value = "some text".getBytes();
+    String variableKey = "aVariableKey";
+    String filename = "test.txt";
+    String mimetype = MediaType.TEXT_PLAIN;
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID).pathParam("varId", variableKey)
+      .multiPart("data", filename, value, mimetype)
+      .multiPart("valueType", "File", "text/plain")
+      .header("accept", MediaType.APPLICATION_JSON)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .post(SINGLE_CASE_INSTANCE_BINARY_VARIABLE_URL);
+
+    ArgumentCaptor<FileValue> captor = ArgumentCaptor.forClass(FileValue.class);
+    verify(caseServiceMock).withCaseExecution(MockProvider.EXAMPLE_CASE_INSTANCE_ID);
+    verify(caseExecutionCommandBuilderMock).setVariable(eq(variableKey), captor.capture());
+    FileValue captured = captor.getValue();
+    assertThat(captured.getEncoding(), is(nullValue()));
+    assertThat(captured.getFilename(), is(filename));
+    assertThat(captured.getMimeType(), is(mimetype));
+    assertThat(IoUtil.readInputStream(captured.getValue(), null), is(value));
+  }
+
+  @Test
+  public void testPostSingleFileVariableWithEncoding() throws Exception {
+
+    byte[] value = "some text".getBytes();
+    String variableKey = "aVariableKey";
+    String encoding = "utf-8";
+    String filename = "test.txt";
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID).pathParam("varId", variableKey)
+      .multiPart("data", filename, value, "encoding="+encoding)
+      .multiPart("valueType", "File", "text/plain")
+      .header("accept", MediaType.APPLICATION_JSON)
+    .expect()
+    //when the user passes an encoding, he has to provide the type, too
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+    .when()
+      .post(SINGLE_CASE_INSTANCE_BINARY_VARIABLE_URL);
+  }
+
+  @Test
+  public void testPostSingleFileVariableOnlyFilename() throws Exception {
+
+    String variableKey = "aVariableKey";
+    String filename = "test.txt";
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_CASE_INSTANCE_ID).pathParam("varId", variableKey)
+      .multiPart("data", filename, new byte[0])
+      .multiPart("valueType", "File", "text/plain")
+      .header("accept", MediaType.APPLICATION_JSON)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .post(SINGLE_CASE_INSTANCE_BINARY_VARIABLE_URL);
+
+    ArgumentCaptor<FileValue> captor = ArgumentCaptor.forClass(FileValue.class);
+    verify(caseServiceMock).withCaseExecution(MockProvider.EXAMPLE_CASE_INSTANCE_ID);
+    verify(caseExecutionCommandBuilderMock).setVariable(eq(variableKey), captor.capture());
+    FileValue captured = captor.getValue();
+    assertThat(captured.getEncoding(), is(nullValue()));
+    assertThat(captured.getFilename(), is(filename));
+    assertThat(captured.getMimeType(), is(MediaType.APPLICATION_OCTET_STREAM));
+    assertThat(captured.getValue().available(), is(0));
   }
 
   @Test

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8" ?> 
+<?xml version="1.0" encoding="UTF-8" ?>
 
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd"> 
 
@@ -156,6 +156,9 @@
       <if test="caseDefinitionKey != null">
         and P.KEY_ = #{caseDefinitionKey}
       </if>
+      <if test="deploymentId != null">
+        and P.DEPLOYMENT_ID_ = #{deploymentId}
+      </if>
       <if test="activityId != null">
         and RES.ACT_ID_ = #{activityId}
       </if>
@@ -174,7 +177,7 @@
       <if test="required">
         and RES.REQUIRED_ = ${trueConstant}
       </if>
-
+      
       <if test="superProcessInstanceId != null">
         and RES.SUPER_EXEC_ IN (select ID_ from ${prefix}ACT_RU_EXECUTION where PROC_INST_ID_ = #{superProcessInstanceId})
       </if>

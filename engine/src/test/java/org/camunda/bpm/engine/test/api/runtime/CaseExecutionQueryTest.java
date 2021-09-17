@@ -2535,4 +2535,5 @@ public class CaseExecutionQueryTest extends PluggableProcessEngineTestCase {
     assertNotNull(execution);
     assertTrue(execution.isRequired());
   }
+
 }

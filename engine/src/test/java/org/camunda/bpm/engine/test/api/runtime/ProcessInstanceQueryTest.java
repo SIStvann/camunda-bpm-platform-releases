@@ -27,7 +27,6 @@ import java.util.Set;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.exception.NullValueException;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
-import org.camunda.bpm.engine.impl.test.TestHelper;
 import org.camunda.bpm.engine.runtime.Execution;
 import org.camunda.bpm.engine.runtime.Incident;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
@@ -1115,9 +1114,6 @@ public class ProcessInstanceQueryTest extends PluggableProcessEngineTestCase {
     repositoryService.suspendProcessDefinitionByKey("oneTaskProcess", true, null);
 
     assertEquals(1, processInstanceQuery.active().count());
-
-    // db cleanup
-    TestHelper.clearOpLog(processEngineConfiguration);
   }
 
   public void testQueryBySuspeded() throws Exception {
@@ -1132,10 +1128,7 @@ public class ProcessInstanceQueryTest extends PluggableProcessEngineTestCase {
     repositoryService.suspendProcessDefinitionByKey("oneTaskProcess", true, null);
 
     assertEquals(4, processInstanceQuery.suspended().count());
-
-    // db cleanup
-    TestHelper.clearOpLog(processEngineConfiguration);
-}
+  }
 
   public void testNativeQuery() {
     // just test that the query will be constructed and executed, details are tested in the TaskQueryTest
@@ -1644,8 +1637,51 @@ public class ProcessInstanceQueryTest extends PluggableProcessEngineTestCase {
     instances = runtimeService.createProcessInstanceQuery()
         .variableValueNotEquals("var", "a String Value").list();
     verifyResultContainsExactly(instances, asSet(processInstance1.getId(), processInstance2.getId(), processInstance4.getId()));
+  }
 
+  public void testQueryByDeploymentId() {
+    // given
+    String firstDeploymentId = repositoryService
+        .createDeploymentQuery()
+        .singleResult()
+        .getId();
 
+    // make a second deployment and start an instance
+    org.camunda.bpm.engine.repository.Deployment secondDeployment = repositoryService.createDeployment()
+      .addClasspathResource("org/camunda/bpm/engine/test/api/runtime/oneTaskProcess.bpmn20.xml")
+      .deploy();
+
+    ProcessInstance secondProcessInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
+
+    // when
+    ProcessInstanceQuery query = runtimeService
+        .createProcessInstanceQuery()
+        .deploymentId(firstDeploymentId);
+
+    // then the instance belonging to the second deployment is not returned
+    assertEquals(5, query.count());
+
+    List<ProcessInstance> instances = query.list();
+    assertEquals(5, instances.size());
+
+    for (ProcessInstance returnedInstance : instances) {
+      assertTrue(!returnedInstance.getId().equals(secondProcessInstance.getId()));
+    }
+
+    // cleanup
+    repositoryService.deleteDeployment(secondDeployment.getId(), true);
+
+  }
+
+  public void testQueryByInvalidDeploymentId() {
+    assertEquals(0, runtimeService.createProcessInstanceQuery().deploymentId("invalid").count());
+
+    try {
+      runtimeService.createProcessInstanceQuery().deploymentId(null).count();
+      fail();
+    } catch(ProcessEngineException e) {
+      // expected
+    }
   }
 
   protected <T> Set<T> asSet(T... elements) {

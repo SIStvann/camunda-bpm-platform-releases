@@ -126,13 +126,27 @@ public abstract class ProcessEngineConfiguration {
    */
   public static final String HISTORY_FULL = "full";
 
+  /**
+   * Value for {@link #setHistory(String)}. Choosing auto causes the configuration to choose the level
+   * already present on the database. If none can be found, "audit" is taken.
+   */
+  public static final String HISTORY_AUTO = "auto";
+
+  /**
+   * The default history level that is used when no history level is configured
+   */
+  public static final String HISTORY_DEFAULT = HISTORY_AUDIT;
+
   protected String processEngineName = ProcessEngines.NAME_DEFAULT;
   protected int idBlockSize = 100;
-  protected String history = HISTORY_AUDIT;
+  protected String history = HISTORY_DEFAULT;
   protected boolean jobExecutorActivate;
   protected boolean jobExecutorDeploymentAware = false;
   protected boolean jobExecutorPreferTimerJobs = false;
   protected boolean jobExecutorAcquireByDueDate = false;
+  protected boolean jobExecutorAcquireByPriority = false;
+
+  protected boolean producePrioritizedJobs = true;
 
   /**
    * The flag will be used inside the method "JobManager#send()". It will be used to decide whether to notify the
@@ -146,7 +160,7 @@ public abstract class ProcessEngineConfiguration {
   protected String mailServerPassword; // means no authentication for mail server
   protected int mailServerPort = 25;
   protected boolean useTLS = false;
-  protected String mailServerDefaultFrom = "activiti@localhost";
+  protected String mailServerDefaultFrom = "camunda@localhost";
 
   protected String databaseType;
   protected String databaseSchemaUpdate = DB_SCHEMA_UPDATE_FALSE;
@@ -164,6 +178,8 @@ public abstract class ProcessEngineConfiguration {
   protected int jdbcPingConnectionNotUsedFor;
   protected DataSource dataSource;
   protected boolean transactionsExternallyManaged = false;
+  /** the number of seconds the jdbc driver will wait for a response from the database */
+  protected Integer jdbcStatementTimeout;
 
   protected String jpaPersistenceUnitName;
   protected Object jpaEntityManagerFactory;
@@ -461,6 +477,17 @@ public abstract class ProcessEngineConfiguration {
     return this;
   }
 
+  /** Gets the number of seconds the jdbc driver will wait for a response from the database. */
+  public Integer getJdbcStatementTimeout() {
+    return jdbcStatementTimeout;
+  }
+
+  /** Sets the number of seconds the jdbc driver will wait for a response from the database. */
+  public ProcessEngineConfiguration setJdbcStatementTimeout(Integer jdbcStatementTimeout) {
+    this.jdbcStatementTimeout = jdbcStatementTimeout;
+    return this;
+  }
+
   public boolean isJobExecutorActivate() {
     return jobExecutorActivate;
   }
@@ -601,4 +628,21 @@ public abstract class ProcessEngineConfiguration {
     this.valueTypeResolver = valueTypeResolver;
     return this;
   }
+
+  public boolean isProducePrioritizedJobs() {
+    return producePrioritizedJobs;
+  }
+
+  public void setProducePrioritizedJobs(boolean producePrioritizedJobs) {
+    this.producePrioritizedJobs = producePrioritizedJobs;
+  }
+
+  public boolean isJobExecutorAcquireByPriority() {
+    return jobExecutorAcquireByPriority;
+  }
+
+  public void setJobExecutorAcquireByPriority(boolean jobExecutorAcquireByPriority) {
+    this.jobExecutorAcquireByPriority = jobExecutorAcquireByPriority;
+  }
+
 }

@@ -27,9 +27,15 @@ public class WrongDbException extends ProcessEngineException {
 
   String libraryVersion;
   String dbVersion;
-  
+
   public WrongDbException(String libraryVersion, String dbVersion) {
-    super("version mismatch: activiti library version is '"+libraryVersion+"', db version is "+dbVersion +" Hint: Set <property name=\"databaseSchemaUpdate\" to value=\"true\" or value=\"create-drop\" (use create-drop for testing only!) in bean processEngineConfiguration in camunda.cfg.xml for automatic schema creation");
+    this("version mismatch: activiti library version is '" + libraryVersion + "', db version is " +
+        dbVersion +" Hint: Set <property name=\"databaseSchemaUpdate\" to value=\"true\" or value=\"create-drop\" (use create-drop for testing only!) in bean processEngineConfiguration in camunda.cfg.xml for automatic schema creation",
+        libraryVersion, dbVersion);
+  }
+
+  public WrongDbException(String exceptionMessage, String libraryVersion, String dbVersion) {
+    super(exceptionMessage);
     this.libraryVersion = libraryVersion;
     this.dbVersion = dbVersion;
   }

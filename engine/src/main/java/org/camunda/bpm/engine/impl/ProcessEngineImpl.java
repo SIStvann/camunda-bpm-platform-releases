@@ -13,10 +13,11 @@
 package org.camunda.bpm.engine.impl;
 
 import java.util.Map;
-import java.util.logging.Logger;
 
 import org.camunda.bpm.engine.AuthorizationService;
 import org.camunda.bpm.engine.CaseService;
+import org.camunda.bpm.engine.DecisionService;
+import org.camunda.bpm.engine.ExternalTaskService;
 import org.camunda.bpm.engine.FilterService;
 import org.camunda.bpm.engine.FormService;
 import org.camunda.bpm.engine.HistoryService;
@@ -34,15 +35,17 @@ import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.interceptor.SessionFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
+import org.camunda.bpm.engine.impl.metrics.reporter.DbMetricsReporter;
 
 /**
  * @author Tom Baeyens
  */
 public class ProcessEngineImpl implements ProcessEngine {
 
-  private static Logger log = Logger.getLogger(ProcessEngineImpl.class.getName());
+  private final static ProcessEngineLogger LOG = ProcessEngineLogger.INSTANCE;
 
   protected String name;
+
   protected RepositoryService repositoryService;
   protected RuntimeService runtimeService;
   protected HistoryService historicDataService;
@@ -53,6 +56,9 @@ public class ProcessEngineImpl implements ProcessEngine {
   protected AuthorizationService authorizationService;
   protected CaseService caseService;
   protected FilterService filterService;
+  protected ExternalTaskService externalTaskService;
+  protected DecisionService decisionService;
+
   protected String databaseSchemaUpdate;
   protected JobExecutor jobExecutor;
   protected CommandExecutor commandExecutor;
@@ -63,11 +69,11 @@ public class ProcessEngineImpl implements ProcessEngine {
   protected TransactionContextFactory transactionContextFactory;
   protected ProcessEngineConfigurationImpl processEngineConfiguration;
 
-
-
   public ProcessEngineImpl(ProcessEngineConfigurationImpl processEngineConfiguration) {
+
     this.processEngineConfiguration = processEngineConfiguration;
     this.name = processEngineConfiguration.getProcessEngineName();
+
     this.repositoryService = processEngineConfiguration.getRepositoryService();
     this.runtimeService = processEngineConfiguration.getRuntimeService();
     this.historicDataService = processEngineConfiguration.getHistoryService();
@@ -78,6 +84,9 @@ public class ProcessEngineImpl implements ProcessEngine {
     this.authorizationService = processEngineConfiguration.getAuthorizationService();
     this.caseService = processEngineConfiguration.getCaseService();
     this.filterService = processEngineConfiguration.getFilterService();
+    this.externalTaskService = processEngineConfiguration.getExternalTaskService();
+    this.decisionService = processEngineConfiguration.getDecisionService();
+
     this.databaseSchemaUpdate = processEngineConfiguration.getDatabaseSchemaUpdate();
     this.jobExecutor = processEngineConfiguration.getJobExecutor();
     this.commandExecutor = processEngineConfiguration.getCommandExecutorTxRequired();
@@ -89,9 +98,9 @@ public class ProcessEngineImpl implements ProcessEngine {
     executeSchemaOperations();
 
     if (name == null) {
-      log.info("default activiti ProcessEngine created");
+      LOG.processEngineCreated("default");
     } else {
-      log.info("ProcessEngine " + name + " created");
+      LOG.processEngineCreated(name);
     }
 
     ProcessEngines.registerProcessEngine(this);
@@ -101,10 +110,16 @@ public class ProcessEngineImpl implements ProcessEngine {
       jobExecutor.registerProcessEngine(this);
     }
 
-    if(processEngineConfiguration.isMetricsEnabled()
-        && processEngineConfiguration.isDbMetricsReporterActivate()) {
-      processEngineConfiguration.getDbMetricsReporter().start();
+    if (processEngineConfiguration.isMetricsEnabled()) {
+      String reporterId = processEngineConfiguration.getMetricsReporterIdProvider().provideId(this);
+      DbMetricsReporter dbMetricsReporter = processEngineConfiguration.getDbMetricsReporter();
+      dbMetricsReporter.setReporterId(reporterId);
+
+      if(processEngineConfiguration.isDbMetricsReporterActivate()) {
+        dbMetricsReporter.start();
+      }
     }
+
   }
 
   protected void executeSchemaOperations() {
@@ -173,6 +188,14 @@ public class ProcessEngineImpl implements ProcessEngine {
 
   public FilterService getFilterService() {
     return filterService;
+  }
+
+  public ExternalTaskService getExternalTaskService() {
+    return externalTaskService;
+  }
+
+  public DecisionService getDecisionService() {
+    return decisionService;
   }
 
   public ProcessEngineConfigurationImpl getProcessEngineConfiguration() {

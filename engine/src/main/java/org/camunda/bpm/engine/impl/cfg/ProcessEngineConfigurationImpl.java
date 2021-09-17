@@ -31,9 +31,6 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import javax.naming.InitialContext;
 import javax.sql.DataSource;
 
@@ -46,9 +43,13 @@ import org.apache.ibatis.session.defaults.DefaultSqlSessionFactory;
 import org.apache.ibatis.transaction.TransactionFactory;
 import org.apache.ibatis.transaction.jdbc.JdbcTransactionFactory;
 import org.apache.ibatis.transaction.managed.ManagedTransactionFactory;
+import org.camunda.bpm.dmn.engine.DmnEngine;
+import org.camunda.bpm.dmn.engine.DmnEngineConfiguration;
 import org.camunda.bpm.engine.ArtifactFactory;
 import org.camunda.bpm.engine.AuthorizationService;
 import org.camunda.bpm.engine.CaseService;
+import org.camunda.bpm.engine.DecisionService;
+import org.camunda.bpm.engine.ExternalTaskService;
 import org.camunda.bpm.engine.FilterService;
 import org.camunda.bpm.engine.FormService;
 import org.camunda.bpm.engine.HistoryService;
@@ -61,7 +62,9 @@ import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
 import org.camunda.bpm.engine.impl.AuthorizationServiceImpl;
+import org.camunda.bpm.engine.impl.DecisionServiceImpl;
 import org.camunda.bpm.engine.impl.DefaultArtifactFactory;
+import org.camunda.bpm.engine.impl.ExternalTaskServiceImpl;
 import org.camunda.bpm.engine.impl.FilterServiceImpl;
 import org.camunda.bpm.engine.impl.FormServiceImpl;
 import org.camunda.bpm.engine.impl.HistoryServiceImpl;
@@ -102,6 +105,9 @@ import org.camunda.bpm.engine.impl.db.sql.DbSqlSessionFactory;
 import org.camunda.bpm.engine.impl.delegate.DefaultDelegateInterceptor;
 import org.camunda.bpm.engine.impl.digest.PasswordEncryptor;
 import org.camunda.bpm.engine.impl.digest.ShaHashDigest;
+import org.camunda.bpm.engine.impl.dmn.configuration.ProcessEngineDmnEngineConfiguration;
+import org.camunda.bpm.engine.impl.dmn.deployer.DmnDeployer;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionManager;
 import org.camunda.bpm.engine.impl.el.CommandContextFunctionMapper;
 import org.camunda.bpm.engine.impl.el.DateTimeFunctionMapper;
 import org.camunda.bpm.engine.impl.el.ExpressionManager;
@@ -127,18 +133,22 @@ import org.camunda.bpm.engine.impl.form.validator.MinValidator;
 import org.camunda.bpm.engine.impl.form.validator.ReadOnlyValidator;
 import org.camunda.bpm.engine.impl.form.validator.RequiredValidator;
 import org.camunda.bpm.engine.impl.history.HistoryLevel;
+import org.camunda.bpm.engine.impl.history.event.HistoricDecisionInstanceManager;
 import org.camunda.bpm.engine.impl.history.handler.DbHistoryEventHandler;
 import org.camunda.bpm.engine.impl.history.handler.HistoryEventHandler;
+import org.camunda.bpm.engine.impl.history.parser.HistoryDecisionTableListener;
 import org.camunda.bpm.engine.impl.history.parser.HistoryParseListener;
 import org.camunda.bpm.engine.impl.history.producer.CacheAwareCmmnHistoryEventProducer;
 import org.camunda.bpm.engine.impl.history.producer.CacheAwareHistoryEventProducer;
 import org.camunda.bpm.engine.impl.history.producer.CmmnHistoryEventProducer;
+import org.camunda.bpm.engine.impl.history.producer.DefaultDmnHistoryEventProducer;
+import org.camunda.bpm.engine.impl.history.producer.DmnHistoryEventProducer;
 import org.camunda.bpm.engine.impl.history.producer.HistoryEventProducer;
 import org.camunda.bpm.engine.impl.history.transformer.CmmnHistoryTransformListener;
 import org.camunda.bpm.engine.impl.identity.ReadOnlyIdentityProvider;
 import org.camunda.bpm.engine.impl.identity.WritableIdentityProvider;
 import org.camunda.bpm.engine.impl.identity.db.DbIdentityServiceProvider;
-import org.camunda.bpm.engine.impl.incident.FailedJobIncidentHandler;
+import org.camunda.bpm.engine.impl.incident.DefaultIncidentHandler;
 import org.camunda.bpm.engine.impl.incident.IncidentHandler;
 import org.camunda.bpm.engine.impl.interceptor.CommandContextFactory;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
@@ -147,12 +157,14 @@ import org.camunda.bpm.engine.impl.interceptor.CommandInterceptor;
 import org.camunda.bpm.engine.impl.interceptor.DelegateInterceptor;
 import org.camunda.bpm.engine.impl.interceptor.SessionFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.AsyncContinuationJobHandler;
-import org.camunda.bpm.engine.impl.jobexecutor.CallerRunsRejectedJobsHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.DefaultFailedJobCommandFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.DefaultJobExecutor;
+import org.camunda.bpm.engine.impl.jobexecutor.DefaultJobPriorityProvider;
 import org.camunda.bpm.engine.impl.jobexecutor.FailedJobCommandFactory;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
 import org.camunda.bpm.engine.impl.jobexecutor.JobHandler;
+import org.camunda.bpm.engine.impl.jobexecutor.JobPriorityProvider;
+import org.camunda.bpm.engine.impl.jobexecutor.NotifyAcquisitionRejectedJobsHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.ProcessEventJobHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.RejectedJobsHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerActivateJobDefinitionHandler;
@@ -164,6 +176,8 @@ import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventSubprocessJobHandl
 import org.camunda.bpm.engine.impl.jobexecutor.TimerSuspendJobDefinitionHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerSuspendProcessDefinitionHandler;
 import org.camunda.bpm.engine.impl.metrics.MetricsRegistry;
+import org.camunda.bpm.engine.impl.metrics.MetricsReporterIdProvider;
+import org.camunda.bpm.engine.impl.metrics.SimpleIpBasedProvider;
 import org.camunda.bpm.engine.impl.metrics.parser.MetricsBpmnParseListener;
 import org.camunda.bpm.engine.impl.metrics.parser.MetricsCmmnTransformListener;
 import org.camunda.bpm.engine.impl.metrics.reporter.DbMetricsReporter;
@@ -177,6 +191,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.CommentManager;
 import org.camunda.bpm.engine.impl.persistence.entity.DeploymentManager;
 import org.camunda.bpm.engine.impl.persistence.entity.EventSubscriptionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionManager;
+import org.camunda.bpm.engine.impl.persistence.entity.ExternalTaskManager;
 import org.camunda.bpm.engine.impl.persistence.entity.FilterManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricActivityInstanceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricCaseActivityInstanceManager;
@@ -220,6 +235,7 @@ import org.camunda.bpm.engine.impl.variable.serializer.ByteArrayValueSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.DateValueSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.DefaultVariableSerializers;
 import org.camunda.bpm.engine.impl.variable.serializer.DoubleValueSerializer;
+import org.camunda.bpm.engine.impl.variable.serializer.FileValueSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.IntegerValueSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.JavaObjectSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.LongValueSerlializer;
@@ -233,6 +249,7 @@ import org.camunda.bpm.engine.impl.variable.serializer.jpa.EntityManagerSessionF
 import org.camunda.bpm.engine.impl.variable.serializer.jpa.JPAVariableSerializer;
 import org.camunda.bpm.engine.management.Metrics;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
+import org.camunda.bpm.engine.runtime.Incident;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.type.ValueType;
 
@@ -242,7 +259,7 @@ import org.camunda.bpm.engine.variable.type.ValueType;
  */
 public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfiguration {
 
-  private static Logger log = Logger.getLogger(ProcessEngineConfigurationImpl.class.getName());
+  private final static ConfigurationLogger LOG = ConfigurationLogger.CONFIG_LOGGER;
 
   public static final String DB_SCHEMA_UPDATE_CREATE = "create";
   public static final String DB_SCHEMA_UPDATE_DROP_CREATE = "drop-create";
@@ -268,6 +285,8 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected AuthorizationService authorizationService = new AuthorizationServiceImpl();
   protected CaseService caseService = new CaseServiceImpl();
   protected FilterService filterService = new FilterServiceImpl();
+  protected ExternalTaskService externalTaskService = new ExternalTaskServiceImpl();
+  protected DecisionService decisionService = new DecisionServiceImpl();
 
   // COMMAND EXECUTORS ////////////////////////////////////////////////////////
 
@@ -312,6 +331,8 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected Map<String, JobHandler> jobHandlers;
   protected JobExecutor jobExecutor;
 
+  protected JobPriorityProvider jobPriorityProvider;
+
   // MYBATIS SQL SESSION FACTORY //////////////////////////////////////////////
 
   protected SqlSessionFactory sqlSessionFactory;
@@ -346,7 +367,6 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected Charset defaultCharset = null;
 
   protected ExpressionManager expressionManager;
-  protected List<String> customScriptingEngineClasses;
   protected ScriptingEngines scriptingEngines;
   protected List<ResolverFactory> resolverFactories;
   protected ScriptingEnvironment scriptingEnvironment;
@@ -354,7 +374,13 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected ScriptFactory scriptFactory;
   protected boolean autoStoreScriptVariables = false;
   protected boolean enableScriptCompilation = true;
+  protected boolean enableScriptEngineCaching = true;
+  protected boolean enableFetchScriptEngineFromProcessApplication = true;
+
   protected boolean cmmnEnabled = true;
+  protected boolean dmnEnabled = true;
+
+  protected boolean enableGracefulDegradationOnContextSwitchFailure = true;
 
   protected BusinessCalendarManager businessCalendarManager;
 
@@ -367,6 +393,10 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   // cmmn
   protected CmmnTransformFactory cmmnTransformFactory;
   protected DefaultCmmnElementHandlerRegistry cmmnElementHandlerRegistry;
+
+  // dmn
+  protected DmnEngineConfiguration dmnEngineConfiguration;
+  protected DmnEngine dmnEngine;
 
   protected HistoryLevel historyLevel;
 
@@ -428,6 +458,8 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   protected CmmnHistoryEventProducer cmmnHistoryEventProducer;
 
+  protected DmnHistoryEventProducer dmnHistoryEventProducer;
+
   protected HistoryEventHandler historyEventHandler;
 
   protected boolean isExecutionTreePrefetchEnabled = true;
@@ -462,8 +494,26 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected boolean isMetricsEnabled = true;
   protected boolean isDbMetricsReporterActivate = true;
 
+  protected MetricsReporterIdProvider metricsReporterIdProvider;
+
+  /** handling of expressions submitted via API; can be used as guards against remote code execution */
+  protected boolean enableExpressionsInAdhocQueries = false;
+  protected boolean enableExpressionsInStoredQueries = true;
+
+  /**
+   * If true, user operation log entries are only written if there is an
+   * authenticated user present in the context. If false, user operation log
+   * entries are written regardless of authentication state.
+   */
+  protected boolean restrictUserOperationLogToAuthenticatedUsers = true;
+
+  protected boolean isBpmnStacktraceVerbose = false;
+
+  protected boolean forceCloseMybatisConnectionPool = true;
+
   // buildProcessEngine ///////////////////////////////////////////////////////
 
+  @Override
   public ProcessEngine buildProcessEngine() {
     init();
     processEngine = new ProcessEngineImpl(this);
@@ -479,6 +529,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     initHistoryLevel();
     initHistoryEventProducer();
     initCmmnHistoryEventProducer();
+    initDmnHistoryEventProducer();
     initHistoryEventHandler();
     initExpressionManager();
     initBeans();
@@ -487,6 +538,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     initFormTypes();
     initFormFieldValidators();
     initScripting();
+    initDmnEngine();
     initBusinessCalendarManager();
     initCommandContextFactory();
     initTransactionContextFactory();
@@ -494,6 +546,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     initServices();
     initIdGenerator();
     initDeployers();
+    initJobProvider();
     initJobExecutor();
     initDataSource();
     initTransactionFactory();
@@ -519,11 +572,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   protected void invokePreInit() {
     for (ProcessEnginePlugin plugin : processEnginePlugins) {
-
-      log.log(Level.INFO, "PLUGIN {0} activated on process engine {1}",
-          new String[]{plugin.getClass().getSimpleName(),
-          getProcessEngineName()});
-
+      LOG.pluginActivated(plugin.getClass().getSimpleName(), getProcessEngineName());
       plugin.preInit(this);
     }
   }
@@ -555,8 +604,11 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     if (incidentHandlers == null) {
       incidentHandlers = new HashMap<String, IncidentHandler>();
 
-      FailedJobIncidentHandler failedJobIncidentHandler = new FailedJobIncidentHandler();
+      DefaultIncidentHandler failedJobIncidentHandler = new DefaultIncidentHandler(Incident.FAILED_JOB_HANDLER_TYPE);
       incidentHandlers.put(failedJobIncidentHandler.getIncidentHandlerType(), failedJobIncidentHandler);
+
+      DefaultIncidentHandler failedExternalTaskIncidentHandler = new DefaultIncidentHandler(Incident.EXTERNAL_TASK_HANDLER_TYPE);
+      incidentHandlers.put(failedExternalTaskIncidentHandler.getIncidentHandlerType(), failedExternalTaskIncidentHandler);
     }
     if(customIncidentHandlers != null) {
       for (IncidentHandler incidentHandler : customIncidentHandlers) {
@@ -657,6 +709,8 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     initService(authorizationService);
     initService(caseService);
     initService(filterService);
+    initService(externalTaskService);
+    initService(decisionService);
   }
 
   protected void initService(Object service) {
@@ -680,8 +734,6 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         if ( (jdbcDriver==null) || (jdbcUrl==null) || (jdbcUsername==null) ) {
           throw new ProcessEngineException("DataSource or JDBC properties have to be specified in a process engine configuration");
         }
-
-        log.fine("initializing datasource to db: "+jdbcUrl);
 
         PooledDataSource pooledDataSource =
           new PooledDataSource(ReflectUtil.getClassLoader(), jdbcDriver, jdbcUrl, jdbcUsername, jdbcPassword );
@@ -756,10 +808,10 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
       connection = dataSource.getConnection();
       DatabaseMetaData databaseMetaData = connection.getMetaData();
       String databaseProductName = databaseMetaData.getDatabaseProductName();
-      log.fine("database product name: '" + databaseProductName + "'");
+      LOG.debugDatabaseproductName(databaseProductName);
       databaseType = databaseTypeMappings.getProperty(databaseProductName);
       ensureNotNull("couldn't deduct database type from database product name '" + databaseProductName + "'", "databaseType", databaseType);
-      log.fine("using database type: " + databaseType);
+      LOG.debugDatabaseType(databaseType);
 
     } catch (SQLException e) {
       e.printStackTrace();
@@ -814,6 +866,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
           properties.put("falseConstant", DbSqlSessionFactory.databaseSpecificFalseConstant.get(databaseType));
 
           properties.put("dbSpecificDummyTable" , DbSqlSessionFactory.databaseSpecificDummyTable.get(databaseType));
+          properties.put("dbSpecificIfNullFunction", DbSqlSessionFactory.databaseSpecificIfNull.get(databaseType));
 
           Map<String, String> constants = DbSqlSessionFactory.dbSpecificConstants.get(databaseType);
           for (Entry<String, String> entry : constants.entrySet()) {
@@ -825,6 +878,8 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
         Configuration configuration = parser.getConfiguration();
         configuration.setEnvironment(environment);
         configuration = parser.parse();
+
+        configuration.setDefaultStatementTimeout(jdbcStatementTimeout);
 
         sqlSessionFactory = new DefaultSqlSessionFactory(configuration);
 
@@ -888,10 +943,14 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
       addSessionFactory(new GenericManagerFactory(AuthorizationManager.class));
       addSessionFactory(new GenericManagerFactory(FilterManager.class));
       addSessionFactory(new GenericManagerFactory(MeterLogManager.class));
+      addSessionFactory(new GenericManagerFactory(ExternalTaskManager.class));
 
       addSessionFactory(new GenericManagerFactory(CaseDefinitionManager.class));
       addSessionFactory(new GenericManagerFactory(CaseExecutionManager.class));
       addSessionFactory(new GenericManagerFactory(CaseSentryPartManager.class));
+
+      addSessionFactory(new GenericManagerFactory(DecisionDefinitionManager.class));
+      addSessionFactory(new GenericManagerFactory(HistoricDecisionInstanceManager.class));
 
       sessionFactories.put(ReadOnlyIdentityProvider.class, identityProviderSessionFactory);
 
@@ -978,6 +1037,11 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
       defaultDeployers.add(cmmnDeployer);
     }
 
+    if (isDmnEnabled()) {
+      DmnDeployer dmnDeployer = getDmnDeployer();
+      defaultDeployers.add(dmnDeployer);
+    }
+
     return defaultDeployers;
   }
 
@@ -1007,7 +1071,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   protected List<BpmnParseListener> getDefaultBPMNParseListeners() {
     List<BpmnParseListener> defaultListeners = new ArrayList<BpmnParseListener>();
-    if (!historyLevel.equals(HistoryLevel.HISTORY_LEVEL_NONE)) {
+    if (!HistoryLevel.HISTORY_LEVEL_NONE.equals(historyLevel)) {
       defaultListeners.add(new HistoryParseListener(historyLevel, historyEventProducer));
     }
     if(isMetricsEnabled) {
@@ -1046,13 +1110,36 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   protected List<CmmnTransformListener> getDefaultCmmnTransformListeners() {
     List<CmmnTransformListener> defaultListener = new ArrayList<CmmnTransformListener>();
-    if (!historyLevel.equals(HistoryLevel.HISTORY_LEVEL_NONE)) {
+    if (!HistoryLevel.HISTORY_LEVEL_NONE.equals(historyLevel)) {
       defaultListener.add(new CmmnHistoryTransformListener(historyLevel, cmmnHistoryEventProducer));
     }
     if(isMetricsEnabled) {
       defaultListener.add(new MetricsCmmnTransformListener());
     }
     return defaultListener;
+  }
+
+  protected DmnDeployer getDmnDeployer() {
+    DmnDeployer dmnDeployer = new DmnDeployer();
+    dmnDeployer.setIdGenerator(idGenerator);
+    dmnDeployer.setTransformer(((ProcessEngineDmnEngineConfiguration) dmnEngineConfiguration).getTransformer());
+    return dmnDeployer;
+  }
+
+  public DmnEngine getDmnEngine() {
+    return dmnEngine;
+  }
+
+  public void setDmnEngine(DmnEngine dmnEngine) {
+    this.dmnEngine = dmnEngine;
+  }
+
+  public DmnEngineConfiguration getDmnEngineConfiguration() {
+    return dmnEngineConfiguration;
+  }
+
+  public void setDmnEngineConfiguration(DmnEngineConfiguration dmnEngineConfiguration) {
+    dmnEngineConfiguration = dmnEngineConfiguration;
   }
 
   // job executor /////////////////////////////////////////////////////////////
@@ -1106,10 +1193,16 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
       if(customRejectedJobsHandler != null) {
         jobExecutor.setRejectedJobsHandler(customRejectedJobsHandler);
       } else {
-        jobExecutor.setRejectedJobsHandler(new CallerRunsRejectedJobsHandler());
+        jobExecutor.setRejectedJobsHandler(new NotifyAcquisitionRejectedJobsHandler());
       }
     }
 
+  }
+
+  protected void initJobProvider() {
+    if (producePrioritizedJobs && jobPriorityProvider == null) {
+      jobPriorityProvider = new DefaultJobPriorityProvider();
+    }
   }
 
   // history //////////////////////////////////////////////////////////////////
@@ -1130,9 +1223,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
       if(HISTORY_VARIABLE.equalsIgnoreCase(history)) {
         historyLevel = HistoryLevel.HISTORY_LEVEL_ACTIVITY;
-        log.warning("Using deprecated history level 'variable'. " +
-            "This history level is deprecated and replaced by 'activity'. " +
-            "Consider using 'ACTIVITY' instead.");
+        LOG.usingDeprecatedHistoryLevelVariable();
 
       } else {
         for (HistoryLevel historyLevel : historyLevels) {
@@ -1140,10 +1231,11 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
             this.historyLevel = historyLevel;
           }
         }
-
       }
 
-      if(historyLevel == null) {
+
+      // do allow null for history level in case of "auto"
+      if(historyLevel == null && !ProcessEngineConfiguration.HISTORY_AUTO.equalsIgnoreCase(history)) {
         throw new ProcessEngineException("invalid history level: "+history);
       }
     }
@@ -1210,6 +1302,10 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected void initMetrics() {
     if(isMetricsEnabled) {
 
+      if (metricsReporterIdProvider == null) {
+        metricsReporterIdProvider = new SimpleIpBasedProvider();
+      }
+
       if(metricsRegistry == null) {
         metricsRegistry = new MetricsRegistry();
       }
@@ -1224,6 +1320,16 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   protected void initDefaultMetrics(MetricsRegistry metricsRegistry) {
     metricsRegistry.createMeter(Metrics.ACTIVTY_INSTANCE_START);
+
+    metricsRegistry.createMeter(Metrics.JOB_ACQUISITION_ATTEMPT);
+    metricsRegistry.createMeter(Metrics.JOB_ACQUIRED_SUCCESS);
+    metricsRegistry.createMeter(Metrics.JOB_ACQUIRED_FAILURE);
+    metricsRegistry.createMeter(Metrics.JOB_SUCCESSFUL);
+    metricsRegistry.createMeter(Metrics.JOB_FAILED);
+    metricsRegistry.createMeter(Metrics.JOB_LOCKED_EXCLUSIVE);
+    metricsRegistry.createMeter(Metrics.JOB_EXECUTION_REJECTED);
+
+    metricsRegistry.createMeter(Metrics.EXECUTED_DECISION_ELEMENTS);
   }
 
   protected void initSerialization() {
@@ -1247,6 +1353,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
       variableSerializers.addSerializer(new DoubleValueSerializer());
       variableSerializers.addSerializer(new ByteArrayValueSerializer());
       variableSerializers.addSerializer(new JavaObjectSerializer());
+      variableSerializers.addSerializer(new FileValueSerializer());
 
       if (customPostVariableSerializers!=null) {
         for (TypedValueSerializer<?> customVariableType: customPostVariableSerializers) {
@@ -1316,6 +1423,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     }
     if (scriptingEngines==null) {
       scriptingEngines = new ScriptingEngines(new ScriptBindingsFactory(resolverFactories));
+      scriptingEngines.setEnableScriptEngineCaching(enableScriptEngineCaching);
     }
     if(scriptFactory == null) {
       scriptFactory = new ScriptFactory();
@@ -1326,6 +1434,22 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     if(scriptingEnvironment == null) {
       scriptingEnvironment = new ScriptingEnvironment(scriptFactory, scriptEnvResolvers, scriptingEngines);
     }
+  }
+
+  protected void initDmnEngine() {
+    if (dmnEngine == null) {
+      if (dmnEngineConfiguration == null) {
+        dmnEngineConfiguration = new ProcessEngineDmnEngineConfiguration(
+            scriptingEngines,
+            new HistoryDecisionTableListener(dmnHistoryEventProducer, historyLevel),
+            expressionManager);
+      }
+      dmnEngine = dmnEngineConfiguration.buildEngine();
+    }
+    else if (dmnEngineConfiguration == null) {
+      dmnEngineConfiguration = dmnEngine.getConfiguration();
+    }
+
   }
 
   protected void initExpressionManager() {
@@ -1439,6 +1563,12 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     }
   }
 
+  protected void initDmnHistoryEventProducer() {
+    if(dmnHistoryEventProducer == null) {
+      dmnHistoryEventProducer = new DefaultDmnHistoryEventProducer();
+    }
+  }
+
   protected void initHistoryEventHandler() {
     if(historyEventHandler == null) {
       historyEventHandler = new DbHistoryEventHandler();
@@ -1470,6 +1600,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   // getters and setters //////////////////////////////////////////////////////
 
+  @Override
   public String getProcessEngineName() {
     return processEngineName;
   }
@@ -1482,6 +1613,19 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     this.historyLevel = historyLevel;
   }
 
+  public HistoryLevel getDefaultHistoryLevel() {
+    if (historyLevels != null) {
+      for (HistoryLevel historyLevel : historyLevels) {
+        if (HISTORY_DEFAULT != null && HISTORY_DEFAULT.equalsIgnoreCase(historyLevel.getName())) {
+          return historyLevel;
+        }
+      }
+    }
+
+    return null;
+  }
+
+  @Override
   public ProcessEngineConfigurationImpl setProcessEngineName(String processEngineName) {
     this.processEngineName = processEngineName;
     return this;
@@ -1642,6 +1786,22 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     this.filterService = filterService;
   }
 
+  public ExternalTaskService getExternalTaskService() {
+    return externalTaskService;
+  }
+
+  public void setExternalTaskService(ExternalTaskService externalTaskService) {
+    this.externalTaskService = externalTaskService;
+  }
+
+  public DecisionService getDecisionService() {
+    return decisionService;
+  }
+
+  public void setDecisionService(DecisionService decisionService) {
+    this.decisionService = decisionService;
+  }
+
   public Map<Class< ? >, SessionFactory> getSessionFactories() {
     return sessionFactories;
   }
@@ -1667,6 +1827,14 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   public ProcessEngineConfigurationImpl setJobExecutor(JobExecutor jobExecutor) {
     this.jobExecutor = jobExecutor;
     return this;
+  }
+
+  public JobPriorityProvider getJobPriorityProvider() {
+    return jobPriorityProvider;
+  }
+
+  public void setJobPriorityProvider(JobPriorityProvider jobPriorityProvider) {
+    this.jobPriorityProvider = jobPriorityProvider;
   }
 
   public IdGenerator getIdGenerator() {
@@ -1856,17 +2024,6 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   public ProcessEngineConfigurationImpl setCustomFormTypes(List<AbstractFormFieldType> customFormTypes) {
     this.customFormTypes = customFormTypes;
-    return this;
-  }
-
-
-  public List<String> getCustomScriptingEngineClasses() {
-    return customScriptingEngineClasses;
-  }
-
-
-  public ProcessEngineConfigurationImpl setCustomScriptingEngineClasses(List<String> customScriptingEngineClasses) {
-    this.customScriptingEngineClasses = customScriptingEngineClasses;
     return this;
   }
 
@@ -2377,6 +2534,15 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     return cmmnHistoryEventProducer;
   }
 
+  public ProcessEngineConfigurationImpl setDmnHistoryEventProducer(DmnHistoryEventProducer dmnHistoryEventProducer) {
+    this.dmnHistoryEventProducer = dmnHistoryEventProducer;
+    return this;
+  }
+
+  public DmnHistoryEventProducer getDmnHistoryEventProducer() {
+    return dmnHistoryEventProducer;
+  }
+
   public Map<String, Class<? extends FormFieldValidator>> getCustomFormFieldValidators() {
     return customFormFieldValidators;
   }
@@ -2436,6 +2602,24 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     return enableScriptCompilation;
   }
 
+  public boolean isEnableGracefulDegradationOnContextSwitchFailure() {
+    return enableGracefulDegradationOnContextSwitchFailure;
+  }
+
+  /**
+   * <p>If set to true, the process engine will tolerate certain exceptions that may result
+   * from the fact that it cannot switch to the context of a process application that has made
+   * a deployment.</p>
+   *
+   * <p>Affects the following scenarios:</p>
+   * <ul>
+   *   <li><b>Determining job priorities</b>: uses a default priority in case an expression fails to evaluate</li>
+   * </ul>
+   */
+  public void setEnableGracefulDegradationOnContextSwitchFailure(boolean enableGracefulDegradationOnContextSwitchFailure) {
+    this.enableGracefulDegradationOnContextSwitchFailure = enableGracefulDegradationOnContextSwitchFailure;
+  }
+
   /**
    * @return true if the process engine acquires an exclusive lock when creating a deployment.
    */
@@ -2457,6 +2641,14 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   public void setCmmnEnabled(boolean cmmnEnabled) {
     this.cmmnEnabled = cmmnEnabled;
+  }
+
+  public boolean isDmnEnabled() {
+    return dmnEnabled;
+  }
+
+  public void setDmnEnabled(boolean dmnEnabled) {
+    this.dmnEnabled = dmnEnabled;
   }
 
   public ScriptFactory getScriptFactory() {
@@ -2538,6 +2730,10 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     return this;
   }
 
+  public List<HistoryLevel> getHistoryLevels() {
+    return historyLevels;
+  }
+
   public List<HistoryLevel> getCustomHistoryLevels() {
     return customHistoryLevels;
   }
@@ -2552,7 +2748,9 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   }
 
   public void close() {
-    if (dataSource instanceof PooledDataSource) {
+    if (forceCloseMybatisConnectionPool
+        && dataSource instanceof PooledDataSource) {
+
       // ACT-233: connection pool of Ibatis is not properely initialized if this is not called!
       ((PooledDataSource)dataSource).forceCloseAll();
     }
@@ -2591,6 +2789,75 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   public ProcessEngineConfigurationImpl setDbMetricsReporterActivate(boolean isDbMetricsReporterEnabled) {
     this.isDbMetricsReporterActivate = isDbMetricsReporterEnabled;
+    return this;
+  }
+
+  public MetricsReporterIdProvider getMetricsReporterIdProvider() {
+    return metricsReporterIdProvider;
+  }
+
+  public void setMetricsReporterIdProvider(MetricsReporterIdProvider metricsReporterIdProvider) {
+    this.metricsReporterIdProvider = metricsReporterIdProvider;
+  }
+
+  public boolean isEnableScriptEngineCaching() {
+    return enableScriptEngineCaching;
+  }
+
+  public ProcessEngineConfigurationImpl setEnableScriptEngineCaching(boolean enableScriptEngineCaching) {
+    this.enableScriptEngineCaching = enableScriptEngineCaching;
+    return this;
+  }
+
+  public boolean isEnableFetchScriptEngineFromProcessApplication() {
+    return enableFetchScriptEngineFromProcessApplication;
+  }
+
+  public ProcessEngineConfigurationImpl setEnableFetchScriptEngineFromProcessApplication(boolean enable) {
+    this.enableFetchScriptEngineFromProcessApplication = enable;
+    return this;
+  }
+
+  public boolean isEnableExpressionsInAdhocQueries() {
+    return enableExpressionsInAdhocQueries;
+  }
+
+  public void setEnableExpressionsInAdhocQueries(boolean enableExpressionsInAdhocQueries) {
+    this.enableExpressionsInAdhocQueries = enableExpressionsInAdhocQueries;
+  }
+
+  public boolean isEnableExpressionsInStoredQueries() {
+    return enableExpressionsInStoredQueries;
+  }
+
+  public void setEnableExpressionsInStoredQueries(boolean enableExpressionsInStoredQueries) {
+    this.enableExpressionsInStoredQueries = enableExpressionsInStoredQueries;
+  }
+
+  public ProcessEngineConfigurationImpl setBpmnStacktraceVerbose(boolean isBpmnStacktraceVerbose) {
+    this.isBpmnStacktraceVerbose = isBpmnStacktraceVerbose;
+    return this;
+  }
+
+  public boolean isBpmnStacktraceVerbose() {
+    return this.isBpmnStacktraceVerbose;
+  }
+
+  public boolean isForceCloseMybatisConnectionPool() {
+    return forceCloseMybatisConnectionPool;
+  }
+
+  public ProcessEngineConfigurationImpl setForceCloseMybatisConnectionPool(boolean forceCloseMybatisConnectionPool) {
+    this.forceCloseMybatisConnectionPool = forceCloseMybatisConnectionPool;
+    return this;
+  }
+
+  public boolean isRestrictUserOperationLogToAuthenticatedUsers() {
+    return restrictUserOperationLogToAuthenticatedUsers;
+  }
+
+  public ProcessEngineConfigurationImpl setRestrictUserOperationLogToAuthenticatedUsers(boolean restrictUserOperationLogToAuthenticatedUsers) {
+    this.restrictUserOperationLogToAuthenticatedUsers = restrictUserOperationLogToAuthenticatedUsers;
     return this;
   }
 

@@ -17,6 +17,9 @@ import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.assertThat
 import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.describeActivityInstanceTree;
 import static org.camunda.bpm.engine.test.util.ExecutionAssert.assertThat;
 import static org.camunda.bpm.engine.test.util.ExecutionAssert.describeExecutionTree;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.junit.Assert.assertThat;
 
 import java.util.List;
 
@@ -27,7 +30,6 @@ import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.runtime.EventSubscription;
 import org.camunda.bpm.engine.runtime.Execution;
-import org.camunda.bpm.engine.runtime.ExecutionQuery;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
@@ -124,8 +126,7 @@ public class MessageEventSubprocessTest extends PluggableProcessEngineTestCase {
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("startEventInSubProcess").finished().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("taskInEventSubProcess").finished().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("endEventInSubProcess").finished().count());
-//    SEE: CAM-1755
-//      assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("eventSubProcess").finished().count());
+      assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("eventSubProcess").finished().count());
     }
 
   }
@@ -161,8 +162,7 @@ public class MessageEventSubprocessTest extends PluggableProcessEngineTestCase {
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("taskInMainFlow").finished().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("taskInEventSubProcess").finished().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("endEventInSubProcess").finished().count());
-//    SEE: CAM-1755
-//     assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("eventSubProcess").finished().count());
+      assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("eventSubProcess").finished().count());
     }
   }
 
@@ -193,8 +193,7 @@ public class MessageEventSubprocessTest extends PluggableProcessEngineTestCase {
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("startEventInSubProcess").finished().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("taskInEventSubProcess").finished().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("endEventInSubProcess").finished().count());
-//    SEE: CAM-1755
-//      assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("eventSubProcess").finished().count());
+      assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("eventSubProcess").finished().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("subProcess").finished().count());
     }
 
@@ -231,8 +230,7 @@ public class MessageEventSubprocessTest extends PluggableProcessEngineTestCase {
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("startEventInSubProcess").finished().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("taskInEventSubProcess").finished().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("endEventInSubProcess").finished().count());
-//    SEE: CAM-1755
-//      assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("eventSubProcess").finished().count());
+      assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("eventSubProcess").finished().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("subProcess").finished().count());
     }
 
@@ -266,8 +264,7 @@ public class MessageEventSubprocessTest extends PluggableProcessEngineTestCase {
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("taskInMainFlow").canceled().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("startEventInSubProcess").finished().count());
       assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("taskInEventSubProcess").canceled().count());
-//    SEE: CAM-1755
-//      assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("eventSubProcess").finished().count());
+      assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("eventSubProcess").finished().count());
     }
 
   }
@@ -603,8 +600,6 @@ public class MessageEventSubprocessTest extends PluggableProcessEngineTestCase {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("process");
     runtimeService.messageEventReceived("newMessage", runtimeService.createEventSubscriptionQuery().singleResult().getExecutionId());
 
-    ExecutionQuery executionQuery = runtimeService.createExecutionQuery();
-
     ExecutionTree executionTree = ExecutionTree.forExecution(processInstance.getId(), processEngine);
 
     assertThat(executionTree)
@@ -910,5 +905,27 @@ public class MessageEventSubprocessTest extends PluggableProcessEngineTestCase {
             .endScope()
           .endScope()
         .done());
+  }
+
+  @Deployment
+  public void testNonInterruptingWithTerminatingEndEvent() {
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("process");
+    Task task = taskService.createTaskQuery().singleResult();
+    assertThat(task.getName(), is("Inner User Task"));
+    runtimeService.correlateMessage("message");
+
+    Task eventSubprocessTask = taskService.createTaskQuery().taskName("Event User Task").singleResult();
+    assertThat(eventSubprocessTask, is(notNullValue()));
+    taskService.complete(eventSubprocessTask.getId());
+
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(
+        describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+          .beginScope("SubProcess_1")
+            .activity("UserTask_1")
+           .endScope()
+         .endScope()
+        .done()
+        );
   }
 }

@@ -21,6 +21,7 @@ import junit.framework.TestCase;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.RuntimeService;
+import org.camunda.bpm.engine.externaltask.ExternalTask;
 import org.camunda.bpm.engine.history.HistoricJobLog;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogEventEntity;
 import org.camunda.bpm.engine.query.Query;
@@ -28,6 +29,7 @@ import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.CaseExecution;
 import org.camunda.bpm.engine.runtime.Execution;
+import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 
@@ -426,6 +428,18 @@ public class TestOrderingUtil {
     };
   }
 
+  public static NullTolerantComparator<HistoricJobLog> historicJobLogByJobPriority() {
+    return new NullTolerantComparator<HistoricJobLog>() {
+      public int compare(HistoricJobLog o1, HistoricJobLog o2) {
+        return Long.valueOf(o1.getJobPriority()).compareTo(Long.valueOf(o2.getJobPriority()));
+      }
+
+      public boolean hasNullProperty(HistoricJobLog object) {
+        return false;
+      }
+    };
+  }
+
   public static NullTolerantComparator<HistoricJobLog> historicJobLogPartiallyByOccurence() {
     return new NullTolerantComparator<HistoricJobLog>() {
       public int compare(HistoricJobLog o1, HistoricJobLog o2) {
@@ -437,6 +451,107 @@ public class TestOrderingUtil {
       public boolean hasNullProperty(HistoricJobLog object) {
         return false;
       }
+    };
+  }
+
+  // jobs
+
+  public static NullTolerantComparator<Job> jobByPriority() {
+    return new NullTolerantComparator<Job>() {
+
+      @Override
+      public int compare(Job o1, Job o2) {
+        return Long.valueOf(o1.getPriority())
+            .compareTo(Long.valueOf(o2.getPriority()));
+      }
+
+      @Override
+      public boolean hasNullProperty(Job object) {
+        return false;
+      }
+
+    };
+  }
+
+  // external task
+
+  public static NullTolerantComparator<ExternalTask> externalTaskById() {
+    return new NullTolerantComparator<ExternalTask>() {
+
+      @Override
+      public int compare(ExternalTask o1, ExternalTask o2) {
+        return o1.getId().compareTo(o2.getId());
+      }
+
+      @Override
+      public boolean hasNullProperty(ExternalTask object) {
+        return false;
+      }
+
+    };
+  }
+
+  public static NullTolerantComparator<ExternalTask> externalTaskByProcessInstanceId() {
+    return new NullTolerantComparator<ExternalTask>() {
+
+      @Override
+      public int compare(ExternalTask o1, ExternalTask o2) {
+        return o1.getProcessInstanceId().compareTo(o2.getProcessInstanceId());
+      }
+
+      @Override
+      public boolean hasNullProperty(ExternalTask object) {
+        return object.getProcessInstanceId() == null;
+      }
+
+    };
+  }
+
+  public static NullTolerantComparator<ExternalTask> externalTaskByProcessDefinitionId() {
+    return new NullTolerantComparator<ExternalTask>() {
+
+      @Override
+      public int compare(ExternalTask o1, ExternalTask o2) {
+        return o1.getProcessDefinitionId().compareTo(o2.getProcessDefinitionId());
+      }
+
+      @Override
+      public boolean hasNullProperty(ExternalTask object) {
+        return object.getProcessDefinitionId() == null;
+      }
+
+    };
+  }
+
+  public static NullTolerantComparator<ExternalTask> externalTaskByProcessDefinitionKey() {
+    return new NullTolerantComparator<ExternalTask>() {
+
+      @Override
+      public int compare(ExternalTask o1, ExternalTask o2) {
+        return o1.getProcessDefinitionKey().compareTo(o2.getProcessDefinitionKey());
+      }
+
+      @Override
+      public boolean hasNullProperty(ExternalTask object) {
+        return object.getProcessDefinitionKey() == null;
+      }
+
+    };
+  }
+
+  public static NullTolerantComparator<ExternalTask> externalTaskByLockExpirationTime() {
+    return new NullTolerantComparator<ExternalTask>() {
+
+      @Override
+      public int compare(ExternalTask o1, ExternalTask o2) {
+        return o1.getLockExpirationTime().compareTo(o2.getLockExpirationTime());
+      }
+
+      @Override
+      public boolean hasNullProperty(ExternalTask object) {
+        return object.getLockExpirationTime() == null;
+      }
+
     };
   }
 

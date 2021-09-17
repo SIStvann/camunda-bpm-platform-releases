@@ -655,7 +655,7 @@ public interface CmmnActivityExecution extends DelegateCaseExecution {
   void close();
 
   /**
-   * <p>Returns to true, if <code>this</code> case execution is required.</p>
+   * <p>Returns true, if <code>this</code> case execution is required.</p>
    *
    * @return true if <code>this</code> case execution is required.
    */
@@ -754,11 +754,65 @@ public interface CmmnActivityExecution extends DelegateCaseExecution {
 
   /**
    * <p>Returns <code>true</code>, if each {@link CmmnSentryPart} of the given
-   * <code>sentryId</code> is satisfied.
+   * <code>sentryId</code> is satisfied.</p>
    *
    * @param sentryId the id of the sentry to check
    *
    * @return <code>true</code> if the sentry is satisfied.
    */
   boolean isSentrySatisfied(String sentryId);
+
+  /**
+   * <p>The flag <code>entryCriterionSatisfied</code> will only be set to
+   * <code>true</code>, when <code>this</code> {@link CmmnActivityExecution}
+   * stays in state {@link CaseExecutionState#NEW}.</p>
+   *
+   * <p>For example:</p>
+   *
+   * <p>There exists:</p>
+   * <ul>
+   *   <li>a {@link Stage},</li>
+   *   <li>the {@link Stage} contains two tasks (A and B) and</li>
+   *   <li>task B has an entry criterion which is satisfied,
+   *       when task A performs the transition <code>create</code></li>
+   * </ul>
+   *
+   * <p>When the {@link Stage} instance becomes active, two child case executions
+   * will be created for task A and task B. Both tasks are in the state {@link CaseExecutionState#NEW}.
+   * Now task A performs the <code>create</code> transition and so that the given sentry is triggered,
+   * that this is satisfied. Afterwards the sentry will be reseted, that the sentry is not satisfied anymore.</p>
+   * <p>But task B is still in the state {@link CaseExecutionState#NEW} and will not be
+   * notified, that its' entry criterion has been satisfied. That's why the the flag <code>entryCriterionSatisfied</code>
+   * will be set to <code>true</code> on the case execution of task B in such a situation. When
+   * task B performs the transition into the state {@link CaseExecutionState#AVAILABLE} it can perform
+   * the next transition because the entry criterion has been already satisfied.</p>
+   */
+  boolean isEntryCriterionSatisfied();
+
+  /**
+   * <p>The flag <code>exitCriterionSatisfied</code> will only be set to
+   * <code>true</code>, when <code>this</code> {@link CmmnActivityExecution}
+   * stays in state {@link CaseExecutionState#NEW}.</p>
+   *
+   * <p>For example:</p>
+   *
+   * <p>There exists:</p>
+   * <ul>
+   *   <li>a {@link Stage},</li>
+   *   <li>the {@link Stage} contains two tasks (A and B) and</li>
+   *   <li>task B has an entry criterion which is satisfied,
+   *       when task A performs the transition <code>create</code></li>
+   * </ul>
+   *
+   * <p>When the {@link Stage} instance becomes active, two child case executions
+   * will be created for task A and task B. Both tasks are in the state {@link CaseExecutionState#NEW}.
+   * Now task A performs the <code>create</code> transition and so that the given sentry is triggered,
+   * that this is satisfied. Afterwards the sentry will be reseted, that the sentry is not satisfied anymore.</p>
+   * <p>But task B is still in the state {@link CaseExecutionState#NEW} and will not be
+   * notified, that its' exit criterion has been satisfied. That's why the the flag <code>exitCriterionSatisfied</code>
+   * will be set to <code>true</code> on the case execution of task B in such a situation. When
+   * task B performs the transition into the state {@link CaseExecutionState#AVAILABLE} it can perform
+   * the exit transition because the exit criterion has been already satisfied.</p>
+   */
+  boolean isExitCriterionSatisfied();
 }

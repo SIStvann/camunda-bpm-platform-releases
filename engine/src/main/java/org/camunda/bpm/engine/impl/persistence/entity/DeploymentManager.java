@@ -13,6 +13,7 @@
 
 package org.camunda.bpm.engine.impl.persistence.entity;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.camunda.bpm.engine.authorization.Resources;
@@ -21,10 +22,14 @@ import org.camunda.bpm.engine.impl.Page;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cfg.auth.ResourceAuthorizationProvider;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionManager;
 import org.camunda.bpm.engine.impl.event.MessageEventHandler;
+import org.camunda.bpm.engine.impl.event.SignalEventHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventJobHandler;
 import org.camunda.bpm.engine.impl.persistence.AbstractManager;
+import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
 import org.camunda.bpm.engine.repository.CaseDefinition;
+import org.camunda.bpm.engine.repository.DecisionDefinition;
 import org.camunda.bpm.engine.repository.Deployment;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.Job;
@@ -74,7 +79,7 @@ public class DeploymentManager extends AbstractManager {
       getIdentityLinkManager().deleteIdentityLinksByProcDef(processDefinitionId);
 
       // remove timer start events:
-      List<Job> timerStartJobs = getJobManager().findJobsByConfiguration(TimerStartEventJobHandler.TYPE, processDefinition.getKey());
+      List<JobEntity> timerStartJobs = getJobManager().findJobsByConfiguration(TimerStartEventJobHandler.TYPE, processDefinition.getKey());
 
       ProcessDefinitionEntity latestVersion = getProcessDefinitionManager().findLatestProcessDefinitionByKey(processDefinition.getKey());
 
@@ -89,8 +94,8 @@ public class DeploymentManager extends AbstractManager {
         // remove historic incidents which are not referenced to a process instance
         getHistoricIncidentManager().deleteHistoricIncidentsByProcessDefinitionId(processDefinitionId);
 
-        // remove historic op log entries which are not related to a process instance
-        getUserOperationLogManager().deleteOperationLogEntriesByProcessDefinitionId(processDefinitionId);
+        // remove historic job log entries not related to a process instance
+        getHistoricJobLogManager().deleteHistoricJobLogsByProcessDefinitionId(processDefinitionId);
       }
     }
 
@@ -111,11 +116,17 @@ public class DeploymentManager extends AbstractManager {
         .getDeploymentCache()
         .removeProcessDefinition(processDefinitionId);
 
+      List<EventSubscriptionEntity> eventSubscriptionsToRemove = new ArrayList<EventSubscriptionEntity>();
       // remove message event subscriptions:
-      List<EventSubscriptionEntity> findEventSubscriptionsByConfiguration = getEventSubscriptionManager()
-        .findEventSubscriptionsByConfiguration(MessageEventHandler.EVENT_HANDLER_TYPE, processDefinition.getId());
+      List<EventSubscriptionEntity> messageEventSubscriptions = getEventSubscriptionManager()
+        .findEventSubscriptionsByConfiguration(MessageEventHandler.EVENT_HANDLER_TYPE, processDefinitionId);
+      eventSubscriptionsToRemove.addAll(messageEventSubscriptions);
 
-      for (EventSubscriptionEntity eventSubscriptionEntity : findEventSubscriptionsByConfiguration) {
+      // remove signal event subscriptions:
+      List<EventSubscriptionEntity> signalEventSubscriptions = getEventSubscriptionManager().findEventSubscriptionsByConfiguration(SignalEventHandler.EVENT_HANDLER_TYPE , processDefinitionId);
+      eventSubscriptionsToRemove.addAll(signalEventSubscriptions);
+
+      for (EventSubscriptionEntity eventSubscriptionEntity : eventSubscriptionsToRemove) {
         eventSubscriptionEntity.delete();
       }
 
@@ -125,6 +136,8 @@ public class DeploymentManager extends AbstractManager {
     }
 
     deleteCaseDeployment(deploymentId, cascade);
+
+    deleteDecisionDeployment(deploymentId, cascade);
 
     getResourceManager().deleteResourcesByDeploymentId(deploymentId);
 
@@ -165,6 +178,35 @@ public class DeploymentManager extends AbstractManager {
     }
   }
 
+  protected void deleteDecisionDeployment(String deploymentId, boolean cascade) {
+    ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
+    if (processEngineConfiguration.isDmnEnabled()) {
+      DecisionDefinitionManager decisionDefinitionManager = getDecisionDefinitionManager();
+      List<DecisionDefinition> decisionDefinitions = decisionDefinitionManager.findDecisionDefinitionByDeploymentId(deploymentId);
+
+      if(cascade) {
+        // delete historic decision instances
+        for(DecisionDefinition decisionDefinition : decisionDefinitions) {
+          getHistoricDecisionInstanceManager().deleteHistoricDecisionInstancesByDecisionDefinitionId(decisionDefinition.getId());
+        }
+      }
+
+      // delete case definitions from db
+      decisionDefinitionManager
+        .deleteDecisionDefinitionsByDeploymentId(deploymentId);
+
+      DeploymentCache deploymentCache = processEngineConfiguration.getDeploymentCache();
+
+      for (DecisionDefinition decisionDefinition : decisionDefinitions) {
+        String decisionDefinitionId = decisionDefinition.getId();
+
+        // remove case definitions from cache:
+        deploymentCache
+          .removeDecisionDefinition(decisionDefinitionId);
+      }
+    }
+  }
+
 
   public DeploymentEntity findLatestDeploymentByName(String deploymentName) {
     List<?> list = getDbEntityManager().selectList("selectDeploymentsByName", deploymentName, 0, 1);
@@ -176,6 +218,11 @@ public class DeploymentManager extends AbstractManager {
 
   public DeploymentEntity findDeploymentById(String deploymentId) {
     return getDbEntityManager().selectById(DeploymentEntity.class, deploymentId);
+  }
+
+  @SuppressWarnings("unchecked")
+  public List<DeploymentEntity> findDeploymentsByIds(String... deploymentsIds) {
+    return getDbEntityManager().selectList("selectDeploymentsByIds", deploymentsIds);
   }
 
   public long findDeploymentCountByQueryCriteria(DeploymentQueryImpl deploymentQuery) {
@@ -194,9 +241,11 @@ public class DeploymentManager extends AbstractManager {
     return getDbEntityManager().selectList("selectResourceNamesByDeploymentId", deploymentId);
   }
 
+  @Override
   public void close() {
   }
 
+  @Override
   public void flush() {
   }
 

@@ -25,6 +25,8 @@ import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.CaseDefinitionQuery;
+import org.camunda.bpm.engine.repository.DecisionDefinition;
+import org.camunda.bpm.engine.repository.DecisionDefinitionQuery;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.repository.DeploymentQuery;
 import org.camunda.bpm.engine.repository.DiagramLayout;
@@ -36,6 +38,7 @@ import org.camunda.bpm.engine.repository.Resource;
 import org.camunda.bpm.engine.task.IdentityLink;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.bpm.model.cmmn.CmmnModelInstance;
+import org.camunda.bpm.model.dmn.DmnModelInstance;
 
 
 /** Service providing access to the repository of process definitions and deployments.
@@ -82,6 +85,7 @@ public interface RepositoryService {
    *
    * @deprecated use {@link #deleteDeployment(String, boolean)}. This methods may be deleted from 5.3.
    */
+  @Deprecated
   void deleteDeploymentCascade(String deploymentId);
 
   /**
@@ -100,7 +104,7 @@ public interface RepositoryService {
    * history process instances and jobs.
    *
    * @param deploymentId id of the deployment, cannot be null.
-   * @param cascade if set to true, all process instances (incuding) history are deleted
+   * @param cascade if set to true, all process instances (including) history are deleted
    * @param skipCustomListeners if true, only the built-in {@link ExecutionListener}s
    * are notified with the {@link ExecutionListener#EVENTNAME_END} event.
    *
@@ -168,6 +172,11 @@ public interface RepositoryService {
    * Query case definitions.
    */
   CaseDefinitionQuery createCaseDefinitionQuery();
+
+  /**
+   * Query decision definitions.
+   */
+  DecisionDefinitionQuery createDecisionDefinitionQuery();
 
   /**
    * Query process definitions.
@@ -402,6 +411,23 @@ public interface RepositoryService {
   CmmnModelInstance getCmmnModelInstance(String caseDefinitionId);
 
   /**
+   * Returns the {@link DmnModelInstance} for the given decisionDefinitionId.
+   *
+   * @param decisionDefinitionId the id of the Decision Definition for which the {@link DmnModelInstance}
+   *  should be retrieved.
+   *
+   * @return the {@link DmnModelInstance}
+   *
+   * @throws NotValidException when the given decision definition id or deployment id or resource name is null
+   * @throws NotFoundException when no DMN model instance or deployment resource is found for the given
+   *     decision definition id
+   * @throws ProcessEngineException when an internal exception happens during the execution of the command.
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#READ} permission on {@link Resources#DECISION_DEFINITION}.
+   */
+  DmnModelInstance getDmnModelInstance(String decisionDefinitionId);
+
+  /**
    * Authorizes a candidate user for a process definition.
    *
    * @param processDefinitionId id of the process definition, cannot be null.
@@ -413,6 +439,7 @@ public interface RepositoryService {
    * @deprecated Use authorization mechanism instead.
    *
    */
+  @Deprecated
   void addCandidateStarterUser(String processDefinitionId, String userId);
 
   /**
@@ -427,6 +454,7 @@ public interface RepositoryService {
    * @deprecated Use authorization mechanism instead.
    *
    */
+  @Deprecated
   void addCandidateStarterGroup(String processDefinitionId, String groupId);
 
   /**
@@ -441,6 +469,7 @@ public interface RepositoryService {
    * @deprecated Use authorization mechanism instead.
    *
    */
+  @Deprecated
   void deleteCandidateStarterUser(String processDefinitionId, String userId);
 
   /**
@@ -455,6 +484,7 @@ public interface RepositoryService {
    * @deprecated Use authorization mechanism instead.
    *
    */
+  @Deprecated
   void deleteCandidateStarterGroup(String processDefinitionId, String groupId);
 
   /**
@@ -465,6 +495,7 @@ public interface RepositoryService {
    * @deprecated Use authorization mechanism instead.
    *
    */
+  @Deprecated
   List<IdentityLink> getIdentityLinksForProcessDefinition(String processDefinitionId);
 
   /**
@@ -499,6 +530,44 @@ public interface RepositoryService {
    * @throws ProcessEngineException when the process diagram doesn't exist.
    */
   InputStream getCaseDiagram(String caseDefinitionId);
+
+  /**
+   * Returns the {@link DecisionDefinition}.
+   *
+   * @throws NotValidException when the given decision definition id is null
+   * @throws NotFoundException when no decision definition is found for the given decision definition id
+   * @throws ProcessEngineException when an internal exception happens during the execution of the command.
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#READ} permission on {@link Resources#DECISION_DEFINITION}.
+   */
+  DecisionDefinition getDecisionDefinition(String decisionDefinitionId);
+
+  /**
+   * Gives access to a deployed decision model, e.g., a DMN 1.0 XML file,
+   * through a stream of bytes.
+   *
+   * @param decisionDefinitionId
+   *          id of a {@link DecisionDefinition}, cannot be null.
+   *
+   * @throws NotValidException when the given decision definition id or deployment id or resource name is null
+   * @throws NotFoundException when no decision definition or deployment resource is found for the given decision definition id
+   * @throws ProcessEngineException when an internal exception happens during the execution of the command
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#READ} permission on {@link Resources#DECISION_DEFINITION}.
+   */
+  InputStream getDecisionModel(String decisionDefinitionId);
+
+  /**
+   * Gives access to a deployed decision diagram, e.g., a PNG image, through a
+   * stream of bytes.
+   *
+   * @param decisionDefinitionId id of a {@link DecisionDefinition}, cannot be null.
+   * @return null when the diagram resource name of a {@link DecisionDefinition} is null.
+   * @throws ProcessEngineException when the process diagram doesn't exist.
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#READ} permission on {@link Resources#DECISION_DEFINITION}.
+   */
+  InputStream getDecisionDiagram(String decisionDefinitionId);
 
 }
 

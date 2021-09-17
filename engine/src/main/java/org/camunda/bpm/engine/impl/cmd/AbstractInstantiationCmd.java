@@ -20,12 +20,11 @@ import java.util.concurrent.Callable;
 
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.exception.NotValidException;
-import org.camunda.bpm.engine.impl.ActivityExecutionMapping;
+import org.camunda.bpm.engine.impl.ActivityExecutionTreeMapping;
 import org.camunda.bpm.engine.impl.bpmn.behavior.SequentialMultiInstanceActivityBehavior;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
 import org.camunda.bpm.engine.impl.core.delegate.CoreActivityBehavior;
 import org.camunda.bpm.engine.impl.core.model.CoreModelElement;
-import org.camunda.bpm.engine.impl.core.variable.VariableMapImpl;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
@@ -42,6 +41,7 @@ import org.camunda.bpm.engine.impl.tree.TreeWalker.WalkCondition;
 import org.camunda.bpm.engine.impl.util.EnsureUtil;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.variable.VariableMap;
+import org.camunda.bpm.engine.variable.impl.VariableMapImpl;
 
 /**
  * @author Thorben Lindhauer
@@ -86,15 +86,18 @@ public abstract class AbstractInstantiationCmd extends AbstractProcessInstanceMo
 
   public Void execute(final CommandContext commandContext) {
     ExecutionEntity processInstance = commandContext.getExecutionManager().findExecutionById(processInstanceId);
+
     final ProcessDefinitionImpl processDefinition = processInstance.getProcessDefinition();
 
     CoreModelElement elementToInstantiate = getTargetElement(processDefinition);
 
-    EnsureUtil.ensureNotNull(NotValidException.class, "Element '" + getTargetElementId() + "' does not exist in process " + processDefinition.getId(),
-        "element", elementToInstantiate);
+    EnsureUtil.ensureNotNull(NotValidException.class,
+        describeFailure("Element '" + getTargetElementId() + "' does not exist in process '" + processDefinition.getId() + "'"),
+        "element",
+        elementToInstantiate);
 
     // rebuild the mapping because the execution tree changes with every iteration
-    final ActivityExecutionMapping mapping = new ActivityExecutionMapping(commandContext, processInstanceId);
+    final ActivityExecutionTreeMapping mapping = new ActivityExecutionTreeMapping(commandContext, processInstanceId);
 
     // before instantiating an activity, two things have to be determined:
     //
@@ -117,7 +120,7 @@ public abstract class AbstractInstantiationCmd extends AbstractProcessInstanceMo
     // prepare to walk up the flow scope hierarchy and collect the flow scope activities
     ActivityStackCollector stackCollector = new ActivityStackCollector();
     FlowScopeWalker walker = new FlowScopeWalker(targetFlowScope);
-    walker.addPreCollector(stackCollector);
+    walker.addPreVisitor(stackCollector);
 
     ExecutionEntity scopeExecution = null;
 
@@ -146,6 +149,10 @@ public abstract class AbstractInstantiationCmd extends AbstractProcessInstanceMo
       });
 
       ActivityInstance ancestorInstance = findActivityInstance(tree, ancestorActivityInstanceId);
+      EnsureUtil.ensureNotNull(NotValidException.class,
+          describeFailure("Ancestor activity instance '" + ancestorActivityInstanceId + "' does not exist"),
+          "ancestorInstance",
+          ancestorInstance);
 
       // determine ancestor activity scope execution and activity
       final ExecutionEntity ancestorScopeExecution = getScopeExecutionForActivityInstance(processInstance,
@@ -165,8 +172,8 @@ public abstract class AbstractInstantiationCmd extends AbstractProcessInstanceMo
       Set<ExecutionEntity> flowScopeExecutions = mapping.getExecutions(walker.getCurrentElement());
 
       if (!flowScopeExecutions.contains(ancestorScopeExecution)) {
-        throw new ProcessEngineException("Could not find scope execution for " + ancestorActivityInstanceId +
-            " in parent hierarchy of flow element " + elementToInstantiate);
+        throw new NotValidException(describeFailure("Scope execution for '" + ancestorActivityInstanceId +
+            "' cannot be found in parent hierarchy of flow element '" + elementToInstantiate.getId() + "'"));
       }
 
       scopeExecution = ancestorScopeExecution;
@@ -262,7 +269,7 @@ public abstract class AbstractInstantiationCmd extends AbstractProcessInstanceMo
         {
           // if all child executions have been cancelled
           // or this execution has ended executing its scope, it can be reused
-          if (scopeExecution.getExecutions().isEmpty() &&
+          if (!scopeExecution.hasChildren() &&
               (scopeExecution.getActivity() == null || scopeExecution.isEnded())) {
             // reuse the scope execution
             instantiate(scopeExecution, activitiesToInstantiate, elementToInstantiate);
@@ -283,15 +290,10 @@ public abstract class AbstractInstantiationCmd extends AbstractProcessInstanceMo
    */
   protected boolean supportsConcurrentChildInstantiation(ScopeImpl flowScope) {
     CoreActivityBehavior<?> behavior = flowScope.getActivityBehavior();
-    if (behavior != null) {
-      return !(behavior instanceof SequentialMultiInstanceActivityBehavior);
-    }
-    else {
-      return true;
-    }
+    return behavior == null || !(behavior instanceof SequentialMultiInstanceActivityBehavior);
   }
 
-  protected ExecutionEntity getSingleExecutionForScope(ActivityExecutionMapping mapping, ScopeImpl scope) {
+  protected ExecutionEntity getSingleExecutionForScope(ActivityExecutionTreeMapping mapping, ScopeImpl scope) {
     Set<ExecutionEntity> executions = mapping.getExecutions(scope);
 
     if (!executions.isEmpty()) {

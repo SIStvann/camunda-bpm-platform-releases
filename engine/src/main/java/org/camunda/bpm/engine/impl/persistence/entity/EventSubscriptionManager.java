@@ -22,8 +22,10 @@ import java.util.Set;
 
 import org.camunda.bpm.engine.impl.EventSubscriptionQueryImpl;
 import org.camunda.bpm.engine.impl.Page;
+import org.camunda.bpm.engine.impl.jobexecutor.ProcessEventJobHandler;
 import org.camunda.bpm.engine.impl.persistence.AbstractManager;
 import org.camunda.bpm.engine.runtime.EventSubscription;
+import org.camunda.commons.utils.EnsureUtil;
 
 
 /**
@@ -45,6 +47,12 @@ public class EventSubscriptionManager extends AbstractManager {
     getDbEntityManager().delete(persistentObject);
     if(persistentObject instanceof SignalEventSubscriptionEntity) {
       createdSignalSubscriptions.remove(persistentObject);
+    }
+
+    // if the event subscription has been triggered asynchronously but not yet executed
+    List<JobEntity> asyncJobs = getJobManager().findJobsByConfiguration(ProcessEventJobHandler.TYPE, persistentObject.getId());
+    for (JobEntity asyncJob : asyncJobs) {
+      asyncJob.delete();
     }
   }
 
@@ -156,15 +164,28 @@ public class EventSubscriptionManager extends AbstractManager {
     return getDbEntityManager().selectList(query, params);
   }
 
-  public List<EventSubscriptionEntity> findEventSubscriptionsByNameAndExecution(String type, String eventName,
-      String executionId, boolean lockResult) {
-    final String query = "selectEventSubscriptionsByNameAndExecution";
-    Map<String, Object> params = new HashMap<String, Object>();
-    params.put("eventType", type);
-    params.put("eventName", eventName);
-    params.put("executionId", executionId);
-    params.put("lockResult", lockResult);
-    return getDbEntityManager().selectList(query, params);
+  public List<EventSubscriptionEntity> findEventSubscriptionsByNameAndExecution(String type, String eventName, String executionId, boolean lockResult) {
+    // first check cache in case entity is already loaded
+    ExecutionEntity cachedExecution = getDbEntityManager().getCachedEntity(ExecutionEntity.class, executionId);
+    if(cachedExecution != null && !lockResult) {
+      List<EventSubscriptionEntity> eventSubscriptions = cachedExecution.getEventSubscriptions();
+      List<EventSubscriptionEntity> result = new ArrayList<EventSubscriptionEntity>();
+      for (EventSubscriptionEntity subscription : eventSubscriptions) {
+        if(matchesSubscription(subscription, type, eventName)) {
+          result.add(subscription);
+        }
+      }
+      return result;
+    }
+    else {
+      final String query = "selectEventSubscriptionsByNameAndExecution";
+      Map<String, Object> params = new HashMap<String, Object>();
+      params.put("eventType", type);
+      params.put("eventName", eventName);
+      params.put("executionId", executionId);
+      params.put("lockResult", lockResult);
+      return getDbEntityManager().selectList(query, params);
+    }
   }
 
   public MessageEventSubscriptionEntity findMessageStartEventSubscriptionByName(String messageName) {
@@ -174,6 +195,14 @@ public class EventSubscriptionManager extends AbstractManager {
 
   protected void configureAuthorizationCheck(EventSubscriptionQueryImpl query) {
     getAuthorizationManager().configureEventSubscriptionQuery(query);
+  }
+
+  protected boolean matchesSubscription(EventSubscriptionEntity subscription, String type, String eventName) {
+    EnsureUtil.ensureNotNull("event type", type);
+    String subscriptionEventName = subscription.getEventName();
+
+    return type.equals(subscription.getEventType()) &&
+          ((eventName == null && subscriptionEventName == null) || (eventName != null && eventName.equals(subscriptionEventName)));
   }
 
 }

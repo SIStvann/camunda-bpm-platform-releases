@@ -24,22 +24,23 @@ import java.io.InputStream;
 import java.io.StringReader;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.apache.ibatis.session.SqlSession;
 import org.camunda.bpm.engine.ProcessEngine;
-import org.camunda.bpm.engine.ProcessEngineException;
-import org.camunda.bpm.engine.WrongDbException;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.AbstractPersistenceSession;
 import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
 import org.camunda.bpm.engine.impl.db.entitymanager.operation.DbBulkOperation;
 import org.camunda.bpm.engine.impl.db.entitymanager.operation.DbEntityOperation;
-import org.camunda.bpm.engine.impl.util.ClassNameUtil;
 import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.impl.util.ReflectUtil;
 
@@ -55,7 +56,7 @@ import org.camunda.bpm.engine.impl.util.ReflectUtil;
  */
 public class DbSqlSession extends AbstractPersistenceSession {
 
-  private static Logger log = Logger.getLogger(DbSqlSession.class.getName());
+  protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
 
   protected SqlSession sqlSession;
   protected DbSqlSessionFactory dbSqlSessionFactory;
@@ -83,20 +84,29 @@ public class DbSqlSession extends AbstractPersistenceSession {
 
   public List<?> selectList(String statement, Object parameter){
     statement = dbSqlSessionFactory.mapStatement(statement);
-    return sqlSession.selectList(statement, parameter);
+    List<Object> resultList = sqlSession.selectList(statement, parameter);
+    for (Object object : resultList) {
+      fireEntityLoaded(object);
+    }
+    return resultList;
   }
 
+  @SuppressWarnings("unchecked")
   public <T extends DbEntity> T selectById(Class<T> type, String id) {
     String selectStatement = dbSqlSessionFactory.getSelectStatement(type);
     selectStatement = dbSqlSessionFactory.mapStatement(selectStatement);
     ensureNotNull("no select statement for " + type + " in the ibatis mapping files", "selectStatement", selectStatement);
 
-    return (T) sqlSession.selectOne(selectStatement, id);
+    Object result = sqlSession.selectOne(selectStatement, id);
+    fireEntityLoaded(result);
+    return (T) result;
   }
 
   public Object selectOne(String statement, Object parameter) {
     statement = dbSqlSessionFactory.mapStatement(statement);
-    return sqlSession.selectOne(statement, parameter);
+    Object result = sqlSession.selectOne(statement, parameter);
+    fireEntityLoaded(result);
+    return result;
   }
 
   // lock ////////////////////////////////////////////
@@ -113,6 +123,7 @@ public class DbSqlSession extends AbstractPersistenceSession {
 
   // insert //////////////////////////////////////////
 
+  @Override
   protected void insertEntity(DbEntityOperation operation) {
 
     final DbEntity dbEntity = operation.getEntity();
@@ -130,9 +141,7 @@ public class DbSqlSession extends AbstractPersistenceSession {
   }
 
   protected void executeInsertEntity(String insertStatement, Object parameter) {
-    if(log.isLoggable(Level.FINE)) {
-      log.fine("inserting: " + toString(parameter));
-    }
+    LOG.executeDatabaseOperation("INSERT", parameter);
     sqlSession.insert(insertStatement, parameter);
 
     // set revision of our copy to 1
@@ -148,6 +157,7 @@ public class DbSqlSession extends AbstractPersistenceSession {
 
   // delete ///////////////////////////////////////////
 
+  @Override
   protected void deleteEntity(DbEntityOperation operation) {
 
     final DbEntity dbEntity = operation.getEntity();
@@ -156,9 +166,7 @@ public class DbSqlSession extends AbstractPersistenceSession {
     String deleteStatement = dbSqlSessionFactory.getDeleteStatement(dbEntity.getClass());
     ensureNotNull("no delete statement for " + dbEntity.getClass() + " in the ibatis mapping files", "deleteStatement", deleteStatement);
 
-    if(log.isLoggable(Level.FINE)) {
-      log.fine("deleting: " + toString(dbEntity));
-    }
+    LOG.executeDatabaseOperation("DELETE", dbEntity);
 
     // execute the delete
     int nrOfRowsDeleted = executeDelete(deleteStatement, dbEntity);
@@ -183,19 +191,19 @@ public class DbSqlSession extends AbstractPersistenceSession {
     // nothing to do
   }
 
+  @Override
   protected void deleteBulk(DbBulkOperation operation) {
     String statement = operation.getStatement();
     Object parameter = operation.getParameter();
 
-    if(log.isLoggable(Level.FINE)) {
-      log.fine("deleting (bulk): " + statement + " " + parameter);
-    }
+    LOG.executeDatabaseBulkOperation("DELETE", statement, parameter);
 
     executeDelete(statement, parameter);
   }
 
   // update ////////////////////////////////////////
 
+  @Override
   protected void updateEntity(DbEntityOperation operation) {
 
     final DbEntity dbEntity = operation.getEntity();
@@ -203,9 +211,7 @@ public class DbSqlSession extends AbstractPersistenceSession {
     String updateStatement = dbSqlSessionFactory.getUpdateStatement(dbEntity);
     ensureNotNull("no update statement for " + dbEntity.getClass() + " in the ibatis mapping files", "updateStatement", updateStatement);
 
-    if (log.isLoggable(Level.FINE)) {
-      log.fine("updating: " + toString(dbEntity));
-    }
+    LOG.executeDatabaseOperation("UPDATE", dbEntity);
 
     // execute update
     int numOfRowsUpdated = executeUpdate(updateStatement, dbEntity);
@@ -235,28 +241,14 @@ public class DbSqlSession extends AbstractPersistenceSession {
     // nothing to do
   }
 
+  @Override
   protected void updateBulk(DbBulkOperation operation) {
     String statement = operation.getStatement();
     Object parameter = operation.getParameter();
 
-    if(log.isLoggable(Level.FINE)) {
-      log.fine("updating (bulk): " + statement + " " + parameter);
-    }
+    LOG.executeDatabaseBulkOperation("UPDATE", statement, parameter);
 
     executeUpdate(statement, parameter);
-  }
-
-  // utils /////////////////////////////////////////
-
-  protected String toString(Object object) {
-    if(object == null) {
-      return "null";
-    }
-    if(object instanceof DbEntity) {
-      DbEntity dbEntity = (DbEntity) object;
-      return ClassNameUtil.getClassNameWithoutPackage(dbEntity)+"["+dbEntity.getId()+"]";
-    }
-    return object.toString();
   }
 
   // flush ////////////////////////////////////////////////////////////////////
@@ -283,94 +275,119 @@ public class DbSqlSession extends AbstractPersistenceSession {
     try {
       String dbVersion = getDbVersion();
       if (!ProcessEngine.VERSION.equals(dbVersion)) {
-        throw new WrongDbException(ProcessEngine.VERSION, dbVersion);
+        throw LOG.wrongDbVersionException(ProcessEngine.VERSION, dbVersion);
       }
 
-      String errorMessage = null;
+      List<String> missingComponents = new ArrayList<String>();
       if (!isEngineTablePresent()) {
-        errorMessage = addMissingComponent(errorMessage, "engine");
+        missingComponents.add("engine");
       }
       if (dbSqlSessionFactory.isDbHistoryUsed() && !isHistoryTablePresent()) {
-        errorMessage = addMissingComponent(errorMessage, "history");
+        missingComponents.add("history");
       }
       if (dbSqlSessionFactory.isDbIdentityUsed() && !isIdentityTablePresent()) {
-        errorMessage = addMissingComponent(errorMessage, "identity");
+        missingComponents.add("identity");
       }
       if (dbSqlSessionFactory.isCmmnEnabled() && !isCmmnTablePresent()) {
-        errorMessage = addMissingComponent(errorMessage, "case.engine");
+        missingComponents.add("case.engine");
+      }
+      if (dbSqlSessionFactory.isDmnEnabled() && !isDmnTablePresent()) {
+        missingComponents.add("decision.engine");
       }
 
-      if (errorMessage!=null) {
-        throw new ProcessEngineException("Activiti database problem: "+errorMessage);
+      if (!missingComponents.isEmpty()) {
+        throw LOG.missingTableException(missingComponents);
       }
 
     } catch (Exception e) {
       if (isMissingTablesException(e)) {
-        throw new ProcessEngineException("no activiti tables in db.  set <property name=\"databaseSchemaUpdate\" to value=\"true\" or value=\"create-drop\" (use create-drop for testing only!) in bean processEngineConfiguration in camunda.cfg.xml for automatic schema creation", e);
+        throw LOG.missingActivitiTablesException();
       } else {
         if (e instanceof RuntimeException) {
           throw (RuntimeException) e;
         } else {
-          throw new ProcessEngineException("couldn't get db schema version", e);
+          throw LOG.unableToFetchDbSchemaVersion(e);
         }
       }
     }
-
-    log.fine("database schema check successful");
   }
 
-  protected String addMissingComponent(String missingComponents, String component) {
-    if (missingComponents==null) {
-      return "Tables missing for component(s) "+component;
-    }
-    return missingComponents+", "+component;
-  }
-
+  @Override
   protected String getDbVersion() {
     String selectSchemaVersionStatement = dbSqlSessionFactory.mapStatement("selectDbSchemaVersion");
     return (String) sqlSession.selectOne(selectSchemaVersionStatement);
   }
 
+  @Override
   protected void dbSchemaCreateIdentity() {
     executeMandatorySchemaResource("create", "identity");
   }
 
+  @Override
   protected void dbSchemaCreateHistory() {
     executeMandatorySchemaResource("create", "history");
   }
 
+  @Override
   protected void dbSchemaCreateEngine() {
     executeMandatorySchemaResource("create", "engine");
   }
 
+  @Override
   protected void dbSchemaCreateCmmn() {
     executeMandatorySchemaResource("create", "case.engine");
   }
 
+  @Override
   protected void dbSchemaCreateCmmnHistory() {
     executeMandatorySchemaResource("create", "case.history");
   }
 
+  @Override
+  protected void dbSchemaCreateDmn() {
+    executeMandatorySchemaResource("create", "decision.engine");
+  }
+
+
+  @Override
+  protected void dbSchemaCreateDmnHistory() {
+    executeMandatorySchemaResource("create", "decision.history");
+  }
+
+  @Override
   protected void dbSchemaDropIdentity() {
     executeMandatorySchemaResource("drop", "identity");
   }
 
+  @Override
   protected void dbSchemaDropHistory() {
     executeMandatorySchemaResource("drop", "history");
   }
 
+  @Override
   protected void dbSchemaDropEngine() {
     executeMandatorySchemaResource("drop", "engine");
   }
 
+  @Override
   protected void dbSchemaDropCmmn() {
     executeMandatorySchemaResource("drop", "case.engine");
   }
 
+  @Override
   protected void dbSchemaDropCmmnHistory() {
     executeMandatorySchemaResource("drop", "case.history");
   }
 
+  @Override
+  protected void dbSchemaDropDmn() {
+    executeMandatorySchemaResource("drop", "decision.engine");
+  }
+
+  @Override
+  protected void dbSchemaDropDmnHistory() {
+    executeMandatorySchemaResource("drop", "decision.history");
+  }
 
   public void executeMandatorySchemaResource(String operation, String component) {
     executeSchemaResource(operation, component, getResourceForDbOperation(operation, operation, component), false);
@@ -378,22 +395,37 @@ public class DbSqlSession extends AbstractPersistenceSession {
 
   public static String[] JDBC_METADATA_TABLE_TYPES = {"TABLE"};
 
+  @Override
   public boolean isEngineTablePresent(){
     return isTablePresent("ACT_RU_EXECUTION");
   }
+  @Override
   public boolean isHistoryTablePresent(){
     return isTablePresent("ACT_HI_PROCINST");
   }
+  @Override
   public boolean isIdentityTablePresent(){
     return isTablePresent("ACT_ID_USER");
   }
 
+  @Override
   public boolean isCmmnTablePresent() {
     return isTablePresent("ACT_RE_CASE_DEF");
   }
 
+  @Override
   public boolean isCmmnHistoryTablePresent() {
     return isTablePresent("ACT_HI_CASEINST");
+  }
+
+  @Override
+  public boolean isDmnTablePresent() {
+    return isTablePresent("ACT_RE_DECISION_DEF");
+  }
+
+  @Override
+  public boolean isDmnHistoryTablePresent() {
+    return isTablePresent("ACT_HI_DECINST");
   }
 
   public boolean isTablePresent(String tableName) {
@@ -423,9 +455,91 @@ public class DbSqlSession extends AbstractPersistenceSession {
       }
 
     } catch (Exception e) {
-      throw new ProcessEngineException("couldn't check if tables are already present using metadata: "+e.getMessage(), e);
+      throw LOG.checkDatabaseTableException(e);
     }
   }
+
+  @Override
+  public List<String> getTableNamesPresent() {
+    List<String> tableNames = new ArrayList<String>();
+
+    try {
+      ResultSet tablesRs = null;
+
+      try {
+        if (DbSqlSessionFactory.ORACLE.equals(getDbSqlSessionFactory().getDatabaseType())) {
+          tableNames = getTablesPresentInOracleDatabase();
+        } else {
+          Connection connection = getSqlSession().getConnection();
+          DatabaseMetaData databaseMetaData = connection.getMetaData();
+
+          String databaseTablePrefix = getDbSqlSessionFactory().getDatabaseTablePrefix();
+          String tableNameFilter = databaseTablePrefix+"ACT_%";
+
+          if (DbSqlSessionFactory.POSTGRES.equals(getDbSqlSessionFactory().getDatabaseType())) {
+            tableNameFilter = databaseTablePrefix+"act_%";
+          }
+          tablesRs = databaseMetaData.getTables(null, null, tableNameFilter, DbSqlSession.JDBC_METADATA_TABLE_TYPES);
+
+          while (tablesRs.next()) {
+            String tableName = tablesRs.getString("TABLE_NAME");
+            tableName = tableName.toUpperCase();
+            tableNames.add(tableName);
+
+          }
+          LOG.fetchDatabaseTables("jdbc metadata", tableNames);
+
+        }
+      } catch (SQLException se) {
+        throw se;
+      } finally {
+        if (tablesRs != null) {
+          tablesRs.close();
+        }
+      }
+    } catch (Exception e) {
+      throw LOG.getDatabaseTableNameException(e);
+    }
+
+    return tableNames;
+  }
+
+  protected List<String> getTablesPresentInOracleDatabase() throws SQLException {
+    List<String> tableNames = new ArrayList<String>();
+    Connection connection = null;
+    PreparedStatement prepStat = null;
+    ResultSet tablesRs = null;
+    String selectTableNamesFromOracle = "SELECT table_name FROM all_tables WHERE table_name LIKE ?";
+    String databaseTablePrefix = getDbSqlSessionFactory().getDatabaseTablePrefix();
+
+    try {
+      connection = Context.getProcessEngineConfiguration().getDataSource().getConnection();
+      prepStat = connection.prepareStatement(selectTableNamesFromOracle);
+      prepStat.setString(1, databaseTablePrefix + "ACT_%");
+
+      tablesRs = prepStat.executeQuery();
+      while (tablesRs.next()) {
+        String tableName = tablesRs.getString("TABLE_NAME");
+        tableName = tableName.toUpperCase();
+        tableNames.add(tableName);
+      }
+      LOG.fetchDatabaseTables("oracle all_tables", tableNames);
+
+    } finally {
+      if (tablesRs != null) {
+        tablesRs.close();
+      }
+      if (prepStat != null) {
+        prepStat.close();
+      }
+      if (connection != null) {
+        connection.close();
+      }
+    }
+
+    return tableNames;
+  }
+
 
   protected String prependDatabaseTablePrefix(String tableName) {
     String prefixWithoutSchema = dbSqlSessionFactory.getDatabaseTablePrefix();
@@ -455,9 +569,9 @@ public class DbSqlSession extends AbstractPersistenceSession {
       inputStream = ReflectUtil.getResourceAsStream(resourceName);
       if (inputStream == null) {
         if (isOptional) {
-          log.fine("no schema resource "+resourceName+" for "+operation);
+          LOG.missingSchemaResource(resourceName, operation);
         } else {
-          throw new ProcessEngineException("resource '" + resourceName + "' is not available");
+          throw LOG.missingSchemaResourceException(resourceName, operation);
         }
       } else {
         executeSchemaResource(operation, component, resourceName, inputStream);
@@ -474,14 +588,13 @@ public class DbSqlSession extends AbstractPersistenceSession {
       inputStream = new FileInputStream(new File(schemaFileResourceName));
       executeSchemaResource("schema operation", "process engine", schemaFileResourceName, inputStream);
     } catch (FileNotFoundException e) {
-      throw new ProcessEngineException("Cannot find schema resource file '"+schemaFileResourceName,e);
+      throw LOG.missingSchemaResourceFileException(schemaFileResourceName, e);
     } finally {
       IoUtil.closeSilently(inputStream);
     }
   }
 
   private void executeSchemaResource(String operation, String component, String resourceName, InputStream inputStream) {
-    log.info("performing "+operation+" on "+component+" with resource "+resourceName);
     String sqlStatement = null;
     String exceptionSqlStatement = null;
     try {
@@ -491,13 +604,14 @@ public class DbSqlSession extends AbstractPersistenceSession {
       String ddlStatements = new String(bytes);
       BufferedReader reader = new BufferedReader(new StringReader(ddlStatements));
       String line = readNextTrimmedLine(reader);
+
+      List<String> logLines = new ArrayList<String>();
+
       while (line != null) {
         if (line.startsWith("# ")) {
-          log.fine(line.substring(2));
-
+          logLines.add(line.substring(2));
         } else if (line.startsWith("-- ")) {
-          log.fine(line.substring(3));
-
+          logLines.add(line.substring(3));
         } else if (line.length()>0) {
 
           if (line.endsWith(";")) {
@@ -505,7 +619,7 @@ public class DbSqlSession extends AbstractPersistenceSession {
             Statement jdbcStatement = connection.createStatement();
             try {
               // no logging needed as the connection will log it
-              log.fine("SQL: "+sqlStatement);
+              logLines.add(sqlStatement);
               jdbcStatement.execute(sqlStatement);
               jdbcStatement.close();
             } catch (Exception e) {
@@ -513,7 +627,7 @@ public class DbSqlSession extends AbstractPersistenceSession {
                 exception = e;
                 exceptionSqlStatement = sqlStatement;
               }
-              log.log(Level.SEVERE, "problem during schema " + operation + ", statement '" + sqlStatement, e);
+              LOG.failedDatabaseOperation(operation, sqlStatement, e);
             } finally {
               sqlStatement = null;
             }
@@ -524,15 +638,16 @@ public class DbSqlSession extends AbstractPersistenceSession {
 
         line = readNextTrimmedLine(reader);
       }
+      LOG.performingDatabaseOperation(operation, component, resourceName);
+      LOG.executingDDL(logLines);
 
       if (exception != null) {
         throw exception;
       }
 
-      log.fine("database schema " + operation + " for component "+component+" successful");
-
+      LOG.successfulDatabaseOperation(operation, component);
     } catch (Exception e) {
-      throw new ProcessEngineException("couldn't "+operation+" db schema: "+exceptionSqlStatement, e);
+      throw LOG.performDatabaseOperationException(operation, exceptionSqlStatement, e);
     }
   }
 

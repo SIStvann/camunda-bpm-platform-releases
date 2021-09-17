@@ -52,13 +52,10 @@ public class ExecutionQueryImpl extends AbstractVariableQueryImpl<ExecutionQuery
   protected String superCaseInstanceId;
   protected String subCaseInstanceId;
   protected String caseInstanceId;
+  protected String deploymentId;
   private String businessKey;
 
   public ExecutionQueryImpl() {
-  }
-
-  public ExecutionQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public ExecutionQueryImpl(CommandExecutor commandExecutor) {
@@ -298,6 +295,10 @@ public class ExecutionQueryImpl extends AbstractVariableQueryImpl<ExecutionQuery
 
   public String getIncidentMessageLike() {
     return incidentMessageLike;
+  }
+
+  public String getDeploymentId() {
+    return deploymentId;
   }
 
 }

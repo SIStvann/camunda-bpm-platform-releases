@@ -15,13 +15,13 @@ package org.camunda.bpm.engine.impl.metrics.reporter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TimerTask;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.metrics.Meter;
+import org.camunda.bpm.engine.impl.metrics.MetricsLogger;
 import org.camunda.bpm.engine.impl.metrics.MetricsRegistry;
 import org.camunda.bpm.engine.impl.persistence.entity.MeterLogEntity;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
@@ -33,10 +33,11 @@ import org.camunda.bpm.engine.impl.util.ClockUtil;
  */
 public class MetricsCollectionTask extends TimerTask {
 
-  protected final static Logger log = Logger.getLogger(MetricsCollectionTask.class.getName());
+  private final static MetricsLogger LOG = ProcessEngineLogger.METRICS_LOGGER;
 
   protected MetricsRegistry metricsRegistry;
   protected CommandExecutor commandExecutor;
+  protected String reporterId = null;
 
   public MetricsCollectionTask(MetricsRegistry metricsRegistry, CommandExecutor commandExecutor) {
     this.metricsRegistry = metricsRegistry;
@@ -49,8 +50,9 @@ public class MetricsCollectionTask extends TimerTask {
     }
     catch(Exception e) {
       try {
-        log.log(Level.WARNING, "Could not collect and log metrics", e);
-      } catch (Exception ex) {
+        LOG.couldNotCollectAndLogMetrics(e);
+      }
+      catch (Exception ex) {
         // ignore if log can't be written
       }
     }
@@ -61,8 +63,10 @@ public class MetricsCollectionTask extends TimerTask {
     final List<MeterLogEntity> logs = new ArrayList<MeterLogEntity>();
     for (Meter meter : metricsRegistry.getMeters().values()) {
       logs.add(new MeterLogEntity(meter.getName(),
+          reporterId,
           meter.getAndClear(),
           ClockUtil.getCurrentTime()));
+
     }
 
     commandExecutor.execute(new Command<Void>() {
@@ -75,5 +79,15 @@ public class MetricsCollectionTask extends TimerTask {
       }
     });
   }
+
+  public String getReporter() {
+    return reporterId;
+  }
+
+  public void setReporter(String reporterId) {
+    this.reporterId = reporterId;
+  }
+
+
 
 }

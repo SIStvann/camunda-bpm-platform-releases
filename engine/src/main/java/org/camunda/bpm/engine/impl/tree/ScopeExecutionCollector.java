@@ -18,21 +18,21 @@ import java.util.List;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
 /**
- * @author Daniel Meyer
+ * @author Thorben Lindhauer
  *
  */
-public class ScopeExecutionCollector implements Collector<PvmExecutionImpl> {
+public class ScopeExecutionCollector implements TreeVisitor<PvmExecutionImpl> {
 
-  protected List<PvmExecutionImpl> executions = new ArrayList<PvmExecutionImpl>();
+  protected List<PvmExecutionImpl> scopeExecutions = new ArrayList<PvmExecutionImpl>();
 
-  public void collect(PvmExecutionImpl obj) {
-    if(obj.isScope()) {
-      executions.add(obj);
+  public void visit(PvmExecutionImpl obj) {
+    if (obj.isScope()) {
+      scopeExecutions.add(obj);
     }
   }
 
-  public List<PvmExecutionImpl> getExecutions() {
-    return executions;
+  public List<PvmExecutionImpl> getScopeExecutions() {
+    return scopeExecutions;
   }
 
 }

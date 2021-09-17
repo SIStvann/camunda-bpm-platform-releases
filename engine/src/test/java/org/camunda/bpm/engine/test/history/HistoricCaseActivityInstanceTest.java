@@ -46,12 +46,12 @@ import org.camunda.bpm.engine.impl.persistence.entity.HistoricCaseActivityInstan
 import org.camunda.bpm.engine.impl.test.CmmnProcessEngineTestCase;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.query.Query;
-import org.camunda.bpm.engine.query.QueryProperty;
 import org.camunda.bpm.engine.runtime.CaseExecution;
 import org.camunda.bpm.engine.runtime.CaseInstance;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.variable.Variables;
 import org.hamcrest.Matcher;
 
 /**
@@ -320,11 +320,15 @@ public class HistoricCaseActivityInstanceTest extends CmmnProcessEngineTestCase 
     assertCount(0, historicQuery().createdBefore(beforeCreate));
     assertCount(6, historicQuery().createdBefore(ended));
 
+    assertCount(0, historicQuery().createdBefore(beforeCreate).createdAfter(ended));
+
     assertCount(6, historicQuery().endedAfter(created));
     assertCount(0, historicQuery().endedAfter(afterEnd));
 
     assertCount(0, historicQuery().endedBefore(created));
     assertCount(6, historicQuery().endedBefore(afterEnd));
+
+    assertCount(0, historicQuery().endedBefore(created).endedAfter(afterEnd));
   }
 
   @Deployment(resources = {"org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn"})
@@ -713,6 +717,105 @@ public class HistoricCaseActivityInstanceTest extends CmmnProcessEngineTestCase 
     assertTrue(humanTask2.isEnabled());
     assertNull(humanTask2.getEndTime());
     assertNull(humanTask2.getDurationInMillis());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/cmmn/repetition/RepetitionRuleTest.testRepeatTask.cmmn"})
+  public void testRepeatTask() {
+    // given
+    createCaseInstance();
+    String firstHumanTaskId = queryCaseExecutionByActivityId("PI_HumanTask_1").getId();
+
+    // when
+    manualStart(firstHumanTaskId);
+    complete(firstHumanTaskId);
+
+    // then
+    HistoricCaseActivityInstanceQuery query = historicQuery().caseActivityId("PI_HumanTask_2");
+    assertEquals(2, query.count());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/cmmn/repetition/RepetitionRuleTest.testRepeatStage.cmmn"})
+  public void testRepeatStage() {
+    // given
+    createCaseInstance();
+
+    String firstHumanTaskId = queryCaseExecutionByActivityId("PI_HumanTask_1").getId();
+
+    // when
+    manualStart(firstHumanTaskId);
+    complete(firstHumanTaskId);
+
+    // then
+    HistoricCaseActivityInstanceQuery query = historicQuery().caseActivityId("PI_Stage_1");
+    assertEquals(2, query.count());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/cmmn/repetition/RepetitionRuleTest.testRepeatMilestone.cmmn"})
+  public void testRepeatMilestone() {
+    // given
+    createCaseInstance();
+    String firstHumanTaskId = queryCaseExecutionByActivityId("PI_HumanTask_1").getId();
+
+    // when
+    manualStart(firstHumanTaskId);
+    complete(firstHumanTaskId);
+
+    // then
+    HistoricCaseActivityInstanceQuery query = historicQuery().caseActivityId("PI_Milestone_1");
+    assertEquals(2, query.count());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/cmmn/repetition/RepetitionRuleTest.testAutoCompleteStage.cmmn"})
+  public void testAutoCompleteStage() {
+    // given
+    createCaseInstance();
+    String humanTask1 = queryCaseExecutionByActivityId("PI_HumanTask_1").getId();
+
+    // when
+    complete(humanTask1);
+
+    // then
+    HistoricCaseActivityInstanceQuery query = historicQuery().caseActivityId("PI_Stage_1");
+    assertEquals(1, query.count());
+
+    query = historicQuery().caseActivityId("PI_HumanTask_1");
+    assertEquals(1, query.count());
+
+    query = historicQuery().caseActivityId("PI_HumanTask_2");
+    assertEquals(2, query.count());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/cmmn/repetition/RepetitionRuleTest.testAutoCompleteStageWithoutEntryCriteria.cmmn"})
+  public void testAutoCompleteStageWithRepeatableTaskWithoutEntryCriteria() {
+    // given
+    createCaseInstanceByKey("case", Variables.createVariables().putValue("manualActivation", false));
+    String stage = queryCaseExecutionByActivityId("PI_Stage_1").getId();
+    manualStart(stage);
+
+    // when
+    String humanTask = queryCaseExecutionByActivityId("PI_HumanTask_1").getId();
+    complete(humanTask);
+
+    // then
+    HistoricCaseActivityInstanceQuery query = historicQuery().caseActivityId("PI_HumanTask_1");
+    assertEquals(2, query.count());
+
+    query = historicQuery().caseActivityId("PI_Stage_1");
+    assertEquals(1, query.count());
+
+  }
+
+  @Deployment
+  public void testDecisionTask() {
+    createCaseInstance();
+
+    HistoricCaseActivityInstance decisionTask = historyService
+        .createHistoricCaseActivityInstanceQuery()
+        .caseActivityId("PI_DecisionTask_1")
+        .singleResult();
+
+    assertNotNull(decisionTask);
+    assertEquals("decisionTask", decisionTask.getCaseActivityType());
   }
 
   protected HistoricCaseActivityInstanceQuery historicQuery() {

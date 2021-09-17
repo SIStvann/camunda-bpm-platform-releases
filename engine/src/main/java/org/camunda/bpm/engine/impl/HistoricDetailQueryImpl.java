@@ -16,15 +16,13 @@ package org.camunda.bpm.engine.impl;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
 import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricDetailQuery;
+import org.camunda.bpm.engine.impl.cmd.CommandLogger;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricDetailVariableInstanceUpdateEntity;
-import org.camunda.bpm.engine.variable.type.ValueType;
+import org.camunda.bpm.engine.impl.variable.serializer.AbstractTypedValueSerializer;
 
 
 /**
@@ -32,7 +30,7 @@ import org.camunda.bpm.engine.variable.type.ValueType;
  */
 public class HistoricDetailQueryImpl extends AbstractQuery<HistoricDetailQuery, HistoricDetail> implements HistoricDetailQuery {
 
-  private final static Logger LOGGER = Logger.getLogger(HistoricDetailQueryImpl.class.getName());
+  private final static CommandLogger LOG = ProcessEngineLogger.CMD_LOGGER;
 
   private static final long serialVersionUID = 1L;
   protected String detailId;
@@ -51,10 +49,6 @@ public class HistoricDetailQueryImpl extends AbstractQuery<HistoricDetailQuery, 
   protected boolean isCustomObjectDeserializationEnabled = true;
 
   public HistoricDetailQueryImpl() {
-  }
-
-  public HistoricDetailQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public HistoricDetailQueryImpl(CommandExecutor commandExecutor) {
@@ -162,7 +156,7 @@ public class HistoricDetailQueryImpl extends AbstractQuery<HistoricDetailQuery, 
 
             } catch(Exception t) {
               // do not fail if one of the variables fails to load
-              LOGGER.log(Level.FINE, "Exception while getting value for variable", t);
+              LOG.exceptionWhileGettingValueForVariable(t);
             }
           }
 
@@ -174,7 +168,8 @@ public class HistoricDetailQueryImpl extends AbstractQuery<HistoricDetailQuery, 
 
   protected boolean shouldFetchValue(HistoricDetailVariableInstanceUpdateEntity entity) {
     // do not fetch values for byte arrays eagerly (unless requested by the user)
-    return isByteArrayFetchingEnabled || !ValueType.BYTES.equals(entity.getSerializer().getType());
+    return isByteArrayFetchingEnabled
+        || !AbstractTypedValueSerializer.BINARY_VALUE_TYPES.contains(entity.getSerializer().getType().getName());
   }
 
   // order by /////////////////////////////////////////////////////////////////

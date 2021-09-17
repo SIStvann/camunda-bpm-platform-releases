@@ -18,7 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
-import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParser;
+import org.camunda.bpm.engine.impl.form.handler.DefaultFormHandler;
 import org.camunda.bpm.engine.impl.util.xml.Element;
 
 
@@ -39,13 +39,17 @@ public class FormTypes {
     String typeText = formFieldElement.attribute("type");
     String datePatternText = formFieldElement.attribute("datePattern");
 
+    if (typeText == null && DefaultFormHandler.FORM_FIELD_ELEMENT.equals(formFieldElement.getTagName())) {
+      bpmnParse.addError("form field must have a 'type' attribute", formFieldElement);
+    }
+
     if ("date".equals(typeText) && datePatternText!=null) {
       formType = new DateFormType(datePatternText);
 
     } else if ("enum".equals(typeText)) {
       // ACT-1023: Using linked hashmap to preserve the order in which the entries are defined
       Map<String, String> values = new LinkedHashMap<String, String>();
-      for (Element valueElement: formFieldElement.elementsNS(BpmnParser.ACTIVITI_BPMN_EXTENSIONS_NS,"value")) {
+      for (Element valueElement: formFieldElement.elementsNS(BpmnParse.CAMUNDA_BPMN_EXTENSIONS_NS,"value")) {
         String valueId = valueElement.attribute("id");
         String valueName = valueElement.attribute("name");
         values.put(valueId, valueName);

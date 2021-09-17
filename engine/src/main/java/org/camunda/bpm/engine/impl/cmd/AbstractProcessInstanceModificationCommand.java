@@ -19,7 +19,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import org.camunda.bpm.engine.ProcessEngineException;
-import org.camunda.bpm.engine.impl.ActivityExecutionMapping;
+import org.camunda.bpm.engine.impl.ActivityExecutionTreeMapping;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
@@ -71,7 +71,7 @@ public abstract class AbstractProcessInstanceModificationCommand implements Comm
 
   protected TransitionInstance findTransitionInstance(ActivityInstance tree, String transitionInstanceId) {
     for (TransitionInstance childTransitionInstance : tree.getChildTransitionInstances()) {
-      if (childTransitionInstance.getId().equals(transitionInstanceId)) {
+      if (matchesRequestedTransitionInstance(childTransitionInstance, transitionInstanceId)) {
         return childTransitionInstance;
       }
     }
@@ -84,6 +84,53 @@ public abstract class AbstractProcessInstanceModificationCommand implements Comm
     }
 
     return null;
+  }
+
+  protected boolean matchesRequestedTransitionInstance(TransitionInstance instance, String queryInstanceId) {
+    boolean match = instance.getId().equals(queryInstanceId);
+
+    // check if the execution queried for has been replaced by the given instance
+    // => if yes, given instance is matched
+    // this is a fix for CAM-4090 to tolerate inconsistent transition instance ids as described in CAM-4143
+    if (!match) {
+      // note: execution id = transition instance id
+      ExecutionEntity cachedExecution = Context.getCommandContext()
+          .getDbEntityManager()
+          .getCachedEntity(ExecutionEntity.class, queryInstanceId);
+
+      // follow the links of execution replacement;
+      // note: this can be at most two hops:
+      // case 1:
+      //   the query execution is the scope execution
+      //     => tree may have expanded meanwhile
+      //     => scope execution references replacing execution directly (one hop)
+      //
+      // case 2:
+      //   the query execution is a concurrent execution
+      //     => tree may have compacted meanwhile
+      //     => concurrent execution references scope execution directly (one hop)
+      //
+      // case 3:
+      //   the query execution is a concurrent execution
+      //     => tree may have compacted/expanded/compacted/../expanded any number of times
+      //     => the concurrent execution has been removed and therefore references the scope execution (first hop)
+      //     => the scope execution may have been replaced itself again with another concurrent execution (second hop)
+      //   note that the scope execution may have a long "history" of replacements, but only the last replacement is relevant here
+      if (cachedExecution != null) {
+        ExecutionEntity replacingExecution = cachedExecution.getReplacedBy();
+
+        if (replacingExecution != null) {
+          ExecutionEntity secondHopReplacingExecution = replacingExecution.getReplacedBy();
+          if (secondHopReplacingExecution != null) {
+            replacingExecution = secondHopReplacingExecution;
+          }
+
+          match = replacingExecution.getId().equals(instance.getId());
+        }
+      }
+    }
+
+    return match;
   }
 
   protected ScopeImpl getScopeForActivityInstance(ProcessDefinitionImpl processDefinition,
@@ -99,7 +146,7 @@ public abstract class AbstractProcessInstanceModificationCommand implements Comm
   }
 
   protected ExecutionEntity getScopeExecutionForActivityInstance(ExecutionEntity processInstance,
-      ActivityExecutionMapping mapping, ActivityInstance activityInstance) {
+      ActivityExecutionTreeMapping mapping, ActivityInstance activityInstance) {
     ensureNotNull("activityInstance", activityInstance);
 
     ProcessDefinitionImpl processDefinition = processInstance.getProcessDefinition();
@@ -114,7 +161,7 @@ public abstract class AbstractProcessInstanceModificationCommand implements Comm
       ExecutionEntity execution = Context.getCommandContext()
           .getExecutionManager()
           .findExecutionById(activityInstanceExecutionId);
-      if (execution.isConcurrent() && !execution.getExecutions().isEmpty()) {
+      if (execution.isConcurrent() && execution.hasChildren()) {
         // concurrent executions have at most one child
         ExecutionEntity child = execution.getExecutions().get(0);
         activityInstanceExecutions.add(child.getId());
@@ -135,5 +182,15 @@ public abstract class AbstractProcessInstanceModificationCommand implements Comm
     }
 
     return retainedExecutionsForInstance.iterator().next();
+  }
+
+  protected String describeFailure(String detailMessage) {
+    return "Cannot perform instruction: " + describe() + "; " + detailMessage;
+  }
+
+  protected abstract String describe();
+
+  public String toString() {
+    return describe();
   }
 }

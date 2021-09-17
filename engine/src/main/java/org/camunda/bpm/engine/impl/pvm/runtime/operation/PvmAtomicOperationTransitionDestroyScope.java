@@ -13,13 +13,13 @@
 package org.camunda.bpm.engine.impl.pvm.runtime.operation;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.logging.Logger;
-
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
+import org.camunda.bpm.engine.impl.pvm.PvmLogger;
 import org.camunda.bpm.engine.impl.pvm.PvmTransition;
-import org.camunda.bpm.engine.impl.pvm.process.TransitionImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.LegacyBehavior;
 import org.camunda.bpm.engine.impl.pvm.runtime.OutgoingExecution;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
@@ -32,37 +32,42 @@ import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
  */
 public class PvmAtomicOperationTransitionDestroyScope implements PvmAtomicOperation {
 
-  private static Logger log = Logger.getLogger(PvmAtomicOperationTransitionDestroyScope.class.getName());
+  private final static PvmLogger LOG = ProcessEngineLogger.PVM_LOGGER;
 
   public boolean isAsync(PvmExecutionImpl instance) {
+    return false;
+  }
+
+  public boolean isAsyncCapable() {
     return false;
   }
 
   public void execute(PvmExecutionImpl execution) {
 
     // calculate the propagating execution
-    PvmExecutionImpl propagatingExecution = null;
+    PvmExecutionImpl propagatingExecution = execution;
 
     PvmActivity activity = execution.getActivity();
     List<PvmTransition> transitionsToTake = execution.getTransitionsToTake();
     execution.setTransitionsToTake(null);
 
     // check whether the current scope needs to be destroyed
-    if (activity.isScope()) {
+    if (execution.isScope() && activity.isScope()) {
 
-      if (execution.isConcurrent()) {
-        // legacy behavior
-        LegacyBehavior.destroyConcurrentScope(execution);
-        propagatingExecution = execution;
-      }
-      else {
-        propagatingExecution = execution.getParent();
-        propagatingExecution.setActivity(execution.getActivity());
-        propagatingExecution.setTransition(execution.getTransition());
-        propagatingExecution.setActive(true);
-        log.fine("destroy scope: scoped "+execution+" continues as parent scope "+propagatingExecution);
-        execution.destroy();
-        execution.remove();
+      if (!LegacyBehavior.destroySecondNonScope(execution)) {
+        if (execution.isConcurrent()) {
+          // legacy behavior
+          LegacyBehavior.destroyConcurrentScope(execution);
+        }
+        else {
+          propagatingExecution = execution.getParent();
+          propagatingExecution.setActivity(execution.getActivity());
+          propagatingExecution.setTransition(execution.getTransition());
+          propagatingExecution.setActive(true);
+          LOG.debugDestroyScope(execution, propagatingExecution);
+          execution.destroy();
+          execution.remove();
+        }
       }
 
     } else {
@@ -100,7 +105,7 @@ public class PvmAtomicOperationTransitionDestroyScope implements PvmAtomicOperat
 
           if (i == 1 && !propagatingExecution.isConcurrent()) {
             outgoingExecutions.remove(0);
-            // get ahold of the concurrent execution that replaced the scope propagating execution
+            // get a hold of the concurrent execution that replaced the scope propagating execution
             PvmExecutionImpl replacingExecution = null;
             for (PvmExecutionImpl concurrentChild : scopeExecution.getNonEventScopeExecutions())  {
               if (!(concurrentChild == propagatingExecution)) {
@@ -115,6 +120,10 @@ public class PvmAtomicOperationTransitionDestroyScope implements PvmAtomicOperat
 
         outgoingExecutions.add(new OutgoingExecution(concurrentExecution, transition));
       }
+
+      // start executions in reverse order (order will be reversed again in command context with the effect that they are
+      // actually be started in correct order :) )
+      Collections.reverse(outgoingExecutions);
 
       for (OutgoingExecution outgoingExecution : outgoingExecutions) {
         outgoingExecution.take();

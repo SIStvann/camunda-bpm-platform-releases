@@ -13,8 +13,8 @@
 package org.camunda.bpm.engine.impl.bpmn.behavior;
 
 import org.camunda.bpm.engine.delegate.VariableScope;
+import org.camunda.bpm.engine.impl.core.model.BaseCallableElement.CallableElementBinding;
 import org.camunda.bpm.engine.impl.core.model.CallableElement;
-import org.camunda.bpm.engine.impl.core.model.CallableElement.CallableElementBinding;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityExecution;
 import org.camunda.bpm.engine.impl.pvm.delegate.SubProcessActivityBehavior;
 import org.camunda.bpm.engine.variable.VariableMap;
@@ -27,16 +27,20 @@ public abstract class CallableElementActivityBehavior extends AbstractBpmnActivi
 
   protected CallableElement callableElement;
 
+  @Override
   public void execute(ActivityExecution execution) throws Exception {
     VariableMap variables = getInputVariables(execution);
     String businessKey = getBusinessKey(execution);
     startInstance(execution, variables, businessKey);
   }
 
-  public void completing(VariableScope execution, VariableScope subInstance) throws Exception {
+  public void passOutputVariables(ActivityExecution execution, VariableScope subInstance) {
     // only data. no control flow available on this execution.
     VariableMap variabes = getOutputVariables(subInstance);
     execution.setVariables(variabes);
+
+    VariableMap localVariables = getOutputVariablesLocal(subInstance);
+    execution.setVariablesLocal(localVariables);
   }
 
   public void completed(ActivityExecution execution) throws Exception {
@@ -56,12 +60,16 @@ public abstract class CallableElementActivityBehavior extends AbstractBpmnActivi
     return getCallableElement().getBusinessKey(execution);
   }
 
-  protected VariableMap getInputVariables(ActivityExecution execution) {
-    return getCallableElement().getInputVariables(execution);
+  protected VariableMap getInputVariables(ActivityExecution callingExecution) {
+    return getCallableElement().getInputVariables(callingExecution);
   }
 
-  protected VariableMap getOutputVariables(VariableScope variableScope) {
-    return getCallableElement().getOutputVariables(variableScope);
+  protected VariableMap getOutputVariables(VariableScope calledElementScope) {
+    return getCallableElement().getOutputVariables(calledElementScope);
+  }
+
+  protected VariableMap getOutputVariablesLocal(VariableScope calledElementScope) {
+    return getCallableElement().getOutputVariablesLocal(calledElementScope);
   }
 
   protected Integer getVersion(ActivityExecution execution) {

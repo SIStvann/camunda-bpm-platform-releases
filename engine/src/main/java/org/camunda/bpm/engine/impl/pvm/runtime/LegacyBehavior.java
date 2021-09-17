@@ -12,15 +12,21 @@
  */
 package org.camunda.bpm.engine.impl.pvm.runtime;
 
+import static org.camunda.bpm.engine.impl.bpmn.helper.CompensationUtil.SIGNAL_COMPENSATION_DONE;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Logger;
 
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
+import org.camunda.bpm.engine.impl.bpmn.behavior.BpmnBehaviorLogger;
+import org.camunda.bpm.engine.impl.bpmn.behavior.CancelBoundaryEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.CancelEndEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.CompensationEventActivityBehavior;
 import org.camunda.bpm.engine.impl.bpmn.behavior.EventSubProcessActivityBehavior;
 import org.camunda.bpm.engine.impl.bpmn.behavior.MultiInstanceActivityBehavior;
 import org.camunda.bpm.engine.impl.bpmn.behavior.ReceiveTaskActivityBehavior;
@@ -42,9 +48,7 @@ import org.camunda.bpm.engine.impl.pvm.delegate.CompositeActivityBehavior;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
 import org.camunda.bpm.engine.impl.tree.ExecutionWalker;
-import org.camunda.bpm.engine.impl.tree.FlowScopeWalker;
-import org.camunda.bpm.engine.impl.tree.ScopeCollector;
-import org.camunda.bpm.engine.impl.tree.ScopeExecutionCollector;
+import org.camunda.bpm.engine.impl.tree.TreeWalker.WalkCondition;
 
 /**
  * This class encapsulates legacy runtime behavior for the process engine.
@@ -73,7 +77,7 @@ import org.camunda.bpm.engine.impl.tree.ScopeExecutionCollector;
  */
 public class LegacyBehavior {
 
-  private final static Logger log = Logger.getLogger(LegacyBehavior.class.getName());
+  private final static BpmnBehaviorLogger LOG = ProcessEngineLogger.BPMN_BEHAVIOR_LOGGER;
 
   // concurrent scopes ///////////////////////////////////////////
 
@@ -89,7 +93,7 @@ public class LegacyBehavior {
    */
   public static void pruneConcurrentScope(PvmExecutionImpl execution) {
     ensureConcurrentScope(execution);
-    log.fine("[LEGACY BEHAVIOR]: concurrent scope execution is pruned "+execution);
+    LOG.debugConcurrentScopeIsPruned(execution);
     execution.setConcurrent(false);
   }
 
@@ -105,7 +109,7 @@ public class LegacyBehavior {
    */
   public static void cancelConcurrentScope(PvmExecutionImpl execution, PvmActivity cancelledScopeActivity) {
     ensureConcurrentScope(execution);
-    log.fine("[LEGACY BEHAVIOR]: cancel concurrent scope execution "+execution);
+    LOG.debugCancelConcurrentScopeExecution(execution);
 
     execution.interrupt("Scope "+cancelledScopeActivity+" cancelled.");
     // <!> HACK set to event scope activity and leave activity instance
@@ -125,8 +129,7 @@ public class LegacyBehavior {
    */
   public static void destroyConcurrentScope(PvmExecutionImpl execution) {
     ensureConcurrentScope(execution);
-    log.fine("[LEGACY BEHAVIOR]: destroy concurrent scope execution "+execution);
-
+    LOG.destroyConcurrentScopeExecution(execution);
     execution.destroy();
   }
 
@@ -136,7 +139,7 @@ public class LegacyBehavior {
     boolean performLegacyBehavior = isLegacyBehaviorRequired(scopeExecution);
 
     if(performLegacyBehavior) {
-      log.fine("[LEGACY BEHAVIOR]: complete non-scope event subprocess.");
+      LOG.completeNonScopeEventSubprocess();
       scopeExecution.end(false);
     }
 
@@ -147,7 +150,7 @@ public class LegacyBehavior {
     boolean performLegacyBehavior = isLegacyBehaviorRequired(endedExecution);
 
     if(performLegacyBehavior) {
-      log.fine("[LEGACY BEHAVIOR]: end concurrent execution in event subprocess.");
+      LOG.endConcurrentExecutionInEventSubprocess();
       // notify the grandparent flow scope in a similar way PvmAtomicOperationAcitivtyEnd does
       ScopeImpl flowScope = endedExecution.getActivity().getFlowScope();
       if (flowScope != null) {
@@ -183,7 +186,6 @@ public class LegacyBehavior {
     boolean performLegacyBehavior = isLegacyBehaviorRequired(execution);
 
     if(performLegacyBehavior) {
-      log.fine("[LEGACY BEHAVIOR]: end scope execution in previously non-scope activity");
       // legacy behavior is to do nothing
     }
 
@@ -282,7 +284,13 @@ public class LegacyBehavior {
     int executionCounter = 0;
     for(int i = 1; i < scopes.size(); i++) {
       ActivityImpl scope = (ActivityImpl) scopes.get(i);
-      if(numOfMissingExecutions > 0 && wasNoScope(scope)) {
+
+      PvmExecutionImpl scopeExecutionCandidate = null;
+      if (executionCounter + 1 < scopeExecutions.size()) {
+        scopeExecutionCandidate = scopeExecutions.get(executionCounter + 1);
+      }
+
+      if(numOfMissingExecutions > 0 && wasNoScope(scope, scopeExecutionCandidate)) {
         // found a missing scope
         numOfMissingExecutions--;
       }
@@ -303,10 +311,13 @@ public class LegacyBehavior {
   }
 
   /**
-   * Determines whether the given scope was a scope (boolean flag isScope)
-   * when used as a multi-instance activity
+   * Determines whether the given scope was a scope in previous versions
    */
-  protected static boolean wasNoScope(ActivityImpl activity) {
+  protected static boolean wasNoScope(ActivityImpl activity, PvmExecutionImpl scopeExecutionCandidate) {
+    return wasNoScope72(activity) || wasNoScope73(activity, scopeExecutionCandidate);
+  }
+
+  protected static boolean wasNoScope72(ActivityImpl activity) {
     ActivityBehavior activityBehavior = activity.getActivityBehavior();
     ActivityBehavior parentActivityBehavior = (ActivityBehavior) (activity.getFlowScope() != null ? activity.getFlowScope().getActivityBehavior() : null);
     return (activityBehavior instanceof EventSubProcessActivityBehavior)
@@ -314,6 +325,20 @@ public class LegacyBehavior {
               && parentActivityBehavior instanceof SequentialMultiInstanceActivityBehavior)
         || (activityBehavior instanceof ReceiveTaskActivityBehavior
               && parentActivityBehavior instanceof MultiInstanceActivityBehavior);
+  }
+
+  protected static boolean wasNoScope73(ActivityImpl activity, PvmExecutionImpl scopeExecutionCandidate) {
+    ActivityBehavior activityBehavior = activity.getActivityBehavior();
+    return (activityBehavior instanceof CompensationEventActivityBehavior)
+        || (activityBehavior instanceof CancelEndEventActivityBehavior)
+        || isMultiInstanceInCompensation(activity, scopeExecutionCandidate);
+  }
+
+  protected static boolean isMultiInstanceInCompensation(ActivityImpl activity, PvmExecutionImpl scopeExecutionCandidate) {
+    return
+        activity.getActivityBehavior() instanceof MultiInstanceActivityBehavior
+        && ((scopeExecutionCandidate != null && findCompensationThrowingAncestorExecution(scopeExecutionCandidate) != null)
+              || scopeExecutionCandidate == null);
   }
 
   /**
@@ -350,34 +375,23 @@ public class LegacyBehavior {
    * skip the subprocess's execution).
    *
    */
-  public static PvmExecutionImpl determinePropagatingExecutionOnEnd(PvmExecutionImpl propagatingExecution) {
+  public static PvmExecutionImpl determinePropagatingExecutionOnEnd(PvmExecutionImpl propagatingExecution, Map<ScopeImpl, PvmExecutionImpl> activityExecutionMapping) {
     if (!propagatingExecution.isScope()) {
       // non-scope executions may end in the "wrong" flow scope
       return propagatingExecution;
     }
-
-    ScopeExecutionCollector scopeExecutionCollector = new ScopeExecutionCollector();
-    new ExecutionWalker(propagatingExecution)
-      .addPreCollector(scopeExecutionCollector)
-      .walkUntil();
-    List<PvmExecutionImpl> scopeExecutions = scopeExecutionCollector.getExecutions();
-
-    ScopeCollector scopeCollector = new ScopeCollector();
-    new FlowScopeWalker(propagatingExecution.getActivity().getFlowScope())
-      .addPreCollector(scopeCollector)
-      .walkUntil();
-
-    List<ScopeImpl> flowScopes = scopeCollector.getScopes();
-
-    if (scopeExecutions.size() > flowScopes.size()) {
-      // skip one scope
-      propagatingExecution.remove();
-      PvmExecutionImpl parent = propagatingExecution.getParent();
-      parent.setActivity(propagatingExecution.getActivity());
-      return propagatingExecution.getParent();
-    }
     else {
-      return propagatingExecution;
+      // superfluous scope executions won't be contained in the activity-execution mapping
+      if (activityExecutionMapping.values().contains(propagatingExecution)) {
+        return propagatingExecution;
+      }
+      else {
+        // skip one scope
+        propagatingExecution.remove();
+        PvmExecutionImpl parent = propagatingExecution.getParent();
+        parent.setActivity(propagatingExecution.getActivity());
+        return propagatingExecution.getParent();
+      }
     }
   }
 
@@ -460,16 +474,27 @@ public class LegacyBehavior {
       List<ScopeImpl> scopes = scopesForExecution.getValue();
 
       if (scopes.size() > 1) {
+        ScopeImpl topMostScope = getTopMostScope(scopes);
+
         for (ScopeImpl scope : scopes) {
-          if (scope != scope.getProcessDefinition()) {
-            ActivityImpl scopeActivity = (ActivityImpl) scope;
-            if (wasNoScope(scopeActivity)) {
-              mapping.remove(scope);
-            }
+          if (scope != scope.getProcessDefinition() && scope != topMostScope) {
+            mapping.remove(scope);
           }
         }
       }
     }
+  }
+
+  protected static ScopeImpl getTopMostScope(List<ScopeImpl> scopes) {
+    ScopeImpl topMostScope = null;
+
+    for (ScopeImpl candidateScope : scopes) {
+      if (topMostScope == null || candidateScope.isAncestorFlowScopeOf(topMostScope)) {
+        topMostScope = candidateScope;
+      }
+    }
+
+    return topMostScope;
   }
 
   /**
@@ -486,43 +511,60 @@ public class LegacyBehavior {
     }
   }
 
+  /**
+   * When deploying an async job definition for an activity wrapped in an miBody, set the activity id to the
+   * miBody except the wrapped activity is marked as async.
+   *
+   * Background: in <= 7.2 async job definitions were created for the inner activity, although the
+   * semantics are that they are executed before the miBody is entered
+   */
   public static void migrateMultiInstanceJobDefinitions(ProcessDefinitionEntity processDefinition, List<JobDefinitionEntity> jobDefinitions) {
-    // TODO: this has to be improved once we support async for the inner activity
-
     for (JobDefinitionEntity jobDefinition : jobDefinitions) {
 
       String activityId = jobDefinition.getActivityId();
       if (activityId != null) {
         ActivityImpl activity = processDefinition.findActivity(jobDefinition.getActivityId());
-        ScopeImpl flowScope = activity.getFlowScope();
-        if (flowScope != processDefinition) {
-          ActivityImpl flowScopeActivity = (ActivityImpl) flowScope;
-          if (flowScopeActivity.getActivityBehavior() instanceof MultiInstanceActivityBehavior
-              && AsyncContinuationJobHandler.TYPE.equals(jobDefinition.getJobType())) {
-            jobDefinition.setActivityId(flowScopeActivity.getId());
-          }
+
+        if (!isAsync(activity) && isActivityWrappedInMultiInstanceBody(activity) && isAsyncJobDefinition(jobDefinition)) {
+          jobDefinition.setActivityId(activity.getFlowScope().getId());
         }
       }
     }
   }
 
+  protected static boolean isAsync(ActivityImpl activity) {
+    return activity.isAsyncBefore() || activity.isAsyncAfter();
+  }
+
+  protected static boolean isAsyncJobDefinition(JobDefinitionEntity jobDefinition) {
+    return AsyncContinuationJobHandler.TYPE.equals(jobDefinition.getJobType());
+  }
+
+  protected static boolean isActivityWrappedInMultiInstanceBody(ActivityImpl activity) {
+    ScopeImpl flowScope = activity.getFlowScope();
+
+    if (flowScope != activity.getProcessDefinition()) {
+      ActivityImpl flowScopeActivity = (ActivityImpl) flowScope;
+
+      return flowScopeActivity.getActivityBehavior() instanceof MultiInstanceActivityBehavior;
+    } else {
+      return false;
+    }
+  }
+
   /**
    * When executing an async job for an activity wrapped in an miBody, set the execution to the
-   * miBody. Background: in <= 7.2 async jobs were created for the inner activity, although the
+   * miBody except the wrapped activity is marked as async.
+   *
+   * Background: in <= 7.2 async jobs were created for the inner activity, although the
    * semantics are that they are executed before the miBody is entered
    */
   public static void repairMultiInstanceAsyncJob(ExecutionEntity execution) {
-    // TODO: this has to be improved once we support async for the inner activity
-
     ActivityImpl activity = execution.getActivity();
-    ScopeImpl flowScope = activity.getFlowScope();
-    if (flowScope != activity.getProcessDefinition()) {
-      ActivityImpl flowScopeActivity = (ActivityImpl) flowScope;
-      if (flowScopeActivity.getActivityBehavior() instanceof MultiInstanceActivityBehavior) {
-        execution.setActivity(flowScopeActivity);
-      }
-    }
 
+    if (!isAsync(activity) && isActivityWrappedInMultiInstanceBody(activity)) {
+      execution.setActivity((ActivityImpl) activity.getFlowScope());
+    }
   }
 
   /**
@@ -530,7 +572,7 @@ public class LegacyBehavior {
    * compensation completes, the execution is signalled waiting at the boundary event.
    */
   public static boolean signalCancelBoundaryEvent(String signalName) {
-    return "compensationDone".equals(signalName);
+    return SIGNAL_COMPENSATION_DONE.equals(signalName);
   }
 
   /**
@@ -538,6 +580,55 @@ public class LegacyBehavior {
    */
   public static void parseCancelBoundaryEvent(ActivityImpl activity) {
     activity.setProperty(BpmnParse.PROPERTYNAME_THROWS_COMPENSATION, true);
+  }
+
+  /**
+   * <p>In general, only leaf executions have activity ids.</p>
+   * <p>Exception to that rule: compensation throwing executions.</p>
+   * <p>Legacy exception (<= 7.2) to that rule: miBody executions and parallel gateway executions</p>
+   *
+   * @return true, if the argument is not a leaf and has an invalid (i.e. legacy) non-null activity id
+   */
+  public static boolean hasInvalidIntermediaryActivityId(PvmExecutionImpl execution) {
+    return !execution.getNonEventScopeExecutions().isEmpty() && !CompensationBehavior.isCompensationThrowing(execution);
+  }
+
+  /**
+   * Returns true if the given execution is in a compensation-throwing activity but there is no dedicated scope execution
+   * in the given mapping.
+   */
+  public static boolean isCompensationThrowing(PvmExecutionImpl execution, Map<ScopeImpl, PvmExecutionImpl> activityExecutionMapping) {
+    if (CompensationBehavior.isCompensationThrowing(execution)) {
+      ScopeImpl compensationThrowingActivity = execution.getActivity();
+
+      if (compensationThrowingActivity.isScope()) {
+        return activityExecutionMapping.get(compensationThrowingActivity) ==
+            activityExecutionMapping.get(compensationThrowingActivity.getFlowScope());
+      }
+      else {
+        // for transaction sub processes with cancel end events, the compensation throwing execution waits in the boundary event, not in the end
+        // event; cancel boundary events are currently not scope
+        return compensationThrowingActivity.getActivityBehavior() instanceof CancelBoundaryEventActivityBehavior;
+      }
+    }
+    else {
+      return false;
+    }
+  }
+
+  public static boolean isCompensationThrowing(PvmExecutionImpl execution) {
+    return isCompensationThrowing(execution, execution.createActivityExecutionMapping());
+  }
+
+  protected static PvmExecutionImpl findCompensationThrowingAncestorExecution(PvmExecutionImpl execution) {
+    ExecutionWalker walker = new ExecutionWalker(execution);
+    walker.walkUntil(new WalkCondition<PvmExecutionImpl>() {
+      public boolean isFulfilled(PvmExecutionImpl element) {
+        return element == null || CompensationBehavior.isCompensationThrowing(element);
+      }
+    });
+
+    return walker.getCurrentElement();
   }
 
 }

@@ -36,7 +36,10 @@ import org.camunda.bpm.engine.impl.cmd.GetTableMetaDataCmd;
 import org.camunda.bpm.engine.impl.cmd.GetTableNameCmd;
 import org.camunda.bpm.engine.impl.cmd.RegisterDeploymentCmd;
 import org.camunda.bpm.engine.impl.cmd.RegisterProcessApplicationCmd;
+import org.camunda.bpm.engine.impl.cmd.ReportDbMetricsCmd;
+import org.camunda.bpm.engine.impl.cmd.SetJobDefinitionPriorityCmd;
 import org.camunda.bpm.engine.impl.cmd.SetJobDuedateCmd;
+import org.camunda.bpm.engine.impl.cmd.SetJobPriorityCmd;
 import org.camunda.bpm.engine.impl.cmd.SetJobRetriesCmd;
 import org.camunda.bpm.engine.impl.cmd.SetPropertyCmd;
 import org.camunda.bpm.engine.impl.cmd.SuspendJobCmd;
@@ -113,6 +116,10 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
 
   public void setJobDuedate(String jobId, Date newDuedate) {
     commandExecutor.execute(new SetJobDuedateCmd(jobId, newDuedate));
+  }
+
+  public void setJobPriority(String jobId, long priority) {
+    commandExecutor.execute(new SetJobPriorityCmd(jobId, priority));
   }
 
   public TablePageQuery createTablePageQuery() {
@@ -309,7 +316,29 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
   }
 
   public void deleteMetrics(Date timestamp) {
-    commandExecutor.execute(new DeleteMetricsCmd(timestamp));
+    commandExecutor.execute(new DeleteMetricsCmd(timestamp, null));
   }
+
+  public void deleteMetrics(Date timestamp, String reporter) {
+    commandExecutor.execute(new DeleteMetricsCmd(timestamp, reporter));
+
+  }
+
+  public void reportDbMetricsNow() {
+    commandExecutor.execute(new ReportDbMetricsCmd());
+  }
+
+  public void setOverridingJobPriorityForJobDefinition(String jobDefinitionId, long priority) {
+    commandExecutor.execute(new SetJobDefinitionPriorityCmd(jobDefinitionId, priority, false));
+  }
+
+  public void setOverridingJobPriorityForJobDefinition(String jobDefinitionId, long priority, boolean cascade) {
+    commandExecutor.execute(new SetJobDefinitionPriorityCmd(jobDefinitionId, priority, true));
+  }
+
+  public void clearOverridingJobPriorityForJobDefinition(String jobDefinitionId) {
+    commandExecutor.execute(new SetJobDefinitionPriorityCmd(jobDefinitionId, null, false));
+  }
+
 
 }

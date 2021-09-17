@@ -12,11 +12,12 @@
  */
 package org.camunda.bpm.engine.impl.pvm.runtime.operation;
 
-import java.util.logging.Level;
-import java.util.logging.Logger;
-
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
+import org.camunda.bpm.engine.impl.pvm.PvmLogger;
 import org.camunda.bpm.engine.impl.pvm.delegate.CompositeActivityBehavior;
+import org.camunda.bpm.engine.impl.pvm.runtime.CompensationBehavior;
+import org.camunda.bpm.engine.impl.pvm.runtime.LegacyBehavior;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
 
@@ -26,7 +27,7 @@ import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
  */
 public abstract class PvmAtomicOperationActivityInstanceEnd extends AbstractPvmEventAtomicOperation {
 
-  private final static Logger log = Logger.getLogger(PvmAtomicOperationActivityInstanceEnd.class.getName());
+  private final static PvmLogger LOG = ProcessEngineLogger.PVM_LOGGER;
 
   @Override
   protected PvmExecutionImpl eventNotificationsStarted(PvmExecutionImpl execution) {
@@ -39,11 +40,11 @@ public abstract class PvmAtomicOperationActivityInstanceEnd extends AbstractPvmE
     PvmActivity activity = execution.getActivity();
     if (parent != null && execution.isScope() &&
         activity != null && activity.isScope() &&
-        (activity.getActivityBehavior() instanceof CompositeActivityBehavior)) {
+        (activity.getActivityBehavior() instanceof CompositeActivityBehavior
+            || (CompensationBehavior.isCompensationThrowing(execution))
+              && !LegacyBehavior.isCompensationThrowing(execution))) {
 
-      if(log.isLoggable(Level.FINE)) {
-        log.fine("[LEAVE] "+ execution + ": "+execution.getActivityInstanceId() );
-      }
+      LOG.debugLeavesActivityInstance(execution, execution.getActivityInstanceId());
 
       // use remembered activity instance id from parent
       execution.setActivityInstanceId(parent.getActivityInstanceId());

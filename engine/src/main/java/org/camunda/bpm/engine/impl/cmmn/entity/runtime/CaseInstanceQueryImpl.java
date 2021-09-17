@@ -18,8 +18,8 @@ import java.util.List;
 
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.impl.AbstractVariableQueryImpl;
-import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.Page;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.cmmn.execution.CaseExecutionState;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
@@ -38,6 +38,7 @@ public class CaseInstanceQueryImpl extends AbstractVariableQueryImpl<CaseInstanc
   protected String businessKey;
   protected String caseDefinitionId;
   protected String caseDefinitionKey;
+  protected String deploymentId;
   protected CaseExecutionState state;
   protected String superProcessInstanceId;
   protected String subProcessInstanceId;
@@ -46,12 +47,10 @@ public class CaseInstanceQueryImpl extends AbstractVariableQueryImpl<CaseInstanc
 
   // Not used by end-users, but needed for dynamic ibatis query
   protected Boolean required;
+  protected Boolean repeatable;
+  protected Boolean repetition;
 
   public CaseInstanceQueryImpl() {
-  }
-
-  public CaseInstanceQueryImpl(CommandContext commandContext) {
-    super(commandContext);
   }
 
   public CaseInstanceQueryImpl(CommandExecutor commandExecutor) {
@@ -79,6 +78,12 @@ public class CaseInstanceQueryImpl extends AbstractVariableQueryImpl<CaseInstanc
   public CaseInstanceQuery caseDefinitionId(String caseDefinitionId) {
     ensureNotNull(NotValidException.class, "caseDefinitionId", caseDefinitionId);
     this.caseDefinitionId = caseDefinitionId;
+    return this;
+  }
+
+  public CaseInstanceQuery deploymentId(String deploymentId) {
+    ensureNotNull(NotValidException.class, "deploymentId", deploymentId);
+    this.deploymentId = deploymentId;
     return this;
   }
 
@@ -183,6 +188,10 @@ public class CaseInstanceQueryImpl extends AbstractVariableQueryImpl<CaseInstanc
     return caseDefinitionKey;
   }
 
+  public String getDeploymentId() {
+    return deploymentId;
+  }
+
   public CaseExecutionState getState() {
     return state;
   }
@@ -209,6 +218,14 @@ public class CaseInstanceQueryImpl extends AbstractVariableQueryImpl<CaseInstanc
 
   public Boolean isRequired() {
     return required;
+  }
+
+  public Boolean isRepeatable() {
+    return repeatable;
+  }
+
+  public Boolean isRepetition() {
+    return repetition;
   }
 
 }

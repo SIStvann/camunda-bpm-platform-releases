@@ -12,7 +12,7 @@
   <parent>
     <groupId>org.camunda.bpm.tomcat</groupId>
     <artifactId>camunda-tomcat</artifactId>
-    <version>7.3.0</version>
+    <version>7.4.0</version>
   </parent>
 
   <name>camunda BPM - tomcat Assembly</name>
@@ -121,6 +121,12 @@
       <groupId>org.camunda.template-engines</groupId>
       <artifactId>camunda-template-engines-freemarker</artifactId>
     </dependency>
+
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-jdk14</artifactId>
+    </dependency>
+
   </dependencies>
 
   <build>

@@ -13,27 +13,32 @@
 
 package org.camunda.bpm.engine.impl.persistence.entity;
 
-import java.sql.*;
-import java.util.*;
-import java.util.logging.Logger;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.ibatis.session.RowBounds;
-import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.filter.Filter;
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
 import org.camunda.bpm.engine.history.HistoricCaseActivityInstance;
 import org.camunda.bpm.engine.history.HistoricCaseInstance;
+import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricFormProperty;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.HistoricTaskInstance;
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.history.HistoricVariableUpdate;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.TablePageQueryImpl;
-import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.DbEntity;
-import org.camunda.bpm.engine.impl.db.sql.DbSqlSession;
+import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.db.sql.DbSqlSessionFactory;
+import org.camunda.bpm.engine.impl.history.event.HistoricDecisionInstanceEntity;
 import org.camunda.bpm.engine.impl.history.event.HistoricDetailEventEntity;
 import org.camunda.bpm.engine.impl.persistence.AbstractManager;
 import org.camunda.bpm.engine.management.TableMetaData;
@@ -52,7 +57,7 @@ import org.camunda.bpm.engine.task.Task;
  */
 public class TableDataManager extends AbstractManager {
 
-  private static Logger log = Logger.getLogger(TableDataManager.class.getName());
+  protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
 
   public static Map<Class<?>, String> apiTypeToTableNameMap = new HashMap<Class<?>, String>();
   public static Map<Class<? extends DbEntity>, String> persistentObjectToTableNameMap = new HashMap<Class<? extends DbEntity>, String>();
@@ -97,6 +102,7 @@ public class TableDataManager extends AbstractManager {
     persistentObjectToTableNameMap.put(HistoricVariableInstanceEntity.class, "ACT_HI_DETAIL");
     persistentObjectToTableNameMap.put(HistoricDetailEventEntity.class, "ACT_HI_DETAIL");
 
+    persistentObjectToTableNameMap.put(HistoricDecisionInstanceEntity.class, "ACT_HI_DECINST");
 
     // Identity module
     persistentObjectToTableNameMap.put(GroupEntity.class, "ACT_ID_GROUP");
@@ -132,102 +138,26 @@ public class TableDataManager extends AbstractManager {
     apiTypeToTableNameMap.put(HistoricCaseInstance.class, "ACT_HI_CASEINST");
     apiTypeToTableNameMap.put(HistoricCaseActivityInstance.class, "ACT_HI_CASEACTINST");
 
+    apiTypeToTableNameMap.put(HistoricDecisionInstance.class, "ACT_HI_DECINST");
+
     // TODO: Identity skipped for the moment as no SQL injection is provided here
   }
 
   public Map<String, Long> getTableCount() {
     Map<String, Long> tableCount = new HashMap<String, Long>();
     try {
-      for (String tableName: getTablesPresentInDatabase()) {
+      for (String tableName: getDbEntityManager().getTableNamesPresentInDatabase()) {
         tableCount.put(tableName, getTableCount(tableName));
       }
-      log.fine("Number of rows per process engine table: "+tableCount);
+      LOG.countRowsPerProcessEngineTable(tableCount);
     } catch (Exception e) {
-      throw new ProcessEngineException("couldn't get table counts", e);
+      throw LOG.countTableRowsException(e);
     }
     return tableCount;
   }
 
-  public List<String> getTablesPresentInDatabase() {
-    List<String> tableNames = new ArrayList<String>();
-
-    try {
-      ResultSet tablesRs = null;
-
-      try {
-        if (DbSqlSessionFactory.ORACLE.equals(getDbSqlSession().getDbSqlSessionFactory().getDatabaseType())) {
-          tableNames = getTablesPresentInOracleDatabase();
-        } else {
-          Connection connection = getDbSqlSession().getSqlSession().getConnection();
-          DatabaseMetaData databaseMetaData = connection.getMetaData();
-
-          log.fine("retrieving process engine tables from jdbc metadata");
-          String databaseTablePrefix = getDbSqlSession().getDbSqlSessionFactory().getDatabaseTablePrefix();
-          String tableNameFilter = databaseTablePrefix+"ACT_%";
-
-          if (DbSqlSessionFactory.POSTGRES.equals(getDbSqlSession().getDbSqlSessionFactory().getDatabaseType())) {
-            tableNameFilter = databaseTablePrefix+"act_%";
-          }
-          tablesRs = databaseMetaData.getTables(null, null, tableNameFilter, DbSqlSession.JDBC_METADATA_TABLE_TYPES);
-
-          while (tablesRs.next()) {
-            String tableName = tablesRs.getString("TABLE_NAME");
-            tableName = tableName.toUpperCase();
-            tableNames.add(tableName);
-            log.fine("  retrieved process engine table name "+tableName);
-          }
-        }
-      } catch (SQLException se) {
-        throw se;
-      } finally {
-        if (tablesRs != null) {
-          tablesRs.close();
-        }
-      }
-    } catch (Exception e) {
-      throw new ProcessEngineException("couldn't get process engine table names: "+e.getMessage(), e);
-    }
-
-    return tableNames;
-  }
-
-  protected List<String> getTablesPresentInOracleDatabase() throws SQLException {
-    List<String> tableNames = new ArrayList<String>();
-    Connection connection = null;
-    PreparedStatement prepStat = null;
-    ResultSet tablesRs = null;
-    String selectTableNamesFromOracle = "SELECT table_name FROM all_tables WHERE table_name LIKE ?";
-    String databaseTablePrefix = getDbSqlSession().getDbSqlSessionFactory().getDatabaseTablePrefix();
-
-    try {
-        connection = Context.getProcessEngineConfiguration().getDataSource().getConnection();
-        prepStat = connection.prepareStatement(selectTableNamesFromOracle);
-        prepStat.setString(1, databaseTablePrefix + "ACT_%");
-        log.fine("retrieving process engine tables from oracle all_tables");
-        tablesRs = prepStat.executeQuery();
-        while (tablesRs.next()) {
-          String tableName = tablesRs.getString("TABLE_NAME");
-          tableName = tableName.toUpperCase();
-          tableNames.add(tableName);
-          log.fine("  retrieved process engine table name "+tableName);
-        }
-    } finally {
-      if (tablesRs != null) {
-        tablesRs.close();
-      }
-      if (prepStat != null) {
-        prepStat.close();
-      }
-      if (connection != null) {
-        connection.close();
-      }
-    }
-
-    return tableNames;
-  }
-
   protected long getTableCount(String tableName) {
-    log.fine("selecting table count for "+tableName);
+    LOG.selectTableCountForTable(tableName);
     Long count = (Long) getDbEntityManager().selectOne("selectTableCount",
             Collections.singletonMap("tableName", tableName));
     return count;
@@ -244,7 +174,7 @@ public class TableDataManager extends AbstractManager {
 
     tablePage.setTableName(tablePageQuery.getTableName());
     tablePage.setTotal(getTableCount(tablePageQuery.getTableName()));
-    tablePage.setRows((List<Map<String,Object>>)tableData);
+    tablePage.setRows(tableData);
     tablePage.setFirstResult(firstResult);
 
     return tablePage;
@@ -299,7 +229,7 @@ public class TableDataManager extends AbstractManager {
         }
       }
     } catch (Exception e) {
-      throw new ProcessEngineException("Could not retrieve database metadata: " + e.getMessage());
+      throw LOG.retrieveMetadataException(e);
     }
 
     if(result.getColumnNames().size() == 0) {

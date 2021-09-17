@@ -19,9 +19,8 @@ import java.util.List;
 import java.util.concurrent.Callable;
 
 import org.camunda.bpm.application.ProcessApplicationReference;
-import org.camunda.bpm.engine.ProcessEngineException;
-import org.camunda.bpm.engine.delegate.BpmnError;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.bpmn.parser.FieldDeclaration;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.context.ProcessApplicationContextUtil;
@@ -42,6 +41,8 @@ import org.camunda.bpm.engine.impl.pvm.delegate.SignallableActivityBehavior;
  */
 public class ClassDelegateActivityBehavior extends AbstractBpmnActivityBehavior {
 
+  protected static final BpmnBehaviorLogger LOG = ProcessEngineLogger.BPMN_BEHAVIOR_LOGGER;
+
   protected String className;
   protected List<FieldDeclaration> fieldDeclarations;
 
@@ -55,16 +56,14 @@ public class ClassDelegateActivityBehavior extends AbstractBpmnActivityBehavior 
   }
 
   // Activity Behavior
-  public void execute(ActivityExecution execution) throws Exception {
-
-    ActivityBehavior activityBehaviorInstance = getActivityBehaviorInstance(execution);
-    try {
-      activityBehaviorInstance.execute(execution);
-    } catch (BpmnError error) {
-      propagateBpmnError(error, execution);
-    } catch (Exception ex) {
-      propagateExceptionAsError(ex, execution);
-    }
+  public void execute(final ActivityExecution execution) throws Exception {
+    this.executeWithErrorPropagation(execution, new Callable<Void>() {
+      @Override
+      public Void call() throws Exception {
+        getActivityBehaviorInstance(execution).execute(execution);
+        return null;
+      }
+    });
   }
 
   // Signallable activity behavior
@@ -83,27 +82,24 @@ public class ClassDelegateActivityBehavior extends AbstractBpmnActivityBehavior 
     }
   }
 
-  protected void doSignal(ActivityExecution execution, String signalName, Object signalData) throws Exception {
-    ActivityBehavior activityBehaviorInstance = getActivityBehaviorInstance(execution);
+  protected void doSignal(final ActivityExecution execution, final String signalName, final Object signalData) throws Exception {
+    final ActivityBehavior activityBehaviorInstance = getActivityBehaviorInstance(execution);
 
     if (activityBehaviorInstance instanceof CustomActivityBehavior) {
       CustomActivityBehavior behavior = (CustomActivityBehavior) activityBehaviorInstance;
       ActivityBehavior delegate = behavior.getDelegateActivityBehavior();
 
       if (!(delegate instanceof SignallableActivityBehavior)) {
-        throw new ProcessEngineException("signal() can only be called on a " + SignallableActivityBehavior.class.getName() + " instance");
+        throw LOG.incorrectlyUsedSignalException(SignallableActivityBehavior.class.getName() );
       }
     }
-
-    try {
-      ((SignallableActivityBehavior) activityBehaviorInstance).signal(execution, signalName, signalData);
-    }
-    catch (BpmnError error) {
-      propagateBpmnError(error, execution);
-    }
-    catch (Exception exception) {
-      propagateExceptionAsError(exception, execution);
-    }
+    executeWithErrorPropagation(execution, new Callable<Void>() {
+      @Override
+      public Void call() throws Exception {
+        ((SignallableActivityBehavior) activityBehaviorInstance).signal(execution, signalName, signalData);
+        return null;
+      }
+    });
   }
 
   protected ActivityBehavior getActivityBehaviorInstance(ActivityExecution execution) {
@@ -114,7 +110,11 @@ public class ClassDelegateActivityBehavior extends AbstractBpmnActivityBehavior 
     } else if (delegateInstance instanceof JavaDelegate) {
       return new ServiceTaskJavaDelegateActivityBehavior((JavaDelegate) delegateInstance);
     } else {
-      throw new ProcessEngineException(delegateInstance.getClass().getName()+" doesn't implement "+JavaDelegate.class.getName()+" nor "+ActivityBehavior.class.getName());
+      throw LOG.missingDelegateParentClassException(
+        delegateInstance.getClass().getName(),
+        JavaDelegate.class.getName(),
+        ActivityBehavior.class.getName()
+      );
     }
   }
 

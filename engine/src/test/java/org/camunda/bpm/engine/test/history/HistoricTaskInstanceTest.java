@@ -23,6 +23,7 @@ import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
 import org.camunda.bpm.engine.history.HistoricTaskInstance;
 import org.camunda.bpm.engine.history.HistoricTaskInstanceQuery;
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
@@ -214,11 +215,46 @@ public class HistoricTaskInstanceTest extends PluggableProcessEngineTestCase {
     assertEquals(1, historyService.createHistoricTaskInstanceQuery().taskDueAfter(anHourAgo.getTime()).count());
     assertEquals(0, historyService.createHistoricTaskInstanceQuery().taskDueAfter(anHourLater.getTime()).count());
 
+    assertEquals(1, historyService.createHistoricTaskInstanceQuery().taskDueDate(dueDate).taskDueBefore(anHourLater.getTime()).count());
+    assertEquals(0, historyService.createHistoricTaskInstanceQuery().taskDueDate(dueDate).taskDueBefore(anHourAgo.getTime()).count());
+    assertEquals(1, historyService.createHistoricTaskInstanceQuery().taskDueDate(dueDate).taskDueAfter(anHourAgo.getTime()).count());
+    assertEquals(0, historyService.createHistoricTaskInstanceQuery().taskDueDate(dueDate).taskDueAfter(anHourLater.getTime()).count());
+    assertEquals(0, historyService.createHistoricTaskInstanceQuery().taskDueBefore(anHourAgo.getTime()).taskDueAfter(anHourLater.getTime()).count());
+
     // Finished and Unfinished - Add anther other instance that has a running task (unfinished)
     runtimeService.startProcessInstanceByKey("HistoricTaskQueryTest");
 
     assertEquals(1, historyService.createHistoricTaskInstanceQuery().finished().count());
     assertEquals(1, historyService.createHistoricTaskInstanceQuery().unfinished().count());
+    assertEquals(0, historyService.createHistoricTaskInstanceQuery().unfinished().finished().count());
+  }
+
+  @Deployment
+  public void testHistoricTaskInstanceQueryByProcessVariableValue() throws Exception {
+    int historyLevel = processEngineConfiguration.getHistoryLevel().getId();
+    if (historyLevel >= ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT) {
+      Map<String, Object> variables = new HashMap<String, Object>();
+      variables.put("hallo", "steffen");
+
+      String processInstanceId = runtimeService.startProcessInstanceByKey("HistoricTaskInstanceTest", variables).getId();
+
+      Task runtimeTask = taskService.createTaskQuery().processInstanceId(processInstanceId).singleResult();
+      String taskId = runtimeTask.getId();
+
+      HistoricTaskInstance historicTaskInstance = historyService
+          .createHistoricTaskInstanceQuery()
+          .processVariableValueEquals("hallo", "steffen")
+          .singleResult();
+
+      assertNotNull(historicTaskInstance);
+      assertEquals(taskId, historicTaskInstance.getId());
+
+      taskService.complete(taskId);
+      assertEquals(1, historyService.createHistoricTaskInstanceQuery().taskId(taskId).count());
+
+      historyService.deleteHistoricTaskInstance(taskId);
+      assertEquals(0, historyService.createHistoricTaskInstanceQuery().count());
+    }
   }
 
   public void testHistoricTaskInstanceAssignment() {
@@ -313,6 +349,8 @@ public class HistoricTaskInstanceTest extends PluggableProcessEngineTestCase {
     taskService.complete(task.getId());
     assertEquals(0, historyService.createHistoricTaskInstanceQuery().processUnfinished().count());
     assertEquals(2, historyService.createHistoricTaskInstanceQuery().processFinished().count());
+
+    assertEquals(0, historyService.createHistoricTaskInstanceQuery().processUnfinished().processFinished().count());
   }
 
   @Deployment
@@ -408,11 +446,13 @@ public class HistoricTaskInstanceTest extends PluggableProcessEngineTestCase {
     assertEquals(0, historyService.createHistoricTaskInstanceQuery().taskFollowUpDate(otherDate.getTime()).count());
     assertEquals(1, historyService.createHistoricTaskInstanceQuery().taskFollowUpBefore(otherDate.getTime()).count());
     assertEquals(0, historyService.createHistoricTaskInstanceQuery().taskFollowUpAfter(otherDate.getTime()).count());
+    assertEquals(0, historyService.createHistoricTaskInstanceQuery().taskFollowUpAfter(otherDate.getTime()).taskFollowUpDate(followUpDate).count());
 
     otherDate.add(Calendar.YEAR, -2);
     assertEquals(1, historyService.createHistoricTaskInstanceQuery().taskFollowUpAfter(otherDate.getTime()).count());
     assertEquals(0, historyService.createHistoricTaskInstanceQuery().taskFollowUpBefore(otherDate.getTime()).count());
     assertEquals(followUpDate, historyService.createHistoricTaskInstanceQuery().taskId(task.getId()).singleResult().getFollowUpDate());
+    assertEquals(0, historyService.createHistoricTaskInstanceQuery().taskFollowUpBefore(otherDate.getTime()).taskFollowUpDate(followUpDate).count());
 
     taskService.complete(task.getId());
 

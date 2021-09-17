@@ -66,12 +66,12 @@ public class CaseExecutionDto {
     return parentId;
   }
 
-  public boolean isEnabled() {
-    return enabled;
-  }
-
   public boolean isRequired() {
     return required;
+  }
+
+  public boolean isEnabled() {
+    return enabled;
   }
 
   public boolean isActive() {

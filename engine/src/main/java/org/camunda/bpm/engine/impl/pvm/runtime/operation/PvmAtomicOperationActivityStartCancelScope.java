@@ -32,11 +32,16 @@ public class PvmAtomicOperationActivityStartCancelScope extends PvmAtomicOperati
   }
 
   protected void activityCancelled(PvmExecutionImpl execution) {
+    execution.setActivityInstanceId(null);
     execution.performOperation(ACTIVITY_START_CREATE_SCOPE);
   }
 
   protected PvmActivity getCancellingActivity(PvmExecutionImpl execution) {
     return execution.getNextActivity();
+  }
+
+  public boolean isAsyncCapable() {
+    return false;
   }
 
 }

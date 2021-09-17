@@ -45,7 +45,6 @@ public class CmmnActivity extends CoreActivity {
   protected Map<String, CmmnSentryDeclaration> sentryMap = new HashMap<String, CmmnSentryDeclaration>();
 
   protected List<CmmnSentryDeclaration> entryCriteria = new ArrayList<CmmnSentryDeclaration>();
-
   protected List<CmmnSentryDeclaration> exitCriteria = new ArrayList<CmmnSentryDeclaration>();
 
   // eventName => activity id => variable listeners

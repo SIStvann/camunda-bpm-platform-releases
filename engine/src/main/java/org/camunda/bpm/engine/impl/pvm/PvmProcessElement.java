@@ -15,6 +15,8 @@ package org.camunda.bpm.engine.impl.pvm;
 
 import java.io.Serializable;
 
+import org.camunda.bpm.engine.impl.core.model.Properties;
+
 
 /**
  * @author Tom Baeyens
@@ -35,4 +37,10 @@ public interface PvmProcessElement extends Serializable {
 
   Object getProperty(String name);
 
+  /**
+   * Returns the properties of the element.
+   *
+   * @return the properties
+   */
+  Properties getProperties();
 }

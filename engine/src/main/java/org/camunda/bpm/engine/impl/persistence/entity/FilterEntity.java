@@ -22,11 +22,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 import org.camunda.bpm.engine.EntityTypes;
-import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.filter.Filter;
 import org.camunda.bpm.engine.impl.AbstractQuery;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
+import org.camunda.bpm.engine.impl.QueryValidators.StoredQueryValidator;
 import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.impl.db.DbEntityLifecycleAware;
+import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
 import org.camunda.bpm.engine.impl.json.JsonObjectConverter;
 import org.camunda.bpm.engine.impl.json.JsonTaskQueryConverter;
@@ -37,9 +40,10 @@ import org.camunda.bpm.engine.query.Query;
 /**
  * @author Sebastian Menski
  */
-public class FilterEntity implements Filter, Serializable, DbEntity, HasDbRevision {
+public class FilterEntity implements Filter, Serializable, DbEntity, HasDbRevision, DbEntityLifecycleAware {
 
   private static final long serialVersionUID = 1L;
+  protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
 
   public final static Map<String, JsonObjectConverter<?>> queryConverter = new HashMap<String, JsonObjectConverter<?>>();
 
@@ -170,7 +174,7 @@ public class FilterEntity implements Filter, Serializable, DbEntity, HasDbRevisi
     ensureNotNull(NotValidException.class, "extendingQuery", extendingQuery);
 
     if (!extendingQuery.getClass().equals(query.getClass())) {
-      throw new NotValidException("Unable to extend a query of class '" + query.getClass() + "' by a query of class '" + extendingQuery.getClass() + "'");
+      throw LOG.queryExtensionException(query.getClass().getName(), extendingQuery.getClass().getName());
     }
 
     FilterEntity copy = copyFilter();
@@ -186,7 +190,7 @@ public class FilterEntity implements Filter, Serializable, DbEntity, HasDbRevisi
       return converter;
     }
     else {
-      throw new ProcessEngineException("Unsupported resource type '" + resourceType + "'");
+      throw LOG.unsupportedResourceTypeException(resourceType);
     }
   }
 
@@ -206,6 +210,13 @@ public class FilterEntity implements Filter, Serializable, DbEntity, HasDbRevisi
     copy.setQueryInternal(getQueryInternal());
     copy.setPropertiesInternal(getPropertiesInternal());
     return copy;
+  }
+
+  public void postLoad() {
+    if (query != null) {
+      query.addValidator(StoredQueryValidator.get());
+    }
+
   }
 
 }

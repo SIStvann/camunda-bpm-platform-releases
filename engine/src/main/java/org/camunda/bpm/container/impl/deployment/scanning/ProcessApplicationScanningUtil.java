@@ -19,6 +19,7 @@ import org.camunda.bpm.application.impl.metadata.spi.ProcessArchiveXml;
 import org.camunda.bpm.container.impl.deployment.scanning.spi.ProcessApplicationScanner;
 import org.camunda.bpm.engine.impl.bpmn.deployer.BpmnDeployer;
 import org.camunda.bpm.engine.impl.cmmn.deployer.CmmnDeployer;
+import org.camunda.bpm.engine.impl.dmn.deployer.DmnDeployer;
 
 public class ProcessApplicationScanningUtil {
 
@@ -55,8 +56,8 @@ public class ProcessApplicationScanningUtil {
       // check if we must use JBoss VFS
       classLoader.loadClass("org.jboss.vfs.VFS");
       scanner = new VfsProcessApplicationScanner();
-
-    } catch (Throwable t) {
+    }
+    catch (Throwable t) {
       scanner = new ClassPathProcessApplicationScanner();
     }
 
@@ -65,7 +66,9 @@ public class ProcessApplicationScanningUtil {
   }
 
   public static boolean isDeployable(String filename) {
-    return hasSuffix(filename, BpmnDeployer.BPMN_RESOURCE_SUFFIXES) || hasSuffix(filename, CmmnDeployer.CMMN_RESOURCE_SUFFIXES);
+    return hasSuffix(filename, BpmnDeployer.BPMN_RESOURCE_SUFFIXES)
+      || hasSuffix(filename, CmmnDeployer.CMMN_RESOURCE_SUFFIXES)
+      || hasSuffix(filename, DmnDeployer.DMN_RESOURCE_SUFFIXES);
   }
 
   public static boolean isDeployable(String filename, String[] additionalResourceSuffixes) {
@@ -90,8 +93,10 @@ public class ProcessApplicationScanningUtil {
     boolean isBpmnDiagram = checkDiagram(fileName, modelFileName, BpmnDeployer.DIAGRAM_SUFFIXES, BpmnDeployer.BPMN_RESOURCE_SUFFIXES);
     // case resources
     boolean isCmmnDiagram = checkDiagram(fileName, modelFileName, CmmnDeployer.DIAGRAM_SUFFIXES, CmmnDeployer.CMMN_RESOURCE_SUFFIXES);
+    // decision resources
+    boolean isDmnDiagram = checkDiagram(fileName, modelFileName, DmnDeployer.DIAGRAM_SUFFIXES, DmnDeployer.DMN_RESOURCE_SUFFIXES);
 
-    return isBpmnDiagram || isCmmnDiagram;
+    return isBpmnDiagram || isCmmnDiagram || isDmnDiagram;
   }
 
   /**

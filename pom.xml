@@ -11,7 +11,7 @@
 
   <groupId>org.camunda.bpm</groupId>
   <artifactId>camunda-root</artifactId>
-  <version>7.3.0</version>
+  <version>7.4.0</version>
   <packaging>pom</packaging>
   <name>camunda BPM - Root Pom</name>
 
@@ -40,6 +40,7 @@
         <module>javaee/ejb-client</module>
         <module>javaee/jobexecutor-ra</module>
         <module>javaee/jobexecutor-rar</module>
+
 
         <module>engine</module>
         <module>engine-cdi</module>
@@ -211,7 +212,7 @@
     <url>https://github.com/camunda/camunda-bpm-platform</url>
     <connection>scm:git:git@github.com:camunda/camunda-bpm-platform.git</connection>
     <developerConnection>scm:git:git@github.com:camunda/camunda-bpm-platform.git</developerConnection>
-    <tag>7.3.0</tag>
+    <tag>7.4.0</tag>
   </scm>
 
   <issueManagement>

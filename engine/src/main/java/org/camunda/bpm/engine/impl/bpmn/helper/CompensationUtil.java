@@ -13,26 +13,37 @@
 
 package org.camunda.bpm.engine.impl.bpmn.helper;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
+import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.persistence.entity.CompensateEventSubscriptionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.EventSubscriptionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
-import org.camunda.bpm.engine.impl.pvm.PvmActivity;
-import org.camunda.bpm.engine.impl.pvm.PvmScope;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityExecution;
+import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
+import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
-
+import org.camunda.bpm.engine.impl.tree.TreeVisitor;
+import org.camunda.bpm.engine.impl.tree.FlowScopeWalker;
+import org.camunda.bpm.engine.impl.tree.TreeWalker.WalkCondition;
 
 /**
  * @author Daniel Meyer
  */
 public class CompensationUtil {
+
+  /**
+   * name of the signal that is thrown when a compensation handler completed
+   */
+  public final static String SIGNAL_COMPENSATION_DONE = "compensationDone";
 
   /**
    * we create a separate execution for each compensation handler invocation.
@@ -46,12 +57,14 @@ public class CompensationUtil {
       // (which is the case when compensating an embedded subprocess,
       // where the compensating execution is created when leaving the subprocess
       // and holds snapshot data).
-      if(eventSubscription.getConfiguration() !=null) {
-        compensatingExecution = Context.getCommandContext()
-          .getExecutionManager()
-          .findExecutionById(eventSubscription.getConfiguration());
-        // move the compensating execution under this execution:
-        compensatingExecution.setParent((PvmExecutionImpl) execution);
+      if (eventSubscription.getConfiguration() != null) {
+        compensatingExecution = Context.getCommandContext().getExecutionManager().findExecutionById(eventSubscription.getConfiguration());
+
+        if (compensatingExecution.getParent() != execution) {
+          // move the compensating execution under this execution if this is not the case yet
+          compensatingExecution.setParent((PvmExecutionImpl) execution);
+        }
+
         compensatingExecution.setEventScope(false);
       } else {
         compensatingExecution = (ExecutionEntity) execution.createExecution();
@@ -60,10 +73,13 @@ public class CompensationUtil {
       compensatingExecution.setConcurrent(true);
     }
 
-    // signal compensation events in reverse order of their 'created' timestamp
+    // signal compensation events in order of their 'created' timestamp
+    // order will be reversed again in command context with the effect that they are
+    // actually be started in correct order :)
     Collections.sort(eventSubscriptions, new Comparator<EventSubscriptionEntity>() {
+      @Override
       public int compare(EventSubscriptionEntity o1, EventSubscriptionEntity o2) {
-        return o2.getCreated().compareTo(o1.getCreated());
+        return o1.getCreated().compareTo(o2.getCreated());
       }
     });
 
@@ -75,24 +91,23 @@ public class CompensationUtil {
   /**
    * creates an event scope for the given execution:
    *
-   * create a new event scope execution under the parent of the given
-   * execution and move all event subscriptions to that execution.
+   * create a new event scope execution under the parent of the given execution
+   * and move all event subscriptions to that execution.
    *
    * this allows us to "remember" the event subscriptions after finishing a
    * scope
    */
   public static void createEventScopeExecution(ExecutionEntity execution) {
 
-    PvmActivity activity = execution.getActivity();
-    PvmScope levelOfSubprocess = activity.getLevelOfSubprocessScope();
-
-    ExecutionEntity levelOfSubprocessScopeExecution = (ExecutionEntity) execution.findExecutionForFlowScope(levelOfSubprocess);
+    // parent execution is a subprocess or a miBody
+    ActivityImpl activity = execution.getActivity();
+    ExecutionEntity scopeExecution = (ExecutionEntity) execution.findExecutionForFlowScope(activity.getFlowScope());
 
     List<CompensateEventSubscriptionEntity> eventSubscriptions = execution.getCompensateEventSubscriptions();
 
-    if(eventSubscriptions.size() > 0) {
+    if (eventSubscriptions.size() > 0 || hasCompensationEventSubprocess(activity)) {
 
-      ExecutionEntity eventScopeExecution = levelOfSubprocessScopeExecution.createExecution();
+      ExecutionEntity eventScopeExecution = scopeExecution.createExecution();
       eventScopeExecution.setActivity(execution.getActivity());
       eventScopeExecution.enterActivityInstance();
       eventScopeExecution.setActive(false);
@@ -115,13 +130,106 @@ public class CompensationUtil {
       // (ensuring they don't get removed when 'execution' gets removed)
       for (PvmExecutionImpl childEventScopeExecution : execution.getEventScopeExecutions()) {
         childEventScopeExecution.setParent(eventScopeExecution);
-        eventScopeExecution.getExecutions().add((ExecutionEntity) childEventScopeExecution);
-        execution.getExecutions().remove(childEventScopeExecution);
       }
 
-      CompensateEventSubscriptionEntity eventSubscription = CompensateEventSubscriptionEntity.createAndInsert(levelOfSubprocessScopeExecution, execution.getActivity());
+      ActivityImpl compensationHandler = getEventScopeCompensationHandler(execution);
+      CompensateEventSubscriptionEntity eventSubscription = CompensateEventSubscriptionEntity.createAndInsert(scopeExecution,
+          compensationHandler);
       eventSubscription.setConfiguration(eventScopeExecution.getId());
 
+    }
+  }
+
+  protected static boolean hasCompensationEventSubprocess(ActivityImpl activity) {
+    ActivityImpl compensationHandler = activity.findCompensationHandler();
+
+    return compensationHandler != null && compensationHandler.isSubProcessScope() && compensationHandler.isTriggeredByEvent();
+  }
+
+  /**
+   * In the context when an event scope execution is created (i.e. a scope such as a subprocess has completed),
+   * this method returns the compensation handler activity that is going to be executed when by the event scope execution.
+   *
+   * This method is not relevant when the scope has a boundary compensation handler.
+   */
+  protected static ActivityImpl getEventScopeCompensationHandler(ExecutionEntity execution) {
+    ActivityImpl activity = execution.getActivity();
+
+    ActivityImpl compensationHandler = activity.findCompensationHandler();
+    if (compensationHandler != null && compensationHandler.isSubProcessScope()) {
+      // subprocess with inner compensation event subprocess
+      return compensationHandler;
+    } else {
+      // subprocess without compensation handler or
+      // multi instance activity
+      return activity;
+    }
+  }
+
+  /**
+   * Collect all compensate event subscriptions for scope of given execution.
+   */
+  public static List<CompensateEventSubscriptionEntity> collectCompensateEventSubscriptionsForScope(ActivityExecution execution) {
+
+    final Map<ScopeImpl, PvmExecutionImpl> scopeExecutionMapping = execution.createActivityExecutionMapping();
+    ScopeImpl activity = (ScopeImpl) execution.getActivity();
+
+    // <LEGACY>: different flow scopes may have the same scope execution =>
+    // collect subscriptions in a set
+    final Set<CompensateEventSubscriptionEntity> subscriptions = new HashSet<CompensateEventSubscriptionEntity>();
+    TreeVisitor<ScopeImpl> eventSubscriptionCollector = new TreeVisitor<ScopeImpl>() {
+      @Override
+      public void visit(ScopeImpl obj) {
+        PvmExecutionImpl execution = scopeExecutionMapping.get(obj);
+        subscriptions.addAll(((ExecutionEntity) execution).getCompensateEventSubscriptions());
+      }
+    };
+
+    new FlowScopeWalker(activity).addPostVisitor(eventSubscriptionCollector).walkUntil(new WalkCondition<ScopeImpl>() {
+      @Override
+      public boolean isFulfilled(ScopeImpl element) {
+        Boolean consumesCompensationProperty = (Boolean) element.getProperty(BpmnParse.PROPERTYNAME_CONSUMES_COMPENSATION);
+        return consumesCompensationProperty == null || consumesCompensationProperty == Boolean.TRUE;
+      }
+    });
+
+    return new ArrayList<CompensateEventSubscriptionEntity>(subscriptions);
+  }
+
+  /**
+   * Collect all compensate event subscriptions for activity on the scope of
+   * given execution.
+   */
+  public static List<CompensateEventSubscriptionEntity> collectCompensateEventSubscriptionsForActivity(ActivityExecution execution, String activityRef) {
+
+    final List<CompensateEventSubscriptionEntity> eventSubscriptions = collectCompensateEventSubscriptionsForScope(execution);
+    final String subscriptionActivityId = getSubscriptionActivityId(execution, activityRef);
+
+    List<CompensateEventSubscriptionEntity> eventSubscriptionsForActivity = new ArrayList<CompensateEventSubscriptionEntity>();
+    for (CompensateEventSubscriptionEntity subscription : eventSubscriptions) {
+      if (subscriptionActivityId.equals(subscription.getActivityId())) {
+        eventSubscriptionsForActivity.add(subscription);
+      }
+    }
+    return eventSubscriptionsForActivity;
+  }
+
+  private static String getSubscriptionActivityId(ActivityExecution execution, String activityRef) {
+    ActivityImpl activityToCompensate = ((ExecutionEntity) execution).getProcessDefinition().findActivity(activityRef);
+
+    if (activityToCompensate.isMultiInstance()) {
+
+      ActivityImpl flowScope = (ActivityImpl) activityToCompensate.getFlowScope();
+      return flowScope.getActivityId();
+    } else {
+
+      ActivityImpl compensationHandler = activityToCompensate.findCompensationHandler();
+      if (compensationHandler != null) {
+        return compensationHandler.getActivityId();
+      } else {
+        // if activityRef = subprocess and subprocess has no compensation handler
+        return activityRef;
+      }
     }
   }
 

@@ -36,22 +36,26 @@ public abstract class ExecutableScript {
   }
 
   /**
-  * <p>Evaluates the script using the provided engine and bindings</p>
-  *
-  * @param scriptEngine the script engine to use for evaluating the script.
-  * @param variableScope the variable scope of the execution
-  * @param bindings the bindings to use for evaluating the script.
-  * @throws ProcessEngineException in case the script cannot be evaluated.
-  * @return the result of the script evaluation
-  */
-  public abstract Object execute(ScriptEngine scriptEngine, VariableScope variableScope, Bindings bindings);
-
-  /**
    * The language in which the script is written.
    * @return the language
    */
   public String getLanguage() {
     return language;
   }
+
+  /**
+   * <p>Evaluates the script using the provided engine and bindings</p>
+   *
+   * @param scriptEngine the script engine to use for evaluating the script.
+   * @param variableScope the variable scope of the execution
+   * @param bindings the bindings to use for evaluating the script.
+   * @throws ProcessEngineException in case the script cannot be evaluated.
+   * @return the result of the script evaluation
+   */
+  public Object execute(ScriptEngine scriptEngine, VariableScope variableScope, Bindings bindings) {
+    return evaluate(scriptEngine, variableScope, bindings);
+  }
+
+  protected abstract Object evaluate(ScriptEngine scriptEngine, VariableScope variableScope, Bindings bindings);
 
 }

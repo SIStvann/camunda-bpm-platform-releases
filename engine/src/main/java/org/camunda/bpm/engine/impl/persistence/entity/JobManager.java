@@ -51,10 +51,12 @@ import org.camunda.bpm.engine.runtime.Job;
  */
 public class JobManager extends AbstractManager {
 
+  public static QueryOrderingProperty JOB_PRIORITY_ORDERING_PROPERTY = new QueryOrderingProperty(null, JobQueryProperty.PRIORITY);
   public static QueryOrderingProperty JOB_TYPE_ORDERING_PROPERTY = new QueryOrderingProperty(null, JobQueryProperty.TYPE);
   public static QueryOrderingProperty JOB_DUEDATE_ORDERING_PROPERTY = new QueryOrderingProperty(null, JobQueryProperty.DUEDATE);
 
   static {
+    JOB_PRIORITY_ORDERING_PROPERTY.setDirection(Direction.DESCENDING);
     JOB_TYPE_ORDERING_PROPERTY.setDirection(Direction.DESCENDING);
     JOB_DUEDATE_ORDERING_PROPERTY.setDirection(Direction.ASCENDING);
   }
@@ -152,12 +154,16 @@ public class JobManager extends AbstractManager {
     }
 
     List<QueryOrderingProperty> orderingProperties = new ArrayList<QueryOrderingProperty>();
+    if (Context.getProcessEngineConfiguration().isJobExecutorAcquireByPriority()) {
+      orderingProperties.add(JOB_PRIORITY_ORDERING_PROPERTY);
+    }
     if (Context.getProcessEngineConfiguration().isJobExecutorPreferTimerJobs()) {
       orderingProperties.add(JOB_TYPE_ORDERING_PROPERTY);
     }
     if (Context.getProcessEngineConfiguration().isJobExecutorAcquireByDueDate()) {
       orderingProperties.add(JOB_DUEDATE_ORDERING_PROPERTY);
     }
+
     params.put("orderingProperties", orderingProperties);
     // don't apply default sorting
     params.put("applyOrdering", !orderingProperties.isEmpty());
@@ -202,7 +208,7 @@ public class JobManager extends AbstractManager {
   }
 
   @SuppressWarnings("unchecked")
-  public List<Job> findJobsByConfiguration(String jobHandlerType, String jobHandlerConfiguration) {
+  public List<JobEntity> findJobsByConfiguration(String jobHandlerType, String jobHandlerConfiguration) {
     Map<String, String> params = new HashMap<String, String>();
     params.put("handlerType", jobHandlerType);
     params.put("handlerConfiguration", jobHandlerConfiguration);
@@ -280,6 +286,13 @@ public class JobManager extends AbstractManager {
     parameters.put("jobDefinitionId", jobDefinitionId);
     parameters.put("retries", retries);
     getDbEntityManager().update(JobEntity.class, "updateFailedJobRetriesByParameters", parameters);
+  }
+
+  public void updateJobPriorityByDefinitionId(String jobDefinitionId, long priority) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("jobDefinitionId", jobDefinitionId);
+    parameters.put("priority", priority);
+    getDbEntityManager().update(JobEntity.class, "updateJobPriorityByDefinitionId", parameters);
   }
 
 }

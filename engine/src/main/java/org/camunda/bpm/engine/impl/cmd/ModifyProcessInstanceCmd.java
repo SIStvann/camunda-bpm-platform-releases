@@ -13,7 +13,9 @@
 package org.camunda.bpm.engine.impl.cmd;
 
 
+import java.util.List;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.ProcessInstanceModificationBuilderImpl;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
@@ -21,13 +23,14 @@ import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
-import org.camunda.bpm.engine.impl.pvm.runtime.operation.PvmAtomicOperation;
 
 /**
  * @author Thorben Lindhauer
  *
  */
 public class ModifyProcessInstanceCmd implements Command<Void> {
+
+  private final static CommandLogger LOG = ProcessEngineLogger.CMD_LOGGER;
 
   protected ProcessInstanceModificationBuilderImpl builder;
 
@@ -46,7 +49,12 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
 
     processInstance.setPreserveScope(true);
 
-    for (AbstractProcessInstanceModificationCommand instruction : builder.getModificationOperations()) {
+    List<AbstractProcessInstanceModificationCommand> instructions = builder.getModificationOperations();
+
+    for (int i = 0; i < instructions.size(); i++) {
+      AbstractProcessInstanceModificationCommand instruction = instructions.get(i);
+      LOG.debugModificationInstruction(processInstanceId, i + 1, instruction.describe());
+
       instruction.setSkipCustomListeners(builder.isSkipCustomListeners());
       instruction.setSkipIoMappings(builder.isSkipIoMappings());
       instruction.execute(commandContext);
@@ -54,7 +62,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
 
     processInstance = executionManager.findExecutionById(processInstanceId);
 
-    if (processInstance.getExecutions().isEmpty()) {
+    if (!processInstance.hasChildren()) {
       if (processInstance.getActivity() == null) {
         // process instance was cancelled
         authorizationManager.checkDeleteProcessInstance(processInstance);
@@ -62,7 +70,7 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
       }
       else if (processInstance.isEnded()) {
         // process instance has ended regularly
-        processInstance.performOperation(PvmAtomicOperation.PROCESS_END);
+        processInstance.propagateEnd();
       }
     }
 
@@ -70,7 +78,6 @@ public class ModifyProcessInstanceCmd implements Command<Void> {
 
     return null;
   }
-
 
   protected String getLogEntryOperation() {
     return UserOperationLogEntry.OPERATION_TYPE_MODIFY_PROCESS_INSTANCE;

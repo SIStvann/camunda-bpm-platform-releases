@@ -201,8 +201,7 @@ public interface ManagementService {
    * @throws ProcessEngineException
    *          If the job definition id is equal null.
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_DEFINITION}.
    *
    * @see #activateJobById(String)
    * @see #activateJobByJobDefinitionId(String)
@@ -220,8 +219,7 @@ public interface ManagementService {
    * @throws ProcessEngineException
    *          If the process definition id is equal null.
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_DEFINITION}.
    *
    * @see #activateJobByProcessDefinitionId(String)
    */
@@ -238,8 +236,7 @@ public interface ManagementService {
    * @throws ProcessEngineException
    *          If the process definition key is equal null.
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_DEFINITION}.
    *
    * @see #activateJobByProcessDefinitionKey(String)
    */
@@ -253,9 +250,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the job definition id is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>activateJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #activateJobById(String)
    * @see #activateJobByJobDefinitionId(String)
@@ -270,9 +274,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the process definition id is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>activateJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #activateJobByProcessDefinitionId(String)
    */
@@ -286,9 +297,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the process definition key is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>activateJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #activateJobByProcessDefinitionKey(String)
    */
@@ -306,9 +324,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the job definition id is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>activateJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #activateJobById(String)
    * @see #activateJobByJobDefinitionId(String)
@@ -327,9 +352,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the process definition id is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>activateJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #activateJobByProcessDefinitionId(String)
    */
@@ -347,9 +379,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the process definition key is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>activateJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #activateJobByProcessDefinitionKey(String)
    */
@@ -366,8 +405,7 @@ public interface ManagementService {
    * @throws ProcessEngineException
    *          If no such job definition can be found.
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_DEFINITION}.
    *
    * @see #suspendJobById(String)
    * @see #suspendJobByJobDefinitionId(String)
@@ -385,8 +423,7 @@ public interface ManagementService {
    * @throws ProcessEngineException
    *          If the process definition id is equal null.
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_DEFINITION}.
    *
    * @see #suspendJobByProcessDefinitionId(String)
    */
@@ -403,8 +440,7 @@ public interface ManagementService {
    * @throws ProcessEngineException
    *          If the process definition key is equal null.
    * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_DEFINITION}.
    *
    * @see #suspendJobByProcessDefinitionKey(String)
    */
@@ -418,9 +454,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the job definition id is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>suspendJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #suspendJobById(String)
    * @see #suspendJobByJobDefinitionId(String)
@@ -435,9 +478,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the process definition id is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>suspendJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #suspendJobByProcessDefinitionId(String)
    */
@@ -451,9 +501,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the process definition key is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>suspendJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #suspendJobByProcessDefinitionKey(String)
    */
@@ -471,9 +528,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the job definition id is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>suspendJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #suspendJobById(String)
    * @see #suspendJobByJobDefinitionId(String)
@@ -492,9 +556,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the process definition id is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>suspendJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #suspendJobByProcessDefinitionId(String)
    */
@@ -512,9 +583,16 @@ public interface ManagementService {
    *
    * @throws ProcessEngineException
    *          If the process definition key is equal null.
-   * @throws AuthorizationException
-   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If <code>suspendJobs</code> is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *     <li>{@link Permissions#UPDATE} on any {@link Resources#PROCESS_INSTANCE}</li>
+   *   </ul>
    *
    * @see #suspendJobByProcessDefinitionKey(String)
    */
@@ -689,6 +767,90 @@ public interface ManagementService {
   void setJobDuedate(String jobId, Date newDuedate);
 
   /**
+   * Sets a new priority for the job with the provided id.
+   *
+   * @param jobId the id of the job to modify, must not be null
+   * @param priority the job's new priority
+   *
+   * @throws AuthorizationException thrown if the current user does not possess any of the following permissions
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_INSTANCE}</li>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   * @since 7.4
+   */
+  void setJobPriority(String jobId, long priority);
+
+  /**
+   * <p>Sets an explicit priority for jobs of the given job definition.
+   * Jobs created after invoking this method receive the given priority.
+   * This setting overrides any setting specified in the BPMN 2.0 XML.</p>
+   *
+   * <p>The overriding priority can be cleared by using the method
+   * {@link #clearOverridingJobPriorityForJobDefinition(String)}.</p>
+   *
+   * @param jobDefinitionId the id of the job definition to set the priority for
+   * @param priority the priority to set;
+   *
+   * @throws AuthorizationException thrown if the current user does not possess any of the following permissions
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   * @since 7.4
+   */
+  void setOverridingJobPriorityForJobDefinition(String jobDefinitionId, long priority);
+
+  /**
+   * <p>Sets an explicit default priority for jobs of the given job definition.
+   * Jobs created after invoking this method receive the given priority.
+   * This setting overrides any setting specified in the BPMN 2.0 XML.</p>
+   *
+   * <p>If <code>cascade</code> is true, priorities of already existing jobs
+   * are updated accordingly.</p>
+   *
+   * <p>The overriding priority can be cleared by using the method
+   * {@link #clearOverridingJobPriorityForJobDefinition(String)}.</p>
+   *
+   * @param jobDefinitionId the id of the job definition to set the priority for
+   * @param priority the priority to set
+   * @param cascade if true, priorities of existing jobs of the given definition are changed as well
+   *
+   * @throws AuthorizationException thrown if the current user does not possess
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   *   If cascade is <code>true</code>, the user must further possess one of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_INSTANCE}</li>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   * @since 7.4
+   */
+  void setOverridingJobPriorityForJobDefinition(String jobDefinitionId, long priority, boolean cascade);
+
+  /**
+   * <p>Clears the job definition's overriding job priority if set. After invoking this method,
+   * new jobs of the given definition receive the priority as specified in the BPMN 2.0 XML
+   * or the global default priority.</p>
+   *
+   * <p>Existing job instance priorities remain unchanged.</p>
+   *
+   * @param jobDefinitionId the id of the job definition for which to clear the overriding priority
+   *
+   * @throws AuthorizationException thrown if the current user does not possess any of the following permissions
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   *
+   * @since 7.4
+   */
+  void clearOverridingJobPriorityForJobDefinition(String jobDefinitionId);
+
+  /**
    * Returns the full stacktrace of the exception that occurs when the job
    * with the given id was last executed. Returns null when the job has no
    * exception stacktrace.
@@ -800,5 +962,24 @@ public interface ManagementService {
    * @since 7.3
    */
   void deleteMetrics(Date timestamp);
+
+  /**
+   * Deletes all metrics events which are older than the specified timestamp
+   * and reported by the given reporter. If a parameter is null, all metric events
+   * are matched in that regard.
+   *
+   * @param timestamp or null
+   * @param reporter or null
+   * @since 7.4
+   */
+  void deleteMetrics(Date timestamp, String reporter);
+
+  /**
+   * Forces this engine to commit its pending collected metrics to the database.
+   *
+   * @throws ProcessEngineException if metrics reporting is disabled or the db metrics
+   * reporter is deactivated
+   */
+  void reportDbMetricsNow();
 
 }

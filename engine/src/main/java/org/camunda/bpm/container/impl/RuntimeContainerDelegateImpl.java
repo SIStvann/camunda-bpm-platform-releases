@@ -12,11 +12,13 @@
  */
 package org.camunda.bpm.container.impl;
 
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.logging.Logger;
 import javax.management.MBeanServer;
+
 import org.camunda.bpm.ProcessApplicationService;
 import org.camunda.bpm.ProcessEngineService;
 import org.camunda.bpm.application.AbstractProcessApplication;
@@ -39,8 +41,7 @@ import org.camunda.bpm.container.impl.jmx.services.JmxManagedProcessEngine;
 import org.camunda.bpm.container.impl.spi.PlatformServiceContainer;
 import org.camunda.bpm.container.impl.spi.ServiceTypes;
 import org.camunda.bpm.engine.ProcessEngine;
-
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 
 /**
  * <p>This is the default {@link RuntimeContainerDelegate} implementation that delegates
@@ -53,7 +54,7 @@ import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
  */
 public class RuntimeContainerDelegateImpl implements RuntimeContainerDelegate, ProcessEngineService, ProcessApplicationService {
 
-  private final Logger LOGGER = Logger.getLogger(RuntimeContainerDelegateImpl.class.getName());
+  private final static ContainerIntegrationLogger LOG = ProcessEngineLogger.CONTAINER_INTEGRATION_LOGGER;
 
   protected MBeanServiceContainer serviceContainer = new MBeanServiceContainer();
 
@@ -93,7 +94,7 @@ public class RuntimeContainerDelegateImpl implements RuntimeContainerDelegate, P
       .addStep(new PostDeployInvocationStep())
       .execute();
 
-    LOGGER.info("Process Application "+processApplication.getName()+" successfully deployed.");
+    LOG.paDeployed(processApplication.getName());
 
   }
 
@@ -118,7 +119,7 @@ public class RuntimeContainerDelegateImpl implements RuntimeContainerDelegate, P
       .addStep(new StopProcessApplicationServiceStep())
       .execute();
 
-    LOGGER.info("Process Application "+processAppName+" undeployed.");
+    LOG.paUndeployed(processApplication.getName());
   }
 
   public ProcessEngineService getProcessEngineService() {

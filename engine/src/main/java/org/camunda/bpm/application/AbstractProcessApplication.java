@@ -13,17 +13,22 @@
 package org.camunda.bpm.application;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.concurrent.Callable;
-import java.util.logging.Logger;
+import javax.script.ScriptEngine;
 
 import org.camunda.bpm.application.impl.DefaultElResolverLookup;
+import org.camunda.bpm.application.impl.ProcessApplicationLogger;
+import org.camunda.bpm.application.impl.ProcessApplicationScriptEnvironment;
 import org.camunda.bpm.container.RuntimeContainerDelegate;
 import org.camunda.bpm.engine.delegate.ExecutionListener;
 import org.camunda.bpm.engine.delegate.TaskListener;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.javax.el.BeanELResolver;
 import org.camunda.bpm.engine.impl.javax.el.ELResolver;
+import org.camunda.bpm.engine.impl.scripting.ExecutableScript;
 import org.camunda.bpm.engine.impl.util.ClassLoaderUtil;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 
@@ -34,10 +39,11 @@ import org.camunda.bpm.engine.repository.DeploymentBuilder;
  */
 public abstract class AbstractProcessApplication implements ProcessApplicationInterface {
 
-  private final static Logger LOGGER = Logger.getLogger(AbstractProcessApplication.class.getName());
+  private static ProcessApplicationLogger LOG = ProcessEngineLogger.PROCESS_APPLICATION_LOGGER;
 
   protected ELResolver processApplicationElResolver;
   protected BeanELResolver processApplicationBeanElResolver;
+  protected ProcessApplicationScriptEnvironment processApplicationScriptEnvironment;
 
   protected boolean isDeployed = false;
 
@@ -45,8 +51,9 @@ public abstract class AbstractProcessApplication implements ProcessApplicationIn
 
   public void deploy() {
     if(isDeployed) {
-      LOGGER.warning("Calling deploy() on process application that is already deployed.");
-    } else {
+      LOG.alreadyDeployed();
+    }
+    else {
       // deploy the application
       RuntimeContainerDelegate.INSTANCE.get().deployProcessApplication(this);
       isDeployed = true;
@@ -55,7 +62,7 @@ public abstract class AbstractProcessApplication implements ProcessApplicationIn
 
   public void undeploy() {
     if(!isDeployed) {
-      LOGGER.fine("Calling undeploy() on process application that is already undeployed.");
+      LOG.notDeployed();
     } else {
       // delegate stopping of the process application to the runtime container.
       RuntimeContainerDelegate.INSTANCE.get().undeployProcessApplication(this);
@@ -101,10 +108,11 @@ public abstract class AbstractProcessApplication implements ProcessApplicationIn
 
       return callable.call();
 
-    } catch(Exception e) {
-      throw new ProcessApplicationExecutionException(e);
-
-    } finally {
+    }
+    catch(Exception e) {
+      throw LOG.processApplicationExecutionException(e);
+    }
+    finally {
       ClassLoaderUtil.setContextClassloader(originalClassloader);
     }
 
@@ -170,6 +178,31 @@ public abstract class AbstractProcessApplication implements ProcessApplicationIn
 
   public TaskListener getTaskListener() {
     return null;
+  }
+
+  /**
+   * see {@link ProcessApplicationScriptEnvironment#getScriptEngineForName(String, boolean)}
+   */
+  public ScriptEngine getScriptEngineForName(String name, boolean cache) {
+    return getProcessApplicationScriptEnvironment().getScriptEngineForName(name, cache);
+  }
+
+  /**
+   * see {@link ProcessApplicationScriptEnvironment#getEnvironmentScripts()}
+   */
+  public Map<String, List<ExecutableScript>> getEnvironmentScripts() {
+    return getProcessApplicationScriptEnvironment().getEnvironmentScripts();
+  }
+
+  protected ProcessApplicationScriptEnvironment getProcessApplicationScriptEnvironment() {
+    if (processApplicationScriptEnvironment == null) {
+      synchronized (this) {
+        if (processApplicationScriptEnvironment == null) {
+          processApplicationScriptEnvironment = new ProcessApplicationScriptEnvironment(this);
+        }
+      }
+    }
+    return processApplicationScriptEnvironment;
   }
 
 }

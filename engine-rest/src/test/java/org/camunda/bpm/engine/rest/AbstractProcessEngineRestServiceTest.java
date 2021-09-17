@@ -14,9 +14,9 @@ package org.camunda.bpm.engine.rest;
 
 import static com.jayway.restassured.RestAssured.expect;
 import static com.jayway.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.junit.matchers.JUnitMatchers.hasItems;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.hasItems;
+import static org.hamcrest.CoreMatchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.argThat;
@@ -35,6 +35,7 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.CaseService;
+import org.camunda.bpm.engine.ExternalTaskService;
 import org.camunda.bpm.engine.FilterService;
 import org.camunda.bpm.engine.HistoryService;
 import org.camunda.bpm.engine.IdentityService;
@@ -43,6 +44,8 @@ import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
+import org.camunda.bpm.engine.externaltask.ExternalTask;
+import org.camunda.bpm.engine.externaltask.ExternalTaskQuery;
 import org.camunda.bpm.engine.filter.Filter;
 import org.camunda.bpm.engine.filter.FilterQuery;
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
@@ -61,6 +64,7 @@ import org.camunda.bpm.engine.history.HistoricTaskInstance;
 import org.camunda.bpm.engine.history.HistoricTaskInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.history.HistoricVariableInstanceQuery;
+import org.camunda.bpm.engine.history.HistoricVariableUpdate;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.GroupQuery;
 import org.camunda.bpm.engine.identity.User;
@@ -90,7 +94,11 @@ import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.runtime.VariableInstanceQuery;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
+import org.camunda.bpm.engine.variable.Variables;
+import org.camunda.bpm.engine.variable.value.FileValue;
+import org.hamcrest.CoreMatchers;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.mockito.Matchers;
 
@@ -115,6 +123,7 @@ public abstract class AbstractProcessEngineRestServiceTest extends
   protected static final String AUTHORIZATION_CHECK_URL = AUTHORIZATION_URL + "/check";
   protected static final String DEPLOYMENT_REST_SERVICE_URL = SINGLE_ENGINE_URL + DeploymentRestService.PATH;
   protected static final String DEPLOYMENT_URL = DEPLOYMENT_REST_SERVICE_URL + "/{id}";
+  protected static final String EXTERNAL_TASKS_URL = SINGLE_ENGINE_URL + "/external-task";
 
   protected static final String JOB_DEFINITION_URL = SINGLE_ENGINE_URL + "/job-definition";
 
@@ -128,13 +137,15 @@ public abstract class AbstractProcessEngineRestServiceTest extends
   protected static final String HISTORY_ACTIVITY_INSTANCE_URL = HISTORY_URL + "/activity-instance";
   protected static final String HISTORY_PROCESS_INSTANCE_URL = HISTORY_URL + "/process-instance";
   protected static final String HISTORY_VARIABLE_INSTANCE_URL = HISTORY_URL + "/variable-instance";
+  protected static final String HISTORY_BINARY_VARIABLE_INSTANCE_URL = HISTORY_VARIABLE_INSTANCE_URL + "/{id}/data";
   protected static final String HISTORY_ACTIVITY_STATISTICS_URL = HISTORY_URL + "/process-definition/{id}/statistics";
   protected static final String HISTORY_DETAIL_URL = HISTORY_URL + "/detail";
+  protected static final String HISTORY_BINARY_DETAIL_URL = HISTORY_DETAIL_URL + "/data";
   protected static final String HISTORY_TASK_INSTANCE_URL = HISTORY_URL + "/task";
   protected static final String HISTORY_INCIDENT_URL = HISTORY_URL + "/incident";
   protected static final String HISTORY_JOB_LOG_URL = HISTORY_URL + "/job-log";
 
-  protected String EXAMPLE_ENGINE_NAME = "anEngineName";
+  protected static final String EXAMPLE_ENGINE_NAME = "anEngineName";
 
   private ProcessEngine namedProcessEngine;
   private RepositoryService mockRepoService;
@@ -143,6 +154,7 @@ public abstract class AbstractProcessEngineRestServiceTest extends
   private IdentityService mockIdentityService;
   private ManagementService mockManagementService;
   private HistoryService mockHistoryService;
+  private ExternalTaskService mockExternalTaskService;
   private CaseService mockCaseService;
   private FilterService mockFilterService;
   private MessageCorrelationBuilder mockMessageCorrelationBuilder;
@@ -158,6 +170,7 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     mockHistoryService = mock(HistoryService.class);
     mockCaseService = mock(CaseService.class);
     mockFilterService = mock(FilterService.class);
+    mockExternalTaskService = mock(ExternalTaskService.class);
 
     when(namedProcessEngine.getRepositoryService()).thenReturn(mockRepoService);
     when(namedProcessEngine.getRuntimeService()).thenReturn(mockRuntimeService);
@@ -167,6 +180,7 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     when(namedProcessEngine.getHistoryService()).thenReturn(mockHistoryService);
     when(namedProcessEngine.getCaseService()).thenReturn(mockCaseService);
     when(namedProcessEngine.getFilterService()).thenReturn(mockFilterService);
+    when(namedProcessEngine.getExternalTaskService()).thenReturn(mockExternalTaskService);
 
     createProcessDefinitionMock();
     createProcessInstanceMock();
@@ -182,6 +196,7 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     createCaseInstanceMock();
     createCaseExecutionMock();
     createFilterMock();
+    createExternalTaskMock();
 
     createHistoricActivityInstanceMock();
     createHistoricProcessInstanceMock();
@@ -408,6 +423,13 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     when(mockHistoryService.createHistoricJobLogQuery()).thenReturn(mockHistoricJobLogQuery);
   }
 
+  private void createExternalTaskMock() {
+    ExternalTaskQuery query = mock(ExternalTaskQuery.class);
+    List<ExternalTask> tasks = MockProvider.createMockExternalTasks();
+    when(query.list()).thenReturn(tasks);
+    when(mockExternalTaskService.createExternalTaskQuery()).thenReturn(query);
+  }
+
   @Test
   public void testNonExistingEngineAccess() {
     given().pathParam("name", MockProvider.NON_EXISTING_PROCESS_ENGINE_NAME)
@@ -587,6 +609,36 @@ public abstract class AbstractProcessEngineRestServiceTest extends
     verifyZeroInteractions(processEngine);
   }
 
+  @Ignore
+  @Test
+  public void testHistoryServiceEngineAccess_HistoricVariableInstanceBinaryFile() {
+
+    HistoricVariableInstanceQuery query = mock(HistoricVariableInstanceQuery.class);
+    HistoricVariableInstance instance = mock(HistoricVariableInstance.class);
+    String filename = "test.txt";
+    byte[] byteContent = "test".getBytes();
+    String encoding = "UTF-8";
+    FileValue variableValue = Variables.fileValue(filename).file(byteContent).mimeType(ContentType.TEXT.toString()).encoding(encoding).create();
+    when(instance.getTypedValue()).thenReturn(variableValue);
+    when(query.singleResult()).thenReturn(instance);
+    when(mockHistoryService.createHistoricVariableInstanceQuery()).thenReturn(query);
+
+    given()
+      .pathParam("name", EXAMPLE_ENGINE_NAME)
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      . body(is(equalTo(new String(byteContent))))
+      .and()
+        .header("Content-Disposition", "attachment; filename="+filename)
+        .contentType(CoreMatchers.<String>either(equalTo(ContentType.TEXT.toString() + ";charset=UTF-8")).or(equalTo(ContentType.TEXT.toString() + " ;charset=UTF-8")))
+      .when()
+        .get(HISTORY_BINARY_VARIABLE_INSTANCE_URL);
+
+    verify(mockHistoryService).createHistoricVariableInstanceQuery();
+    verifyZeroInteractions(processEngine);
+  }
+
   @Test
   public void testHistoryServiceEngineAccess_HistoricActivityStatistics() {
     given()
@@ -625,6 +677,34 @@ public abstract class AbstractProcessEngineRestServiceTest extends
         .statusCode(Status.OK.getStatusCode())
       .when()
         .get(HISTORY_DETAIL_URL);
+
+    verify(mockHistoryService).createHistoricDetailQuery();
+    verifyZeroInteractions(processEngine);
+  }
+
+  @Ignore
+  @Test
+  public void testHistoryServiceEngineAccess_HistoricDetailBinaryFile() {
+    HistoricDetailQuery query = mock(HistoricDetailQuery.class);
+    HistoricVariableUpdate instance = mock(HistoricVariableUpdate.class);
+    String filename = "test.txt";
+    byte[] byteContent = "test".getBytes();
+    String encoding = "UTF-8";
+    FileValue variableValue = Variables.fileValue(filename).file(byteContent).mimeType(ContentType.TEXT.toString()).encoding(encoding).create();
+    when(instance.getTypedValue()).thenReturn(variableValue);
+    when(query.singleResult()).thenReturn(instance);
+    when(mockHistoryService.createHistoricDetailQuery()).thenReturn(query);
+
+    given()
+      .pathParam("name", EXAMPLE_ENGINE_NAME)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      . body(is(equalTo(new String(byteContent))))
+      .and()
+        .header("Content-Disposition", "attachment; filename="+filename)
+        .contentType(CoreMatchers.<String>either(equalTo(ContentType.TEXT.toString() + ";charset=UTF-8")).or(equalTo(ContentType.TEXT.toString() + " ;charset=UTF-8")))
+      .when()
+        .get(HISTORY_BINARY_DETAIL_URL);
 
     verify(mockHistoryService).createHistoricDetailQuery();
     verifyZeroInteractions(processEngine);
@@ -751,6 +831,20 @@ public abstract class AbstractProcessEngineRestServiceTest extends
         .get(HISTORY_JOB_LOG_URL);
 
     verify(mockHistoryService).createHistoricJobLogQuery();
+    verifyZeroInteractions(processEngine);
+  }
+
+  @Test
+  public void testExternalTaskAccess() {
+    given()
+      .pathParam("name", EXAMPLE_ENGINE_NAME)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .get(EXTERNAL_TASKS_URL);
+
+    verify(mockExternalTaskService).createExternalTaskQuery();
     verifyZeroInteractions(processEngine);
   }
 }

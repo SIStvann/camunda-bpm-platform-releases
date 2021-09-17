@@ -13,6 +13,9 @@
 
 package org.camunda.bpm.engine.test.history;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -201,9 +204,7 @@ public class HistoricActivityInstanceTest extends PluggableProcessEngineTestCase
     assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("start").list().size());
     assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("end").list().size());
 
-    // TODO: Discuss if boundary events will occur in the log!
-    // assertEquals(1,
-    // historyService.createHistoricActivityInstanceQuery().activityId("boundaryEvent").list().size());
+     assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("boundaryEvent").list().size());
 
     HistoricActivityInstance intermediateEvent = historyService.createHistoricActivityInstanceQuery().activityId("intermediate-event").singleResult();
     assertNotNull(intermediateEvent.getStartTime());
@@ -338,6 +339,7 @@ public class HistoricActivityInstanceTest extends PluggableProcessEngineTestCase
     assertEquals(0, historyService.createHistoricActivityInstanceQuery().activityId("theTask").startedBefore(hourAgo.getTime()).count());
     assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("theTask").startedAfter(hourAgo.getTime()).count());
     assertEquals(0, historyService.createHistoricActivityInstanceQuery().activityId("theTask").startedAfter(hourFromNow.getTime()).count());
+    assertEquals(0, historyService.createHistoricActivityInstanceQuery().activityId("theTask").startedAfter(hourFromNow.getTime()).startedBefore(hourAgo.getTime()).count());
 
     // After finishing process
     taskService.complete(taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult().getId());
@@ -346,6 +348,7 @@ public class HistoricActivityInstanceTest extends PluggableProcessEngineTestCase
     assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("theTask").finishedBefore(hourFromNow.getTime()).count());
     assertEquals(1, historyService.createHistoricActivityInstanceQuery().activityId("theTask").finishedAfter(hourAgo.getTime()).count());
     assertEquals(0, historyService.createHistoricActivityInstanceQuery().activityId("theTask").finishedAfter(hourFromNow.getTime()).count());
+    assertEquals(0, historyService.createHistoricActivityInstanceQuery().activityId("theTask").finishedBefore(hourAgo.getTime()).finishedAfter(hourFromNow.getTime()).count());
   }
 
   @Deployment
@@ -769,7 +772,7 @@ public class HistoricActivityInstanceTest extends PluggableProcessEngineTestCase
 
   @Deployment
   public void testMultiInstanceReceiveActivity() {
-    ProcessInstance pi = runtimeService.startProcessInstanceByKey("process");
+    runtimeService.startProcessInstanceByKey("process");
 
     HistoricActivityInstanceQuery query = historyService.createHistoricActivityInstanceQuery();
     HistoricActivityInstance miBodyInstance = query.activityId("receiveTask#multiInstanceBody").singleResult();
@@ -845,12 +848,9 @@ public class HistoricActivityInstanceTest extends PluggableProcessEngineTestCase
   public void testEndEventTypes() {
     HistoricActivityInstanceQuery query = startEventTestProcess("");
 
-    /*
-    TODO: wait for CAM-2761 to be done
     query.activityId("cancellationEndEvent");
     assertEquals(1, query.count());
     assertEquals("cancelEndEvent", query.singleResult().getActivityType());
-    */
 
     query.activityId("messageEndEvent");
     assertEquals(1, query.count());
@@ -874,11 +874,10 @@ public class HistoricActivityInstanceTest extends PluggableProcessEngineTestCase
   }
 
   private HistoricActivityInstanceQuery startEventTestProcess(String message) {
-    ProcessInstance pi;
     if(message.equals("")) {
-      pi = runtimeService.startProcessInstanceByKey("testEvents");
+      runtimeService.startProcessInstanceByKey("testEvents");
     } else {
-      pi = runtimeService.startProcessInstanceByMessage("CAM-2365");
+      runtimeService.startProcessInstanceByMessage("CAM-2365");
     }
 
     return historyService.createHistoricActivityInstanceQuery();
@@ -995,6 +994,20 @@ public class HistoricActivityInstanceTest extends PluggableProcessEngineTestCase
     assertNotNull(activityInstance.getProcessDefinitionKey());
     assertEquals(key, activityInstance.getProcessDefinitionKey());
 
+  }
+
+  @Deployment
+  public void testEndParallelJoin() {
+    ProcessInstance pi = runtimeService.startProcessInstanceByKey("process");
+
+    List<HistoricActivityInstance> activityInstance = historyService
+      .createHistoricActivityInstanceQuery()
+      .processInstanceId(pi.getId())
+      .activityId("parallelJoinEnd")
+      .list();
+
+    assertThat(activityInstance.size(), is(2));
+    assertThat(pi.isEnded(), is(true));
   }
 
 }

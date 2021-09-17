@@ -40,6 +40,7 @@ create table ACT_RU_CASE_SENTRY_PART (
     TYPE_ nvarchar(255),
     SOURCE_CASE_EXEC_ID_ nvarchar(64),
     STANDARD_EVENT_ nvarchar(255),
+    SOURCE_ nvarchar(255),
     SATISFIED_ tinyint,
     primary key (ID_)
 );

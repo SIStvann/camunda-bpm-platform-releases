@@ -17,7 +17,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionEntity;
 import org.camunda.bpm.engine.impl.cmmn.handler.CasePlanModelHandler;
 import org.camunda.bpm.engine.impl.cmmn.handler.CmmnElementHandler;
@@ -35,10 +35,11 @@ import org.camunda.bpm.engine.impl.persistence.entity.ResourceEntity;
 import org.camunda.bpm.model.cmmn.Cmmn;
 import org.camunda.bpm.model.cmmn.CmmnModelException;
 import org.camunda.bpm.model.cmmn.CmmnModelInstance;
-import org.camunda.bpm.model.cmmn.impl.instance.CasePlanModel;
 import org.camunda.bpm.model.cmmn.instance.Case;
+import org.camunda.bpm.model.cmmn.instance.CasePlanModel;
 import org.camunda.bpm.model.cmmn.instance.CaseTask;
 import org.camunda.bpm.model.cmmn.instance.CmmnElement;
+import org.camunda.bpm.model.cmmn.instance.DecisionTask;
 import org.camunda.bpm.model.cmmn.instance.Definitions;
 import org.camunda.bpm.model.cmmn.instance.EventListener;
 import org.camunda.bpm.model.cmmn.instance.HumanTask;
@@ -57,6 +58,8 @@ import org.camunda.bpm.model.cmmn.instance.Task;
  *
  */
 public class CmmnTransform implements Transform<CaseDefinitionEntity> {
+
+  protected static final CmmnTransformerLogger LOG = ProcessEngineLogger.CMMN_TRANSFORMER_LOGGER;
 
   protected CmmnTransformer transformer;
 
@@ -101,7 +104,7 @@ public class CmmnTransform implements Transform<CaseDefinitionEntity> {
       model = Cmmn.readModelFromStream(inputStream);
 
     } catch (CmmnModelException e) {
-      throw new ProcessEngineException("Couldn't transform '" + resourceName + "': " + e.getMessage(), e);
+      throw LOG.transformResourceException(resourceName, e);
     }
 
     // TODO: use model API to validate (ie.
@@ -118,7 +121,7 @@ public class CmmnTransform implements Transform<CaseDefinitionEntity> {
     } catch (Exception e) {
       // ALL unexpected exceptions should bubble up since they are not handled
       // accordingly by underlying parse-methods and the process can't be deployed
-      throw new ProcessEngineException("Error while parsing process: " + e.getMessage(), e);
+      throw LOG.parseProcessException(resourceName, e);
     }
 
     return caseDefinitions;
@@ -182,7 +185,7 @@ public class CmmnTransform implements Transform<CaseDefinitionEntity> {
     transformer.initializeExitCriterias(casePlanModel, newActivity, context);
 
     for (CmmnTransformListener transformListener : transformListeners) {
-      transformListener.transformCasePlanModel(casePlanModel, newActivity);
+      transformListener.transformCasePlanModel((org.camunda.bpm.model.cmmn.impl.instance.CasePlanModel) casePlanModel, newActivity);
     }
   }
 
@@ -260,6 +263,8 @@ public class CmmnTransform implements Transform<CaseDefinitionEntity> {
       planItemTransformer = getPlanItemHandler(ProcessTask.class);
     } else if (definition instanceof CaseTask) {
       planItemTransformer = getPlanItemHandler(CaseTask.class);
+    } else if (definition instanceof DecisionTask) {
+      planItemTransformer = getPlanItemHandler(DecisionTask.class);
     } else if (definition instanceof Task) {
       planItemTransformer = getPlanItemHandler(Task.class);
     } else if (definition instanceof Stage) {
@@ -297,6 +302,8 @@ public class CmmnTransform implements Transform<CaseDefinitionEntity> {
           transformListener.transformProcessTask(planItem, (ProcessTask) definition, newActivity);
         } else if (definition instanceof CaseTask) {
           transformListener.transformCaseTask(planItem, (CaseTask) definition, newActivity);
+        } else if (definition instanceof DecisionTask) {
+          transformListener.transformDecisionTask(planItem, (DecisionTask) definition, newActivity);
         } else if (definition instanceof Task) {
           transformListener.transformTask(planItem, (Task) definition, newActivity);
         } else if (definition instanceof Stage) {

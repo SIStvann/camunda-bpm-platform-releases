@@ -13,11 +13,14 @@
 
 package org.camunda.bpm.engine.impl.pvm.runtime.operation;
 
+import java.util.Map;
+
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.PvmScope;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityBehavior;
 import org.camunda.bpm.engine.impl.pvm.delegate.CompositeActivityBehavior;
+import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.LegacyBehavior;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
@@ -36,18 +39,18 @@ public class PvmAtomicOperationActivityEnd implements PvmAtomicOperation {
     return execution.getActivity().isAsyncAfter();
   }
 
+  public boolean isAsyncCapable() {
+    return false;
+  }
+
   public void execute(PvmExecutionImpl execution) {
     // restore activity instance id
     if (execution.getActivityInstanceId() == null) {
-      if (execution.isProcessInstanceExecution()) {
-        execution.setActivityInstanceId(execution.getId());
-      }
-      else {
-        execution.setActivityInstanceId(execution.getParentActivityInstanceId());
-      }
+      execution.setActivityInstanceId(execution.getParentActivityInstanceId());
     }
 
     PvmActivity activity = execution.getActivity();
+    Map<ScopeImpl, PvmExecutionImpl> activityExecutionMapping = execution.createActivityExecutionMapping();
 
     PvmExecutionImpl propagatingExecution = execution;
 
@@ -62,7 +65,7 @@ public class PvmAtomicOperationActivityEnd implements PvmAtomicOperation {
       }
     }
 
-    propagatingExecution = LegacyBehavior.determinePropagatingExecutionOnEnd(propagatingExecution);
+    propagatingExecution = LegacyBehavior.determinePropagatingExecutionOnEnd(propagatingExecution, activityExecutionMapping);
     PvmScope flowScope = activity.getFlowScope();
 
     // 1. flow scope = Process Definition
