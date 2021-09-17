@@ -63,7 +63,7 @@ create table ACT_GE_SCHEMA_LOG (
 );
 
 insert into ACT_GE_SCHEMA_LOG
-values ('0', CURRENT_TIMESTAMP, '7.11.0');
+values ('0', CURRENT_TIMESTAMP, '7.12.0');
 
 create table ACT_RE_DEPLOYMENT (
     ID_ nvarchar(64),
@@ -114,6 +114,7 @@ create table ACT_RU_JOB (
     EXCEPTION_MSG_ nvarchar(4000),
     DUEDATE_ datetime2 NULL,
     REPEAT_ nvarchar(255),
+    REPEAT_OFFSET_ numeric(19,0) DEFAULT 0,
     HANDLER_TYPE_ nvarchar(255),
     HANDLER_CFG_ nvarchar(4000),
     DEPLOYMENT_ID_ nvarchar(64),

@@ -214,8 +214,9 @@
   </select>
 
   <select id="selectTaskCountByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.TaskQueryImpl" resultType="long">
-    select count(distinct RES.ID_)
+    ${countDistinctBeforeStart} RES.ID_ ${countDistinctBeforeEnd}
     <include refid="selectTaskByQueryCriteriaSql"/>
+    ${countDistinctAfterEnd}
   </select>
   
   <sql id="columnSelection">
@@ -235,8 +236,12 @@
     <bind name="CD_JOIN" value="false" />
     <bind name="CE_JOIN" value="false" />
     <bind name="E1_JOIN" value="false" />
+    <bind name="JOIN_TYPE" value="'inner join'" />
 
     <foreach collection="queries" item="query">
+      <if test="query.isOrQueryActive">
+        <bind name="JOIN_TYPE" value="'left join'" />
+      </if>
       <if test="query != null &amp;&amp; (query.candidateUser != null || query.candidateGroups != null || query.involvedUser != null || query.withCandidateGroups || query.withCandidateUsers)">
         <bind name="I_JOIN" value="true" />
       </if>
@@ -260,19 +265,19 @@
     </foreach>
 
     <if test="I_JOIN">
-      inner join ${prefix}ACT_RU_IDENTITYLINK I on I.TASK_ID_ = RES.ID_
+      ${JOIN_TYPE} ${prefix}ACT_RU_IDENTITYLINK I on I.TASK_ID_ = RES.ID_
     </if>
     <if test="D_JOIN">
-      inner join ${prefix}ACT_RE_PROCDEF D on RES.PROC_DEF_ID_ = D.ID_
+      ${JOIN_TYPE} ${prefix}ACT_RE_PROCDEF D on RES.PROC_DEF_ID_ = D.ID_
     </if>
     <if test="E_JOIN">
-      inner join ${prefix}ACT_RU_EXECUTION E on RES.PROC_INST_ID_ = E.ID_
+      ${JOIN_TYPE} ${prefix}ACT_RU_EXECUTION E on RES.PROC_INST_ID_ = E.ID_
     </if>
     <if test="CD_JOIN">
-      inner join ${prefix}ACT_RE_CASE_DEF CD on RES.CASE_DEF_ID_ = CD.ID_
+      ${JOIN_TYPE} ${prefix}ACT_RE_CASE_DEF CD on RES.CASE_DEF_ID_ = CD.ID_
     </if>
     <if test="CE_JOIN">
-      inner join ${prefix}ACT_RU_CASE_EXECUTION CE on RES.CASE_INST_ID_ = CE.ID_
+      ${JOIN_TYPE} ${prefix}ACT_RU_CASE_EXECUTION CE on RES.CASE_INST_ID_ = CE.ID_
     </if>
     <if test="E1_JOIN">
       left join ${prefix}ACT_RU_EXECUTION E1 on RES.EXECUTION_ID_ = E1.ID_
@@ -348,6 +353,13 @@
             </if>
             <if test="query.assigneeLike != null">
               ${queryType} RES.ASSIGNEE_ like #{query.assigneeLike} ESCAPE ${escapeChar}
+            </if>
+            <if test="query.assigneeIn != null &amp;&amp; query.assigneeIn.size() &gt; 0">
+              ${queryType} RES.ASSIGNEE_ in
+              <foreach item="assignee" index="index" collection="query.assigneeIn"
+                       open="(" separator="," close=")">
+                #{assignee}
+              </foreach>
             </if>
             <if test="query.owner != null">
               ${queryType} RES.OWNER_ = #{query.owner}
@@ -571,7 +583,7 @@
             </if>
 
             <if test="query.involvedUser != null">
-              ${queryType} I.USER_ID_ = #{involvedUser}
+              ${queryType} I.USER_ID_ = #{query.involvedUser}
             </if>
 
 
@@ -584,15 +596,9 @@
               from
               ${prefix}ACT_RU_VARIABLE
               WHERE
-              <choose>
-                <when test="queryVariableValue.variableNameIgnoreCase">
-                  UPPER(NAME_)= UPPER(#{queryVariableValue.name})
-                </when>
-                <otherwise>
-                  NAME_= #{queryVariableValue.name}
-                </otherwise>
-              </choose>
-              ${collationForCaseSensitivity}
+              <bind name="varPrefix" value="''"/>
+
+              <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.variableNameEqualsCaseInsensitive" />
 
               <choose>
                 <when test="queryVariableValue.local">
@@ -614,7 +620,6 @@
                 </otherwise>
               </choose>
               <bind name="varTypeField" value="'TYPE_'"/>
-              <bind name="varPrefix" value="''"/>
               <if test="queryVariableValue.valueConditions != null">
                 and
                 <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.variableValueConditions"/>

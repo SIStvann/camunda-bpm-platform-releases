@@ -955,7 +955,23 @@ public interface ManagementService {
    *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void setJobDuedate(String jobId, Date newDuedate);
-  
+
+  /**
+   * Sets a new due date for the provided id. The offset between 
+   * the old and the new due date can be cascaded to all follow-up
+   * jobs. Cascading only works with timer jobs.
+   * When newDuedate is null, the job is executed with the next
+   * job executor run. In this case the cascade parameter is ignored.
+   *
+   * @param jobId id of job to modify, cannot be null.
+   * @param newDuedate new date for job execution
+   * @param cascade indicate whether follow-up jobs should be affected
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_INSTANCE}
+   *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   */
+  void setJobDuedate(String jobId, Date newDuedate, boolean cascade);
   /**
    * Triggers the recalculation for the job with the provided id.
    * 
@@ -1100,6 +1116,32 @@ public interface ManagementService {
    *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
    */
   void deleteProperty(String name);
+
+  /**
+   * Set the license key.
+   *
+   * @param licenseKey the license key string.
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
+   */
+  void setLicenseKey(String licenseKey);
+
+  /**
+   * Get the stored license key string or <code>null</code> if no license is set.
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
+   */
+  String getLicenseKey();
+  
+  /**
+   * Deletes the stored license key. If no license key is set, the request is ignored.
+   *
+   * @throws AuthorizationException
+   *          If the user is not a member of the group {@link Groups#CAMUNDA_ADMIN}.
+   */
+  void deleteLicenseKey();
 
   /** programmatic schema update on a given connection returning feedback about what happened
    *

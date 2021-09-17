@@ -209,8 +209,9 @@
   </select>
 
   <select id="selectProcessDefinitionCountByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.ProcessDefinitionQueryImpl" resultType="long">
-    select count(distinct RES.ID_)
+    ${countDistinctBeforeStart} RES.ID_ ${countDistinctBeforeEnd}
     <include refid="selectProcessDefinitionsByQueryCriteriaSql"/>
+    ${countDistinctAfterEnd}
   </select>
 
   <sql id="selectProcessDefinitionsByQueryCriteriaSql">
@@ -337,8 +338,13 @@
           and RES.TENANT_ID_ is null
         </if>
       </if>
-      <if test="versionTag != null">
-        and RES.VERSION_TAG_ = #{versionTag}
+      <if test="isVersionTagSet">
+        <if test="versionTag != null">
+          and RES.VERSION_TAG_ = #{versionTag}
+        </if>
+        <if test="versionTag == null">
+          and RES.VERSION_TAG_ is null
+        </if>
       </if>
       <if test="versionTagLike != null">
         and RES.VERSION_TAG_ like #{versionTagLike} ESCAPE ${escapeChar}
@@ -416,7 +422,8 @@
 
   <!-- mysql specific sql -->
   <select id="selectProcessDefinitionCountByQueryCriteria_mysql" parameterType="org.camunda.bpm.engine.impl.ProcessDefinitionQueryImpl" resultType="long">
-    select count(distinct RES.ID_)
+    ${countDistinctBeforeStart} RES.ID_ ${countDistinctBeforeEnd}
     <include refid="selectProcessDefinitionsByQueryCriteriaSql"/>
+    ${countDistinctAfterEnd}
   </select>
 </mapper>

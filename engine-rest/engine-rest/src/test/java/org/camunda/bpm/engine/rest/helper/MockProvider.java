@@ -274,6 +274,7 @@ public abstract class MockProvider {
   public static final String EXAMPLE_PROCESS_DEFINITION_CATEGORY = "aCategory";
   public static final String EXAMPLE_PROCESS_DEFINITION_DESCRIPTION = "aDescription";
   public static final int EXAMPLE_PROCESS_DEFINITION_VERSION = 42;
+  public static final String EXAMPLE_PROCESS_DEFINITION_VERSION_TAG = "42";
   public static final String EXAMPLE_PROCESS_DEFINITION_RESOURCE_NAME = "aResourceName";
   public static final String EXAMPLE_PROCESS_DEFINITION_DIAGRAM_RESOURCE_NAME = "aResourceName.png";
   public static final boolean EXAMPLE_PROCESS_DEFINITION_IS_SUSPENDED = true;
@@ -391,11 +392,17 @@ public abstract class MockProvider {
   public static final long EXAMPLE_FINISHED_LONG = 124;
   public static final long EXAMPLE_CANCELED_LONG = 125;
   public static final long EXAMPLE_COMPLETE_SCOPE_LONG = 126;
+  public static final long EXAMPLE_OPEN_INCIDENTS_LONG = 0;
+  public static final long EXAMPLE_RESOLVED_INCIDENTS_LONG = 0;
+  public static final long EXAMPLE_DELETED_INCIDENTS_LONG = 0;
 
   public static final long ANOTHER_EXAMPLE_INSTANCES_LONG = 127;
   public static final long ANOTHER_EXAMPLE_FINISHED_LONG = 128;
   public static final long ANOTHER_EXAMPLE_CANCELED_LONG = 129;
   public static final long ANOTHER_EXAMPLE_COMPLETE_SCOPE_LONG = 130;
+  public static final long ANOTHER_EXAMPLE_OPEN_INCIDENTS_LONG = 1;
+  public static final long ANOTHER_EXAMPLE_RESOLVED_INCIDENTS_LONG = 2;
+  public static final long ANOTHER_EXAMPLE_DELETED_INCIDENTS_LONG = 3;
 
   public static final long EXAMPLE_AVAILABLE_LONG = 123;
   public static final long EXAMPLE_ACTIVE_LONG = 124;
@@ -583,6 +590,7 @@ public abstract class MockProvider {
   public static final String EXAMPLE_USER_OPERATION_ORG_VALUE = "orgValue";
   public static final String EXAMPLE_USER_OPERATION_NEW_VALUE = "newValue";
   public static final String EXAMPLE_USER_OPERATION_TIMESTAMP = withTimezone("2014-02-20T16:53:37");
+  public static final String EXAMPLE_USER_OPERATION_ANNOTATION = "anAnnotation";
 
   // historic detail
   public static final String EXAMPLE_HISTORIC_VAR_UPDATE_ID = "aHistoricVariableUpdateId";
@@ -685,6 +693,7 @@ public abstract class MockProvider {
   public static final String EXAMPLE_HIST_INCIDENT_CAUSE_INCIDENT_ID = "aCauseIncidentId";
   public static final String EXAMPLE_HIST_INCIDENT_ROOT_CAUSE_INCIDENT_ID = "aRootCauseIncidentId";
   public static final String EXAMPLE_HIST_INCIDENT_CONFIGURATION = "aConfiguration";
+  public static final String EXAMPLE_HIST_INCIDENT_HISTORY_CONFIGURATION = "aHistoryConfiguration";
   public static final String EXAMPLE_HIST_INCIDENT_MESSAGE = "anIncidentMessage";
   public static final boolean EXAMPLE_HIST_INCIDENT_STATE_OPEN = false;
   public static final boolean EXAMPLE_HIST_INCIDENT_STATE_DELETED = false;
@@ -910,6 +919,16 @@ public abstract class MockProvider {
   public static final boolean EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_SUCCESS_LOG = true;
   public static final boolean EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_DELETION_LOG = true;
   public static final String EXAMPLE_JOB_CREATE_TIME = withTimezone("2015-01-01T00:00:00");
+
+  // problems
+  public static final int EXAMPLE_PROBLEM_LINE = 77;
+  public static final int EXAMPLE_PROBLEM_COLUMN = 78;
+  public static final String EXAMPLE_PROBLEM_ELEMENT_ID = "element_79";
+  public static final int EXAMPLE_PROBLEM_LINE_2 = 87;
+  public static final int EXAMPLE_PROBLEM_COLUMN_2 = 88;
+  public static final String EXAMPLE_PROBLEM_ELEMENT_ID_2 = "element_89";
+  public static final String EXAMPLE_RESOURCE_NAME = "abc";
+  public static final List<String> EXAMPLE_ELEMENT_IDS = Arrays.asList(EXAMPLE_PROBLEM_ELEMENT_ID, EXAMPLE_PROBLEM_ELEMENT_ID_2);
 
   public static Task createMockTask() {
     return mockTask().build();
@@ -1931,6 +1950,9 @@ public abstract class MockProvider {
     when(statistics.getCanceled()).thenReturn(EXAMPLE_CANCELED_LONG);
     when(statistics.getFinished()).thenReturn(EXAMPLE_FINISHED_LONG);
     when(statistics.getCompleteScope()).thenReturn(EXAMPLE_COMPLETE_SCOPE_LONG);
+    when(statistics.getOpenIncidents()).thenReturn(EXAMPLE_OPEN_INCIDENTS_LONG);
+    when(statistics.getResolvedIncidents()).thenReturn(EXAMPLE_RESOLVED_INCIDENTS_LONG);
+    when(statistics.getDeletedIncidents()).thenReturn(EXAMPLE_DELETED_INCIDENTS_LONG);
 
     HistoricActivityStatistics anotherStatistics = mock(HistoricActivityStatistics.class);
 
@@ -1939,6 +1961,9 @@ public abstract class MockProvider {
     when(anotherStatistics.getCanceled()).thenReturn(ANOTHER_EXAMPLE_CANCELED_LONG);
     when(anotherStatistics.getFinished()).thenReturn(ANOTHER_EXAMPLE_FINISHED_LONG);
     when(anotherStatistics.getCompleteScope()).thenReturn(ANOTHER_EXAMPLE_COMPLETE_SCOPE_LONG);
+    when(anotherStatistics.getOpenIncidents()).thenReturn(ANOTHER_EXAMPLE_OPEN_INCIDENTS_LONG);
+    when(anotherStatistics.getResolvedIncidents()).thenReturn(ANOTHER_EXAMPLE_RESOLVED_INCIDENTS_LONG);
+    when(anotherStatistics.getDeletedIncidents()).thenReturn(ANOTHER_EXAMPLE_DELETED_INCIDENTS_LONG);
 
     List<HistoricActivityStatistics> activityResults = new ArrayList<HistoricActivityStatistics>();
     activityResults.add(statistics);
@@ -2931,6 +2956,7 @@ public abstract class MockProvider {
       .lockExpirationTime(DateTimeUtil.parseDate(EXTERNAL_TASK_LOCK_EXPIRATION_TIME))
       .processDefinitionId(EXAMPLE_PROCESS_DEFINITION_ID)
       .processDefinitionKey(EXAMPLE_PROCESS_DEFINITION_KEY)
+      .processDefinitionVersionTag(EXAMPLE_PROCESS_DEFINITION_VERSION_TAG)
       .processInstanceId(EXAMPLE_PROCESS_INSTANCE_ID)
       .retries(EXTERNAL_TASK_RETRIES)
       .suspended(EXTERNAL_TASK_SUSPENDED)

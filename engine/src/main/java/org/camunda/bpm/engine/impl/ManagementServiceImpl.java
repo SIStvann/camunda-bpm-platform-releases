@@ -135,9 +135,13 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
   }
 
   public void setJobDuedate(String jobId, Date newDuedate) {
-    commandExecutor.execute(new SetJobDuedateCmd(jobId, newDuedate));
+    setJobDuedate(jobId, newDuedate, false);
   }
   
+  public void setJobDuedate(String jobId, Date newDuedate, boolean cascade) {
+    commandExecutor.execute(new SetJobDuedateCmd(jobId, newDuedate, cascade));
+  }
+
   public void recalculateJobDuedate(String jobId, boolean creationDateBased) {
     commandExecutor.execute(new RecalculateJobDuedateCmd(jobId, creationDateBased));
   }
@@ -174,12 +178,24 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
     commandExecutor.execute(new DeletePropertyCmd(name));
   }
 
+  public void setLicenseKey(String licenseKey) {
+    commandExecutor.execute(new SetLicenseKeyCmd(licenseKey));
+  }
+
+  public String getLicenseKey() {
+    return commandExecutor.execute(new GetLicenseKeyCmd());
+  }
+
+  public void deleteLicenseKey() {
+    commandExecutor.execute(new DeleteLicenseKeyCmd(true));
+  }
+
   public String databaseSchemaUpgrade(final Connection connection, final String catalog, final String schema) {
     return commandExecutor.execute(new Command<String>() {
       public String execute(CommandContext commandContext) {
         commandContext.getAuthorizationManager().checkCamundaAdmin();
         DbSqlSessionFactory dbSqlSessionFactory = (DbSqlSessionFactory) commandContext.getSessionFactories().get(DbSqlSession.class);
-        DbSqlSession dbSqlSession = new DbSqlSession(dbSqlSessionFactory, connection, catalog, schema);
+        DbSqlSession dbSqlSession = dbSqlSessionFactory.openSession(connection, catalog, schema);
         commandContext.getSessions().put(DbSqlSession.class, dbSqlSession);
         dbSqlSession.dbSchemaUpdate();
 
@@ -213,7 +229,7 @@ public class ManagementServiceImpl extends ServiceImpl implements ManagementServ
       public Set<String> execute(CommandContext commandContext) {
         commandContext.getAuthorizationManager().checkCamundaAdmin();
         Set<String> registeredDeployments = Context.getProcessEngineConfiguration().getRegisteredDeployments();
-        return new HashSet<String>(registeredDeployments);
+        return new HashSet<>(registeredDeployments);
       }
     });
   }

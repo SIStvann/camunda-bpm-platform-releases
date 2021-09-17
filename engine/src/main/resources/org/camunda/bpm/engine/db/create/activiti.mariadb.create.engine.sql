@@ -63,7 +63,7 @@ create table ACT_GE_SCHEMA_LOG (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
 
 insert into ACT_GE_SCHEMA_LOG
-values ('0', CURRENT_TIMESTAMP, '7.11.0');
+values ('0', CURRENT_TIMESTAMP, '7.12.0');
 
 create table ACT_RE_DEPLOYMENT (
     ID_ varchar(64),
@@ -114,6 +114,7 @@ create table ACT_RU_JOB (
     EXCEPTION_MSG_ varchar(4000),
     DUEDATE_ datetime(3) NULL,
     REPEAT_ varchar(255),
+    REPEAT_OFFSET_ bigint DEFAULT 0,
     HANDLER_TYPE_ varchar(255),
     HANDLER_CFG_ varchar(4000),
     DEPLOYMENT_ID_ varchar(64),

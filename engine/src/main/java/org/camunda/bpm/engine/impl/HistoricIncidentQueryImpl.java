@@ -26,6 +26,7 @@ import org.camunda.bpm.engine.history.HistoricIncidentQuery;
 import org.camunda.bpm.engine.history.IncidentState;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
+import org.camunda.bpm.engine.runtime.IncidentQuery;
 
 /**
  * @author Roman Smirnov
@@ -42,11 +43,14 @@ public class HistoricIncidentQueryImpl extends AbstractVariableQueryImpl<Histori
   protected String activityId;
   protected String processInstanceId;
   protected String processDefinitionId;
+  protected String[] processDefinitionKeys;
   protected String causeIncidentId;
   protected String rootCauseIncidentId;
   protected String configuration;
+  protected String historyConfiguration;
   protected IncidentState incidentState;
   protected String[] tenantIds;
+  protected boolean isTenantIdSet;
   protected String[] jobDefinitionIds;
 
   public HistoricIncidentQueryImpl() {
@@ -98,6 +102,13 @@ public class HistoricIncidentQueryImpl extends AbstractVariableQueryImpl<Histori
     return this;
   }
 
+  public HistoricIncidentQuery processDefinitionKeyIn(String... processDefinitionKeys) {
+    ensureNotNull("processDefinitionKeys", (Object[]) processDefinitionKeys);
+    this.processDefinitionKeys = processDefinitionKeys;
+    return this;
+  }
+
+
   public HistoricIncidentQuery causeIncidentId(String causeIncidentId) {
     ensureNotNull("causeIncidentId", causeIncidentId);
     this.causeIncidentId = causeIncidentId;
@@ -113,12 +124,26 @@ public class HistoricIncidentQueryImpl extends AbstractVariableQueryImpl<Histori
   public HistoricIncidentQuery tenantIdIn(String... tenantIds) {
     ensureNotNull("tenantIds", (Object[]) tenantIds);
     this.tenantIds = tenantIds;
+    this.isTenantIdSet = true;
+    return this;
+  }
+
+  @Override
+  public HistoricIncidentQuery withoutTenantId() {
+    this.tenantIds = null;
+    this.isTenantIdSet = true;
     return this;
   }
 
   public HistoricIncidentQuery configuration(String configuration) {
     ensureNotNull("configuration", configuration);
     this.configuration = configuration;
+    return this;
+  }
+
+  public HistoricIncidentQuery historyConfiguration(String historyConfiguration) {
+    ensureNotNull("historyConfiguration", historyConfiguration);
+    this.historyConfiguration = historyConfiguration;
     return this;
   }
 
@@ -216,6 +241,11 @@ public class HistoricIncidentQueryImpl extends AbstractVariableQueryImpl<Histori
     return this;
   }
 
+  public HistoricIncidentQuery orderByHistoryConfiguration() {
+    orderBy(HistoricIncidentQueryProperty.HISTORY_CONFIGURATION);
+    return this;
+  }
+
   public HistoricIncidentQuery orderByIncidentState() {
     orderBy(HistoricIncidentQueryProperty.INCIDENT_STATE);
     return this;
@@ -272,6 +302,10 @@ public class HistoricIncidentQueryImpl extends AbstractVariableQueryImpl<Histori
     return processDefinitionId;
   }
 
+  public String[] getProcessDefinitionKeys() {
+    return processDefinitionKeys;
+  }
+
   public String getCauseIncidentId() {
     return causeIncidentId;
   }
@@ -284,8 +318,15 @@ public class HistoricIncidentQueryImpl extends AbstractVariableQueryImpl<Histori
     return configuration;
   }
 
+  public String getHistoryConfiguration() {
+    return historyConfiguration;
+  }
+
   public IncidentState getIncidentState() {
     return incidentState;
   }
 
+  public boolean isTenantIdSet() {
+    return isTenantIdSet;
+  }
 }

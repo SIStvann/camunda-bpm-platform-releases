@@ -2,14 +2,14 @@
   <modelVersion>4.0.0</modelVersion>
   <name>camunda BPM - engine - REST JAX RS 2.0</name>
   <artifactId>camunda-engine-rest-jaxrs2</artifactId>
-  <version>7.11.0</version>
+  <version>7.12.0</version>
   <packaging>jar</packaging>
 
   <parent>
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-engine-rest-root</artifactId>
     <relativePath>../</relativePath>
-    <version>7.11.0</version>
+    <version>7.12.0</version>
   </parent>
 
   <dependencies>
@@ -17,7 +17,7 @@
     <dependency>
       <groupId>org.camunda.bpm</groupId>
       <artifactId>camunda-engine-rest-core</artifactId>
-      <version>7.11.0</version>
+      <version>7.12.0</version>
       <scope>compile</scope>
     </dependency>
 
@@ -38,6 +38,12 @@
     <dependency>
       <groupId>org.camunda.bpm</groupId>
       <artifactId>camunda-engine</artifactId>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.camunda.commons</groupId>
+      <artifactId>camunda-commons-logging</artifactId>
       <scope>provided</scope>
     </dependency>
 
@@ -115,7 +121,7 @@
         <dependency>
           <groupId>io.netty</groupId>
           <artifactId>netty-all</artifactId>
-          <version>4.1.20.Final</version>
+          <version>4.1.42.Final</version>
           <scope>test</scope>
         </dependency>
 

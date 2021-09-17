@@ -171,7 +171,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
     when(mockUpdateSuspensionStateSelectBuilder.byProcessDefinitionKey(anyString())).thenReturn(mockUpdateSuspensionStateBuilder);
 
     mockUpdateProcessInstancesSuspensionStateBuilder = mock(UpdateProcessInstancesSuspensionStateBuilder.class);
-    when(mockUpdateSuspensionStateSelectBuilder.byProcessInstanceIds(anyList())).thenReturn(mockUpdateProcessInstancesSuspensionStateBuilder);
+    when(mockUpdateSuspensionStateSelectBuilder.byProcessInstanceIds(anyListOf(String.class))).thenReturn(mockUpdateProcessInstancesSuspensionStateBuilder);
     when(mockUpdateSuspensionStateSelectBuilder.byProcessInstanceQuery(any(ProcessInstanceQuery.class))).thenReturn(mockUpdateProcessInstancesSuspensionStateBuilder);
     when(mockUpdateSuspensionStateSelectBuilder.byHistoricProcessInstanceQuery(any(HistoricProcessInstanceQuery.class))).thenReturn(mockUpdateProcessInstancesSuspensionStateBuilder);
 
@@ -196,6 +196,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
         .body("activityName", equalTo(EXAMPLE_ACTIVITY_NAME))
         // "name" is deprecated and there for legacy reasons
         .body("name", equalTo(EXAMPLE_ACTIVITY_NAME))
+        .body("incidentIds", empty())
         .body("childActivityInstances", not(empty()))
         .body("childActivityInstances[0].id", equalTo(CHILD_EXAMPLE_ACTIVITY_INSTANCE_ID))
         .body("childActivityInstances[0].parentActivityInstanceId", equalTo(CHILD_EXAMPLE_PARENT_ACTIVITY_INSTANCE_ID))
@@ -208,6 +209,8 @@ public class ProcessInstanceRestServiceInteractionTest extends
         .body("childActivityInstances[0].executionIds", not(empty()))
         .body("childActivityInstances[0].childActivityInstances", empty())
         .body("childActivityInstances[0].childTransitionInstances", empty())
+        .body("childActivityInstances[0].incidentIds", not(empty()))
+        .body("childActivityInstances[0].incidentIds[0]", equalTo(EXAMPLE_INCIDENT_ID))
         .body("childTransitionInstances", not(empty()))
         .body("childTransitionInstances[0].id", equalTo(CHILD_EXAMPLE_ACTIVITY_INSTANCE_ID))
         .body("childTransitionInstances[0].parentActivityInstanceId", equalTo(CHILD_EXAMPLE_PARENT_ACTIVITY_INSTANCE_ID))
@@ -218,9 +221,11 @@ public class ProcessInstanceRestServiceInteractionTest extends
         .body("childTransitionInstances[0].processInstanceId", equalTo(CHILD_EXAMPLE_PROCESS_INSTANCE_ID))
         .body("childTransitionInstances[0].processDefinitionId", equalTo(CHILD_EXAMPLE_PROCESS_DEFINITION_ID))
         .body("childTransitionInstances[0].executionId", equalTo(EXAMPLE_EXECUTION_ID))
+        .body("childTransitionInstances[0].incidentIds", not(empty()))
+        .body("childTransitionInstances[0].incidentIds[0]", equalTo(EXAMPLE_ANOTHER_INCIDENT_ID))
         .when().get(PROCESS_INSTANCE_ACTIVIY_INSTANCES_URL);
 
-    Assert.assertEquals("Should return right number of properties", 11, response.jsonPath().getMap("").size());
+    Assert.assertEquals("Should return right number of properties", 12, response.jsonPath().getMap("").size());
   }
 
   @Test
@@ -863,13 +868,13 @@ public class ProcessInstanceRestServiceInteractionTest extends
       .body("message", equalTo("Process instance with id " + MockProvider.EXAMPLE_PROCESS_INSTANCE_ID + " does not exist"))
       .when().delete(SINGLE_PROCESS_INSTANCE_URL);
   }
-  
+
   @Test
   public void testDeleteNonExistingProcessInstanceIfExists() {
     given().pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID).queryParam("failIfNotExists", false)
     .then().expect().statusCode(Status.NO_CONTENT.getStatusCode())
     .when().delete(SINGLE_PROCESS_INSTANCE_URL);
-    
+
     verify(runtimeServiceMock).deleteProcessInstanceIfExists(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null, false, true, false, false);
   }
 
@@ -3069,6 +3074,43 @@ public class ProcessInstanceRestServiceInteractionTest extends
   }
 
   @Test
+  public void testSyncProcessInstanceModificationWithAnnotation() {
+    ProcessInstanceModificationInstantiationBuilder mockModificationBuilder = setUpMockModificationBuilder();
+    when(runtimeServiceMock.createProcessInstanceModification(anyString())).thenReturn(mockModificationBuilder);
+
+    Map<String, Object> json = new HashMap<String, Object>();
+
+    List<Map<String, Object>> instructions = new ArrayList<Map<String, Object>>();
+    instructions.add(
+        ModificationInstructionBuilder.startBefore()
+          .activityId("activityId")
+          .getJson());
+    json.put("instructions", instructions);
+    json.put("annotation", "anAnnotation");
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+      .expect()
+        .statusCode(Status.NO_CONTENT.getStatusCode())
+      .when()
+        .post(PROCESS_INSTANCE_MODIFICATION_URL);
+
+    verify(runtimeServiceMock).createProcessInstanceModification(eq(EXAMPLE_PROCESS_INSTANCE_ID));
+
+    InOrder inOrder = inOrder(mockModificationBuilder);
+    inOrder.verify(mockModificationBuilder).startBeforeActivity("activityId");
+    inOrder.verify(mockModificationBuilder).setAnnotation("anAnnotation");
+
+
+    inOrder.verify(mockModificationBuilder).execute(false, false);
+
+    inOrder.verifyNoMoreInteractions();
+  }
+
+  @Test
   public void testSetRetriesByProcessAsync() {
     List<String> ids = Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID);
     Batch batchEntity = MockProvider.createMockBatch();
@@ -3475,6 +3517,43 @@ public class ProcessInstanceRestServiceInteractionTest extends
       .body("message", equalTo(message))
     .when()
       .post(PROCESS_INSTANCE_MODIFICATION_ASYNC_URL);
+  }
+
+
+  @Test
+  public void testAsyncProcessInstanceModificationWithAnnotation() {
+    ProcessInstanceModificationInstantiationBuilder mockModificationBuilder = setUpMockModificationBuilder();
+    when(runtimeServiceMock.createProcessInstanceModification(anyString())).thenReturn(mockModificationBuilder);
+    Batch batchMock = createMockBatch();
+    when(mockModificationBuilder.executeAsync(anyBoolean(), anyBoolean())).thenReturn(batchMock);
+
+    Map<String, Object> json = new HashMap<String, Object>();
+
+    List<Map<String, Object>> instructions = new ArrayList<Map<String, Object>>();
+    instructions.add(ModificationInstructionBuilder.cancellation().activityId("activityId").getJson());
+
+    json.put("instructions", instructions);
+    json.put("annotation", "anAnnotation");
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .post(PROCESS_INSTANCE_MODIFICATION_ASYNC_URL);
+
+    verify(runtimeServiceMock).createProcessInstanceModification(eq(EXAMPLE_PROCESS_INSTANCE_ID));
+
+    InOrder inOrder = inOrder(mockModificationBuilder);
+    inOrder.verify(mockModificationBuilder).cancelAllForActivity("activityId");
+    inOrder.verify(mockModificationBuilder).setAnnotation("anAnnotation");
+
+    inOrder.verify(mockModificationBuilder).executeAsync(false, false);
+
+    inOrder.verifyNoMoreInteractions();
   }
 
   @SuppressWarnings("unchecked")

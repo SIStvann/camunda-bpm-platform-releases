@@ -4,15 +4,15 @@
 
   <parent>
     <groupId>org.camunda</groupId>
-    <artifactId>camunda-release-parent</artifactId>
-    <version>3.3</version>
+    <artifactId>camunda-bpm-release-parent</artifactId>
+    <version>1.0.0</version>
     <!-- do not remove empty tag - http://jira.codehaus.org/browse/MNG-4687 -->
     <relativePath />
   </parent>
 
   <groupId>org.camunda.bpm</groupId>
   <artifactId>camunda-bom</artifactId>
-  <version>7.11.0</version>
+  <version>7.12.0</version>
   <packaging>pom</packaging>
   <name>camunda BPM - Bom</name>
   <url>http://camunda.org</url>
@@ -34,10 +34,10 @@
   <properties>
     <version.mybatis>3.4.4</version.mybatis>
     <version.joda-time>2.1</version.joda-time>
-    <version.uuid-generator>3.1.2</version.uuid-generator>
-    <version.camunda.commons>1.7.1</version.camunda.commons>
-    <version.camunda.connect>1.1.4</version.camunda.connect>
-    <version.camunda.spin>1.6.7</version.camunda.spin>
+    <version.uuid-generator>3.2.0</version.uuid-generator>
+    <version.camunda.commons>1.8.2</version.camunda.commons>
+    <version.camunda.connect>1.2.2</version.camunda.connect>
+    <version.camunda.spin>1.7.4</version.camunda.spin>
     <version.camunda.template-engines>1.1.0</version.camunda.template-engines>
     <version.camunda.ee.xslt-plugin>1.1.0</version.camunda.ee.xslt-plugin>
   </properties>
@@ -158,13 +158,22 @@
         <version>${project.version}</version>
       </dependency>
 
-      <!-- dmn engine -->
+      <!-- dmn engine dependencies
+       -->
       <dependency>
         <groupId>org.camunda.bpm.dmn</groupId>
-        <artifactId>camunda-engine-dmn-bom</artifactId>
+        <artifactId>camunda-engine-dmn</artifactId>
         <version>${project.version}</version>
-        <scope>import</scope>
-        <type>pom</type>
+      </dependency>
+      <dependency>
+        <groupId>org.camunda.bpm.dmn</groupId>
+        <artifactId>camunda-engine-feel-api</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.camunda.bpm.dmn</groupId>
+        <artifactId>camunda-engine-feel-juel</artifactId>
+        <version>${project.version}</version>
       </dependency>
 
       <dependency>
@@ -173,9 +182,16 @@
         -->
         <groupId>org.camunda.commons</groupId>
         <artifactId>camunda-commons-bom</artifactId>
+        <version>${version.camunda.commons}</version>
         <scope>import</scope>
         <type>pom</type>
-        <version>${version.camunda.commons}</version>
+      </dependency>
+
+      <!-- camunda-commons-typed-values: part of the platform and shares the same version -->
+      <dependency>
+        <groupId>org.camunda.commons</groupId>
+        <artifactId>camunda-commons-typed-values</artifactId>
+        <version>${project.version}</version>
       </dependency>
 
       <!-- optional dependencies -->
@@ -222,7 +238,7 @@
     <url>https://github.com/camunda/camunda-bpm-platform</url>
     <connection>scm:git:git@github.com:camunda/camunda-bpm-platform.git</connection>
     <developerConnection>scm:git:git@github.com:camunda/camunda-bpm-platform.git</developerConnection>
-    <tag>7.11.0</tag>
+    <tag>7.12.0</tag>
   </scm>
 
   <issueManagement>

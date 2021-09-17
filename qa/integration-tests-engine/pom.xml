@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.camunda.bpm.qa</groupId>
     <artifactId>camunda-qa</artifactId>
-    <version>7.11.0</version>
+    <version>7.12.0</version>
   </parent>
 
   <properties>
@@ -150,7 +150,30 @@
     <dependency>
       <groupId>com.fasterxml.jackson.datatype</groupId>
       <artifactId>jackson-datatype-joda</artifactId>
-      <version>2.9.8</version>
+      <version>2.10.0</version>
+      <!-- 
+      Excluding jackson-databind for the following reason: 
+      
+      PaDataFormatConfiguratorJodaTest uses ShrinkWrap to pack jackson-datatype-joda
+      plus transitive dependencies into a WAR and deploy that via Arquillian.
+      One transitive dependency is jackson-databind. jackson-datatype-joda declares a dependency
+      to jackson-databind 2.9.9, however our current managed dependency version is 2.9.9.3 (via spin).
+      In that case, Shrinkwrap is not able to resolve the managed dependency version and
+      fails to resolve the dependency, because 2.9.9 is not available in the local Maven repo.
+      
+      When can this exclusion be removed again?
+      
+      At the time at which the Jackson versions of this artifact and Spin are in sync again,
+      so probably when we switch jackson-databind back to a proper patch level, for which also 
+      a patch of this artifact exists.
+
+      <exclusions>
+        <exclusion>
+          <groupId>com.fasterxml.jackson.core</groupId>
+          <artifactId>jackson-databind</artifactId>
+        </exclusion>
+      </exclusions>
+      -->
     </dependency>
 
 
@@ -285,11 +308,11 @@
                 <configuration>
                   <rules>
                     <requireJavaVersion>
-                      <version>[1.6,1.8)</version>
+                      <version>[1.7,1.8)</version>
                       <message>
                         *************************************************
                         *                                               *
-                        * You must use JDK 6/7 to run JBoss AS 7.2.0!!! *
+                        * You must use JDK 7 to run JBoss AS 7.2.0!!!   *
                         *                                               *
                         *************************************************
                       </message>

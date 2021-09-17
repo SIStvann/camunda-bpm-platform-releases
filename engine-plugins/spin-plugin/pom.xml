@@ -4,7 +4,7 @@
   <parent>
     <artifactId>camunda-engine-plugins</artifactId>
     <groupId>org.camunda.bpm</groupId>
-    <version>7.11.0</version>
+    <version>7.12.0</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
 
@@ -16,6 +16,14 @@
     <dependency>
       <groupId>org.camunda.spin</groupId>
       <artifactId>camunda-spin-core</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.camunda.bpm</groupId>
+      <artifactId>camunda-engine</artifactId>
+      <classifier>tests</classifier>
+      <scope>test</scope>
+      <version>${project.version}</version>
     </dependency>
 
     <dependency>
@@ -70,7 +78,7 @@
       <groupId>org.skyscreamer</groupId>
       <artifactId>jsonassert</artifactId>
       <scope>test</scope>
-      <version>1.2.3</version>
+      <version>1.5.0</version>
     </dependency>
 
     <dependency>
