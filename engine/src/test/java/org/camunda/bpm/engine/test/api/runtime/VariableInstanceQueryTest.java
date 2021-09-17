@@ -167,11 +167,11 @@ public class VariableInstanceQueryTest extends PluggableProcessEngineTestCase {
   public void testQueryByVariableNameLike() {
     // given
     Map<String, Object> variables = new HashMap<String, Object>();
-    variables.put("stringVar", "test");
+    variables.put("string%Var", "test");
     runtimeService.startProcessInstanceByKey("oneTaskProcess", variables);
 
     // when
-    VariableInstanceQuery query = runtimeService.createVariableInstanceQuery().variableNameLike("%ingV%");
+    VariableInstanceQuery query = runtimeService.createVariableInstanceQuery().variableNameLike("%ing\\%V%");
 
     // then
     List<VariableInstance> result = query.list();
@@ -181,7 +181,7 @@ public class VariableInstanceQueryTest extends PluggableProcessEngineTestCase {
     assertEquals(1, query.count());
 
     VariableInstance var = result.get(0);
-    assertEquals("stringVar", var.getName());
+    assertEquals("string%Var", var.getName());
     assertEquals("test", var.getValue());
     assertEquals("string", var.getTypeName());
   }
@@ -454,6 +454,43 @@ public class VariableInstanceQueryTest extends PluggableProcessEngineTestCase {
       } else {
         fail("A non expected value occured: " + var.getValue());
       }
+    }
+  }
+
+  @Test
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/runtime/oneTaskProcess.bpmn20.xml" })
+  public void testQueryByNameAndVariableValueLikeWithEscape_String() {
+    // given
+    Map<String, Object> variables1 = new HashMap<String, Object>();
+    variables1.put("stringVar", "test_123");
+    runtimeService.startProcessInstanceByKey("oneTaskProcess", variables1);
+
+    Map<String, Object> variables2 = new HashMap<String, Object>();
+    variables2.put("stringVar", "test%456");
+    runtimeService.startProcessInstanceByKey("oneTaskProcess", variables2);
+
+    // when
+    VariableInstanceQuery query = runtimeService.createVariableInstanceQuery().variableValueLike("stringVar", "test\\_%");
+    verifyQueryResult(query, "test_123");
+
+    query = runtimeService.createVariableInstanceQuery().variableValueLike("stringVar", "test\\%%");
+    verifyQueryResult(query, "test%456");
+
+  }
+
+  private void verifyQueryResult(VariableInstanceQuery query, String varValue) {
+    // then
+    List<VariableInstance> result = query.list();
+    assertFalse(result.isEmpty());
+    assertEquals(1, result.size());
+
+    assertEquals(1, query.count());
+
+    for (VariableInstance var : result) {
+      assertEquals("stringVar", var.getName());
+      assertEquals("string", var.getTypeName());
+
+      assertEquals(varValue, var.getValue());
     }
   }
 

@@ -109,7 +109,7 @@ public class BatchMigrationHistoryTest {
   public void testHistoricBatchCompletion() {
     Batch batch = helper.migrateProcessInstancesAsync(1);
     helper.executeSeedJob(batch);
-    helper.executeMigrationJobs(batch);
+    helper.executeJobs(batch);
 
     Date endDate = helper.addSecondsToClock(12);
 
@@ -205,7 +205,7 @@ public class BatchMigrationHistoryTest {
 
     // when the migration and monitor jobs are executed
     executionDate = helper.addSecondsToClock(15);
-    helper.executeMigrationJobs(batch);
+    helper.executeJobs(batch);
     helper.executeMonitorJob(batch);
 
     jobLogs = helper.getHistoricMonitorJobLog(batch, monitorJob);
@@ -228,7 +228,7 @@ public class BatchMigrationHistoryTest {
 
     // when
     Date executionDate = helper.addSecondsToClock(12);
-    helper.executeMigrationJobs(batch);
+    helper.executeJobs(batch);
 
     // then a historic job log exists for the batch job
     HistoricJobLog jobLog = helper.getHistoricBatchJobLog(batch).get(0);
@@ -321,7 +321,7 @@ public class BatchMigrationHistoryTest {
   public void testDeleteHistoricBatch() {
     Batch batch = helper.migrateProcessInstancesAsync(1);
     helper.executeSeedJob(batch);
-    helper.executeMigrationJobs(batch);
+    helper.executeJobs(batch);
     helper.executeMonitorJob(batch);
 
     // when
@@ -378,7 +378,7 @@ public class BatchMigrationHistoryTest {
     Batch batch = helper.migrateProcessInstancesAsync(3);
 
     helper.executeSeedJob(batch);
-    helper.failMigrationJobs(batch, 3);
+    helper.failExecutionJobs(batch, 3);
 
     managementService.deleteBatch(batch.getId(), false);
 

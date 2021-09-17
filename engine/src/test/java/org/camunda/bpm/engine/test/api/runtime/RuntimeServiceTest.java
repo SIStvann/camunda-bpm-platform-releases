@@ -43,8 +43,11 @@ import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.ProcessEngines;
+import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
+import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.ExecutionListener;
+import org.camunda.bpm.engine.delegate.JavaDelegate;
 import org.camunda.bpm.engine.delegate.TaskListener;
 import org.camunda.bpm.engine.exception.NullValueException;
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
@@ -66,9 +69,9 @@ import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.runtime.TransitionInstance;
 import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.runtime.VariableInstanceQuery;
-import org.camunda.bpm.engine.task.Attachment;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.RequiredHistoryLevel;
 import org.camunda.bpm.engine.test.api.runtime.util.SimpleSerializableBean;
 import org.camunda.bpm.engine.test.bpmn.executionlistener.RecorderExecutionListener;
 import org.camunda.bpm.engine.test.bpmn.executionlistener.RecorderExecutionListener.RecordedEvent;
@@ -78,6 +81,8 @@ import org.camunda.bpm.engine.test.util.TestExecutionListener;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.type.ValueType;
+import org.camunda.bpm.model.bpmn.Bpmn;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 
 /**
  * @author Frederik Heremans
@@ -319,6 +324,80 @@ public class RuntimeServiceTest extends PluggableProcessEngineTestCase {
 
     // then the the custom listener is not invoked
     assertTrue(RecorderTaskListener.getRecordedEvents().isEmpty());
+  }
+
+  @Deployment(resources={
+      "org/camunda/bpm/engine/test/api/oneTaskProcessWithIoMappings.bpmn20.xml" })
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testDeleteProcessInstanceSkipIoMappings() {
+
+    // given a process instance
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("ioMappingProcess");
+
+    // when the process instance is deleted and we do skip the io mappings
+    runtimeService.deleteProcessInstance(instance.getId(), null, false, true, true);
+
+    // then
+    assertProcessEnded(instance.getId());
+    assertEquals(1, historyService.createHistoricVariableInstanceQuery().processInstanceId(instance.getId()).list().size());
+    assertEquals(1, historyService.createHistoricVariableInstanceQuery().variableName("inputMappingExecuted").count());
+  }
+
+  @Deployment(resources = {
+      "org/camunda/bpm/engine/test/api/oneTaskProcessWithIoMappings.bpmn20.xml" })
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testDeleteProcessInstanceWithoutSkipIoMappings() {
+
+    // given a process instance
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("ioMappingProcess");
+
+    // when the process instance is deleted and we do not skip the io mappings
+    runtimeService.deleteProcessInstance(instance.getId(), null, false, true, false);
+
+    // then
+    assertProcessEnded(instance.getId());
+    assertEquals(2, historyService.createHistoricVariableInstanceQuery().processInstanceId(instance.getId()).list().size());
+    assertEquals(1, historyService.createHistoricVariableInstanceQuery().variableName("inputMappingExecuted").count());
+    assertEquals(1, historyService.createHistoricVariableInstanceQuery().variableName("outputMappingExecuted").count());
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/runtime/RuntimeServiceTest.testCascadingDeleteSubprocessInstanceSkipIoMappings.Calling.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/runtime/RuntimeServiceTest.testCascadingDeleteSubprocessInstanceSkipIoMappings.Called.bpmn20.xml" })
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testCascadingDeleteSubprocessInstanceSkipIoMappings() {
+
+    // given a process instance
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("callingProcess");
+
+    ProcessInstance instance2 = runtimeService.createProcessInstanceQuery().superProcessInstanceId(instance.getId()).singleResult();
+
+    // when the process instance is deleted and we do skip the io mappings
+    runtimeService.deleteProcessInstance(instance.getId(), "test_purposes", false, true, true);
+
+    // then
+    assertProcessEnded(instance.getId());
+    assertEquals(1, historyService.createHistoricVariableInstanceQuery().processInstanceId(instance2.getId()).list().size());
+    assertEquals(1, historyService.createHistoricVariableInstanceQuery().variableName("inputMappingExecuted").count());
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/runtime/RuntimeServiceTest.testCascadingDeleteSubprocessInstanceSkipIoMappings.Calling.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/runtime/RuntimeServiceTest.testCascadingDeleteSubprocessInstanceSkipIoMappings.Called.bpmn20.xml" })
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testCascadingDeleteSubprocessInstanceWithoutSkipIoMappings() {
+
+    // given a process instance
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("callingProcess");
+
+    ProcessInstance instance2 = runtimeService.createProcessInstanceQuery().superProcessInstanceId(instance.getId()).singleResult();
+
+    // when the process instance is deleted and we do not skip the io mappings
+    runtimeService.deleteProcessInstance(instance.getId(), "test_purposes", false, true, false);
+
+    // then
+    assertProcessEnded(instance.getId());
+    assertEquals(2, historyService.createHistoricVariableInstanceQuery().processInstanceId(instance2.getId()).list().size());
+    assertEquals(1, historyService.createHistoricVariableInstanceQuery().variableName("inputMappingExecuted").count());
+    assertEquals(1, historyService.createHistoricVariableInstanceQuery().variableName("outputMappingExecuted").count());
   }
 
   @Deployment(resources={
@@ -2290,6 +2369,56 @@ public class RuntimeServiceTest extends PluggableProcessEngineTestCase {
     }
 
     assertEquals(0, runtimeService.createExecutionQuery().count());
+
+  }
+
+  public void testGetActivityInstanceForCompletedInstanceInDelegate() {
+    // given
+    BpmnModelInstance deletingProcess = Bpmn.createExecutableProcess("process1")
+        .startEvent()
+        .userTask()
+        .serviceTask()
+        .camundaClass(DeleteInstanceDelegate.class.getName())
+        .userTask()
+        .endEvent()
+        .done();
+    BpmnModelInstance processToDelete = Bpmn.createExecutableProcess("process2")
+        .startEvent()
+        .userTask()
+        .endEvent()
+        .done();
+
+    deployment(deletingProcess, processToDelete);
+
+    ProcessInstance instanceToDelete = runtimeService.startProcessInstanceByKey("process2");
+    ProcessInstance deletingInstance = runtimeService.startProcessInstanceByKey("process1",
+        Variables.createVariables().putValue("instanceToComplete", instanceToDelete.getId()));
+
+    Task deleteTrigger = taskService.createTaskQuery().processInstanceId(deletingInstance.getId()).singleResult();
+
+    // when
+    taskService.complete(deleteTrigger.getId());
+
+    // then
+    boolean activityInstanceNull =
+        (Boolean) runtimeService.getVariable(deletingInstance.getId(), "activityInstanceNull");
+    assertTrue(activityInstanceNull);
+  }
+
+  public static class DeleteInstanceDelegate implements JavaDelegate {
+
+    @Override
+    public void execute(DelegateExecution execution) throws Exception {
+      RuntimeService runtimeService = execution.getProcessEngineServices().getRuntimeService();
+      TaskService taskService = execution.getProcessEngineServices().getTaskService();
+
+      String instanceToDelete = (String) execution.getVariable("instanceToComplete");
+      Task taskToTrigger = taskService.createTaskQuery().processInstanceId(instanceToDelete).singleResult();
+      taskService.complete(taskToTrigger.getId());
+
+      ActivityInstance activityInstance = runtimeService.getActivityInstance(instanceToDelete);
+      execution.setVariable("activityInstanceNull", activityInstance == null);
+    }
 
   }
 

@@ -9,7 +9,7 @@
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-database-settings</artifactId>
     <relativePath>../database</relativePath>
-    <version>7.6.0</version>
+    <version>7.7.0</version>
   </parent>
 
   <dependencies>
@@ -630,13 +630,11 @@
                      the DbSchemaPrefixTestHelper will first drop the schema. So
                      it cannot be used with this profile at the moment -->
                 <exclude>**/DeploymentAwareJobExecutorTest.java</exclude>
-                <!-- include after CAM-6041 was fixed -->
-                <exclude>**/ManagementServiceTest.java</exclude>
-                <exclude>**/ManagementAuthorizationTest.java</exclude>
                 <!-- this test drops the database an creates two schemas and
                      it can be excluded for this test profile as it tests
                      the same except for the whole unit test suite -->
                 <exclude>**/DatabaseTablePrefixTest.java</exclude>
+                <exclude>**/DeploymentTest.java</exclude>
               </excludes>
             </configuration>
           </plugin>

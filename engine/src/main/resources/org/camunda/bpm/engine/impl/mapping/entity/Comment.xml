@@ -58,6 +58,35 @@
     delete from ${prefix}ACT_HI_COMMENT where TASK_ID_ = #{taskId} 
   </delete>
 
+  <delete id="deleteCommentsByIds" parameterType="java.util.Map">
+    delete from ${prefix}ACT_HI_COMMENT
+    where 
+    <if test="taskProcessInstanceIds != null &amp;&amp; taskProcessInstanceIds.size() > 0">
+      TASK_ID_ IN
+      (select distinct ID_ from ${prefix}ACT_HI_TASKINST
+      where PROC_INST_ID_ in
+      <foreach item="processInstanceId" index="index" collection="taskProcessInstanceIds" open="(" separator="," close=")">
+        #{processInstanceId}
+      </foreach>
+      )
+    </if>
+    <if test="taskCaseInstanceIds != null &amp;&amp; taskCaseInstanceIds.size() > 0">
+      TASK_ID_ IN
+        (select distinct ID_ from ${prefix}ACT_HI_TASKINST
+            where CASE_INST_ID_ in
+            <foreach item="caseInstanceId" index="index" collection="taskCaseInstanceIds" open="(" separator="," close=")">
+                #{caseInstanceId}
+            </foreach>
+        )
+    </if>
+    <if test="processInstanceIds != null &amp;&amp; processInstanceIds.size() > 0">
+      PROC_INST_ID_ in
+      <foreach item="processInstanceId" index="index" collection="processInstanceIds" open="(" separator="," close=")">
+        #{processInstanceId}
+      </foreach>
+    </if>
+  </delete>
+
   <!-- COMMENT RESULTMAP -->
 
   <resultMap id="commentResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.CommentEntity">
@@ -113,6 +142,7 @@
   </select>
 
   <sql id="selectEventsByTaskIdSql">
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
     select distinct RES.* ${limitBetween}
     from (

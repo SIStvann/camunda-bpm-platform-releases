@@ -12,7 +12,6 @@
  */
 package org.camunda.bpm.engine.impl;
 
-
 import java.util.Date;
 import java.util.List;
 
@@ -45,6 +44,7 @@ public class ExternalTaskQueryImpl extends AbstractQuery<ExternalTaskQuery, Exte
   protected String processInstanceId;
   protected String processDefinitionId;
   protected String activityId;
+  protected String[] activityIdIn;
   protected SuspensionState suspensionState;
   protected Long priorityHigherThanOrEquals;
   protected Long priorityLowerThanOrEquals;
@@ -119,6 +119,12 @@ public class ExternalTaskQueryImpl extends AbstractQuery<ExternalTaskQuery, Exte
   public ExternalTaskQuery activityId(String activityId) {
     ensureNotNull("activityId", activityId);
     this.activityId = activityId;
+    return this;
+  }
+
+  public ExternalTaskQuery activityIdIn(String... activityIdIn) {
+    ensureNotNull("activityIdIn", activityIdIn);
+    this.activityIdIn = activityIdIn;
     return this;
   }
   @Override
@@ -208,6 +214,13 @@ public class ExternalTaskQueryImpl extends AbstractQuery<ExternalTaskQuery, Exte
     return commandContext
       .getExternalTaskManager()
       .findExternalTasksByQueryCriteria(this);
+  }
+
+  public List<String> executeIdsList(CommandContext commandContext) {
+    checkQueryOk();
+    return commandContext
+      .getExternalTaskManager()
+      .findExternalTaskIdsByQueryCriteria(this);
   }
 
   public String getExternalTaskId() {

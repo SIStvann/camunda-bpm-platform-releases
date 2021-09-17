@@ -15,7 +15,9 @@ package org.camunda.bpm.engine.impl.persistence.entity;
 
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureOnlyOneNotNull;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.history.HistoricVariableInstanceQuery;
@@ -33,8 +35,37 @@ public class HistoricVariableInstanceManager extends AbstractHistoricManager {
     deleteHistoricVariableInstancesByProcessCaseInstanceId(historicProcessInstanceId, null);
   }
 
+  public void deleteHistoricVariableInstanceByProcessInstanceIds(List<String> historicProcessInstanceIds) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("processInstanceIds", historicProcessInstanceIds);
+    deleteHistoricVariableInstances(parameters);
+  }
+
+  public void deleteHistoricVariableInstancesByTaskProcessInstanceIds(List<String> historicProcessInstanceIds) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("taskProcessInstanceIds", historicProcessInstanceIds);
+    deleteHistoricVariableInstances(parameters);
+  }
+
   public void deleteHistoricVariableInstanceByCaseInstanceId(String historicCaseInstanceId) {
     deleteHistoricVariableInstancesByProcessCaseInstanceId(null, historicCaseInstanceId);
+  }
+
+  public void deleteHistoricVariableInstancesByCaseInstanceIds(List<String> historicCaseInstanceIds) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("caseInstanceIds", historicCaseInstanceIds);
+    deleteHistoricVariableInstances(parameters);
+  }
+
+  public void deleteHistoricVariableInstancesByTaskCaseInstanceIds(List<String> historicCaseInstanceIds) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("taskCaseInstanceIds", historicCaseInstanceIds);
+    deleteHistoricVariableInstances(parameters);
+  }
+
+  protected void deleteHistoricVariableInstances(Map<String, Object> parameters) {
+    getDbEntityManager().deletePreserveOrder(ByteArrayEntity.class, "deleteHistoricVariableInstanceByteArraysByIds", parameters);
+    getDbEntityManager().deletePreserveOrder(HistoricVariableInstanceEntity.class, "deleteHistoricVariableInstanceByIds", parameters);
   }
 
   protected void deleteHistoricVariableInstancesByProcessCaseInstanceId(String historicProcessInstanceId, String historicCaseInstanceId) {

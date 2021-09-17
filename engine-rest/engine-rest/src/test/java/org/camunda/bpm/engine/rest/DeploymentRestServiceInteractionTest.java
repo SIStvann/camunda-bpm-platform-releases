@@ -12,67 +12,9 @@
  */
 package org.camunda.bpm.engine.rest;
 
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_BPMN_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_BPMN_XML_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_CMMN_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_CMMN_XML_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_DMN_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_DMN_XML_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_GIF_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_GROOVY_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_HTML_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_JAVA_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_JPEG_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_JPE_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_JPG_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_JSON_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_JS_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_PHP_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_PNG_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_PYTHON_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_RESOURCE_FILENAME_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_RUBY_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_SVG_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_TIFF_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_TIF_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_TXT_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_DEPLOYMENT_XML_RESOURCE_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TENANT_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.NON_EXISTING_DEPLOYMENT_ID;
-import static org.camunda.bpm.engine.rest.helper.MockProvider.NON_EXISTING_DEPLOYMENT_RESOURCE_ID;
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyListOf;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
-import javax.ws.rs.HttpMethod;
-import javax.ws.rs.core.Response.Status;
-
+import com.jayway.restassured.http.ContentType;
+import com.jayway.restassured.path.json.JsonPath;
+import com.jayway.restassured.response.Response;
 import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.RepositoryService;
@@ -80,23 +22,39 @@ import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
 import org.camunda.bpm.engine.impl.util.ReflectUtil;
-import org.camunda.bpm.engine.repository.Deployment;
-import org.camunda.bpm.engine.repository.DeploymentBuilder;
-import org.camunda.bpm.engine.repository.DeploymentQuery;
-import org.camunda.bpm.engine.repository.Resource;
+import org.camunda.bpm.engine.repository.*;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.util.container.TestContainerRule;
+import org.camunda.bpm.model.bpmn.Bpmn;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.path.json.JsonPath;
-import com.jayway.restassured.response.Response;
+import javax.ws.rs.HttpMethod;
+import javax.ws.rs.core.Response.Status;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.util.*;
+
+import static com.jayway.restassured.RestAssured.given;
+import static com.jayway.restassured.path.json.JsonPath.from;
+import static org.camunda.bpm.engine.rest.helper.MockProvider.*;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.*;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyListOf;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.*;
 
 public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTest {
 
+  protected static final String PROPERTY_DEPLOYED_PROCESS_DEFINITIONS = "deployedProcessDefinitions";
+  protected static final String PROPERTY_DEPLOYED_CASE_DEFINITIONS = "deployedCaseDefinitions";
+  protected static final String PROPERTY_DEPLOYED_DECISION_DEFINITIONS = "deployedDecisionDefinitions";
+  protected static final String PROPERTY_DEPLOYED_DECISION_REQUIREMENTS_DEFINITIONS = "deployedDecisionRequirementsDefinitions";
   @ClassRule
   public static TestContainerRule rule = new TestContainerRule();
 
@@ -110,6 +68,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
 
   protected RepositoryService mockRepositoryService;
   protected Deployment mockDeployment;
+  protected DeploymentWithDefinitions mockDeploymentWithDefinitions;
   protected List<Resource> mockDeploymentResources;
   protected Resource mockDeploymentResource;
   protected DeploymentQuery mockDeploymentQuery;
@@ -122,6 +81,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     when(processEngine.getRepositoryService()).thenReturn(mockRepositoryService);
 
     mockDeployment = MockProvider.createMockDeployment();
+    mockDeploymentWithDefinitions = MockProvider.createMockDeploymentWithDefinitions();
     mockDeploymentQuery = mock(DeploymentQuery.class);
     when(mockDeploymentQuery.deploymentId(EXAMPLE_DEPLOYMENT_ID)).thenReturn(mockDeploymentQuery);
     when(mockDeploymentQuery.singleResult()).thenReturn(mockDeployment);
@@ -142,7 +102,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     when(mockDeploymentBuilder.source(anyString())).thenReturn(mockDeploymentBuilder);
     when(mockDeploymentBuilder.tenantId(anyString())).thenReturn(mockDeploymentBuilder);
     when(mockDeploymentBuilder.getResourceNames()).thenReturn(resourceNames);
-    when(mockDeploymentBuilder.deploy()).thenReturn(mockDeployment);
+    when(mockDeploymentBuilder.deployWithResult()).thenReturn(mockDeploymentWithDefinitions);
   }
 
   private byte[] createMockDeploymentResourceByteData() {
@@ -154,6 +114,13 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     InputStream bpmn20XmlIn = ReflectUtil.getResourceAsStream("processes/fox-invoice_en_long_id.bpmn");
     assertNotNull(bpmn20XmlIn);
     return bpmn20XmlIn;
+  }
+
+  private InputStream createMockDeploymentResourceBpmnDataNonExecutableProcess() {
+    // do not close the input stream, will be done in implementation
+    String model = Bpmn.convertToString(Bpmn.createProcess().startEvent().endEvent().done());
+    InputStream inputStream = new ByteArrayInputStream(model.getBytes());
+    return inputStream;
   }
 
   private InputStream createMockDeploymentResourceSvgData() {
@@ -1051,6 +1018,157 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
   }
 
   @Test
+  public void testCreateCompleteBpmnDeployment() throws Exception {
+    // given
+    DeploymentWithDefinitions mockDeployment = MockProvider.createMockDeploymentWithDefinitions();
+    when(mockDeployment.getDeployedDecisionDefinitions()).thenReturn(null);
+    when(mockDeployment.getDeployedCaseDefinitions()).thenReturn(null);
+    when(mockDeployment.getDeployedDecisionRequirementsDefinitions()).thenReturn(null);
+    when(mockDeploymentBuilder.deployWithResult()).thenReturn(mockDeployment);
+
+    // when
+    resourceNames.addAll(Arrays.asList("data", "more-data"));
+
+    Response response = given()
+      .multiPart("data", "unspecified", createMockDeploymentResourceByteData())
+      .multiPart("more-data", "unspecified", createMockDeploymentResourceBpmnData())
+      .multiPart("deployment-name", MockProvider.EXAMPLE_DEPLOYMENT_ID)
+      .multiPart("enable-duplicate-filtering", "true")
+    .expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(CREATE_DEPLOYMENT_URL);
+
+    // then
+    verifyCreatedBpmnDeployment(mockDeployment, response);
+
+    verify(mockDeploymentBuilder).name(MockProvider.EXAMPLE_DEPLOYMENT_ID);
+    verify(mockDeploymentBuilder).enableDuplicateFiltering(false);
+
+  }
+
+  @Test
+  public void testCreateCompleteCmmnDeployment() throws Exception {
+    // given
+    DeploymentWithDefinitions mockDeployment = MockProvider.createMockDeploymentWithDefinitions();
+    when(mockDeployment.getDeployedDecisionDefinitions()).thenReturn(null);
+    when(mockDeployment.getDeployedProcessDefinitions()).thenReturn(null);
+    when(mockDeployment.getDeployedDecisionRequirementsDefinitions()).thenReturn(null);
+    when(mockDeploymentBuilder.deployWithResult()).thenReturn(mockDeployment);
+
+    // when
+    resourceNames.addAll(Arrays.asList("data", "more-data"));
+
+    Response response = given()
+        .multiPart("data", "unspecified", createMockDeploymentResourceByteData())
+        .multiPart("more-data", "unspecified", createMockDeploymentResourceBpmnData())
+        .multiPart("deployment-name", MockProvider.EXAMPLE_DEPLOYMENT_ID)
+        .multiPart("enable-duplicate-filtering", "true")
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .post(CREATE_DEPLOYMENT_URL);
+
+    // then
+    verifyCreatedCmmnDeployment(mockDeployment, response);
+
+    verify(mockDeploymentBuilder).name(MockProvider.EXAMPLE_DEPLOYMENT_ID);
+    verify(mockDeploymentBuilder).enableDuplicateFiltering(false);
+
+  }
+
+  @Test
+  public void testCreateCompleteDmnDeployment() throws Exception {
+    // given
+    DeploymentWithDefinitions mockDeployment = MockProvider.createMockDeploymentWithDefinitions();
+    when(mockDeployment.getDeployedCaseDefinitions()).thenReturn(null);
+    when(mockDeployment.getDeployedProcessDefinitions()).thenReturn(null);
+    when(mockDeployment.getDeployedDecisionRequirementsDefinitions()).thenReturn(null);
+    when(mockDeploymentBuilder.deployWithResult()).thenReturn(mockDeployment);
+
+    // when
+    resourceNames.addAll(Arrays.asList("data", "more-data"));
+
+    Response response = given()
+        .multiPart("data", "unspecified", createMockDeploymentResourceByteData())
+        .multiPart("more-data", "unspecified", createMockDeploymentResourceBpmnData())
+        .multiPart("deployment-name", MockProvider.EXAMPLE_DEPLOYMENT_ID)
+        .multiPart("enable-duplicate-filtering", "true")
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .post(CREATE_DEPLOYMENT_URL);
+
+    // then
+    verifyCreatedDmnDeployment(mockDeployment, response);
+
+    verify(mockDeploymentBuilder).name(MockProvider.EXAMPLE_DEPLOYMENT_ID);
+    verify(mockDeploymentBuilder).enableDuplicateFiltering(false);
+
+  }
+
+  @Test
+  public void testCreateCompleteDrdDeployment() throws Exception {
+    // given
+    DeploymentWithDefinitions mockDeployment = MockProvider.createMockDeploymentWithDefinitions();
+    when(mockDeployment.getDeployedCaseDefinitions()).thenReturn(null);
+    when(mockDeployment.getDeployedProcessDefinitions()).thenReturn(null);
+    when(mockDeploymentBuilder.deployWithResult()).thenReturn(mockDeployment);
+
+    // when
+    resourceNames.addAll(Arrays.asList("data", "more-data"));
+
+    Response response = given()
+        .multiPart("data", "unspecified", createMockDeploymentResourceByteData())
+        .multiPart("more-data", "unspecified", createMockDeploymentResourceBpmnData())
+        .multiPart("deployment-name", MockProvider.EXAMPLE_DEPLOYMENT_ID)
+        .multiPart("enable-duplicate-filtering", "true")
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .post(CREATE_DEPLOYMENT_URL);
+
+    // then
+    verifyCreatedDrdDeployment(mockDeployment, response);
+
+    verify(mockDeploymentBuilder).name(MockProvider.EXAMPLE_DEPLOYMENT_ID);
+    verify(mockDeploymentBuilder).enableDuplicateFiltering(false);
+
+  }
+
+  @Test
+  public void testCreateDeploymentWithNonExecutableProcess() throws Exception {
+
+    // given
+    DeploymentWithDefinitions mockDeployment = MockProvider.createMockDeploymentWithDefinitions();
+    when(mockDeployment.getDeployedDecisionDefinitions()).thenReturn(null);
+    when(mockDeployment.getDeployedCaseDefinitions()).thenReturn(null);
+    when(mockDeployment.getDeployedProcessDefinitions()).thenReturn(null);
+    when(mockDeployment.getDeployedDecisionRequirementsDefinitions()).thenReturn(null);
+    when(mockDeploymentBuilder.deployWithResult()).thenReturn(mockDeployment);
+
+    // when
+    resourceNames.addAll(Arrays.asList("data", "more-data"));
+
+    Response response = given()
+        .multiPart("data", "unspecified", createMockDeploymentResourceByteData())
+        .multiPart("more-data", "unspecified", createMockDeploymentResourceBpmnDataNonExecutableProcess())
+        .multiPart("deployment-name", MockProvider.EXAMPLE_DEPLOYMENT_ID)
+        .multiPart("enable-duplicate-filtering", "true")
+      .expect()
+        .statusCode(Status.OK.getStatusCode())
+      .when()
+        .post(CREATE_DEPLOYMENT_URL);
+
+    // then
+    verifyCreatedEmptyDeployment(mockDeployment, response);
+
+    verify(mockDeploymentBuilder).name(MockProvider.EXAMPLE_DEPLOYMENT_ID);
+    verify(mockDeploymentBuilder).enableDuplicateFiltering(false);
+
+  }
+
+  @Test
   public void testCreateCompleteDeploymentDeployChangedOnly() throws Exception {
 
     resourceNames.addAll( Arrays.asList("data", "more-data") );
@@ -1153,7 +1271,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
   @Test
   public void testCreateDeploymentThrowsAuthorizationException() {
     String message = "expected exception";
-    when(mockDeploymentBuilder.deploy()).thenThrow(new AuthorizationException(message));
+    when(mockDeploymentBuilder.deployWithResult()).thenThrow(new AuthorizationException(message));
 
     resourceNames.addAll( Arrays.asList("data", "more-data") );
 
@@ -1180,7 +1298,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     .when()
       .delete(DEPLOYMENT_URL);
 
-    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false);
+    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false, false);
   }
 
   @Test
@@ -1194,7 +1312,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     .when()
       .delete(DEPLOYMENT_URL);
 
-    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, true, false);
+    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, true, false, false);
   }
 
   @Test
@@ -1208,7 +1326,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     .when()
       .delete(DEPLOYMENT_URL);
 
-    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false);
+    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false, false);
   }
 
   @Test
@@ -1222,7 +1340,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     .when()
       .delete(DEPLOYMENT_URL);
 
-    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false);
+    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false, false);
   }
 
   @Test
@@ -1236,7 +1354,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     .when()
       .delete(DEPLOYMENT_URL);
 
-    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, true);
+    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, true, false);
   }
 
   @Test
@@ -1250,7 +1368,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     .when()
       .delete(DEPLOYMENT_URL);
 
-    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false);
+    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false, false);
   }
 
   @Test
@@ -1264,7 +1382,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     .when()
       .delete(DEPLOYMENT_URL);
 
-    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false);
+    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false, false);
   }
 
   @Test
@@ -1279,7 +1397,37 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     .when()
       .delete(DEPLOYMENT_URL);
 
-    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, true, true);
+    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, true, true, false);
+  }
+  
+  @Test
+  public void testDeleteDeploymentSkipIoMappings() {
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_DEPLOYMENT_ID)
+      .queryParam("cascade", true)
+      .queryParam("skipIoMappings", true)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(DEPLOYMENT_URL);
+
+    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, true, false, true);
+  }
+  
+  @Test
+  public void testDeleteDeploymentSkipIoMappingsFalse() {
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_DEPLOYMENT_ID)
+      .queryParam("cascade", true)
+      .queryParam("skipIoMappings", false)
+    .expect()
+      .statusCode(Status.NO_CONTENT.getStatusCode())
+    .when()
+      .delete(DEPLOYMENT_URL);
+
+    verify(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, true, false, false);
   }
 
   @Test
@@ -1300,7 +1448,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
   @Test
   public void testDeleteDeploymentThrowsAuthorizationException() {
     String message = "expected exception";
-    doThrow(new AuthorizationException(message)).when(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false);
+    doThrow(new AuthorizationException(message)).when(mockRepositoryService).deleteDeployment(MockProvider.EXAMPLE_DEPLOYMENT_ID, false, false, false);
 
     given()
       .pathParam("id", MockProvider.EXAMPLE_DEPLOYMENT_ID)
@@ -1345,7 +1493,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     verify(mockDeploymentBuilder, never()).addDeploymentResourceByName(anyString(), anyString());
     verify(mockDeploymentBuilder).addDeploymentResourcesByName(eq(MockProvider.EXAMPLE_DEPLOYMENT_ID), eq(resourceNames));
     verify(mockDeploymentBuilder).source(MockProvider.EXAMPLE_DEPLOYMENT_SOURCE);
-    verify(mockDeploymentBuilder).deploy();
+    verify(mockDeploymentBuilder).deployWithResult();
 
     verifyDeployment(mockDeployment, response);
   }
@@ -1368,7 +1516,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     verify(mockDeploymentBuilder, never()).addDeploymentResourceByName(anyString(), anyString());
     verify(mockDeploymentBuilder, never()).addDeploymentResourcesByName(anyString(), anyListOf(String.class));
     verify(mockDeploymentBuilder, never()).source(anyString());
-    verify(mockDeploymentBuilder).deploy();
+    verify(mockDeploymentBuilder).deployWithResult();
 
     verifyDeployment(mockDeployment, response);
   }
@@ -1392,7 +1540,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     verify(mockDeploymentBuilder, never()).addDeploymentResourceByName(anyString(), anyString());
     verify(mockDeploymentBuilder, never()).addDeploymentResourcesByName(eq(MockProvider.EXAMPLE_DEPLOYMENT_ID), anyListOf(String.class));
     verify(mockDeploymentBuilder).source(null);
-    verify(mockDeploymentBuilder).deploy();
+    verify(mockDeploymentBuilder).deployWithResult();
 
     verifyDeployment(mockDeployment, response);
   }
@@ -1423,7 +1571,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     verify(mockDeploymentBuilder, never()).addDeploymentResourceByName(anyString(), anyString());
     verify(mockDeploymentBuilder, never()).addDeploymentResourcesByName(eq(MockProvider.EXAMPLE_DEPLOYMENT_ID), anyListOf(String.class));
     verify(mockDeploymentBuilder).source(null);
-    verify(mockDeploymentBuilder).deploy();
+    verify(mockDeploymentBuilder).deployWithResult();
 
     verifyDeployment(mockDeployment, response);
   }
@@ -1454,7 +1602,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     verify(mockDeploymentBuilder, never()).addDeploymentResourceByName(anyString(), anyString());
     verify(mockDeploymentBuilder).addDeploymentResourcesByName(eq(MockProvider.EXAMPLE_DEPLOYMENT_ID), eq(resourceNames));
     verify(mockDeploymentBuilder).source(null);
-    verify(mockDeploymentBuilder).deploy();
+    verify(mockDeploymentBuilder).deployWithResult();
 
     verifyDeployment(mockDeployment, response);
   }
@@ -1481,7 +1629,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
     verify(mockDeploymentBuilder, never()).addDeploymentResourceByName(anyString(), anyString());
     verify(mockDeploymentBuilder, never()).addDeploymentResourcesByName(anyString(), anyListOf(String.class));
     verify(mockDeploymentBuilder).source(eq(MockProvider.EXAMPLE_DEPLOYMENT_SOURCE));
-    verify(mockDeploymentBuilder).deploy();
+    verify(mockDeploymentBuilder).deployWithResult();
 
     verifyDeployment(mockDeployment, response);
   }
@@ -1501,7 +1649,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
 
     verify(mockDeploymentBuilder).addDeploymentResources(eq(MockProvider.EXAMPLE_DEPLOYMENT_ID));
     verify(mockDeploymentBuilder, never()).tenantId(any(String.class));
-    verify(mockDeploymentBuilder).deploy();
+    verify(mockDeploymentBuilder).deployWithResult();
 
     verifyDeployment(mockDeployment, response);
   }
@@ -1521,7 +1669,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
 
     verify(mockDeploymentBuilder).addDeploymentResources(eq(MockProvider.EXAMPLE_DEPLOYMENT_ID));
     verify(mockDeploymentBuilder).tenantId(eq(MockProvider.EXAMPLE_TENANT_ID));
-    verify(mockDeploymentBuilder).deploy();
+    verify(mockDeploymentBuilder).deployWithResult();
 
     verifyDeployment(mockDeployment, response);
   }
@@ -1529,7 +1677,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
   @Test
   public void testRedeployThrowsNotFoundException() {
     String message = "deployment not found";
-    doThrow(new NotFoundException(message)).when(mockDeploymentBuilder).deploy();
+    doThrow(new NotFoundException(message)).when(mockDeploymentBuilder).deployWithResult();
 
     String expected = "Cannot redeploy deployment '" + MockProvider.EXAMPLE_DEPLOYMENT_ID + "': " + message;
 
@@ -1547,7 +1695,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
   @Test
   public void testRedeployThrowsNotValidException() {
     String message = "not valid";
-    doThrow(new NotValidException(message)).when(mockDeploymentBuilder).deploy();
+    doThrow(new NotValidException(message)).when(mockDeploymentBuilder).deployWithResult();
 
     String expected = "Cannot redeploy deployment '" + MockProvider.EXAMPLE_DEPLOYMENT_ID + "': " + message;
 
@@ -1565,7 +1713,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
   @Test
   public void testRedeployThrowsProcessEngineException() {
     String message = "something went wrong";
-    doThrow(new ProcessEngineException(message)).when(mockDeploymentBuilder).deploy();
+    doThrow(new ProcessEngineException(message)).when(mockDeploymentBuilder).deployWithResult();
 
     given()
       .pathParam("id", MockProvider.EXAMPLE_DEPLOYMENT_ID)
@@ -1581,7 +1729,7 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
   @Test
   public void testRedeployThrowsAuthorizationException() {
     String message = "missing authorization";
-    doThrow(new AuthorizationException(message)).when(mockDeploymentBuilder).deploy();
+    doThrow(new AuthorizationException(message)).when(mockDeploymentBuilder).deployWithResult();
 
     given()
       .pathParam("id", MockProvider.EXAMPLE_DEPLOYMENT_ID)
@@ -1601,12 +1749,190 @@ public class DeploymentRestServiceInteractionTest extends AbstractRestServiceTes
 
   private void verifyCreatedDeployment(Deployment mockDeployment, Response response) {
     String content = response.asString();
-    verifyDeploymentValues(mockDeployment, content);
+    verifyDeploymentWithDefinitionsValues(mockDeployment, content);
+    verifyDeploymentLink(mockDeployment, content);
+  }
+
+  private void verifyCreatedBpmnDeployment(Deployment mockDeployment, Response response) {
+    String content = response.asString();
+    verifyBpmnDeploymentValues(mockDeployment, content);
+    verifyDeploymentLink(mockDeployment, content);
+  }
+
+  private void verifyCreatedCmmnDeployment(Deployment mockDeployment, Response response) {
+    String content = response.asString();
+    verifyCmmnDeploymentValues(mockDeployment, content);
+    verifyDeploymentLink(mockDeployment, content);
+  }
+
+  private void verifyCreatedDmnDeployment(Deployment mockDeployment, Response response) {
+    String content = response.asString();
+    verifyDmnDeploymentValues(mockDeployment, content);
+    verifyDeploymentLink(mockDeployment, content);
+  }
+
+  private void verifyCreatedDrdDeployment(Deployment mockDeployment, Response response) {
+    String content = response.asString();
+    verifyDrdDeploymentValues(mockDeployment, content);
+    verifyDeploymentLink(mockDeployment, content);
+  }
+
+  private void verifyCreatedEmptyDeployment(Deployment mockDeployment, Response response) {
+    String content = response.asString();
+    verifyDeploymentValuesEmptyDefinitions(mockDeployment, content);
     verifyDeploymentLink(mockDeployment, content);
   }
 
   private void verifyDeploymentValues(Deployment mockDeployment, String responseContent) {
     JsonPath path = from(responseContent);
+    verifyStandardDeploymentValues(mockDeployment, path);
+  }
+
+  private void verifyDeploymentWithDefinitionsValues(Deployment mockDeployment, String responseContent) {
+    JsonPath path = from(responseContent);
+    verifyStandardDeploymentValues(mockDeployment, path);
+
+    Map<String, HashMap<String, Object>> deployedProcessDefinitions = path.getMap(PROPERTY_DEPLOYED_PROCESS_DEFINITIONS);
+    Map<String, HashMap<String, Object>> deployedCaseDefinitions = path.getMap(PROPERTY_DEPLOYED_CASE_DEFINITIONS);
+    Map<String, HashMap<String, Object>>  deployedDecisionDefinitions = path.getMap(PROPERTY_DEPLOYED_DECISION_DEFINITIONS);
+    Map<String, HashMap<String, Object>>  deployedDecisionRequirementsDefinitions = path.getMap(PROPERTY_DEPLOYED_DECISION_REQUIREMENTS_DEFINITIONS);
+
+    assertEquals(1, deployedProcessDefinitions.size());
+    assertNotNull(deployedProcessDefinitions.get(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID));
+    assertEquals(1, deployedCaseDefinitions.size());
+    assertNotNull(deployedCaseDefinitions.get(EXAMPLE_CASE_DEFINITION_ID));
+    assertEquals(1, deployedDecisionDefinitions.size());
+    assertNotNull(deployedDecisionDefinitions.get(EXAMPLE_DECISION_DEFINITION_ID));
+    assertEquals(1, deployedDecisionRequirementsDefinitions.size());
+    assertNotNull(deployedDecisionRequirementsDefinitions.get(EXAMPLE_DECISION_REQUIREMENTS_DEFINITION_ID));
+  }
+
+  private void verifyBpmnDeploymentValues(Deployment mockDeployment, String responseContent) {
+    JsonPath path = from(responseContent);
+    verifyStandardDeploymentValues(mockDeployment, path);
+
+    Map<String, HashMap<String, Object>> deployedProcessDefinitionDtos = path.getMap(PROPERTY_DEPLOYED_PROCESS_DEFINITIONS);
+
+    assertEquals(1, deployedProcessDefinitionDtos.size());
+    HashMap processDefinitionDto = deployedProcessDefinitionDtos.get(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID);
+    assertNotNull(processDefinitionDto);
+    verifyBpmnDeployment(processDefinitionDto);
+
+    assertNull(path.get(PROPERTY_DEPLOYED_CASE_DEFINITIONS));
+    assertNull(path.get(PROPERTY_DEPLOYED_DECISION_DEFINITIONS));
+    assertNull(path.get(PROPERTY_DEPLOYED_DECISION_REQUIREMENTS_DEFINITIONS));
+  }
+
+  private void verifyCmmnDeploymentValues(Deployment mockDeployment, String responseContent) {
+    JsonPath path = from(responseContent);
+    verifyStandardDeploymentValues(mockDeployment, path);
+
+    Map<String, HashMap<String, Object>> deployedCaseDefinitions = path.getMap(PROPERTY_DEPLOYED_CASE_DEFINITIONS);
+
+    assertEquals(1, deployedCaseDefinitions.size());
+    HashMap caseDefinitionDto = deployedCaseDefinitions.get(EXAMPLE_CASE_DEFINITION_ID);
+    assertNotNull(caseDefinitionDto);
+    verifyCmnDeployment(caseDefinitionDto);
+
+    assertNull(path.get(PROPERTY_DEPLOYED_PROCESS_DEFINITIONS));
+    assertNull(path.get(PROPERTY_DEPLOYED_DECISION_DEFINITIONS));
+    assertNull(path.get(PROPERTY_DEPLOYED_DECISION_REQUIREMENTS_DEFINITIONS));
+  }
+
+  private void verifyDmnDeploymentValues(Deployment mockDeployment, String responseContent) {
+    JsonPath path = from(responseContent);
+    verifyStandardDeploymentValues(mockDeployment, path);
+
+    Map<String, HashMap<String, Object>> deployedDecisionDefinitions = path.getMap(PROPERTY_DEPLOYED_DECISION_DEFINITIONS);
+
+    assertEquals(1, deployedDecisionDefinitions.size());
+    HashMap decisionDefinitionDto = deployedDecisionDefinitions.get(EXAMPLE_DECISION_DEFINITION_ID);
+    assertNotNull(decisionDefinitionDto);
+    verifyDmnDeployment(decisionDefinitionDto);
+
+    assertNull(path.get(PROPERTY_DEPLOYED_DECISION_REQUIREMENTS_DEFINITIONS));
+    assertNull(path.get(PROPERTY_DEPLOYED_PROCESS_DEFINITIONS));
+    assertNull(path.get(PROPERTY_DEPLOYED_CASE_DEFINITIONS));
+  }
+
+  private void verifyDrdDeploymentValues(Deployment mockDeployment, String responseContent) {
+    JsonPath path = from(responseContent);
+    verifyStandardDeploymentValues(mockDeployment, path);
+
+    Map<String, HashMap<String, Object>>  deployedDecisionDefinitions =
+      path.getMap(PROPERTY_DEPLOYED_DECISION_DEFINITIONS);
+    Map<String, HashMap<String, Object>> deployedDecisionRequirementsDefinitions =
+      path.getMap(PROPERTY_DEPLOYED_DECISION_REQUIREMENTS_DEFINITIONS);
+
+    assertEquals(1, deployedDecisionDefinitions.size());
+    HashMap decisionDefinitionDto = deployedDecisionDefinitions.get(EXAMPLE_DECISION_DEFINITION_ID);
+    assertNotNull(decisionDefinitionDto);
+    verifyDmnDeployment(decisionDefinitionDto);
+
+    assertEquals(1, deployedDecisionRequirementsDefinitions.size());
+    HashMap decisionRequirementsDefinitionDto = deployedDecisionRequirementsDefinitions.get(EXAMPLE_DECISION_REQUIREMENTS_DEFINITION_ID);
+    assertNotNull(decisionRequirementsDefinitionDto);
+    verifyDrdDeployment(decisionRequirementsDefinitionDto);
+
+    assertNull(path.get(PROPERTY_DEPLOYED_PROCESS_DEFINITIONS));
+    assertNull(path.get(PROPERTY_DEPLOYED_CASE_DEFINITIONS));
+  }
+
+  private void verifyBpmnDeployment(HashMap<String, Object> dto) {
+    assertEquals(dto.get("id"), MockProvider.EXAMPLE_PROCESS_DEFINITION_ID);
+    assertEquals(dto.get("category"), EXAMPLE_PROCESS_DEFINITION_CATEGORY);
+    assertEquals(dto.get("name"), EXAMPLE_PROCESS_DEFINITION_NAME);
+    assertEquals(dto.get("key"), EXAMPLE_PROCESS_DEFINITION_KEY);
+    assertEquals(dto.get("description"), EXAMPLE_PROCESS_DEFINITION_DESCRIPTION);
+    assertEquals(dto.get("version"), EXAMPLE_PROCESS_DEFINITION_VERSION);
+    assertEquals(dto.get("resource"), EXAMPLE_PROCESS_DEFINITION_RESOURCE_NAME);
+    assertEquals(dto.get("deploymentId"), EXAMPLE_DEPLOYMENT_ID);
+    assertEquals(dto.get("diagram"), EXAMPLE_PROCESS_DEFINITION_DIAGRAM_RESOURCE_NAME);
+    assertEquals(dto.get("suspended"), EXAMPLE_PROCESS_DEFINITION_IS_SUSPENDED);
+  }
+  private void verifyCmnDeployment(HashMap<String, Object> dto) {
+    assertEquals(dto.get("id"), EXAMPLE_CASE_DEFINITION_ID);
+    assertEquals(dto.get("category"), EXAMPLE_CASE_DEFINITION_CATEGORY);
+    assertEquals(dto.get("name"), EXAMPLE_CASE_DEFINITION_NAME);
+    assertEquals(dto.get("key"), EXAMPLE_CASE_DEFINITION_KEY);
+    assertEquals(dto.get("version"), EXAMPLE_CASE_DEFINITION_VERSION);
+    assertEquals(dto.get("resource"), EXAMPLE_CASE_DEFINITION_RESOURCE_NAME);
+    assertEquals(dto.get("deploymentId"), EXAMPLE_DEPLOYMENT_ID);
+  }
+
+  private void verifyDmnDeployment(HashMap<String, Object> dto) {
+    assertEquals(dto.get("id"), EXAMPLE_DECISION_DEFINITION_ID);
+    assertEquals(dto.get("category"), EXAMPLE_DECISION_DEFINITION_CATEGORY);
+    assertEquals(dto.get("name"), EXAMPLE_DECISION_DEFINITION_NAME);
+    assertEquals(dto.get("key"), EXAMPLE_DECISION_DEFINITION_KEY);
+    assertEquals(dto.get("version"), EXAMPLE_DECISION_DEFINITION_VERSION);
+    assertEquals(dto.get("resource"), EXAMPLE_DECISION_DEFINITION_RESOURCE_NAME);
+    assertEquals(dto.get("deploymentId"), EXAMPLE_DEPLOYMENT_ID);
+    assertEquals(dto.get("decisionRequirementsDefinitionId"), EXAMPLE_DECISION_REQUIREMENTS_DEFINITION_ID);
+    assertEquals(dto.get("decisionRequirementsDefinitionKey"), EXAMPLE_DECISION_REQUIREMENTS_DEFINITION_KEY);
+  }
+
+  private void verifyDrdDeployment(HashMap<String, Object> dto) {
+    assertEquals(dto.get("id"), EXAMPLE_DECISION_REQUIREMENTS_DEFINITION_ID);
+    assertEquals(dto.get("category"), EXAMPLE_DECISION_REQUIREMENTS_DEFINITION_CATEGORY);
+    assertEquals(dto.get("name"), EXAMPLE_DECISION_REQUIREMENTS_DEFINITION_NAME);
+    assertEquals(dto.get("key"), EXAMPLE_DECISION_REQUIREMENTS_DEFINITION_KEY);
+    assertEquals(dto.get("version"), EXAMPLE_DECISION_REQUIREMENTS_DEFINITION_VERSION);
+    assertEquals(dto.get("resource"), EXAMPLE_DECISION_REQUIREMENTS_DEFINITION_RESOURCE_NAME);
+    assertEquals(dto.get("deploymentId"), EXAMPLE_DEPLOYMENT_ID);
+  }
+
+  private void verifyDeploymentValuesEmptyDefinitions(Deployment mockDeployment, String responseContent) {
+    JsonPath path = from(responseContent);
+    verifyStandardDeploymentValues(mockDeployment, path);
+
+    assertNull(path.get(PROPERTY_DEPLOYED_PROCESS_DEFINITIONS));
+    assertNull(path.get(PROPERTY_DEPLOYED_CASE_DEFINITIONS));
+    assertNull(path.get(PROPERTY_DEPLOYED_DECISION_DEFINITIONS));
+    assertNull(path.get(PROPERTY_DEPLOYED_DECISION_REQUIREMENTS_DEFINITIONS));
+  }
+
+  private void verifyStandardDeploymentValues(Deployment mockDeployment, JsonPath path) {
     String returnedId = path.get("id");
     String returnedName = path.get("name");
     Date returnedDeploymentTime = DateTimeUtil.parseDate(path.<String>get("deploymentTime"));

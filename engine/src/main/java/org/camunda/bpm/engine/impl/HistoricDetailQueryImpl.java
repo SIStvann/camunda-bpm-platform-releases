@@ -15,11 +15,13 @@ package org.camunda.bpm.engine.impl;
 
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricDetailQuery;
 import org.camunda.bpm.engine.impl.cmd.CommandLogger;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricDetailVariableInstanceUpdateEntity;
@@ -45,6 +47,8 @@ public class HistoricDetailQueryImpl extends AbstractQuery<HistoricDetailQuery, 
   protected String type;
   protected String variableInstanceId;
   protected String[] tenantIds;
+  protected String userOperationId;
+  protected Long sequenceCounter;
 
   protected boolean excludeTaskRelated = false;
   protected boolean isByteArrayFetchingEnabled = true;
@@ -124,6 +128,17 @@ public class HistoricDetailQueryImpl extends AbstractQuery<HistoricDetailQuery, 
   public HistoricDetailQuery tenantIdIn(String... tenantIds) {
     ensureNotNull("tenantIds", (Object[]) tenantIds);
     this.tenantIds = tenantIds;
+    return this;
+  }
+
+  public HistoricDetailQuery userOperationId(String userOperationId) {
+    ensureNotNull("userOperationId", userOperationId);
+    this.userOperationId = userOperationId;
+    return this;
+  }
+
+  public HistoricDetailQueryImpl sequenceCounter(long sequenceCounter) {
+    this.sequenceCounter = sequenceCounter;
     return this;
   }
 
@@ -258,4 +273,5 @@ public class HistoricDetailQueryImpl extends AbstractQuery<HistoricDetailQuery, 
   public String getDetailId() {
     return detailId;
   }
+
 }

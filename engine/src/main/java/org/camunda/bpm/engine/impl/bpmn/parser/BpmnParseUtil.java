@@ -203,16 +203,8 @@ public final class BpmnParseUtil {
 
     String textContent = parameterElement.getText().trim();
     if(!textContent.isEmpty()) {
-      if(StringUtil.isExpression(textContent)) {
         // EL
         return new ElValueProvider(getExpressionManager().createExpression(textContent));
-
-      } else {
-        // CONSTANT (String)
-        return new ConstantValueProvider(textContent);
-
-      }
-
     } else {
       // NULL value
       return new NullValueProvider();

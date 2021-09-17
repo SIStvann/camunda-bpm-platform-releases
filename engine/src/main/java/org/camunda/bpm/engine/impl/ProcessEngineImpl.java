@@ -120,6 +120,11 @@ public class ProcessEngineImpl implements ProcessEngine {
       }
     }
 
+    //create history cleanup job
+    if (managementService.getTableMetaData("ACT_RU_JOB") != null) {
+      processEngineConfiguration.getHistoryService().cleanUpHistoryAsync();
+    }
+
   }
 
   protected void executeSchemaOperations() {

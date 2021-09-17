@@ -51,6 +51,29 @@ public class AttachmentManager extends AbstractHistoricManager {
     }
   }
 
+  public void deleteAttachmentsByProcessInstanceIds(List<String> processInstanceIds) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("processInstanceIds", processInstanceIds);
+    deleteAttachments(parameters);
+  }
+
+  public void deleteAttachmentsByTaskProcessInstanceIds(List<String> processInstanceIds) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("taskProcessInstanceIds", processInstanceIds);
+    deleteAttachments(parameters);
+  }
+
+  public void deleteAttachmentsByTaskCaseInstanceIds(List<String> caseInstanceIds) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("caseInstanceIds", caseInstanceIds);
+    deleteAttachments(parameters);
+  }
+
+  protected void deleteAttachments(Map<String, Object> parameters) {
+    getDbEntityManager().deletePreserveOrder(ByteArrayEntity.class, "deleteAttachmentByteArraysByIds", parameters);
+    getDbEntityManager().deletePreserveOrder(AttachmentEntity.class, "deleteAttachmentByIds", parameters);
+  }
+
   public Attachment findAttachmentByTaskIdAndAttachmentId(String taskId, String attachmentId) {
     checkHistoryEnabled();
 

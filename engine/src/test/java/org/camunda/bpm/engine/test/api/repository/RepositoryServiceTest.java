@@ -25,22 +25,28 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.ProcessEngine;
+import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
 import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.exception.NotValidException;
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.RepositoryServiceImpl;
 import org.camunda.bpm.engine.impl.bpmn.deployer.BpmnDeployer;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
 import org.camunda.bpm.engine.impl.cfg.StandaloneProcessEngineConfiguration;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
+import org.camunda.bpm.engine.impl.history.event.UserOperationLogEntryEventEntity;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerActivateProcessDefinitionHandler;
-import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.deploy.cache.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.PvmTransition;
 import org.camunda.bpm.engine.impl.pvm.ReadOnlyProcessDefinition;
@@ -58,10 +64,12 @@ import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.RequiredHistoryLevel;
 import org.camunda.bpm.engine.test.bpmn.tasklistener.util.RecorderTaskListener;
 import org.camunda.bpm.engine.test.util.TestExecutionListener;
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
+import org.junit.Assert;
 
 /**
  * @author Frederik Heremans
@@ -220,6 +228,41 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
     repositoryService.deleteDeployment(deploymentId, true, true);
     assertTrue(RecorderTaskListener.getRecordedEvents().isEmpty());
     RecorderTaskListener.clear();
+  }
+
+  public void testDeleteDeploymentSkipIoMappings() {
+    DeploymentBuilder deploymentBuilder = repositoryService.createDeployment()
+        .addClasspathResource("org/camunda/bpm/engine/test/api/repository/RepositoryServiceTest.testDeleteDeploymentSkipIoMappings.bpmn20.xml");
+
+    String deploymentId = deploymentBuilder.deploy().getId();
+    runtimeService.startProcessInstanceByKey("ioMappingProcess");
+
+    // Try to delete the deployment
+    try {
+      repositoryService.deleteDeployment(deploymentId, true, false, true);
+    } catch (Exception e) {
+      throw new ProcessEngineException("Exception is not expected when deleting deployment with running process", e);
+    }
+  }
+
+  public void testDeleteDeploymentWithoutSkipIoMappings() {
+    DeploymentBuilder deploymentBuilder = repositoryService.createDeployment()
+        .addClasspathResource("org/camunda/bpm/engine/test/api/repository/RepositoryServiceTest.testDeleteDeploymentSkipIoMappings.bpmn20.xml");
+
+    String deploymentId = deploymentBuilder.deploy().getId();
+    runtimeService.startProcessInstanceByKey("ioMappingProcess");
+
+    // Try to delete the deployment
+    try {
+      repositoryService.deleteDeployment(deploymentId, true, false, false);
+      fail("Exception expected");
+    } catch (Exception e) {
+      // Exception expected when deleting deployment with running process
+      // assert (e.getMessage().contains("Exception when output mapping is executed"));
+      assertTextPresent("Exception when output mapping is executed", e.getMessage());
+    }
+
+    repositoryService.deleteDeployment(deploymentId, true, false, true);
   }
 
   public void testDeleteDeploymentNullDeploymentId() {
@@ -758,6 +801,204 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
     assertEquals(2, processDefinitions.size());
 
     repositoryService.deleteDeployment(deploymentId);
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/dmn/Example.dmn"})
+  public void testDecisionDefinitionUpdateTimeToLive() {
+    //given
+    DecisionDefinition decisionDefinition = findOnlyDecisionDefinition();
+
+    //when
+    repositoryService.updateDecisionDefinitionHistoryTimeToLive(decisionDefinition.getId(), 6);
+
+    //then
+    decisionDefinition = findOnlyDecisionDefinition();
+    assertEquals(6, decisionDefinition.getHistoryTimeToLive().intValue());
+
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/dmn/Example.dmn"})
+  public void testDecisionDefinitionUpdateTimeToLiveNull() {
+    //given
+    DecisionDefinition decisionDefinition = findOnlyDecisionDefinition();
+
+    //when
+    repositoryService.updateDecisionDefinitionHistoryTimeToLive(decisionDefinition.getId(), null);
+
+    //then
+    decisionDefinition = (DecisionDefinitionEntity) repositoryService.getDecisionDefinition(decisionDefinition.getId());
+    assertEquals(null, decisionDefinition.getHistoryTimeToLive());
+
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/dmn/Example.dmn"})
+  public void testDecisionDefinitionUpdateTimeToLiveNegative() {
+    //given
+    DecisionDefinition decisionDefinition = findOnlyDecisionDefinition();
+
+    //when
+    try {
+      repositoryService.updateDecisionDefinitionHistoryTimeToLive(decisionDefinition.getId(), -1);
+      fail("Exception is expected, that negative value is not allowed.");
+    } catch (BadUserRequestException ex) {
+      assertTrue(ex.getMessage().contains("greater than"));
+    }
+
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml"})
+  public void testProcessDefinitionUpdateTimeToLive() {
+    //given
+    ProcessDefinition processDefinition = findOnlyProcessDefinition();
+
+    //when
+    repositoryService.updateProcessDefinitionHistoryTimeToLive(processDefinition.getId(), 6);
+
+    //then
+    processDefinition = findOnlyProcessDefinition();
+    assertEquals(6, processDefinition.getHistoryTimeToLive().intValue());
+
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml"})
+  public void testProcessDefinitionUpdateTimeToLiveNull() {
+    //given
+    ProcessDefinition processDefinition = findOnlyProcessDefinition();
+
+    //when
+    repositoryService.updateProcessDefinitionHistoryTimeToLive(processDefinition.getId(), null);
+
+    //then
+    processDefinition = findOnlyProcessDefinition();
+    assertEquals(null, processDefinition.getHistoryTimeToLive());
+
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml"})
+  public void testProcessDefinitionUpdateTimeToLiveNegative() {
+    //given
+    ProcessDefinition processDefinition = findOnlyProcessDefinition();
+
+    //when
+    try {
+      repositoryService.updateProcessDefinitionHistoryTimeToLive(processDefinition.getId(), -1);
+      fail("Exception is expected, that negative value is not allowed.");
+    } catch (BadUserRequestException ex) {
+      assertTrue(ex.getMessage().contains("greater than"));
+    }
+
+  }
+
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  @Deployment(resources = { "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml"})
+  public void testProcessDefinitionUpdateTimeToLiveUserOperationLog() {
+    //given
+    ProcessDefinition processDefinition = findOnlyProcessDefinition();
+    Integer timeToLiveOrgValue = processDefinition.getHistoryTimeToLive();
+    processEngine.getIdentityService().setAuthenticatedUserId("userId");
+
+    //when
+    Integer timeToLiveNewValue = 6;
+    repositoryService.updateProcessDefinitionHistoryTimeToLive(processDefinition.getId(), timeToLiveNewValue);
+
+    //then
+    List<UserOperationLogEntry> opLogEntries = processEngine.getHistoryService().createUserOperationLogQuery().list();
+    Assert.assertEquals(1, opLogEntries.size());
+    final UserOperationLogEntryEventEntity userOperationLogEntry = (UserOperationLogEntryEventEntity)opLogEntries.get(0);
+
+    assertEquals(UserOperationLogEntry.OPERATION_TYPE_UPDATE_HISTORY_TIME_TO_LIVE, userOperationLogEntry.getOperationType());
+    assertEquals(processDefinition.getKey(), userOperationLogEntry.getProcessDefinitionKey());
+    assertEquals(processDefinition.getId(), userOperationLogEntry.getProcessDefinitionId());
+    assertEquals("historyTimeToLive", userOperationLogEntry.getProperty());
+    assertEquals(timeToLiveOrgValue, Integer.valueOf(userOperationLogEntry.getOrgValue()));
+    assertEquals(timeToLiveNewValue, Integer.valueOf(userOperationLogEntry.getNewValue()));
+
+  }
+
+  @Deployment(resources={"org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn"})
+  public void testUpdateHistoryTimeToLive() {
+    // given
+    // there exists a deployment containing a case definition with key "oneTaskCase"
+
+    CaseDefinition caseDefinition = findOnlyCaseDefinition();
+
+    // when
+    repositoryService.updateCaseDefinitionHistoryTimeToLive(caseDefinition.getId(), 6);
+
+    // then
+    caseDefinition = findOnlyCaseDefinition();
+
+    assertEquals(6, caseDefinition.getHistoryTimeToLive().intValue());
+  }
+
+  @Deployment(resources={"org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn"})
+  public void testUpdateHistoryTimeToLiveNull() {
+    // given
+    // there exists a deployment containing a case definition with key "oneTaskCase"
+
+    CaseDefinition caseDefinition = findOnlyCaseDefinition();
+
+    // when
+    repositoryService.updateCaseDefinitionHistoryTimeToLive(caseDefinition.getId(), null);
+
+    // then
+    caseDefinition = findOnlyCaseDefinition();
+
+    assertEquals(null, caseDefinition.getHistoryTimeToLive());
+  }
+
+  @Deployment(resources={"org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn"})
+  public void testUpdateHistoryTimeToLiveNegative() {
+    // given
+    // there exists a deployment containing a case definition with key "oneTaskCase"
+
+    CaseDefinition caseDefinition = findOnlyCaseDefinition();
+
+    // when
+    try {
+      repositoryService.updateCaseDefinitionHistoryTimeToLive(caseDefinition.getId(), -1);
+      fail("Exception is expected, that negative value is not allowed.");
+    } catch (BadUserRequestException ex) {
+      assertTrue(ex.getMessage().contains("greater than"));
+    }
+  }
+
+  @Deployment(resources={"org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn"})
+  public void testUpdateHistoryTimeToLiveInCache() {
+    // given
+    // there exists a deployment containing a case definition with key "oneTaskCase"
+
+    CaseDefinition caseDefinition = findOnlyCaseDefinition();
+
+    // assume
+    assertNull(caseDefinition.getHistoryTimeToLive());
+
+    // when
+    repositoryService.updateCaseDefinitionHistoryTimeToLive(caseDefinition.getId(), 10);
+
+    CaseDefinition definition = repositoryService.getCaseDefinition(caseDefinition.getId());
+    assertEquals(Integer.valueOf(10), definition.getHistoryTimeToLive());
+  }
+
+  private CaseDefinition findOnlyCaseDefinition() {
+    List<CaseDefinition> caseDefinitions = repositoryService.createCaseDefinitionQuery().list();
+    assertNotNull(caseDefinitions);
+    assertEquals(1, caseDefinitions.size());
+    return caseDefinitions.get(0);
+  }
+
+  private ProcessDefinition findOnlyProcessDefinition() {
+    List<ProcessDefinition> processDefinitions = repositoryService.createProcessDefinitionQuery().list();
+    assertNotNull(processDefinitions);
+    assertEquals(1, processDefinitions.size());
+    return processDefinitions.get(0);
+  }
+
+  private DecisionDefinition findOnlyDecisionDefinition() {
+    List<DecisionDefinition> decisionDefinitions = repositoryService.createDecisionDefinitionQuery().list();
+    assertNotNull(decisionDefinitions);
+    assertEquals(1, decisionDefinitions.size());
+    return decisionDefinitions.get(0);
   }
 
   public void testProcessDefinitionIntrospection() {

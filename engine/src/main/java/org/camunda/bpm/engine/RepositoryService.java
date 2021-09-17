@@ -117,6 +117,21 @@ public interface RepositoryService {
    */
   void deleteDeployment(String deploymentId, boolean cascade, boolean skipCustomListeners);
 
+  /**
+   * Deletes the given deployment and cascade deletion to process instances,
+   * history process instances and jobs.
+   *
+   * @param deploymentId id of the deployment, cannot be null.
+   * @param cascade if set to true, all process instances (including) history are deleted
+   * @param skipCustomListeners if true, only the built-in {@link ExecutionListener}s
+   * are notified with the {@link ExecutionListener#EVENTNAME_END} event.
+   * @param skipIoMappings specifies whether input/output mappings for tasks should be invoked
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE} permission on {@link Resources#DEPLOYMENT}.
+   */
+  void deleteDeployment(String deploymentId, boolean cascade, boolean skipCustomListeners, boolean skipIoMappings);
+
 
   /**
    * Deletes the process definition which belongs to the given process definition id.
@@ -415,6 +430,31 @@ public interface RepositoryService {
    * @return the builder to update the suspension state
    */
   UpdateProcessDefinitionSuspensionStateSelectBuilder updateProcessDefinitionSuspensionState();
+
+  /**
+   * Updates time to live of process definition. The field is used within history cleanup process.
+   * @param processDefinitionId
+   * @param historyTimeToLive
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#PROCESS_DEFINITION}.
+   */
+  void updateProcessDefinitionHistoryTimeToLive(String processDefinitionId, Integer historyTimeToLive);
+
+  /**
+   * Updates time to live of decision definition. The field is used within history cleanup process.
+   * @param decisionDefinitionId
+   * @param historyTimeToLive
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#UPDATE} permission on {@link Resources#DECISION_DEFINITION}.
+   */
+  void updateDecisionDefinitionHistoryTimeToLive(String decisionDefinitionId, Integer historyTimeToLive);
+
+  /**
+   * Updates time to live of case definition. The field is used within history cleanup process.
+   * @param caseDefinitionId
+   * @param historyTimeToLive
+   */
+  void updateCaseDefinitionHistoryTimeToLive(String caseDefinitionId, Integer historyTimeToLive);
 
   /**
    * Gives access to a deployed process model, e.g., a BPMN 2.0 XML file,

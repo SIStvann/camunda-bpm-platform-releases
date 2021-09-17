@@ -13,37 +13,21 @@
 
 package org.camunda.bpm.engine.impl.persistence.entity;
 
-import static org.camunda.bpm.engine.impl.jobexecutor.TimerEventJobHandler.JOB_HANDLER_CONFIG_PROPERTY_DELIMITER;
-import static org.camunda.bpm.engine.impl.jobexecutor.TimerEventJobHandler.JOB_HANDLER_CONFIG_PROPERTY_FOLLOW_UP_JOB_CREATED;
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
-
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import org.camunda.bpm.engine.impl.Direction;
-import org.camunda.bpm.engine.impl.JobQueryImpl;
-import org.camunda.bpm.engine.impl.JobQueryProperty;
-import org.camunda.bpm.engine.impl.Page;
-import org.camunda.bpm.engine.impl.QueryOrderingProperty;
+import org.camunda.bpm.engine.impl.*;
 import org.camunda.bpm.engine.impl.cfg.TransactionListener;
 import org.camunda.bpm.engine.impl.cfg.TransactionState;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
-import org.camunda.bpm.engine.impl.jobexecutor.ExclusiveJobAddedNotification;
-import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
-import org.camunda.bpm.engine.impl.jobexecutor.JobExecutorContext;
-import org.camunda.bpm.engine.impl.jobexecutor.MessageAddedNotification;
-import org.camunda.bpm.engine.impl.jobexecutor.TimerCatchIntermediateEventJobHandler;
-import org.camunda.bpm.engine.impl.jobexecutor.TimerExecuteNestedActivityJobHandler;
-import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventJobHandler;
-import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventSubprocessJobHandler;
+import org.camunda.bpm.engine.impl.jobexecutor.*;
 import org.camunda.bpm.engine.impl.persistence.AbstractManager;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.runtime.Job;
+
+import java.util.*;
+
+import static org.camunda.bpm.engine.impl.jobexecutor.TimerEventJobHandler.JOB_HANDLER_CONFIG_PROPERTY_DELIMITER;
+import static org.camunda.bpm.engine.impl.jobexecutor.TimerEventJobHandler.JOB_HANDLER_CONFIG_PROPERTY_FOLLOW_UP_JOB_CREATED;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 
 /**
@@ -60,6 +44,10 @@ public class JobManager extends AbstractManager {
     JOB_PRIORITY_ORDERING_PROPERTY.setDirection(Direction.DESCENDING);
     JOB_TYPE_ORDERING_PROPERTY.setDirection(Direction.DESCENDING);
     JOB_DUEDATE_ORDERING_PROPERTY.setDirection(Direction.ASCENDING);
+  }
+
+  public void updateJob(JobEntity job) {
+    getDbEntityManager().merge(job);
   }
 
   public void insertJob(JobEntity job) {
@@ -97,17 +85,25 @@ public class JobManager extends AbstractManager {
   public void schedule(TimerEntity timer) {
     Date duedate = timer.getDuedate();
     ensureNotNull("duedate", duedate);
-
     timer.insert();
+    hintJobExecutorIfNeeded(timer, duedate);
+  }
 
+  public void reschedule(JobEntity jobEntity, Date newDuedate) {
+    jobEntity.init(Context.getCommandContext());
+    jobEntity.setSuspensionState(SuspensionState.ACTIVE.getStateCode());
+    jobEntity.setDuedate(newDuedate);
+    hintJobExecutorIfNeeded(jobEntity, newDuedate);
+  }
+
+  private void hintJobExecutorIfNeeded(JobEntity jobEntity, Date duedate) {
     // Check if this timer fires before the next time the job executor will check for new timers to fire.
     // This is highly unlikely because normally waitTimeInMillis is 5000 (5 seconds)
     // and timers are usually set further in the future
-
     JobExecutor jobExecutor = Context.getProcessEngineConfiguration().getJobExecutor();
     int waitTimeInMillis = jobExecutor.getWaitTimeInMillis();
     if (duedate.getTime() < (ClockUtil.getCurrentTime().getTime() + waitTimeInMillis)) {
-      hintJobExecutor(timer);
+      hintJobExecutor(jobEntity);
     }
   }
 
@@ -211,13 +207,9 @@ public class JobManager extends AbstractManager {
   }
 
   @SuppressWarnings("unchecked")
-  public List<JobEntity> findExclusiveJobsToExecute(String processInstanceId) {
-    Map<String,Object> params = new HashMap<String, Object>();
-    params.put("pid", processInstanceId);
-    params.put("now",ClockUtil.getCurrentTime());
-    return getDbEntityManager().selectList("selectExclusiveJobsToExecute", params);
+  public JobEntity findJobByHandlerType(String handlerType) {
+    return (JobEntity)getDbEntityManager().selectOne("selectJobsByHandlerType", handlerType);
   }
-
 
   @SuppressWarnings("unchecked")
   public List<TimerEntity> findUnlockedTimersByDuedate(Date duedate, Page page) {

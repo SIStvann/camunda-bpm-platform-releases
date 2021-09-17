@@ -16,7 +16,6 @@ import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotEmpty;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -46,7 +45,9 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   private static final long serialVersionUID = 1L;
   protected String taskId;
   protected String name;
+  protected String nameNotEqual;
   protected String nameLike;
+  protected String nameNotLike;
   protected String description;
   protected String descriptionLike;
   protected Integer priority;
@@ -65,6 +66,8 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   protected List<String> candidateGroups;
   protected Boolean withCandidateGroups;
   protected Boolean withoutCandidateGroups;
+  protected Boolean withCandidateUsers;
+  protected Boolean withoutCandidateUsers;
   protected Boolean includeAssignedTasks;
   protected String processInstanceId;
   protected String executionId;
@@ -304,6 +307,18 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   }
 
   @Override
+  public TaskQuery withCandidateUsers() {
+    this.withCandidateUsers = true;
+    return this;
+  }
+
+  @Override
+  public TaskQuery withoutCandidateUsers() {
+    this.withoutCandidateUsers = true;
+    return this;
+  }
+
+  @Override
   public TaskQueryImpl taskCandidateGroup(String candidateGroup) {
     ensureNotNull("Candidate group", candidateGroup);
 
@@ -366,10 +381,10 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
 
   @Override
   public TaskQuery includeAssignedTasks() {
-    if (candidateUser == null && candidateGroup == null && candidateGroups == null && !isWithCandidateGroups() && !isWithoutCandidateGroups()
+    if (candidateUser == null && candidateGroup == null && candidateGroups == null && !isWithCandidateGroups() && !isWithoutCandidateGroups() && !isWithCandidateUsers() && !isWithoutCandidateUsers()
         && !expressions.containsKey("taskCandidateUser") && !expressions.containsKey("taskCandidateGroup")
         && !expressions.containsKey("taskCandidateGroupIn")) {
-      throw new ProcessEngineException("Invalid query usage: candidateUser, candidateGroup, candidateGroupIn, withCandidateGroups, withoutCandidateGroups has to be called before 'includeAssignedTasks'.");
+      throw new ProcessEngineException("Invalid query usage: candidateUser, candidateGroup, candidateGroupIn, withCandidateGroups, withoutCandidateGroups, withCandidateUsers, withoutCandidateUsers has to be called before 'includeAssignedTasks'.");
     }
 
     includeAssignedTasks = true;
@@ -849,7 +864,9 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
 
   public List<String> getCandidateGroups() {
     if (candidateGroup!=null) {
-      return Collections.singletonList(candidateGroup);
+      ArrayList result = new ArrayList();
+      result.add(candidateGroup);
+      return result;
     } else if (candidateUser != null) {
       return getGroupsForCandidateUser(candidateUser);
     } else if(candidateGroups != null) {
@@ -866,6 +883,14 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     }
   }
 
+  public Boolean isWithCandidateUsers() {
+    if (withCandidateUsers == null) {
+      return false;
+    } else {
+      return withCandidateUsers;
+    }
+  }
+
   public Boolean isWithCandidateGroupsInternal() {
     return withCandidateGroups;
   }
@@ -878,6 +903,14 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     }
   }
 
+  public Boolean isWithoutCandidateUsers() {
+    if (withoutCandidateUsers == null) {
+      return false;
+    } else {
+      return withoutCandidateUsers;
+    }
+  }
+
   public Boolean isWithoutCandidateGroupsInternal() {
     return withoutCandidateGroups;
   }
@@ -887,8 +920,6 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   }
 
   protected List<String> getGroupsForCandidateUser(String candidateUser) {
-    // TODO: Discuss about removing this feature? Or document it properly and maybe recommend to not use it
-    // and explain alternatives
     List<Group> groups = Context
       .getCommandContext()
       .getReadOnlyIdentityProvider()
@@ -1096,8 +1127,16 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     return name;
   }
 
+  public String getNameNotEqual() {
+    return nameNotEqual;
+  }
+
   public String getNameLike() {
     return nameLike;
+  }
+
+  public String getNameNotLike() {
+    return nameNotLike;
   }
 
   public String getAssignee() {
@@ -1373,6 +1412,20 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
       extendedQuery.taskNameLike(this.getNameLike());
     }
 
+    if (extendingQuery.getNameNotEqual() != null) {
+      extendedQuery.taskNameNotEqual(extendingQuery.getNameNotEqual());
+    }
+    else if (this.getNameNotEqual() != null) {
+      extendedQuery.taskNameNotEqual(this.getNameNotEqual());
+    }
+
+    if (extendingQuery.getNameNotLike() != null) {
+      extendedQuery.taskNameNotLike(extendingQuery.getNameNotLike());
+    }
+    else if (this.getNameNotLike() != null) {
+      extendedQuery.taskNameNotLike(this.getNameNotLike());
+    }
+
     if (extendingQuery.getAssignee() != null) {
       extendedQuery.taskAssignee(extendingQuery.getAssignee());
     }
@@ -1434,8 +1487,16 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
       extendedQuery.withCandidateGroups();
     }
 
+    if (extendingQuery.isWithCandidateUsers() || this.isWithCandidateUsers()) {
+      extendedQuery.withCandidateUsers();
+    }
+
     if (extendingQuery.isWithoutCandidateGroups() || this.isWithoutCandidateGroups()) {
       extendedQuery.withoutCandidateGroups();
+    }
+
+    if (extendingQuery.isWithoutCandidateUsers() || this.isWithoutCandidateUsers()) {
+      extendedQuery.withoutCandidateUsers();
     }
 
     if (extendingQuery.getCandidateGroupsInternal() != null) {
@@ -1827,5 +1888,18 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
 
   public boolean isFollowUpNullAccepted() {
     return followUpNullAccepted;
+  }
+
+  @Override
+  public TaskQuery taskNameNotEqual(String name) {
+    this.nameNotEqual = name;
+    return this;
+  }
+
+  @Override
+  public TaskQuery taskNameNotLike(String nameNotLike) {
+    ensureNotNull("Task nameNotLike", nameNotLike);
+    this.nameNotLike = nameNotLike;
+    return this;
   }
 }

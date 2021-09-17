@@ -41,6 +41,7 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
   private static final String SORT_BY_DEFINITION_KEY_VALUE = "definitionKey";
   private static final String SORT_BY_DEFINITION_ID_VALUE = "definitionId";
   private static final String SORT_BY_TENANT_ID = "tenantId";
+  private static final String SORT_BY_BUSINESS_KEY = "businessKey";
 
   private static final List<String> VALID_SORT_BY_VALUES;
   static {
@@ -49,11 +50,13 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
     VALID_SORT_BY_VALUES.add(SORT_BY_DEFINITION_KEY_VALUE);
     VALID_SORT_BY_VALUES.add(SORT_BY_DEFINITION_ID_VALUE);
     VALID_SORT_BY_VALUES.add(SORT_BY_TENANT_ID);
+    VALID_SORT_BY_VALUES.add(SORT_BY_BUSINESS_KEY);
   }
 
   private String deploymentId;
   private String processDefinitionKey;
   private String businessKey;
+  private String businessKeyLike;
   private String caseInstanceId;
   private String processDefinitionId;
   private String superProcessInstance;
@@ -115,6 +118,15 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
   @CamundaQueryParam("businessKey")
   public void setBusinessKey(String businessKey) {
     this.businessKey = businessKey;
+  }
+
+  public String getBusinessKeyLike() {
+    return businessKeyLike;
+  }
+
+  @CamundaQueryParam("businessKeyLike")
+  public void setBusinessKeyLike(String businessKeyLike) {
+    this.businessKeyLike = businessKeyLike;
   }
 
   public String getCaseInstanceId() {
@@ -286,6 +298,9 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
     if (businessKey != null) {
       query.processInstanceBusinessKey(businessKey);
     }
+    if (businessKeyLike != null) {
+      query.processInstanceBusinessKeyLike(businessKeyLike);
+    }
     if (caseInstanceId != null) {
       query.caseInstanceId(caseInstanceId);
     }
@@ -368,6 +383,8 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
       query.orderByProcessDefinitionId();
     } else if (sortBy.equals(SORT_BY_TENANT_ID)) {
       query.orderByTenantId();
+    } else if (sortBy.equals(SORT_BY_BUSINESS_KEY)) {
+      query.orderByBusinessKey();
     }
   }
 

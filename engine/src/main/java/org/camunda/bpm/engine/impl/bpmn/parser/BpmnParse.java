@@ -26,6 +26,7 @@ import org.camunda.bpm.engine.impl.bpmn.listener.ClassDelegateExecutionListener;
 import org.camunda.bpm.engine.impl.bpmn.listener.DelegateExpressionExecutionListener;
 import org.camunda.bpm.engine.impl.bpmn.listener.ExpressionExecutionListener;
 import org.camunda.bpm.engine.impl.bpmn.listener.ScriptExecutionListener;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.core.model.*;
 import org.camunda.bpm.engine.impl.core.model.BaseCallableElement.CallableElementBinding;
 import org.camunda.bpm.engine.impl.core.model.Properties;
@@ -537,6 +538,7 @@ public class BpmnParse extends Parse {
     processDefinition.setVersionTag(
       processElement.attributeNS(CAMUNDA_BPMN_EXTENSIONS_NS, "versionTag")
     );
+    parseHistoryTimeToLive(processElement, processDefinition);
 
     LOG.parsingElement("process", processDefinition.getKey());
 
@@ -558,6 +560,16 @@ public class BpmnParse extends Parse {
       activity.setDelegateAsyncBeforeUpdate(null);
     }
     return processDefinition;
+  }
+
+  protected void parseHistoryTimeToLive(Element processElement, ProcessDefinitionEntity processDefinition) {
+    final Integer historyTimeToLive = parseIntegerAttribute(processElement, "historyTimeToLive",
+        processElement.attributeNS(CAMUNDA_BPMN_EXTENSIONS_NS, "historyTimeToLive"), false);
+    if (historyTimeToLive == null || historyTimeToLive >= 0) {
+      processDefinition.setHistoryTimeToLive(historyTimeToLive);
+    } else {
+      addError("Cannot parse historyTimeToLive: negative value is not allowed", processElement);
+    }
   }
 
   protected void parseLaneSets(Element parentElement, ProcessDefinitionEntity processDefinition) {
@@ -3712,51 +3724,56 @@ public class BpmnParse extends Parse {
     if (ALL.equals(variables)) {
       parameter.setAllVariables(true);
     } else {
+      boolean strictValidation = !Context.getProcessEngineConfiguration().getDisableStrictCallActivityValidation();
 
-      ParameterValueProvider source = parseSourceOfCallableElementProvider(parameterElement);
-      parameter.setSourceValueProvider(source);
+      ParameterValueProvider sourceValueProvider = new NullValueProvider();
 
-      String target = parseTargetOfCallableElementProvider(parameterElement);
+      String source = parameterElement.attribute("source");
+      if (source != null) {
+        if (!source.isEmpty()) {
+          sourceValueProvider = new ConstantValueProvider(source);
+        }
+        else {
+          if (strictValidation) {
+            addError("Empty attribute 'source' when passing variables", parameterElement);
+          }
+          else {
+            source = null;
+          }
+        }
+      }
+
+      if (source == null) {
+        source = parameterElement.attribute("sourceExpression");
+
+        if (source != null) {
+          if (!source.isEmpty()) {
+            Expression expression = expressionManager.createExpression(source);
+            sourceValueProvider = new ElValueProvider(expression);
+          }
+          else if (strictValidation) {
+            addError("Empty attribute 'sourceExpression' when passing variables", parameterElement);
+          }
+        }
+      }
+
+      if (strictValidation && source == null) {
+        addError("Missing parameter 'source' or 'sourceExpression' when passing variables", parameterElement);
+      }
+
+      parameter.setSourceValueProvider(sourceValueProvider);
+
+      String target = parameterElement.attribute("target");
+      if ((strictValidation || source != null && !source.isEmpty()) && target == null) {
+        addError("Missing attribute 'target' when attribute 'source' or 'sourceExpression' is set", parameterElement);
+      }
+      else if (strictValidation && target != null && target.isEmpty()) {
+        addError("Empty attribute 'target' when attribute 'source' or 'sourceExpression' is set", parameterElement);
+      }
       parameter.setTarget(target);
     }
 
     return parameter;
-  }
-
-  protected ParameterValueProvider parseSourceOfCallableElementProvider(Element parameterElement) {
-    ParameterValueProvider sourceValueProvider = new NullValueProvider();
-    String source = parameterElement.attribute("source");
-    if (source != null) {
-      if (source.isEmpty()) {
-        addError("Empty attribute 'source' when passing variables", parameterElement);
-      }
-      sourceValueProvider = new ConstantValueProvider(source);
-    } else {
-      source = parameterElement.attribute("sourceExpression");
-      if (source != null) {
-        if (source.isEmpty()) {
-          addError("Empty attribute 'sourceExpression' when passing variables", parameterElement);
-        }
-        Expression expression = expressionManager.createExpression(source);
-        sourceValueProvider = new ElValueProvider(expression);
-      }
-    }
-
-    if (source == null) {
-      addError("Missing parameter 'source' or 'sourceExpression' when passing variables", parameterElement);
-    }
-
-    return sourceValueProvider;
-  }
-
-  protected String parseTargetOfCallableElementProvider(Element parameterElement) {
-    String target = parameterElement.attribute("target");
-    if (target == null) {
-      addError("Missing attribute 'target' when attribute 'source' or 'sourceExpression' is set", parameterElement);
-    } else if (target.isEmpty()) {
-      addError("Empty attribute 'target' when attribute 'source' or 'sourceExpression' is set", parameterElement);
-    }
-    return target;
   }
 
   /**
@@ -4307,6 +4324,21 @@ public class BpmnParse extends Parse {
     return -1.0;
   }
 
+  public Integer parseIntegerAttribute(Element element, String attributeName, String integerText, boolean required) {
+    if (required && (integerText == null || integerText.isEmpty())) {
+      addError(attributeName + " is required", element);
+    } else {
+      if (integerText != null && !integerText.isEmpty()) {
+        try {
+          return Integer.parseInt(integerText);
+        } catch (NumberFormatException e) {
+          addError("Cannot parse " + attributeName + ": " + e.getMessage(), element);
+        }
+      }
+    }
+    return null;
+  }
+
   protected boolean isExclusive(Element element) {
     return TRUE.equals(element.attributeNS(CAMUNDA_BPMN_EXTENSIONS_NS, "exclusive", String.valueOf(JobEntity.DEFAULT_EXCLUSIVE)));
   }
@@ -4426,7 +4458,7 @@ public class BpmnParse extends Parse {
     if (value == null) {
       return new NullValueProvider();
 
-    } else if (value instanceof String && StringUtil.isExpression((String) value)) {
+    } else if (value instanceof String) {
       Expression expression = expressionManager.createExpression((String) value);
       return new ElValueProvider(expression);
 

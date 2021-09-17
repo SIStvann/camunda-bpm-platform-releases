@@ -12,17 +12,20 @@
  */
 package org.camunda.bpm.engine.impl.cmmn.entity.repository;
 
+import java.util.HashMap;
 import java.util.Map;
 
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseExecutionEntity;
 import org.camunda.bpm.engine.impl.cmmn.execution.CmmnExecution;
 import org.camunda.bpm.engine.impl.cmmn.model.CmmnCaseDefinition;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.deploy.cache.DeploymentCache;
 import org.camunda.bpm.engine.impl.repository.ResourceDefinitionEntity;
 import org.camunda.bpm.engine.impl.task.TaskDefinition;
 import org.camunda.bpm.engine.repository.CaseDefinition;
@@ -31,9 +34,10 @@ import org.camunda.bpm.engine.repository.CaseDefinition;
  * @author Roman Smirnov
  *
  */
-public class CaseDefinitionEntity extends CmmnCaseDefinition implements CaseDefinition, ResourceDefinitionEntity, DbEntity, HasDbRevision {
+public class CaseDefinitionEntity extends CmmnCaseDefinition implements CaseDefinition, ResourceDefinitionEntity<CaseDefinitionEntity>, DbEntity, HasDbRevision {
 
   private static final long serialVersionUID = 1L;
+  protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
 
   protected int revision = 1;
   protected String category;
@@ -43,6 +47,7 @@ public class CaseDefinitionEntity extends CmmnCaseDefinition implements CaseDefi
   protected String resourceName;
   protected String diagramResourceName;
   protected String tenantId;
+  protected Integer historyTimeToLive;
 
   protected Map<String, TaskDefinition> taskDefinitions;
 
@@ -130,6 +135,15 @@ public class CaseDefinitionEntity extends CmmnCaseDefinition implements CaseDefi
 
   public void setTenantId(String tenantId) {
     this.tenantId = tenantId;
+  }
+
+  @Override
+  public Integer getHistoryTimeToLive() {
+    return historyTimeToLive;
+  }
+
+  public void setHistoryTimeToLive(Integer historyTimeToLive) {
+    this.historyTimeToLive = historyTimeToLive;
   }
 
   // previous case definition //////////////////////////////////////////////
@@ -221,7 +235,9 @@ public class CaseDefinitionEntity extends CmmnCaseDefinition implements CaseDefi
   }
 
   public Object getPersistentState() {
-    return CaseDefinitionEntity.class;
+    Map<String, Object> persistentState = new HashMap<String, Object>();
+    persistentState.put("historyTimeToLive", this.historyTimeToLive);
+    return persistentState;
   }
 
   @Override
@@ -229,4 +245,18 @@ public class CaseDefinitionEntity extends CmmnCaseDefinition implements CaseDefi
     return "CaseDefinitionEntity["+id+"]";
   }
 
+  /**
+   * Updates all modifiable fields from another case definition entity.
+   * @param updatingCaseDefinition
+   */
+  @Override
+  public void updateModifiableFieldsFromEntity(CaseDefinitionEntity updatingCaseDefinition) {
+    if (this.key.equals(updatingCaseDefinition.key) && this.deploymentId.equals(updatingCaseDefinition.deploymentId)) {
+      this.revision = updatingCaseDefinition.revision;
+      this.historyTimeToLive = updatingCaseDefinition.historyTimeToLive;
+    }
+    else {
+      LOG.logUpdateUnrelatedCaseDefinitionEntity(this.key, updatingCaseDefinition.key, this.deploymentId, updatingCaseDefinition.deploymentId);
+    }
+  }
 }

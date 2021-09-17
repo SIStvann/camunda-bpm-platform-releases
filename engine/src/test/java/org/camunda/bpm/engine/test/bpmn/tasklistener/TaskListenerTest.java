@@ -12,21 +12,66 @@
  */
 package org.camunda.bpm.engine.test.bpmn.tasklistener;
 
+import static org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+
+import java.util.Arrays;
+import java.util.List;
+
+import org.camunda.bpm.engine.HistoryService;
+import org.camunda.bpm.engine.RuntimeService;
+import org.camunda.bpm.engine.TaskService;
+import org.camunda.bpm.engine.delegate.DelegateTask;
+import org.camunda.bpm.engine.delegate.TaskListener;
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
-import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.bpmn.tasklistener.util.RecorderTaskListener;
+import org.camunda.bpm.engine.test.bpmn.tasklistener.util.RecorderTaskListener.RecordedTaskEvent;
 import org.camunda.bpm.engine.test.bpmn.tasklistener.util.TaskDeleteListener;
-
-import static org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl.HISTORYLEVEL_AUDIT;
+import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
+import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
+import org.camunda.bpm.engine.variable.VariableMap;
+import org.camunda.bpm.engine.variable.Variables;
+import org.camunda.bpm.model.bpmn.Bpmn;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
+import org.junit.Before;
+import org.junit.Ignore;
+import org.junit.Rule;
+import org.junit.Test;
+import org.junit.rules.RuleChain;
 
 
 /**
  * @author Joram Barrez
  */
-public class TaskListenerTest extends PluggableProcessEngineTestCase {
+public class TaskListenerTest {
 
+  public ProvidedProcessEngineRule engineRule = new ProvidedProcessEngineRule();
+  public ProcessEngineTestRule testRule = new ProcessEngineTestRule(engineRule);
+
+  @Rule
+  public RuleChain ruleChain = RuleChain.outerRule(engineRule).around(testRule);
+
+  protected RuntimeService runtimeService;
+  protected TaskService taskService;
+  protected HistoryService historyService;
+  protected ProcessEngineConfigurationImpl processEngineConfiguration;
+
+  @Before
+  public void setUp() {
+    runtimeService = engineRule.getRuntimeService();
+    taskService = engineRule.getTaskService();
+    historyService = engineRule.getHistoryService();
+    processEngineConfiguration = engineRule.getProcessEngineConfiguration();
+  }
+
+  @Test
   @Deployment(resources = {"org/camunda/bpm/engine/test/bpmn/tasklistener/TaskListenerTest.bpmn20.xml"})
   public void testTaskCreateListener() {
     runtimeService.startProcessInstanceByKey("taskListenerProcess");
@@ -35,6 +80,7 @@ public class TaskListenerTest extends PluggableProcessEngineTestCase {
     assertEquals("TaskCreateListener is listening!", task.getDescription());
   }
 
+  @Test
   @Deployment(resources = {"org/camunda/bpm/engine/test/bpmn/tasklistener/TaskListenerTest.bpmn20.xml"})
   public void testTaskCompleteListener() {
     TaskDeleteListener.clear();
@@ -55,6 +101,7 @@ public class TaskListenerTest extends PluggableProcessEngineTestCase {
     assertEquals("Act", runtimeService.getVariable(processInstance.getId(), "shortName"));
   }
 
+  @Test
   @Deployment(resources = {"org/camunda/bpm/engine/test/bpmn/tasklistener/TaskListenerTest.bpmn20.xml"})
   public void testTaskDeleteListenerByProcessDeletion() {
     TaskDeleteListener.clear();
@@ -73,6 +120,7 @@ public class TaskListenerTest extends PluggableProcessEngineTestCase {
     assertEquals("test delete task listener", TaskDeleteListener.lastDeleteReason);
   }
 
+  @Test
   @Deployment(resources = {"org/camunda/bpm/engine/test/bpmn/tasklistener/TaskListenerTest.bpmn20.xml"})
   public void testTaskDeleteListenerByBoundaryEvent() {
     TaskDeleteListener.clear();
@@ -91,6 +139,7 @@ public class TaskListenerTest extends PluggableProcessEngineTestCase {
     assertEquals("deleted", TaskDeleteListener.lastDeleteReason);
   }
 
+  @Test
   @Deployment(resources = {"org/camunda/bpm/engine/test/bpmn/tasklistener/TaskListenerTest.bpmn20.xml"})
   public void testTaskListenerWithExpression() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("taskListenerProcess");
@@ -103,6 +152,7 @@ public class TaskListenerTest extends PluggableProcessEngineTestCase {
     assertEquals("Write meeting notes", runtimeService.getVariable(processInstance.getId(), "greeting2"));
   }
 
+  @Test
   @Deployment
   public void testScriptListener() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("process");
@@ -130,6 +180,7 @@ public class TaskListenerTest extends PluggableProcessEngineTestCase {
     }
   }
 
+  @Test
   @Deployment(resources = {
     "org/camunda/bpm/engine/test/bpmn/tasklistener/TaskListenerTest.testScriptResourceListener.bpmn20.xml",
     "org/camunda/bpm/engine/test/bpmn/tasklistener/taskListener.groovy"
@@ -159,5 +210,145 @@ public class TaskListenerTest extends PluggableProcessEngineTestCase {
       assertTrue((Boolean) variable.getValue());
     }
   }
+
+
+  public static class TaskCreateListener implements TaskListener {
+    public void notify(DelegateTask delegateTask) {
+      delegateTask.complete();
+    }
+  }
+
+  @Test
+  public void testCompleteTaskInCreateTaskListener() {
+    // given process with user task and task create listener
+    BpmnModelInstance modelInstance =
+      Bpmn.createExecutableProcess("startToEnd")
+        .startEvent()
+        .userTask()
+        .camundaTaskListenerClass(TaskListener.EVENTNAME_CREATE, TaskCreateListener.class.getName())
+        .name("userTask")
+        .endEvent().done();
+
+    testRule.deploy(modelInstance);
+
+    // when process is started and user task completed in task create listener
+    runtimeService.startProcessInstanceByKey("startToEnd");
+
+    // then task is successfully completed without an exception
+    assertNull(taskService.createTaskQuery().singleResult());
+  }
+
+  @Test
+  public void testCompleteTaskInCreateTaskListenerWithIdentityLinks() {
+    // given process with user task, identity links and task create listener
+    BpmnModelInstance modelInstance =
+      Bpmn.createExecutableProcess("startToEnd")
+        .startEvent()
+        .userTask()
+        .camundaTaskListenerClass(TaskListener.EVENTNAME_CREATE, TaskCreateListener.class.getName())
+        .name("userTask")
+        .camundaCandidateUsers(Arrays.asList(new String[]{"users1", "user2"}))
+        .camundaCandidateGroups(Arrays.asList(new String[]{"group1", "group2"}))
+        .endEvent().done();
+
+    testRule.deploy(modelInstance);
+
+    // when process is started and user task completed in task create listener
+    runtimeService.startProcessInstanceByKey("startToEnd");
+
+    // then task is successfully completed without an exception
+    assertNull(taskService.createTaskQuery().singleResult());
+  }
+
+  @Ignore("CAM-7562")
+  @Test
+  public void testActivityInstanceIdOnDeleteInCalledProcess() {
+    // given
+    RecorderTaskListener.clear();
+
+    BpmnModelInstance callActivityProcess = Bpmn.createExecutableProcess("calling")
+        .startEvent()
+        .callActivity()
+          .calledElement("called")
+        .endEvent()
+        .done();
+
+    BpmnModelInstance calledProcess = Bpmn.createExecutableProcess("called")
+        .startEvent()
+        .userTask()
+          .camundaTaskListenerClass(TaskListener.EVENTNAME_CREATE, RecorderTaskListener.class.getName())
+          .camundaTaskListenerClass(TaskListener.EVENTNAME_DELETE, RecorderTaskListener.class.getName())
+        .endEvent()
+        .done();
+
+    testRule.deploy(callActivityProcess, calledProcess);
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("calling");
+
+    // when
+    runtimeService.deleteProcessInstance(processInstance.getId(), null);
+
+    // then
+    List<RecordedTaskEvent> recordedEvents = RecorderTaskListener.getRecordedEvents();
+    assertEquals(2, recordedEvents.size());
+    String createActivityInstanceId = recordedEvents.get(0).getActivityInstanceId();
+    String deleteActivityInstanceId = recordedEvents.get(1).getActivityInstanceId();
+
+    assertEquals(createActivityInstanceId, deleteActivityInstanceId);
+  }
+
+  @Ignore("CAM-7562")
+  @Test
+  public void testVariableAccessOnDeleteInCalledProcess() {
+    // given
+    VariablesCollectingListener.reset();
+
+    BpmnModelInstance callActivityProcess = Bpmn.createExecutableProcess("calling")
+        .startEvent()
+        .callActivity()
+          .calledElement("called")
+        .endEvent()
+        .done();
+
+    BpmnModelInstance calledProcess = Bpmn.createExecutableProcess("called")
+        .startEvent()
+        .userTask()
+          .camundaTaskListenerClass(TaskListener.EVENTNAME_DELETE, VariablesCollectingListener.class.getName())
+        .endEvent()
+        .done();
+
+    testRule.deploy(callActivityProcess, calledProcess);
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("calling",
+        Variables.createVariables().putValue("foo", "bar"));
+
+    // when
+    runtimeService.deleteProcessInstance(processInstance.getId(), null);
+
+    // then
+    VariableMap collectedVariables = VariablesCollectingListener.getCollectedVariables();
+    assertNotNull(collectedVariables);
+    assertEquals(1, collectedVariables.size());
+    assertEquals("bar", collectedVariables.get("foo"));
+  }
+
+  public static class VariablesCollectingListener implements TaskListener {
+
+    protected static VariableMap collectedVariables;
+
+    public static VariableMap getCollectedVariables() {
+      return collectedVariables;
+    }
+
+    public static void reset() {
+      collectedVariables = null;
+    }
+
+    @Override
+    public void notify(DelegateTask delegateTask) {
+      collectedVariables = delegateTask.getVariablesTyped();
+    }
+
+  }
+
+
 
 }

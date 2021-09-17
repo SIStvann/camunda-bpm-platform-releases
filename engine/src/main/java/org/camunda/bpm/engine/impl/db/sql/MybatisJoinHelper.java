@@ -13,6 +13,7 @@
 package org.camunda.bpm.engine.impl.db.sql;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
@@ -26,6 +27,7 @@ import org.camunda.bpm.engine.query.QueryProperty;
 public class MybatisJoinHelper {
 
   protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
+  protected static final String DEFAULT_ORDER = "RES.ID_ asc";
   public static Map<String, MyBatisTableMapping> mappings = new HashMap<String, MyBatisTableMapping>();
 
   static {

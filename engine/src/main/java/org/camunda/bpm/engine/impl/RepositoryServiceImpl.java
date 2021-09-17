@@ -43,10 +43,13 @@ import org.camunda.bpm.engine.impl.cmd.GetDeploymentResourceForIdCmd;
 import org.camunda.bpm.engine.impl.cmd.GetDeploymentResourceNamesCmd;
 import org.camunda.bpm.engine.impl.cmd.GetDeploymentResourcesCmd;
 import org.camunda.bpm.engine.impl.cmd.GetIdentityLinksForProcessDefinitionCmd;
+import org.camunda.bpm.engine.impl.cmd.UpdateDecisionDefinitionHistoryTimeToLiveCmd;
+import org.camunda.bpm.engine.impl.cmd.UpdateProcessDefinitionHistoryTimeToLiveCmd;
 import org.camunda.bpm.engine.impl.cmmn.cmd.GetDeploymentCaseDefinitionCmd;
 import org.camunda.bpm.engine.impl.cmmn.cmd.GetDeploymentCaseDiagramCmd;
 import org.camunda.bpm.engine.impl.cmmn.cmd.GetDeploymentCaseModelCmd;
 import org.camunda.bpm.engine.impl.cmmn.cmd.GetDeploymentCmmnModelInstanceCmd;
+import org.camunda.bpm.engine.impl.cmmn.cmd.UpdateCaseDefinitionHistoryTimeToLiveCmd;
 import org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionQueryImpl;
 import org.camunda.bpm.engine.impl.dmn.cmd.GetDeploymentDecisionDefinitionCmd;
 import org.camunda.bpm.engine.impl.dmn.cmd.GetDeploymentDecisionDiagramCmd;
@@ -61,21 +64,7 @@ import org.camunda.bpm.engine.impl.pvm.ReadOnlyProcessDefinition;
 import org.camunda.bpm.engine.impl.repository.DeploymentBuilderImpl;
 import org.camunda.bpm.engine.impl.repository.ProcessApplicationDeploymentBuilderImpl;
 import org.camunda.bpm.engine.impl.repository.UpdateProcessDefinitionSuspensionStateBuilderImpl;
-import org.camunda.bpm.engine.repository.CaseDefinition;
-import org.camunda.bpm.engine.repository.CaseDefinitionQuery;
-import org.camunda.bpm.engine.repository.DecisionDefinition;
-import org.camunda.bpm.engine.repository.DecisionDefinitionQuery;
-import org.camunda.bpm.engine.repository.DecisionRequirementsDefinition;
-import org.camunda.bpm.engine.repository.DecisionRequirementsDefinitionQuery;
-import org.camunda.bpm.engine.repository.Deployment;
-import org.camunda.bpm.engine.repository.DeploymentBuilder;
-import org.camunda.bpm.engine.repository.DeploymentQuery;
-import org.camunda.bpm.engine.repository.DiagramLayout;
-import org.camunda.bpm.engine.repository.ProcessApplicationDeploymentBuilder;
-import org.camunda.bpm.engine.repository.ProcessDefinition;
-import org.camunda.bpm.engine.repository.ProcessDefinitionQuery;
-import org.camunda.bpm.engine.repository.Resource;
-import org.camunda.bpm.engine.repository.UpdateProcessDefinitionSuspensionStateSelectBuilder;
+import org.camunda.bpm.engine.repository.*;
 import org.camunda.bpm.engine.task.IdentityLink;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.bpm.model.cmmn.CmmnModelInstance;
@@ -106,24 +95,29 @@ public class RepositoryServiceImpl extends ServiceImpl implements RepositoryServ
     return new ProcessApplicationDeploymentBuilderImpl(this, processApplication);
   }
 
-  public Deployment deploy(DeploymentBuilderImpl deploymentBuilder) {
-    return commandExecutor.execute(new DeployCmd<Deployment>(deploymentBuilder));
+  public DeploymentWithDefinitions deployWithResult(DeploymentBuilderImpl deploymentBuilder) {
+    return commandExecutor.execute(new DeployCmd(deploymentBuilder));
   }
 
   public void deleteDeployment(String deploymentId) {
-    commandExecutor.execute(new DeleteDeploymentCmd(deploymentId, false, false));
+    commandExecutor.execute(new DeleteDeploymentCmd(deploymentId, false, false, false));
   }
 
   public void deleteDeploymentCascade(String deploymentId) {
-    commandExecutor.execute(new DeleteDeploymentCmd(deploymentId, true, false));
+    commandExecutor.execute(new DeleteDeploymentCmd(deploymentId, true, false, false));
   }
 
   public void deleteDeployment(String deploymentId, boolean cascade) {
-    commandExecutor.execute(new DeleteDeploymentCmd(deploymentId, cascade, false));
+    commandExecutor.execute(new DeleteDeploymentCmd(deploymentId, cascade, false, false));
   }
 
   public void deleteDeployment(String deploymentId, boolean cascade, boolean skipCustomListeners) {
-    commandExecutor.execute(new DeleteDeploymentCmd(deploymentId, cascade, skipCustomListeners));
+    commandExecutor.execute(new DeleteDeploymentCmd(deploymentId, cascade, skipCustomListeners, false));
+  }
+
+  @Override
+  public void deleteDeployment(String deploymentId, boolean cascade, boolean skipCustomListeners, boolean skipIoMappings) {
+    commandExecutor.execute(new DeleteDeploymentCmd(deploymentId, cascade, skipCustomListeners, skipIoMappings));
   }
 
   @Override
@@ -245,6 +239,18 @@ public class RepositoryServiceImpl extends ServiceImpl implements RepositoryServ
 
   public UpdateProcessDefinitionSuspensionStateSelectBuilder updateProcessDefinitionSuspensionState() {
     return new UpdateProcessDefinitionSuspensionStateBuilderImpl(commandExecutor);
+  }
+
+  public void updateProcessDefinitionHistoryTimeToLive(String processDefinitionId, Integer historyTimeToLive){
+    commandExecutor.execute(new UpdateProcessDefinitionHistoryTimeToLiveCmd(processDefinitionId, historyTimeToLive));
+  }
+
+  public void updateDecisionDefinitionHistoryTimeToLive(String decisionDefinitionId, Integer historyTimeToLive){
+    commandExecutor.execute(new UpdateDecisionDefinitionHistoryTimeToLiveCmd(decisionDefinitionId, historyTimeToLive));
+  }
+
+  public void updateCaseDefinitionHistoryTimeToLive(String caseDefinitionId, Integer historyTimeToLive){
+    commandExecutor.execute(new UpdateCaseDefinitionHistoryTimeToLiveCmd(caseDefinitionId, historyTimeToLive));
   }
 
   public InputStream getProcessModel(String processDefinitionId) {
@@ -400,5 +406,4 @@ public class RepositoryServiceImpl extends ServiceImpl implements RepositoryServ
   public InputStream getDecisionRequirementsDiagram(String decisionRequirementsDefinitionId) {
     return commandExecutor.execute(new GetDeploymentDecisionRequirementsDiagramCmd(decisionRequirementsDefinitionId));
   }
-
 }

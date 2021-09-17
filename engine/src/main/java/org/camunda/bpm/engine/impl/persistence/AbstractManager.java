@@ -26,6 +26,7 @@ import org.camunda.bpm.engine.impl.db.DbEntity;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.db.sql.DbSqlSession;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionManager;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionManager;
 import org.camunda.bpm.engine.impl.history.event.HistoricDecisionInstanceManager;
 import org.camunda.bpm.engine.impl.identity.Authentication;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
@@ -43,6 +44,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.HistoricBatchManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricCaseActivityInstanceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricCaseInstanceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricDetailManager;
+import org.camunda.bpm.engine.impl.persistence.entity.HistoricExternalTaskLogManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricIdentityLinkLogManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricIncidentManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogManager;
@@ -61,6 +63,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.TaskReportManager;
 import org.camunda.bpm.engine.impl.persistence.entity.TenantManager;
 import org.camunda.bpm.engine.impl.persistence.entity.UserOperationLogManager;
 import org.camunda.bpm.engine.impl.persistence.entity.VariableInstanceManager;
+
 
 
 /**
@@ -110,6 +113,10 @@ public abstract class AbstractManager implements Session {
 
   protected DecisionDefinitionManager getDecisionDefinitionManager() {
     return getSession(DecisionDefinitionManager.class);
+  }
+
+  protected DecisionRequirementsDefinitionManager getDecisionRequirementsDefinitionManager() {
+    return getSession(DecisionRequirementsDefinitionManager.class);
   }
 
   protected HistoricDecisionInstanceManager getHistoricDecisionInstanceManager() {
@@ -182,6 +189,10 @@ public abstract class AbstractManager implements Session {
   
   protected HistoricJobLogManager getHistoricJobLogManager() {
     return getSession(HistoricJobLogManager.class);
+  }
+
+  protected HistoricExternalTaskLogManager getHistoricExternalTaskLogManager() {
+    return getSession(HistoricExternalTaskLogManager.class);
   }
 
   protected JobManager getJobManager() {

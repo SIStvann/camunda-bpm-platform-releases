@@ -13,6 +13,9 @@
 
 package org.camunda.bpm.engine.test.api.filter;
 
+import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertThat;
+
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -30,7 +33,6 @@ import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.TaskQueryImpl;
 import org.camunda.bpm.engine.impl.TaskQueryProperty;
 import org.camunda.bpm.engine.impl.TaskQueryVariableValue;
-import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
 import org.camunda.bpm.engine.impl.json.JsonTaskQueryConverter;
 import org.camunda.bpm.engine.impl.persistence.entity.FilterEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
@@ -44,9 +46,6 @@ import org.camunda.bpm.engine.task.TaskQuery;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.type.ValueType;
-
-import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertThat;
 
 /**
  * @author Sebastian Menski
@@ -73,6 +72,7 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
 
   protected JsonTaskQueryConverter queryConverter;
 
+  @Override
   public void setUp() {
     filter = filterService.newTaskFilter("name").setOwner("owner").setQuery(taskService.createTaskQuery()).setProperties(new HashMap<String, Object>());
     testUser = identityService.newUser("user");
@@ -91,6 +91,7 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     queryConverter = new JsonTaskQueryConverter();
   }
 
+  @Override
   public void tearDown() {
     for (Filter filter : filterService.createTaskFilterQuery().list()) {
       filterService.deleteFilter(filter.getId());
@@ -121,7 +122,9 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     TaskQueryImpl query = new TaskQueryImpl();
     query.taskId(testString);
     query.taskName(testString);
+    query.taskNameNotEqual(testString);
     query.taskNameLike(testString);
+    query.taskNameNotLike(testString);
     query.taskDescription(testString);
     query.taskDescriptionLike(testString);
     query.taskPriority(testInteger);
@@ -142,6 +145,8 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     query.taskCandidateGroupInExpression(testString);
     query.withCandidateGroups();
     query.withoutCandidateGroups();
+    query.withCandidateUsers();
+    query.withoutCandidateUsers();
     query.processInstanceId(testString);
     query.executionId(testString);
     query.activityInstanceIdIn(testActivityInstances);
@@ -212,6 +217,8 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     query = filter.getQuery();
     assertEquals(testString, query.getTaskId());
     assertEquals(testString, query.getName());
+    assertEquals(testString, query.getNameNotEqual());
+    assertEquals(testString, query.getNameNotLike());
     assertEquals(testString, query.getNameLike());
     assertEquals(testString, query.getDescription());
     assertEquals(testString, query.getDescriptionLike());
@@ -232,6 +239,8 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     assertEquals(testCandidateGroups, query.getCandidateGroups());
     assertTrue(query.isWithCandidateGroups());
     assertTrue(query.isWithoutCandidateGroups());
+    assertTrue(query.isWithCandidateUsers());
+    assertTrue(query.isWithoutCandidateUsers());
     assertEquals(testString, query.getExpressions().get("taskCandidateGroupIn"));
     assertEquals(testString, query.getProcessInstanceId());
     assertEquals(testString, query.getExecutionId());
@@ -918,23 +927,6 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     verifyOrderingProperties(expectedOrderingProperties, query.getOrderingProperties());
   }
 
-  /**
-   * Tests compatibility with serialization format that was used in 7.2
-   */
-  @SuppressWarnings("deprecation")
-  public void testDeprecatedOrderingFormatDeserializationDefault() {
-    String defaultOrderBy = ListQueryParameterObject.DEFAULT_ORDER_BY;
-
-    JsonTaskQueryConverter converter = (JsonTaskQueryConverter) FilterEntity.queryConverter.get(EntityTypes.TASK);
-    JSONObject queryJson = converter.toJsonObject(filter.<TaskQuery>getQuery());
-
-    // when I apply default ordering in its deprecated format (i.e. ORDER_BY property is missing)
-    TaskQueryImpl deserializedTaskQuery = (TaskQueryImpl) converter.toObject(queryJson);
-
-    // then the default ordering is applied to the query
-    assertTrue(deserializedTaskQuery.getOrderingProperties().isEmpty());
-    assertEquals(defaultOrderBy, deserializedTaskQuery.getOrderBy());
-  }
 
   /**
    * Tests compatibility with serialization format that was used in 7.2

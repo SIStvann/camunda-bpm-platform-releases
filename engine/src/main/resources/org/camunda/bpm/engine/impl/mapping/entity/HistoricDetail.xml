@@ -35,7 +35,8 @@
       NAME_,
       TEXT_,
       SEQUENCE_COUNTER_,
-      TENANT_ID_
+      TENANT_ID_,
+      OPERATION_ID_
     )
     values (
       #{id, jdbcType=VARCHAR},
@@ -50,7 +51,8 @@
       #{propertyId, jdbcType=VARCHAR},
       #{propertyValue, jdbcType=VARCHAR},
       #{sequenceCounter, jdbcType=BIGINT},
-      #{tenantId, jdbcType=VARCHAR}
+      #{tenantId, jdbcType=VARCHAR},
+      #{userOperationId, jdbcType=VARCHAR}
     )
   </insert>
 
@@ -81,7 +83,8 @@
       TEXT_,
       TEXT2_,
       SEQUENCE_COUNTER_,
-      TENANT_ID_
+      TENANT_ID_,
+      OPERATION_ID_
     )
     values (
       #{id, jdbcType=VARCHAR},
@@ -107,7 +110,8 @@
       #{textValue, jdbcType=VARCHAR},
       #{textValue2, jdbcType=VARCHAR},
       #{sequenceCounter, jdbcType=BIGINT},
-      #{tenantId, jdbcType=VARCHAR}
+      #{tenantId, jdbcType=VARCHAR},
+      #{userOperationId, jdbcType=VARCHAR}
     )
   </insert>
 
@@ -119,6 +123,20 @@
 
   <delete id="deleteHistoricFormProperty">
     delete from ${prefix}ACT_HI_DETAIL where ID_ = #{id}
+  </delete>
+
+  <delete id="deleteHistoricDetailsByIds" parameterType="java.util.Map">
+    delete from ${prefix}ACT_HI_DETAIL
+    <include refid="selectHistoricDetailsByIdsSql"/>
+  </delete>
+
+  <delete id="deleteHistoricDetailByteArraysByIds" parameterType="java.util.Map">
+    delete from ${prefix}ACT_GE_BYTEARRAY
+    where ID_ in
+    (select DISTINCT BYTEARRAY_ID_
+    from ${prefix}ACT_HI_DETAIL RES
+    <include refid="selectHistoricDetailsByIdsSql"/>
+    and BYTEARRAY_ID_ is not NULL)
   </delete>
 
   <!-- HISTORIC DETAILS RESULTMAP -->
@@ -137,6 +155,7 @@
     <result property="taskId" column="TASK_ID_" jdbcType="VARCHAR" />
     <result property="sequenceCounter" column="SEQUENCE_COUNTER_" jdbcType="BIGINT" />
     <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
+    <result property="userOperationId" column="OPERATION_ID_" jdbcType="VARCHAR" />
     <discriminator javaType="string" column="TYPE_">
       <case value="VariableUpdate" resultMap="historicVariableUpdateResultMap"/>
       <case value="FormProperty" resultMap="historicFormPropertyResultMap"/>
@@ -255,6 +274,14 @@
         </foreach>
       </if>
 
+      <if test="userOperationId != null">
+        RES.OPERATION_ID_ = #{userOperationId}
+      </if>
+
+      <if test="sequenceCounter != null">
+        and RES.SEQUENCE_COUNTER_ = #{sequenceCounter}
+      </if>
+
       <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
         and ((RES.EXECUTION_ID_ is not null and AUTH.KEY_ is not null) or RES.EXECUTION_ID_ is null)
       </if>
@@ -262,6 +289,40 @@
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
 
     </where>
+  </sql>
+
+  <sql id="selectHistoricDetailsByIdsSql">
+    WHERE
+    <if test="processInstanceIds != null &amp;&amp; processInstanceIds.size() > 0">
+      PROC_INST_ID_ IN
+      <foreach item="processInstanceId" index="index" collection="processInstanceIds" open="(" separator="," close=")">
+        #{processInstanceId}
+      </foreach>
+    </if>
+    <if test="caseInstanceIds != null &amp;&amp; caseInstanceIds.size() > 0">
+      CASE_INST_ID_ IN
+      <foreach item="caseInstanceId" index="index" collection="caseInstanceIds" open="(" separator="," close=")">
+        #{caseInstanceId}
+      </foreach>
+    </if>
+    <if test="taskProcessInstanceIds != null &amp;&amp; taskProcessInstanceIds.size() > 0">
+      TASK_ID_ IN
+      (select distinct ID_ from ${prefix}ACT_HI_TASKINST
+      where PROC_INST_ID_ in
+      <foreach item="processInstanceId" index="index" collection="taskProcessInstanceIds" open="(" separator="," close=")">
+        #{processInstanceId}
+      </foreach>
+      )
+    </if>
+    <if test="taskCaseInstanceIds != null &amp;&amp; taskCaseInstanceIds.size() > 0">
+      TASK_ID_ IN
+      (select distinct ID_ from ${prefix}ACT_HI_TASKINST
+      where CASE_INST_ID_ in
+      <foreach item="caseInstanceId" index="index" collection="taskCaseInstanceIds" open="(" separator="," close=")">
+        #{caseInstanceId}
+      </foreach>
+      )
+    </if>
   </sql>
 
 </mapper>

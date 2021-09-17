@@ -40,6 +40,14 @@ public interface ProcessInstanceQuery extends Query<ProcessInstanceQuery, Proces
   ProcessInstanceQuery processInstanceBusinessKey(String processInstanceBusinessKey, String processDefinitionKey);
 
   /**
+   * Select process instances with a business key like the given value.
+   *
+   * @param processInstanceBusinessKeyLike The string can include the wildcard character '%' to express
+   *    like-strategy: starts with (string%), ends with (%string) or contains (%string%).
+   */
+  ProcessInstanceQuery processInstanceBusinessKeyLike(String processInstanceBusinessKeyLike);
+
+  /**
    * Select the process instances which are defined by a process definition with
    * the given key.
    */
@@ -225,4 +233,7 @@ public interface ProcessInstanceQuery extends Query<ProcessInstanceQuery, Proces
    * Note that the ordering of process instances without tenant id is database-specific.
    */
   ProcessInstanceQuery orderByTenantId();
+
+  /** Order by the business key (needs to be followed by {@link #asc()} or {@link #desc()}). */
+  ProcessInstanceQuery orderByBusinessKey();
 }

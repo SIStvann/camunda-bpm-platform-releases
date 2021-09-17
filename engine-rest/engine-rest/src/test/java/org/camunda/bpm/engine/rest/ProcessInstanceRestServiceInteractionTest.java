@@ -25,6 +25,10 @@ import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.batch.Batch;
+import org.camunda.bpm.engine.history.HistoricProcessInstance;
+import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
+import org.camunda.bpm.engine.impl.HistoricProcessInstanceQueryImpl;
+import org.camunda.bpm.engine.impl.HistoryServiceImpl;
 import org.camunda.bpm.engine.impl.ManagementServiceImpl;
 import org.camunda.bpm.engine.impl.RuntimeServiceImpl;
 import org.camunda.bpm.engine.impl.batch.BatchEntity;
@@ -33,6 +37,8 @@ import org.camunda.bpm.engine.rest.dto.batch.BatchDto;
 import org.camunda.bpm.engine.rest.dto.history.HistoricProcessInstanceQueryDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceQueryDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceSuspensionStateDto;
+import org.camunda.bpm.engine.rest.dto.runtime.SetJobRetriesByProcessDto;
+import org.camunda.bpm.engine.rest.dto.runtime.batch.DeleteProcessInstancesDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
 import org.camunda.bpm.engine.rest.helper.EqualsList;
@@ -62,7 +68,6 @@ import org.camunda.bpm.engine.variable.type.ValueType;
 import org.camunda.bpm.engine.variable.value.FileValue;
 import org.camunda.bpm.engine.variable.value.LongValue;
 import org.camunda.bpm.engine.variable.value.ObjectValue;
-import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -88,7 +93,9 @@ public class ProcessInstanceRestServiceInteractionTest extends
   protected static final String SINGLE_PROCESS_INSTANCE_URL = PROCESS_INSTANCE_URL + "/{id}";
   protected static final String PROCESS_INSTANCE_VARIABLES_URL = SINGLE_PROCESS_INSTANCE_URL + "/variables";
   protected static final String DELETE_PROCESS_INSTANCES_ASYNC_URL = PROCESS_INSTANCE_URL + "/delete";
+  protected static final String DELETE_PROCESS_INSTANCES_ASYNC_HIST_QUERY_URL = PROCESS_INSTANCE_URL + "/delete-historic-query-based";
   protected static final String SET_JOB_RETRIES_ASYNC_URL = PROCESS_INSTANCE_URL + "/job-retries";
+  protected static final String SET_JOB_RETRIES_ASYNC_HIST_QUERY_URL = PROCESS_INSTANCE_URL + "/job-retries-historic-query-based";
   protected static final String SINGLE_PROCESS_INSTANCE_VARIABLE_URL = PROCESS_INSTANCE_VARIABLES_URL + "/{varId}";
   protected static final String SINGLE_PROCESS_INSTANCE_BINARY_VARIABLE_URL = SINGLE_PROCESS_INSTANCE_VARIABLE_URL + "/data";
   protected static final String PROCESS_INSTANCE_ACTIVIY_INSTANCES_URL = SINGLE_PROCESS_INSTANCE_URL + "/activity-instances";
@@ -111,6 +118,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
 
   private RuntimeServiceImpl runtimeServiceMock;
   private ManagementServiceImpl mockManagementService;
+  private HistoryServiceImpl historyServiceMock;
 
   private UpdateProcessInstanceSuspensionStateTenantBuilder mockUpdateSuspensionStateBuilder;
   private UpdateProcessInstanceSuspensionStateSelectBuilder mockUpdateSuspensionStateSelectBuilder;
@@ -119,6 +127,8 @@ public class ProcessInstanceRestServiceInteractionTest extends
   public void setUpRuntimeData() {
     runtimeServiceMock = mock(RuntimeServiceImpl.class);
     mockManagementService = mock(ManagementServiceImpl.class);
+    historyServiceMock = mock(HistoryServiceImpl.class);
+
     // variables
     when(runtimeServiceMock.getVariablesTyped(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, true)).thenReturn(EXAMPLE_VARIABLES);
     when(runtimeServiceMock.getVariablesTyped(MockProvider.ANOTHER_EXAMPLE_PROCESS_INSTANCE_ID, true)).thenReturn(EXAMPLE_OBJECT_VARIABLES);
@@ -138,6 +148,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
     // runtime service
     when(processEngine.getRuntimeService()).thenReturn(runtimeServiceMock);
     when(processEngine.getManagementService()).thenReturn(mockManagementService);
+    when(processEngine.getHistoryService()).thenReturn(historyServiceMock);
   }
 
   @Test
@@ -234,7 +245,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
   @Test
   public void testDeleteAsync() {
     List<String> ids = Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID);
-    when(runtimeServiceMock.deleteProcessInstancesAsync(anyListOf(String.class), any(ProcessInstanceQuery.class), anyString())).thenReturn(new BatchEntity());
+    when(runtimeServiceMock.deleteProcessInstancesAsync(anyListOf(String.class), any(ProcessInstanceQuery.class), anyString(), anyBoolean())).thenReturn(new BatchEntity());
     Map<String, Object> messageBodyJson = new HashMap<String, Object>();
     messageBodyJson.put("processInstanceIds", ids);
     messageBodyJson.put("deleteReason", TEST_DELETE_REASON);
@@ -244,7 +255,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
         .statusCode(Status.OK.getStatusCode())
         .when().post(DELETE_PROCESS_INSTANCES_ASYNC_URL);
 
-    verify(runtimeServiceMock, times(1)).deleteProcessInstancesAsync(ids, null, TEST_DELETE_REASON);
+    verify(runtimeServiceMock, times(1)).deleteProcessInstancesAsync(ids, null, TEST_DELETE_REASON, false);
   }
 
   @Test
@@ -253,7 +264,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
     messageBodyJson.put("deleteReason", TEST_DELETE_REASON);
     ProcessInstanceQueryDto query = new ProcessInstanceQueryDto();
     messageBodyJson.put("processInstanceQuery", query);
-    when(runtimeServiceMock.deleteProcessInstancesAsync(anyListOf(String.class), any(ProcessInstanceQuery.class), anyString())).thenReturn(new BatchEntity());
+    when(runtimeServiceMock.deleteProcessInstancesAsync(anyListOf(String.class), any(ProcessInstanceQuery.class), anyString(), anyBoolean())).thenReturn(new BatchEntity());
 
     given()
         .contentType(ContentType.JSON).body(messageBodyJson)
@@ -262,14 +273,13 @@ public class ProcessInstanceRestServiceInteractionTest extends
         .when().post(DELETE_PROCESS_INSTANCES_ASYNC_URL);
 
     verify(runtimeServiceMock, times(1)).deleteProcessInstancesAsync(
-        anyListOf(String.class), Mockito.any(ProcessInstanceQuery.class), Mockito.eq(TEST_DELETE_REASON));
+        anyListOf(String.class), Mockito.any(ProcessInstanceQuery.class), Mockito.eq(TEST_DELETE_REASON), Mockito.eq(false));
   }
-
 
   @Test
   public void testDeleteAsyncWithBadRequestQuery() {
     doThrow(new BadUserRequestException("process instance ids are empty"))
-      .when(runtimeServiceMock).deleteProcessInstancesAsync(eq((List<String>) null), eq((ProcessInstanceQuery) null), anyString());
+      .when(runtimeServiceMock).deleteProcessInstancesAsync(eq((List<String>) null), eq((ProcessInstanceQuery) null), anyString(), anyBoolean());
 
     Map<String, Object> messageBodyJson = new HashMap<String, Object>();
     messageBodyJson.put("deleteReason", TEST_DELETE_REASON);
@@ -279,6 +289,187 @@ public class ProcessInstanceRestServiceInteractionTest extends
         .then().expect()
         .statusCode(Status.BAD_REQUEST.getStatusCode())
         .when().post(DELETE_PROCESS_INSTANCES_ASYNC_URL);
+  }
+
+  @Test
+  public void testDeleteAsyncWithSkipCustomListeners() {
+    when(runtimeServiceMock.deleteProcessInstancesAsync(anyListOf(String.class), any(ProcessInstanceQuery.class), anyString(), anyBoolean())).thenReturn(new BatchEntity());
+    Map<String, Object> messageBodyJson = new HashMap<String, Object>();
+    messageBodyJson.put("deleteReason", TEST_DELETE_REASON);
+    messageBodyJson.put("processInstanceIds", Arrays.asList("processInstanceId1", "processInstanceId2"));
+    messageBodyJson.put("skipCustomListeners", true);
+
+    given()
+        .contentType(ContentType.JSON).body(messageBodyJson)
+        .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .when().post(DELETE_PROCESS_INSTANCES_ASYNC_URL);
+
+    verify(runtimeServiceMock).deleteProcessInstancesAsync(anyListOf(String.class), Mockito.any(ProcessInstanceQuery.class), Mockito.eq(TEST_DELETE_REASON), Mockito.eq(true));
+  }
+
+  @Test
+  public void testDeleteAsyncHistoricQueryBasedWithQuery() {
+    when(runtimeServiceMock.deleteProcessInstancesAsync(
+      anyListOf(String.class),
+      any(ProcessInstanceQuery.class),
+      anyString(),
+      anyBoolean()))
+    .thenReturn(new BatchEntity());
+
+    HistoricProcessInstanceQuery mockedHistoricProcessInstanceQuery = mock(HistoricProcessInstanceQueryImpl.class);
+    when(historyServiceMock.createHistoricProcessInstanceQuery()).thenReturn(mockedHistoricProcessInstanceQuery);
+    List<HistoricProcessInstance> historicProcessInstances = MockProvider.createMockRunningHistoricProcessInstances();
+    when(mockedHistoricProcessInstanceQuery.list()).thenReturn(historicProcessInstances);
+
+    DeleteProcessInstancesDto body = new DeleteProcessInstancesDto();
+    body.setHistoricProcessInstanceQuery(new HistoricProcessInstanceQueryDto());
+
+    given()
+      .contentType(ContentType.JSON).body(body)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when().post(DELETE_PROCESS_INSTANCES_ASYNC_HIST_QUERY_URL);
+
+    verify(runtimeServiceMock,
+      times(1)).deleteProcessInstancesAsync(
+        Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID),
+        null,
+        null,
+        false);
+  }
+
+  @Test
+  public void testDeleteAsyncHistoricQueryBasedWithProcessInstanceIds() {
+    when(runtimeServiceMock.deleteProcessInstancesAsync(
+      anyListOf(String.class),
+      any(ProcessInstanceQuery.class),
+      anyString(),
+      anyBoolean()))
+    .thenReturn(new BatchEntity());
+
+    DeleteProcessInstancesDto body = new DeleteProcessInstancesDto();
+    body.setProcessInstanceIds(Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID));
+
+    given()
+      .contentType(ContentType.JSON).body(body)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when().post(DELETE_PROCESS_INSTANCES_ASYNC_HIST_QUERY_URL);
+
+    verify(runtimeServiceMock,
+      times(1)).deleteProcessInstancesAsync(
+      Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID),
+      null,
+      null,
+      false);
+  }
+
+  @Test
+  public void testDeleteAsyncHistoricQueryBasedWithQueryAndProcessInstanceIds() {
+    when(runtimeServiceMock.deleteProcessInstancesAsync(
+      anyListOf(String.class),
+      any(ProcessInstanceQuery.class),
+      anyString(),
+      anyBoolean()))
+    .thenReturn(new BatchEntity());
+
+    HistoricProcessInstanceQuery mockedHistoricProcessInstanceQuery = mock(HistoricProcessInstanceQueryImpl.class);
+    when(historyServiceMock.createHistoricProcessInstanceQuery()).thenReturn(mockedHistoricProcessInstanceQuery);
+    List<HistoricProcessInstance> historicProcessInstances = MockProvider.createMockRunningHistoricProcessInstances();
+    when(mockedHistoricProcessInstanceQuery.list()).thenReturn(historicProcessInstances);
+
+    DeleteProcessInstancesDto body = new DeleteProcessInstancesDto();
+    body.setHistoricProcessInstanceQuery(new HistoricProcessInstanceQueryDto());
+    body.setProcessInstanceIds(Arrays.asList(MockProvider.ANOTHER_EXAMPLE_PROCESS_INSTANCE_ID));
+
+    given()
+      .contentType(ContentType.JSON).body(body)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when().post(DELETE_PROCESS_INSTANCES_ASYNC_HIST_QUERY_URL);
+
+    verify(runtimeServiceMock,
+      times(1)).deleteProcessInstancesAsync(
+      Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, MockProvider.ANOTHER_EXAMPLE_PROCESS_INSTANCE_ID),
+      null,
+      null,
+      false);
+  }
+
+  @Test
+  public void testDeleteAsyncHistoricQueryBasedWithoutQueryAndWithoutProcessInstanceIds() {
+    doThrow(new BadUserRequestException("processInstanceIds is empty"))
+      .when(runtimeServiceMock).deleteProcessInstancesAsync(
+        anyListOf(String.class),
+        eq((ProcessInstanceQuery) null),
+        anyString(),
+        anyBoolean());
+
+    given()
+      .contentType(ContentType.JSON).body(new DeleteProcessInstancesDto())
+    .then().expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+    .when().post(DELETE_PROCESS_INSTANCES_ASYNC_HIST_QUERY_URL);
+
+    verify(runtimeServiceMock,
+      times(1)).deleteProcessInstancesAsync(
+        new ArrayList<String>(),
+        null,
+        null,
+        false);
+  }
+
+  @Test
+  public void testDeleteAsyncHistoricQueryBasedWithDeleteReason() {
+    when(runtimeServiceMock.deleteProcessInstancesAsync(
+      anyListOf(String.class),
+      any(ProcessInstanceQuery.class),
+      anyString(),
+      anyBoolean()))
+    .thenReturn(new BatchEntity());
+
+    DeleteProcessInstancesDto body = new DeleteProcessInstancesDto();
+    body.setDeleteReason(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_DELETE_REASON);
+
+    given()
+      .contentType(ContentType.JSON).body(body)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when().post(DELETE_PROCESS_INSTANCES_ASYNC_HIST_QUERY_URL);
+
+    verify(runtimeServiceMock,
+      times(1)).deleteProcessInstancesAsync(
+        new ArrayList<String>(),
+        null,
+        MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_DELETE_REASON,
+        false);
+  }
+
+  @Test
+  public void testDeleteAsyncHistoricQueryBasedWithSkipCustomListenerTrue() {
+    when(runtimeServiceMock.deleteProcessInstancesAsync(
+      anyListOf(String.class),
+      any(ProcessInstanceQuery.class),
+      anyString(),
+      anyBoolean()))
+    .thenReturn(new BatchEntity());
+
+    DeleteProcessInstancesDto body = new DeleteProcessInstancesDto();
+    body.setSkipCustomListeners(true);
+
+    given()
+      .contentType(ContentType.JSON).body(body)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when().post(DELETE_PROCESS_INSTANCES_ASYNC_HIST_QUERY_URL);
+
+    verify(runtimeServiceMock,
+      times(1)).deleteProcessInstancesAsync(
+      new ArrayList<String>(),
+      null,
+      null,
+      true);
   }
 
   @Test
@@ -564,12 +755,12 @@ public class ProcessInstanceRestServiceInteractionTest extends
       .then().expect().statusCode(Status.NO_CONTENT.getStatusCode())
       .when().delete(SINGLE_PROCESS_INSTANCE_URL);
 
-    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null, false, true);
+    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null, false, true, false);
   }
 
   @Test
   public void testDeleteNonExistingProcessInstance() {
-    doThrow(new ProcessEngineException("expected exception")).when(runtimeServiceMock).deleteProcessInstance(anyString(), anyString(),anyBoolean(),anyBoolean());
+    doThrow(new ProcessEngineException("expected exception")).when(runtimeServiceMock).deleteProcessInstance(anyString(), anyString(),anyBoolean(),anyBoolean(),anyBoolean());
 
     given().pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
       .then().expect().statusCode(Status.NOT_FOUND.getStatusCode()).contentType(ContentType.JSON)
@@ -581,7 +772,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
   @Test
   public void testDeleteProcessInstanceThrowsAuthorizationException() {
     String message = "expected exception";
-    doThrow(new AuthorizationException(message)).when(runtimeServiceMock).deleteProcessInstance(anyString(), anyString(),anyBoolean(),anyBoolean());
+    doThrow(new AuthorizationException(message)).when(runtimeServiceMock).deleteProcessInstance(anyString(), anyString(),anyBoolean(),anyBoolean(),anyBoolean());
 
     given()
       .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
@@ -600,7 +791,39 @@ public class ProcessInstanceRestServiceInteractionTest extends
       .then().expect().statusCode(Status.NO_CONTENT.getStatusCode())
       .when().delete(SINGLE_PROCESS_INSTANCE_URL);
 
-    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null, false, true);
+    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null, false, true, false);
+  }
+
+  @Test
+  public void testDeleteProcessInstanceSkipCustomListeners() {
+    given().pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID).queryParams("skipCustomListeners", true).then().expect()
+        .statusCode(Status.NO_CONTENT.getStatusCode()).when().delete(SINGLE_PROCESS_INSTANCE_URL);
+
+    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null, true, true, false);
+  }
+
+  @Test
+  public void testDeleteProcessInstanceWithCustomListeners() {
+    given().pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID).queryParams("skipCustomListeners", false).then().expect()
+        .statusCode(Status.NO_CONTENT.getStatusCode()).when().delete(SINGLE_PROCESS_INSTANCE_URL);
+
+    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null, false, true, false);
+  }
+
+  @Test
+  public void testDeleteProcessInstanceSkipIoMappings() {
+    given().pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID).queryParams("skipIoMappings", true).then().expect()
+        .statusCode(Status.NO_CONTENT.getStatusCode()).when().delete(SINGLE_PROCESS_INSTANCE_URL);
+
+    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null, false, true, true);
+  }
+
+  @Test
+  public void testDeleteProcessInstanceWithoutSkipingIoMappings() {
+    given().pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID).queryParams("skipIoMappings", false).then().expect()
+        .statusCode(Status.NO_CONTENT.getStatusCode()).when().delete(SINGLE_PROCESS_INSTANCE_URL);
+
+    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null, false, true, false);
   }
 
   @Test
@@ -2459,7 +2682,6 @@ public class ProcessInstanceRestServiceInteractionTest extends
         eq((List<String>) null), any(ProcessInstanceQuery.class), Mockito.eq(5));
   }
 
-
   @Test
   public void testSetRetriesByProcessWithBadRequestQuery() {
     doThrow(new BadUserRequestException("job ids are empty"))
@@ -2508,6 +2730,123 @@ public class ProcessInstanceRestServiceInteractionTest extends
         .when().post(SET_JOB_RETRIES_ASYNC_URL);
   }
 
+  @Test
+  public void testSetRetriesByProcessAsyncHistoricQueryBasedWithQuery() {
+    Batch batchEntity = MockProvider.createMockBatch();
+    when(mockManagementService.setJobRetriesAsync(
+      anyListOf(String.class),
+      anyInt())
+    ).thenReturn(batchEntity);
+
+    HistoricProcessInstanceQuery mockedHistoricProcessInstanceQuery = mock(HistoricProcessInstanceQuery.class);
+    when(historyServiceMock.createHistoricProcessInstanceQuery()).thenReturn(mockedHistoricProcessInstanceQuery);
+    List<HistoricProcessInstance> historicProcessInstances = MockProvider.createMockRunningHistoricProcessInstances();
+    when(mockedHistoricProcessInstanceQuery.list()).thenReturn(historicProcessInstances);
+
+    SetJobRetriesByProcessDto body = new SetJobRetriesByProcessDto();
+    body.setRetries(MockProvider.EXAMPLE_JOB_RETRIES);
+    body.setHistoricProcessInstanceQuery(new HistoricProcessInstanceQueryDto());
+
+    Response response = given()
+      .contentType(ContentType.JSON).body(body)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when().post(SET_JOB_RETRIES_ASYNC_HIST_QUERY_URL);
+
+    verifyBatchJson(response.asString());
+
+    verify(mockManagementService, times(1)).setJobRetriesAsync(
+      eq(Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)), eq(MockProvider.EXAMPLE_JOB_RETRIES));
+  }
+
+  @Test
+  public void testSetRetriesByProcessAsyncHistoricQueryBasedWithProcessInstanceIds() {
+    Batch batchEntity = MockProvider.createMockBatch();
+    when(mockManagementService.setJobRetriesAsync(
+      anyListOf(String.class),
+      anyInt())
+    ).thenReturn(batchEntity);
+
+    SetJobRetriesByProcessDto body = new SetJobRetriesByProcessDto();
+    body.setRetries(MockProvider.EXAMPLE_JOB_RETRIES);
+    body.setProcessInstances(Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID));
+
+    given()
+      .contentType(ContentType.JSON).body(body)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when().post(SET_JOB_RETRIES_ASYNC_HIST_QUERY_URL);
+
+    verify(mockManagementService, times(1)).setJobRetriesAsync(
+      eq(Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)), eq(MockProvider.EXAMPLE_JOB_RETRIES));
+  }
+
+  @Test
+  public void testSetRetriesByProcessAsyncHistoricQueryBasedWithQueryAndProcessInstanceIds() {
+    Batch batchEntity = MockProvider.createMockBatch();
+    when(mockManagementService.setJobRetriesAsync(
+      anyListOf(String.class),
+      anyInt())
+    ).thenReturn(batchEntity);
+
+    HistoricProcessInstanceQuery mockedHistoricProcessInstanceQuery = mock(HistoricProcessInstanceQuery.class);
+    when(historyServiceMock.createHistoricProcessInstanceQuery()).thenReturn(mockedHistoricProcessInstanceQuery);
+    List<HistoricProcessInstance> historicProcessInstances = MockProvider.createMockRunningHistoricProcessInstances();
+    when(mockedHistoricProcessInstanceQuery.list()).thenReturn(historicProcessInstances);
+
+    SetJobRetriesByProcessDto body = new SetJobRetriesByProcessDto();
+    body.setRetries(MockProvider.EXAMPLE_JOB_RETRIES);
+    body.setProcessInstances(Arrays.asList(MockProvider.ANOTHER_EXAMPLE_PROCESS_INSTANCE_ID));
+    body.setHistoricProcessInstanceQuery(new HistoricProcessInstanceQueryDto());
+
+    given()
+      .contentType(ContentType.JSON).body(body)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when().post(SET_JOB_RETRIES_ASYNC_HIST_QUERY_URL);
+
+    verify(mockManagementService, times(1)).setJobRetriesAsync(
+      eq(Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, MockProvider.ANOTHER_EXAMPLE_PROCESS_INSTANCE_ID)),
+      eq(MockProvider.EXAMPLE_JOB_RETRIES));
+  }
+
+  @Test
+  public void testSetRetriesByProcessAsyncHistoricQueryBasedWithBadRequestQuery() {
+    doThrow(new BadUserRequestException("jobIds is empty"))
+      .when(mockManagementService).setJobRetriesAsync(eq(new ArrayList<String>()), anyInt());
+
+    SetJobRetriesByProcessDto body = new SetJobRetriesByProcessDto();
+    body.setRetries(MockProvider.EXAMPLE_JOB_RETRIES);
+
+    given()
+      .contentType(ContentType.JSON).body(body)
+    .then().expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+    .when().post(SET_JOB_RETRIES_ASYNC_HIST_QUERY_URL);
+  }
+
+  @Test
+  public void testSetRetriesByProcessAsyncHistoricQueryBasedWithNegativeRetries() {
+    doThrow(new BadUserRequestException("retries are negative"))
+      .when(mockManagementService).setJobRetriesAsync(
+        anyListOf(String.class),
+        eq(MockProvider.EXAMPLE_NEGATIVE_JOB_RETRIES));
+
+    HistoricProcessInstanceQuery mockedHistoricProcessInstanceQuery = mock(HistoricProcessInstanceQuery.class);
+    when(historyServiceMock.createHistoricProcessInstanceQuery()).thenReturn(mockedHistoricProcessInstanceQuery);
+    List<HistoricProcessInstance> historicProcessInstances = MockProvider.createMockRunningHistoricProcessInstances();
+    when(mockedHistoricProcessInstanceQuery.list()).thenReturn(historicProcessInstances);
+
+    SetJobRetriesByProcessDto body = new SetJobRetriesByProcessDto();
+    body.setRetries(MockProvider.EXAMPLE_NEGATIVE_JOB_RETRIES);
+    body.setHistoricProcessInstanceQuery(new HistoricProcessInstanceQueryDto());
+
+    given()
+      .contentType(ContentType.JSON).body(body)
+    .then().expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+    .when().post(SET_JOB_RETRIES_ASYNC_HIST_QUERY_URL);
+  }
 
   @SuppressWarnings("unchecked")
   protected ProcessInstanceModificationInstantiationBuilder setUpMockModificationBuilder() {

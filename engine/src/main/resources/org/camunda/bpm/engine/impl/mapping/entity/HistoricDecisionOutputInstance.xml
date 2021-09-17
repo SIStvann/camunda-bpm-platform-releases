@@ -46,6 +46,26 @@
     delete from ${prefix}ACT_HI_DEC_OUT where ID_ = #{id}
   </delete>
 
+  <delete id="deleteHistoricDecisionOutputInstanceByDecisionInstanceIds" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    delete from ${prefix}ACT_HI_DEC_OUT
+    where DEC_INST_ID_ in
+      <foreach item="decisionInstanceId" index="index" collection="list" open="(" separator="," close=")">
+        #{decisionInstanceId}
+      </foreach>
+  </delete>
+
+  <delete id="deleteHistoricDecisionOutputInstanceByteArraysByDecisionInstanceIds">
+    delete from ${prefix}ACT_GE_BYTEARRAY
+    where ID_ in
+      (select distinct BYTEARRAY_ID_
+      from ${prefix}ACT_HI_DEC_OUT
+      where DEC_INST_ID_ in
+          <foreach item="decisionInstanceId" index="index" collection="list" open="(" separator="," close=")">
+            #{decisionInstanceId}
+          </foreach>
+        and BYTEARRAY_ID_ is not NULL)
+  </delete>
+
   <!-- result map -->
 
   <resultMap id="historicDecisionOutputInstanceResultMap" type="org.camunda.bpm.engine.impl.history.event.HistoricDecisionOutputInstanceEntity">
@@ -68,10 +88,15 @@
   <!-- select -->
 
   <select id="selectHistoricDecisionOutputInstancesByDecisionInstanceId" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="historicDecisionOutputInstanceResultMap">
-    select * from ${prefix}ACT_HI_DEC_OUT 
+    select * from ${prefix}ACT_HI_DEC_OUT
     where DEC_INST_ID_ = #{parameter, jdbcType=VARCHAR}
   </select>
-  
+
+  <select id="selectHistoricDecisionOutputInstance" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="historicDecisionOutputInstanceResultMap">
+    select * from ${prefix}ACT_HI_DEC_OUT
+    where ID_ = #{parameter, jdbcType=VARCHAR}
+  </select>
+
   <select id="selectHistoricDecisionOutputInstancesByDecisionInstanceIds" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="historicDecisionOutputInstanceResultMap">
     select * from ${prefix}ACT_HI_DEC_OUT
     where DEC_INST_ID_ in 
@@ -80,5 +105,5 @@
     </foreach>
     order by RULE_ORDER_, CLAUSE_ID_
   </select>
-  
+
 </mapper>

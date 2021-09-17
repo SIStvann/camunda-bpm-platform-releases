@@ -13,20 +13,26 @@
 package org.camunda.bpm.engine.impl.dmn.entity.repository;
 
 import java.io.Serializable;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.camunda.bpm.dmn.engine.impl.DmnDecisionImpl;
+import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.deploy.cache.DeploymentCache;
 import org.camunda.bpm.engine.impl.repository.ResourceDefinitionEntity;
 import org.camunda.bpm.engine.repository.DecisionDefinition;
 
-public class DecisionDefinitionEntity extends DmnDecisionImpl implements DecisionDefinition, ResourceDefinitionEntity, DbEntity, HasDbRevision, Serializable {
+public class DecisionDefinitionEntity extends DmnDecisionImpl implements DecisionDefinition, ResourceDefinitionEntity<DecisionDefinitionEntity>, DbEntity, HasDbRevision, Serializable {
 
   private static final long serialVersionUID = 1L;
+
+  protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
 
   protected String id;
   protected int revision = 1;
@@ -45,6 +51,8 @@ public class DecisionDefinitionEntity extends DmnDecisionImpl implements Decisio
   // this definition does not have any previous definitions
   protected boolean firstVersion = false;
   protected String previousDecisionDefinitionId;
+
+  protected Integer historyTimeToLive;
 
   public DecisionDefinitionEntity() {
 
@@ -156,7 +164,24 @@ public class DecisionDefinitionEntity extends DmnDecisionImpl implements Decisio
   }
 
   public Object getPersistentState() {
-    return DecisionDefinitionEntity.class;
+    Map<String, Object> persistentState = new HashMap<String, Object>();
+    persistentState.put("historyTimeToLive", this.historyTimeToLive);
+    return persistentState;
+  }
+
+  /**
+   * Updates all modifiable fields from another decision definition entity.
+   *
+   * @param updatingDecisionDefinition
+   */
+  @Override
+  public void updateModifiableFieldsFromEntity(DecisionDefinitionEntity updatingDecisionDefinition) {
+    if (this.key.equals(updatingDecisionDefinition.key) && this.deploymentId.equals(updatingDecisionDefinition.deploymentId)) {
+      this.revision = updatingDecisionDefinition.revision;
+      this.historyTimeToLive = updatingDecisionDefinition.historyTimeToLive;
+    } else {
+      LOG.logUpdateUnrelatedDecisionDefinitionEntity(this.key, updatingDecisionDefinition.key, this.deploymentId, updatingDecisionDefinition.deploymentId);
+    }
   }
 
   // previous decision definition //////////////////////////////////////////////
@@ -233,6 +258,15 @@ public class DecisionDefinitionEntity extends DmnDecisionImpl implements Decisio
   }
 
   @Override
+  public Integer getHistoryTimeToLive() {
+    return historyTimeToLive;
+  }
+
+  public void setHistoryTimeToLive(Integer historyTimeToLive) {
+    this.historyTimeToLive = historyTimeToLive;
+  }
+
+  @Override
   public String toString() {
     return "DecisionDefinitionEntity{" +
       "id='" + id + '\'' +
@@ -244,6 +278,7 @@ public class DecisionDefinitionEntity extends DmnDecisionImpl implements Decisio
       ", decisionRequirementsDefinitionKey='" + decisionRequirementsDefinitionKey + '\'' +
       ", deploymentId='" + deploymentId + '\'' +
       ", tenantId='" + tenantId + '\'' +
+      ", historyTimeToLive=" + historyTimeToLive +
       '}';
   }
 

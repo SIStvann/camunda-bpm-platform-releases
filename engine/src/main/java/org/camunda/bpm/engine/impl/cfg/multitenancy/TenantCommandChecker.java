@@ -25,6 +25,7 @@ import org.camunda.bpm.engine.impl.cmd.CommandLogger;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionEntity;
+import org.camunda.bpm.engine.impl.history.event.HistoricExternalTaskLogEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.*;
 import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.DecisionDefinition;
@@ -297,6 +298,16 @@ public class TenantCommandChecker implements CommandChecker {
     }
   }
 
+  @Override
+  public void checkUpdateDecisionDefinitionById(String decisionDefinitionId) {
+    if (getTenantManager().isTenantCheckEnabled()) {
+      DecisionDefinitionEntity decisionDefinition = findLatestDecisionDefinitionById(decisionDefinitionId);
+      if (decisionDefinition != null && !getTenantManager().isAuthenticatedTenant(decisionDefinition.getTenantId())) {
+        throw LOG.exceptionCommandWithUnauthorizedTenant("update the decision definition '"+ decisionDefinitionId + "'");
+      }
+    }
+  }
+
   public void checkReadDecisionRequirementsDefinition(DecisionRequirementsDefinitionEntity decisionRequirementsDefinition) {
     if (decisionRequirementsDefinition != null && !getTenantManager().isAuthenticatedTenant(decisionRequirementsDefinition.getTenantId())) {
       throw LOG.exceptionCommandWithUnauthorizedTenant("get the decision requirements definition '"+ decisionRequirementsDefinition.getId() + "'");
@@ -306,6 +317,12 @@ public class TenantCommandChecker implements CommandChecker {
   public void checkReadCaseDefinition(CaseDefinition caseDefinition) {
     if (caseDefinition != null && !getTenantManager().isAuthenticatedTenant(caseDefinition.getTenantId())) {
       throw LOG.exceptionCommandWithUnauthorizedTenant("get the case definition '"+ caseDefinition.getId() + "'");
+    }
+  }
+
+  public void checkUpdateCaseDefinition(CaseDefinition caseDefinition) {
+    if (caseDefinition != null && !getTenantManager().isAuthenticatedTenant(caseDefinition.getTenantId())) {
+      throw LOG.exceptionCommandWithUnauthorizedTenant("update the case definition '" + caseDefinition.getId() + "'");
     }
   }
 
@@ -397,6 +414,10 @@ public class TenantCommandChecker implements CommandChecker {
     return Context.getCommandContext().getProcessDefinitionManager().findLatestProcessDefinitionById(processDefinitionId);
   }
 
+  protected DecisionDefinitionEntity findLatestDecisionDefinitionById(String decisionDefinitionId) {
+    return Context.getCommandContext().getDecisionDefinitionManager().findDecisionDefinitionById(decisionDefinitionId);
+  }
+
   protected ExecutionEntity findExecutionById(String processInstanceId) {
     return Context.getCommandContext().getExecutionManager().findExecutionById(processInstanceId);
   }
@@ -408,5 +429,12 @@ public class TenantCommandChecker implements CommandChecker {
   @Override
   public void checkDeleteUserOperationLog(UserOperationLogEntry entry) {
      // tenant check is not available for user operation log
+  }
+
+  @Override
+  public void checkReadHistoricExternalTaskLog(HistoricExternalTaskLogEntity historicExternalTaskLog) {
+    if (historicExternalTaskLog != null && !getTenantManager().isAuthenticatedTenant(historicExternalTaskLog.getTenantId())) {
+      throw LOG.exceptionCommandWithUnauthorizedTenant("get the historic external task log '"+ historicExternalTaskLog.getId() + "'");
+    }
   }
 }

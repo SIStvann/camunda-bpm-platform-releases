@@ -6,11 +6,12 @@ camunda BPM - The open source BPM platform
 
 camunda BPM platform is a flexible framework for workflow and process automation. It's core is a native BPMN 2.0 process engine that runs inside the Java Virtual Machine. It can be embedded inside any Java application and any Runtime Container. It integrates with Java EE 6 and is a perfect match for the Spring Framework. On top of the process engine, you can choose from a stack of tools for human workflow management, operations & monitoring.
 
-* Web Site: http://www.camunda.org/
-* Getting Started: http://www.camunda.org/implement-getting-started.html
+* Web Site: https://www.camunda.org/
+* Getting Started: https://docs.camunda.org/get-started/
+* User Forum: https://forum.camunda.org/
 * Issue Tracker: https://app.camunda.com/jira
-* Contribution Guildelines: http://www.camunda.org/community/contribute.html
-* License: Apache License, Version 2.0  http://www.apache.org/licenses/LICENSE-2.0
+* Contribution Guildelines: https://camunda.org/contribute/
+* License: Apache License, Version 2.0  https://www.apache.org/licenses/LICENSE-2.0
 
 Components
 ----------
@@ -81,7 +82,7 @@ Add the following lines to it:
 </activeProfiles>
 ```
 
-Apache Maven 3 and Java JDK 6 or 7 are prerequisites for building camunda BPM platform. Once you have setup Java and Maven, run
+Apache Maven 3 and Java JDK 6/7/8 are prerequisites for building camunda BPM platform. Once you have setup Java and Maven, run
 
 ```
 mvn clean install
@@ -105,7 +106,7 @@ In order to run the integration tests, first perform a full install build. Then 
 We have different maven profiles for selecting
 * *Runtime containers & environments*: jboss, tomcat, wildfly
 * *The testsuite*: engine-integration, webapps-integration
-* *The database*: h2,h2-xa,db2,db2-xa,sqlserver,sqlserver-xa,oracle,oracle-xa,postgresql,postgresql-xa,mysql,mysql-xa (XA is only supported on JBoss / Wildfly atm)
+* *The database*: h2,h2-xa,db2,sqlserver,oracle,postgresql,postgresql-xa,mysql (Only h2 / postgresql is supported in engine-integration tests)
 
 In order to configure the build, compose the profiles for runtime container, testsuite, database. Example:
 
@@ -128,7 +129,7 @@ mvn clean install -Pengine-integration,jboss,postgresql,postgresql-xa
 You can select multiple testsuites but only a single database and a single runtime container. This is valid:
 
 ```
-mvn clean install -Pengine-integration,webapps-integration,tomcat,db2
+mvn clean install -Pengine-integration,webapps-integration,tomcat,postgresql
 ```
 
 There is a special profile for JBoss Application Server:

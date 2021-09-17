@@ -46,7 +46,6 @@ import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentFailListener;
 import org.camunda.bpm.engine.impl.persistence.entity.DeploymentEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.DeploymentManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessApplicationDeploymentImpl;
-import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 import org.camunda.bpm.engine.impl.persistence.entity.ResourceEntity;
@@ -56,11 +55,7 @@ import org.camunda.bpm.engine.impl.repository.DeploymentBuilderImpl;
 import org.camunda.bpm.engine.impl.repository.ProcessApplicationDeploymentBuilderImpl;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.impl.util.StringUtil;
-import org.camunda.bpm.engine.repository.Deployment;
-import org.camunda.bpm.engine.repository.ProcessApplicationDeployment;
-import org.camunda.bpm.engine.repository.ProcessApplicationDeploymentBuilder;
-import org.camunda.bpm.engine.repository.ProcessDefinition;
-import org.camunda.bpm.engine.repository.ResumePreviousBy;
+import org.camunda.bpm.engine.repository.*;
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.bpm.model.bpmn.instance.Process;
@@ -74,7 +69,7 @@ import org.camunda.bpm.model.cmmn.instance.Case;
  * @author Thorben Lindhauer
  * @author Daniel Meyer
  */
-public class DeployCmd<T> implements Command<Deployment>, Serializable {
+public class DeployCmd implements Command<DeploymentWithDefinitions>, Serializable {
 
   private final static CommandLogger LOG = ProcessEngineLogger.CMD_LOGGER;
   private final static TransactionLogger TX_LOG = ProcessEngineLogger.TX_LOGGER;
@@ -88,16 +83,20 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
   }
 
   @Override
-  public Deployment execute(final CommandContext commandContext) {
-    // ensure serial processing of multiple deployments on the same node.
-    // We experienced deadlock situations with highly concurrent deployment of multiple
-    // applications on Jboss & Wildfly
-    synchronized (ProcessEngine.class) {
+  public DeploymentWithDefinitions execute(final CommandContext commandContext) {
+    if (commandContext.getProcessEngineConfiguration().isDeploymentSynchronized()) {
+      // ensure serial processing of multiple deployments on the same node.
+      // We experienced deadlock situations with highly concurrent deployment of multiple
+      // applications on Jboss & Wildfly
+      synchronized (ProcessEngine.class) {
+        return doExecute(commandContext);
+      }
+    } else {
       return doExecute(commandContext);
     }
   }
 
-  protected Deployment doExecute(final CommandContext commandContext) {
+  protected DeploymentWithDefinitions doExecute(final CommandContext commandContext) {
     DeploymentManager deploymentManager = commandContext.getDeploymentManager();
 
     Set<String> deploymentIds = getAllDeploymentIds(deploymentBuilder);
@@ -124,9 +123,9 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
     }
 
     // perform deployment
-    Deployment deployment = commandContext.runWithoutAuthorization(new Callable<Deployment>() {
+    DeploymentWithDefinitions deployment = commandContext.runWithoutAuthorization(new Callable<DeploymentWithDefinitions>() {
       @Override
-      public Deployment call() throws Exception {
+      public DeploymentWithDefinitions call() throws Exception {
         acquireExclusiveLock(commandContext);
         DeploymentEntity deployment = initDeployment();
         Map<String, ResourceEntity> resourcesToDeploy = resolveResourcesToDeploy(commandContext, deployment);
@@ -493,18 +492,18 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
     if (deploymentBuilder.getProcessDefinitionsActivationDate() != null) {
       RepositoryService repositoryService = commandContext.getProcessEngineConfiguration().getRepositoryService();
 
-      for (ProcessDefinitionEntity processDefinitionEntity : deployment.getDeployedArtifacts(ProcessDefinitionEntity.class)) {
+      for (ProcessDefinition processDefinition: deployment.getDeployedProcessDefinitions()) {
 
         // If activation date is set, we first suspend all the process definition
         repositoryService
           .updateProcessDefinitionSuspensionState()
-          .byProcessDefinitionId(processDefinitionEntity.getId())
+          .byProcessDefinitionId(processDefinition.getId())
           .suspend();
 
         // And we schedule an activation at the provided date
         repositoryService
           .updateProcessDefinitionSuspensionState()
-          .byProcessDefinitionId(processDefinitionEntity.getId())
+          .byProcessDefinitionId(processDefinition.getId())
           .executionDate(deploymentBuilder.getProcessDefinitionsActivationDate())
           .activate();
       }
@@ -540,7 +539,7 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
    *          the current deployment
    * @param processKeysToRegisterFor
    *          the process keys this process application wants to register
-   * @param deploymentsToRegister
+   * @param deployment
    *          the set where to add further deployments this process application
    *          should be registered for
    * @return a set of deployment ids that contain versions of the
@@ -575,7 +574,7 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
   }
 
   protected List<? extends ProcessDefinition> getDeployedProcesses(DeploymentEntity deployment) {
-    List<? extends ProcessDefinition> deployedProcessDefinitions = deployment.getDeployedArtifacts(ProcessDefinitionEntity.class);
+    List<? extends ProcessDefinition> deployedProcessDefinitions = deployment.getDeployedProcessDefinitions();
     if (deployedProcessDefinitions == null) {
       // existing deployment
       CommandContext commandContext = Context.getCommandContext();
@@ -639,7 +638,8 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
       new RegisterDeploymentCmd(deployment.getId()).execute(commandContext);
 
     } finally {
-      DeploymentFailListener listener = new DeploymentFailListener(deployment.getId());
+      DeploymentFailListener listener = new DeploymentFailListener(deployment.getId(),
+        Context.getProcessEngineConfiguration().getCommandExecutorTxRequiresNew());
 
       try {
         commandContext.getTransactionContext().addTransactionListener(TransactionState.ROLLED_BACK, listener);

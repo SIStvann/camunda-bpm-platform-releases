@@ -31,6 +31,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.session.SqlSession;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
@@ -232,9 +233,22 @@ public class DbSqlSession extends AbstractPersistenceSession {
     entityUpdated(dbEntity);
   }
 
-  protected int executeUpdate(String updateStatement, Object parameter) {
+  @Override
+  public int executeUpdate(String updateStatement, Object parameter) {
     updateStatement = dbSqlSessionFactory.mapStatement(updateStatement);
     return sqlSession.update(updateStatement, parameter);
+  }
+
+  @Override
+  public int executeNonEmptyUpdateStmt(String updateStmt, Object parameter) {
+    updateStmt = dbSqlSessionFactory.mapStatement(updateStmt);
+
+    //if mapped statement is empty, which can happens for some databases, we have no need to execute it
+    MappedStatement mappedStatement = sqlSession.getConfiguration().getMappedStatement(updateStmt);
+    if (mappedStatement.getBoundSql(parameter).getSql().isEmpty())
+      return 0;
+
+    return sqlSession.update(updateStmt, parameter);
   }
 
   protected void entityUpdated(final DbEntity entity) {
@@ -471,24 +485,28 @@ public class DbSqlSession extends AbstractPersistenceSession {
           tableNames = getTablesPresentInOracleDatabase();
         } else {
           Connection connection = getSqlSession().getConnection();
-          DatabaseMetaData databaseMetaData = connection.getMetaData();
 
           String databaseTablePrefix = getDbSqlSessionFactory().getDatabaseTablePrefix();
-          String tableNameFilter = databaseTablePrefix+"ACT_%";
+          String schema = getDbSqlSessionFactory().getDatabaseSchema();
+          String tableNameFilter = prependDatabaseTablePrefix("ACT_%");
 
+          // for postgres we have to use lower case
           if (DbSqlSessionFactory.POSTGRES.equals(getDbSqlSessionFactory().getDatabaseType())) {
-            tableNameFilter = databaseTablePrefix+"act_%";
+            schema = schema == null ? schema : schema.toLowerCase();
+            tableNameFilter = tableNameFilter.toLowerCase();
           }
-          tablesRs = databaseMetaData.getTables(null, null, tableNameFilter, DbSqlSession.JDBC_METADATA_TABLE_TYPES);
 
+          DatabaseMetaData databaseMetaData = connection.getMetaData();
+          tablesRs = databaseMetaData.getTables(null, schema, tableNameFilter, DbSqlSession.JDBC_METADATA_TABLE_TYPES);
           while (tablesRs.next()) {
             String tableName = tablesRs.getString("TABLE_NAME");
+            if (!databaseTablePrefix.isEmpty()) {
+              tableName = databaseTablePrefix + tableName;
+            }
             tableName = tableName.toUpperCase();
             tableNames.add(tableName);
-
           }
           LOG.fetchDatabaseTables("jdbc metadata", tableNames);
-
         }
       } catch (SQLException se) {
         throw se;
@@ -541,7 +559,7 @@ public class DbSqlSession extends AbstractPersistenceSession {
   }
 
 
-  protected String prependDatabaseTablePrefix(String tableName) {
+  public String prependDatabaseTablePrefix(String tableName) {
     String prefixWithoutSchema = dbSqlSessionFactory.getDatabaseTablePrefix();
     String schema = dbSqlSessionFactory.getDatabaseSchema();
     if (prefixWithoutSchema == null) {

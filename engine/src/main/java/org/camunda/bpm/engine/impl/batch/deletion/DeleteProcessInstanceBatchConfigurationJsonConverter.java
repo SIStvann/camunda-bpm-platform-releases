@@ -30,23 +30,26 @@ public class DeleteProcessInstanceBatchConfigurationJsonConverter extends JsonOb
 
   public static final String DELETE_REASON = "deleteReason";
   public static final String PROCESS_INSTANCE_IDS = "processInstanceIds";
+  public static final String SKIP_CUSTOM_LISTENERS = "skipCustomListeners";
 
   public JSONObject toJsonObject(DeleteProcessInstanceBatchConfiguration configuration) {
     JSONObject json = new JSONObject();
 
     JsonUtil.addField(json, DELETE_REASON, configuration.getDeleteReason());
     JsonUtil.addListField(json, PROCESS_INSTANCE_IDS, configuration.getIds());
+    JsonUtil.addField(json, SKIP_CUSTOM_LISTENERS, configuration.isSkipCustomListeners());
     return json;
   }
 
   public DeleteProcessInstanceBatchConfiguration toObject(JSONObject json) {
     DeleteProcessInstanceBatchConfiguration configuration =
-        new DeleteProcessInstanceBatchConfiguration(readProcessInstanceIds(json));
+        new DeleteProcessInstanceBatchConfiguration(readProcessInstanceIds(json), json.optBoolean(SKIP_CUSTOM_LISTENERS));
 
     String deleteReason = json.optString(DELETE_REASON);
     if (deleteReason != null && !deleteReason.isEmpty()) {
       configuration.setDeleteReason(deleteReason);
     }
+
     return configuration;
   }
 

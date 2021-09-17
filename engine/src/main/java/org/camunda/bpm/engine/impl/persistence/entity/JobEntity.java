@@ -140,6 +140,10 @@ public abstract class JobEntity implements Serializable, Job, DbEntity, HasDbRev
     commandContext.getHistoricJobLogManager().fireJobSuccessfulEvent(this);
   }
 
+  public void init(CommandContext commandContext) {
+    // nothing to do
+  }
+
   public void insert() {
     CommandContext commandContext = Context.getCommandContext();
 

@@ -18,6 +18,7 @@ import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
+import org.camunda.bpm.engine.impl.ManagementServiceImpl;
 import org.camunda.bpm.engine.impl.ProcessEngineImpl;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.SchemaOperationsProcessEngineBuild;
@@ -26,7 +27,6 @@ import org.camunda.bpm.engine.impl.bpmn.deployer.BpmnDeployer;
 import org.camunda.bpm.engine.impl.cfg.IdGenerator;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cmmn.deployer.CmmnDeployer;
-import org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionEntity;
 import org.camunda.bpm.engine.impl.db.DbIdGenerator;
 import org.camunda.bpm.engine.impl.db.PersistenceSession;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
@@ -35,17 +35,15 @@ import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
-import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
-import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
+import org.camunda.bpm.engine.impl.management.DatabasePurgeReport;
+import org.camunda.bpm.engine.impl.management.PurgeReport;
+import org.camunda.bpm.engine.impl.persistence.deploy.cache.CachePurgeReport;
 import org.camunda.bpm.engine.impl.persistence.entity.PropertyEntity;
 import org.camunda.bpm.engine.impl.util.ClassNameUtil;
 import org.camunda.bpm.engine.impl.util.ReflectUtil;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.RequiredHistoryLevel;
-import org.camunda.bpm.model.bpmn.BpmnModelInstance;
-import org.camunda.bpm.model.cmmn.CmmnModelInstance;
-import org.camunda.commons.utils.cache.Cache;
 import org.junit.Assert;
 import org.junit.runner.Description;
 import org.slf4j.Logger;
@@ -269,17 +267,32 @@ public abstract class TestHelper {
    * @param fail if true the method will throw an {@link AssertionError} if the deployment cache or database is not clean
    * @throws AssertionError if the deployment cache or database was not clean
    */
-  public static void assertAndEnsureCleanDbAndCache(ProcessEngine processEngine, boolean fail) {
-    String cacheMessage = assertAndEnsureCleanDeploymentCache(processEngine, false);
-    String dbMessage = assertAndEnsureCleanDb(processEngine, false);
+  public static String assertAndEnsureCleanDbAndCache(ProcessEngine processEngine, boolean fail) {
+    ProcessEngineConfigurationImpl processEngineConfiguration = ((ProcessEngineImpl) processEngine).getProcessEngineConfiguration();
+
+    // clear user operation log in case some operations are
+    // executed with an authenticated user
+    clearUserOperationLog(processEngineConfiguration);
+
+    LOG.debug("verifying that db is clean after test");
+    PurgeReport purgeReport = ((ManagementServiceImpl) processEngine.getManagementService()).purge();
+
     String paRegistrationMessage = assertAndEnsureNoProcessApplicationsRegistered(processEngine);
 
     StringBuilder message = new StringBuilder();
-    if (cacheMessage != null) {
-      message.append(cacheMessage);
+    CachePurgeReport cachePurgeReport = purgeReport.getCachePurgeReport();
+    if (!cachePurgeReport.isEmpty()) {
+      message.append("Deployment cache is not clean:\n")
+             .append(cachePurgeReport.getPurgeReportAsString());
+    } else {
+      LOG.debug("Deployment cache was clean.");
     }
-    if (dbMessage != null) {
-      message.append(dbMessage);
+    DatabasePurgeReport databasePurgeReport = purgeReport.getDatabasePurgeReport();
+    if (!databasePurgeReport.isEmpty()) {
+      message.append("Database is not clean:\n")
+             .append(databasePurgeReport.getPurgeReportAsString());
+    } else {
+      LOG.debug("Database was clean.");
     }
     if (paRegistrationMessage != null) {
       message.append(paRegistrationMessage);
@@ -288,6 +301,7 @@ public abstract class TestHelper {
     if (fail && message.length() > 0) {
       Assert.fail(message.toString());
     }
+    return message.toString();
   }
 
   /**
@@ -298,7 +312,7 @@ public abstract class TestHelper {
    * @throws AssertionError if the deployment cache was not clean
    */
   public static void assertAndEnsureCleanDeploymentCache(ProcessEngine processEngine) {
-    assertAndEnsureCleanDb(processEngine, true);
+    assertAndEnsureCleanDeploymentCache(processEngine, true);
   }
 
   /**
@@ -313,36 +327,9 @@ public abstract class TestHelper {
   public static String assertAndEnsureCleanDeploymentCache(ProcessEngine processEngine, boolean fail) {
     StringBuilder outputMessage = new StringBuilder();
     ProcessEngineConfigurationImpl processEngineConfiguration = ((ProcessEngineImpl) processEngine).getProcessEngineConfiguration();
-    DeploymentCache deploymentCache = processEngineConfiguration.getDeploymentCache();
+    CachePurgeReport cachePurgeReport = processEngineConfiguration.getDeploymentCache().purgeCache();
 
-    Cache<String, ProcessDefinitionEntity> processDefinitionCache = deploymentCache.getProcessDefinitionCache();
-
-    if (!processDefinitionCache.isEmpty()) {
-      outputMessage.append("\tProcess Definition Cache: ").append(processDefinitionCache.keySet()).append("\n");
-      processDefinitionCache.clear();
-    }
-
-    Cache<String, BpmnModelInstance> bpmnModelInstanceCache = deploymentCache.getBpmnModelInstanceCache();
-
-    if (!bpmnModelInstanceCache.isEmpty()) {
-      outputMessage.append("\tBPMN Model Instance Cache: ").append(bpmnModelInstanceCache.keySet()).append("\n");
-      bpmnModelInstanceCache.clear();
-    }
-
-    Cache<String, CaseDefinitionEntity> caseDefinitionCache = deploymentCache.getCaseDefinitionCache();
-
-    if (!caseDefinitionCache.isEmpty()) {
-      outputMessage.append("\tCase Definition Cache: ").append(caseDefinitionCache.keySet()).append("\n");
-      caseDefinitionCache.clear();
-    }
-
-    Cache<String, CmmnModelInstance> cmmnModelInstanceCache = deploymentCache.getCmmnModelInstanceCache();
-
-    if (!cmmnModelInstanceCache.isEmpty()) {
-      outputMessage.append("\tCMMN Model Instance Cache: ").append(cmmnModelInstanceCache.keySet()).append("\n");
-      cmmnModelInstanceCache.clear();
-    }
-
+    outputMessage.append(cachePurgeReport.getPurgeReportAsString());
     if (outputMessage.length() > 0) {
       outputMessage.insert(0, "Deployment cache not clean:\n");
       LOG.error(outputMessage.toString());
@@ -359,86 +346,6 @@ public abstract class TestHelper {
     }
   }
 
-  /**
-   * Ensures that the database is clean after the test. This means the test has to remove
-   * all resources it entered to the database.
-   * If the DB is not clean, it is cleaned by performing a create a drop.
-   *
-   * @param processEngine the {@link ProcessEngine} to check
-   * @throws AssertionError if the database was not clean
-   */
-  public static void assertAndEnsureCleanDb(ProcessEngine processEngine) {
-    assertAndEnsureCleanDb(processEngine, true);
-  }
-
-  /**
-   * Ensures that the database is clean after the test. This means the test has to remove
-   * all resources it entered to the database.
-   * If the DB is not clean, it is cleaned by performing a create a drop.
-   *
-   * @param processEngine the {@link ProcessEngine} to check
-   * @param fail if true the method will throw an {@link AssertionError} if the database is not clean
-   * @return the database summary if fail is set to false or null if database was clean
-   * @throws AssertionError if the database was not clean and fail is set to true
-   */
-  public static String assertAndEnsureCleanDb(ProcessEngine processEngine, boolean fail) {
-    ProcessEngineConfigurationImpl processEngineConfiguration = ((ProcessEngineImpl) processEngine).getProcessEngineConfiguration();
-    String databaseTablePrefix = processEngineConfiguration.getDatabaseTablePrefix().trim();
-
-    // clear user operation log in case some operations are
-    // executed with an authenticated user
-    clearUserOperationLog(processEngineConfiguration);
-
-    LOG.debug("verifying that db is clean after test");
-    Map<String, Long> tableCounts = processEngine.getManagementService().getTableCount();
-
-    StringBuilder outputMessage = new StringBuilder();
-    for (String tableName : tableCounts.keySet()) {
-      String tableNameWithoutPrefix = tableName.replace(databaseTablePrefix, "");
-      if (!TABLENAMES_EXCLUDED_FROM_DB_CLEAN_CHECK.contains(tableNameWithoutPrefix)) {
-        Long count = tableCounts.get(tableName);
-        if (count!=0L) {
-          outputMessage.append("\t").append(tableName).append(": ").append(count).append(" record(s)\n");
-        }
-      }
-    }
-
-    if (outputMessage.length() > 0) {
-      outputMessage.insert(0, "DB NOT CLEAN: \n");
-      LOG.error(outputMessage.toString());
-
-      /** skip drop and recreate if a table prefix is used */
-      if (databaseTablePrefix.isEmpty()) {
-        LOG.error("Dropping and recreating database");
-
-        processEngineConfiguration
-          .getCommandExecutorSchemaOperations()
-          .execute(new Command<Object>() {
-            public Object execute(CommandContext commandContext) {
-              PersistenceSession persistenceSession = commandContext.getSession(PersistenceSession.class);
-              persistenceSession.dbSchemaDrop();
-              persistenceSession.dbSchemaCreate();
-              SchemaOperationsProcessEngineBuild.dbCreateHistoryLevel(commandContext.getDbEntityManager());
-              return null;
-            }
-          });
-      }
-      else {
-        LOG.info("Skipping recreating of database as a table prefix is used");
-      }
-
-      if (fail) {
-        Assert.fail(outputMessage.toString());
-      }
-      else {
-        return outputMessage.toString();
-      }
-
-    } else {
-      LOG.debug("Database was clean");
-    }
-    return null;
-  }
 
   public static String assertAndEnsureNoProcessApplicationsRegistered(ProcessEngine processEngine) {
     ProcessEngineConfigurationImpl engineConfiguration = (ProcessEngineConfigurationImpl) processEngine.getProcessEngineConfiguration();

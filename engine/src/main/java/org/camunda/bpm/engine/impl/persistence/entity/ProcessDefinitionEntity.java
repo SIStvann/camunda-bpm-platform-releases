@@ -29,7 +29,7 @@ import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
 import org.camunda.bpm.engine.impl.form.handler.StartFormHandler;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.deploy.cache.DeploymentCache;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.impl.pvm.process.ProcessDefinitionImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
@@ -43,7 +43,7 @@ import org.camunda.bpm.engine.task.IdentityLinkType;
  * @author Tom Baeyens
  * @author Daniel Meyer
  */
-public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements ProcessDefinition, ResourceDefinitionEntity, DbEntity, HasDbRevision {
+public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements ProcessDefinition, ResourceDefinitionEntity<ProcessDefinitionEntity>, DbEntity, HasDbRevision {
 
   private static final long serialVersionUID = 1L;
   protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
@@ -63,6 +63,7 @@ public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements Pr
   protected int suspensionState = SuspensionState.ACTIVE.getStateCode();
   protected String tenantId;
   protected String versionTag;
+  protected Integer historyTimeToLive;
   protected boolean isIdentityLinksInitialized = false;
   protected List<IdentityLinkEntity> definitionIdentityLinkEntities = new ArrayList<IdentityLinkEntity>();
   protected Set<Expression> candidateStarterUserIdExpressions = new HashSet<Expression>();
@@ -191,15 +192,17 @@ public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements Pr
    * Updates all modifiable fields from another process definition entity.
    * @param updatingProcessDefinition
    */
-  public void updateModifiedFieldsFromEntity(ProcessDefinitionEntity updatingProcessDefinition) {
-    if (!this.key.equals(updatingProcessDefinition.key) || !this.deploymentId.equals(updatingProcessDefinition.deploymentId)) {
-      throw LOG.updateUnrelatedProcessDefinitionEntityException();
+  @Override
+  public void updateModifiableFieldsFromEntity(ProcessDefinitionEntity updatingProcessDefinition) {
+    if (this.key.equals(updatingProcessDefinition.key) && this.deploymentId.equals(updatingProcessDefinition.deploymentId)) {
+      // TODO: add a guard once the mismatch between revisions in deployment cache and database has been resolved
+      this.revision = updatingProcessDefinition.revision;
+      this.suspensionState = updatingProcessDefinition.suspensionState;
+      this.historyTimeToLive = updatingProcessDefinition.historyTimeToLive;
     }
-
-    // TODO: add a guard once the mismatch between revisions in deployment cache and database has been resolved
-    this.revision = updatingProcessDefinition.revision;
-    this.suspensionState = updatingProcessDefinition.suspensionState;
-
+    else {
+      LOG.logUpdateUnrelatedProcessDefinitionEntity(this.key, updatingProcessDefinition.key, this.deploymentId, updatingProcessDefinition.deploymentId);
+    }
   }
 
   // previous process definition //////////////////////////////////////////////
@@ -280,6 +283,7 @@ public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements Pr
   public Object getPersistentState() {
     Map<String, Object> persistentState = new HashMap<String, Object>();
     persistentState.put("suspensionState", this.suspensionState);
+    persistentState.put("historyTimeToLive", this.historyTimeToLive);
     return persistentState;
   }
 
@@ -445,5 +449,13 @@ public class ProcessDefinitionEntity extends ProcessDefinitionImpl implements Pr
 
   public void setVersionTag(String versionTag) {
     this.versionTag = versionTag;
+  }
+
+  public Integer getHistoryTimeToLive() {
+    return historyTimeToLive;
+  }
+
+  public void setHistoryTimeToLive(Integer historyTimeToLive) {
+    this.historyTimeToLive = historyTimeToLive;
   }
 }

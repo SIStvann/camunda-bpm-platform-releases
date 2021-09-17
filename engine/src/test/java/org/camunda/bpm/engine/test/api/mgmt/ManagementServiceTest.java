@@ -720,27 +720,9 @@ public class ManagementServiceTest extends PluggableProcessEngineTestCase {
     assertEquals(Long.MIN_VALUE + 1, job.getPriority());
   }
 
-  public void testTableCount() {
-    Map<String, Long> tableCount = managementService.getTableCount();
-
-    String tablePrefix = processEngineConfiguration.getDatabaseTablePrefix();
-    assertEquals(new Long(5), tableCount.get(tablePrefix + "ACT_GE_PROPERTY"));
-    assertEquals(new Long(0), tableCount.get(tablePrefix + "ACT_GE_BYTEARRAY"));
-    assertEquals(new Long(0), tableCount.get(tablePrefix + "ACT_RE_DEPLOYMENT"));
-    assertEquals(new Long(0), tableCount.get(tablePrefix + "ACT_RU_EXECUTION"));
-    assertEquals(new Long(0), tableCount.get(tablePrefix + "ACT_ID_GROUP"));
-    assertEquals(new Long(0), tableCount.get(tablePrefix + "ACT_ID_MEMBERSHIP"));
-    assertEquals(new Long(0), tableCount.get(tablePrefix + "ACT_ID_USER"));
-    assertEquals(new Long(0), tableCount.get(tablePrefix + "ACT_RE_PROCDEF"));
-    assertEquals(new Long(0), tableCount.get(tablePrefix + "ACT_RU_TASK"));
-    assertEquals(new Long(0), tableCount.get(tablePrefix + "ACT_RU_IDENTITYLINK"));
-  }
-
   public void testGetTableMetaData() {
 
-    String tablePrefix = processEngineConfiguration.getDatabaseTablePrefix();
-
-    TableMetaData tableMetaData = managementService.getTableMetaData(tablePrefix + "ACT_RU_TASK");
+    TableMetaData tableMetaData = managementService.getTableMetaData("ACT_RU_TASK");
     assertEquals(tableMetaData.getColumnNames().size(), tableMetaData.getColumnTypes().size());
     assertEquals(21, tableMetaData.getColumnNames().size());
 

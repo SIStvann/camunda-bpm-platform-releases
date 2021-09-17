@@ -22,8 +22,9 @@ import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cfg.auth.ResourceAuthorizationProvider;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionManager;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionManager;
 import org.camunda.bpm.engine.impl.persistence.AbstractManager;
-import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.deploy.cache.DeploymentCache;
 import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.DecisionDefinition;
 import org.camunda.bpm.engine.repository.DecisionRequirementsDefinition;
@@ -54,10 +55,10 @@ public class DeploymentManager extends AbstractManager {
   }
 
   public void deleteDeployment(String deploymentId, boolean cascade) {
-    deleteDeployment(deploymentId, cascade, false);
+    deleteDeployment(deploymentId, cascade, false, false);
   }
 
-  public void deleteDeployment(String deploymentId, boolean cascade, boolean skipCustomListeners) {
+  public void deleteDeployment(String deploymentId, boolean cascade, boolean skipCustomListeners, boolean skipIoMappings) {
     List<ProcessDefinition> processDefinitions = getProcessDefinitionManager().findProcessDefinitionsByDeploymentId(deploymentId);
     if (cascade) {
       // *NOTE*:
@@ -82,7 +83,7 @@ public class DeploymentManager extends AbstractManager {
       for (ProcessDefinition processDefinition: processDefinitions) {
         String processDefinitionId = processDefinition.getId();
         getProcessInstanceManager()
-          .deleteProcessInstancesByProcessDefinition(processDefinitionId, "deleted deployment", true, skipCustomListeners);
+          .deleteProcessInstancesByProcessDefinition(processDefinitionId, "deleted deployment", true, skipCustomListeners, skipIoMappings);
       }
       // delete historic job logs (for example for timer start event jobs)
       getHistoricJobLogManager().deleteHistoricJobLogsByDeploymentId(deploymentId);
@@ -178,11 +179,12 @@ public class DeploymentManager extends AbstractManager {
   protected void deleteDecisionRequirementDeployment(String deploymentId) {
     ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
     if (processEngineConfiguration.isDmnEnabled()) {
-      DecisionDefinitionManager decisionDefinitionManager = getDecisionDefinitionManager();
-      List<DecisionRequirementsDefinition> decisionRequirementsDefinitions = decisionDefinitionManager.findDecisionRequirementsDefinitionByDeploymentId(deploymentId);
+      DecisionRequirementsDefinitionManager manager = getDecisionRequirementsDefinitionManager();
+      List<DecisionRequirementsDefinition> decisionRequirementsDefinitions =
+          manager.findDecisionRequirementsDefinitionByDeploymentId(deploymentId);
 
       // delete decision requirements definitions from db
-      decisionDefinitionManager.deleteDecisionRequirementsDefinitionsByDeploymentId(deploymentId);
+      manager.deleteDecisionRequirementsDefinitionsByDeploymentId(deploymentId);
 
       DeploymentCache deploymentCache = processEngineConfiguration.getDeploymentCache();
 
@@ -226,6 +228,11 @@ public class DeploymentManager extends AbstractManager {
   @SuppressWarnings("unchecked")
   public List<String> getDeploymentResourceNames(String deploymentId) {
     return getDbEntityManager().selectList("selectResourceNamesByDeploymentId", deploymentId);
+  }
+
+  @SuppressWarnings("unchecked")
+  public List<String> findDeploymentIdsByProcessInstances(List<String> processInstanceIds) {
+    return getDbEntityManager().selectList("selectDeploymentIdsByProcessInstances", processInstanceIds);
   }
 
   @Override

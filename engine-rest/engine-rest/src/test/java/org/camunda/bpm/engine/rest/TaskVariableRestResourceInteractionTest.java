@@ -511,12 +511,12 @@ public class TaskVariableRestResourceInteractionTest extends
     given()
       .pathParam("id", MockProvider.EXAMPLE_TASK_ID)
       .pathParam("varId", variableKey)
-    .then().expect()
-      .statusCode(Status.OK.getStatusCode())
-      .contentType(ContentType.TEXT.toString())
-    .and()
-      .body(is(equalTo("")))
-    .when().get(SINGLE_TASK_SINGLE_BINARY_VARIABLE_URL);
+      .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .contentType(ContentType.TEXT.toString())
+      .and()
+        .body(is(equalTo("")))
+      .when().get(SINGLE_TASK_SINGLE_BINARY_VARIABLE_URL);
   }
 
   @Test

@@ -13,21 +13,20 @@
 
 package org.camunda.bpm.engine.impl;
 
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsEmptyString;
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsNull;
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotEmpty;
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
-
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
-
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.util.CompareUtil;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsEmptyString;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsNull;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotEmpty;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 /**
  * @author Tom Baeyens
@@ -59,6 +58,10 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   protected Date startedAfter;
   protected Date finishedBefore;
   protected Date finishedAfter;
+  protected Date executedActivityAfter;
+  protected Date executedActivityBefore;
+  protected Date executedJobAfter;
+  protected Date executedJobBefore;
   protected String processDefinitionKey;
   protected Set<String> processInstanceIds;
   protected String[] tenantIds;
@@ -244,6 +247,18 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
     return orderBy(HistoricProcessInstanceQueryProperty.PROCESS_DEFINITION_ID);
   }
 
+  public HistoricProcessInstanceQuery orderByProcessDefinitionKey() {
+    return orderBy(HistoricProcessInstanceQueryProperty.PROCESS_DEFINITION_KEY);
+  }
+
+  public HistoricProcessInstanceQuery orderByProcessDefinitionName() {
+    return orderBy(HistoricProcessInstanceQueryProperty.PROCESS_DEFINITION_NAME);
+  }
+
+  public HistoricProcessInstanceQuery orderByProcessDefinitionVersion() {
+    return orderBy(HistoricProcessInstanceQueryProperty.PROCESS_DEFINITION_VERSION);
+  }
+
   public HistoricProcessInstanceQuery orderByProcessInstanceId() {
     return orderBy(HistoricProcessInstanceQueryProperty.PROCESS_INSTANCE_ID_);
   }
@@ -266,6 +281,14 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
     return commandContext
       .getHistoricProcessInstanceManager()
       .findHistoricProcessInstancesByQueryCriteria(this, page);
+  }
+
+  public List<String> executeIdsList(CommandContext commandContext) {
+    checkQueryOk();
+    ensureVariablesInitialized();
+    return commandContext
+        .getHistoricProcessInstanceManager()
+        .findHistoricProcessInstanceIds(this);
   }
 
   public String getBusinessKey() {
@@ -423,4 +446,27 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
     return subCaseInstanceId;
   }
 
+  @Override
+  public HistoricProcessInstanceQuery executedActivityAfter(Date date) {
+    this.executedActivityAfter = date;
+    return this;
+  }
+
+  @Override
+  public HistoricProcessInstanceQuery executedActivityBefore(Date date) {
+    this.executedActivityBefore = date;
+    return this;
+  }
+
+  @Override
+  public HistoricProcessInstanceQuery executedJobAfter(Date date) {
+    this.executedJobAfter = date;
+    return this;
+  }
+
+  @Override
+  public HistoricProcessInstanceQuery executedJobBefore(Date date) {
+    this.executedJobBefore = date;
+    return this;
+  }
 }

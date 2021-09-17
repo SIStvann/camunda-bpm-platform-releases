@@ -51,13 +51,11 @@ public abstract class AbstractQuery<T extends Query<?,?>, U> extends ListQueryPa
   public static final String SORTORDER_DESC = "desc";
 
   protected enum ResultType {
-    LIST, LIST_PAGE, SINGLE_RESULT, COUNT
+    LIST, LIST_PAGE, LIST_IDS, SINGLE_RESULT, COUNT
   }
   protected transient CommandExecutor commandExecutor;
 
   protected ResultType resultType;
-
-  protected List<QueryOrderingProperty> orderingProperties = new ArrayList<QueryOrderingProperty>();
 
   protected Map<String, String> expressions = new HashMap<String, String>();
 
@@ -167,6 +165,8 @@ public abstract class AbstractQuery<T extends Query<?,?>, U> extends ListQueryPa
       return executeSingleResult(commandContext);
     } else if (resultType==ResultType.LIST_PAGE) {
       return evaluateExpressionsAndExecuteList(commandContext, null);
+    } else if (resultType == ResultType.LIST_IDS) {
+      return evaluateExpressionsAndExecuteIdsList(commandContext);
     } else {
       return evaluateExpressionsAndExecuteCount(commandContext);
     }
@@ -211,24 +211,6 @@ public abstract class AbstractQuery<T extends Query<?,?>, U> extends ListQueryPa
      throw new ProcessEngineException("Query return "+results.size()+" results instead of max 1");
     }
     return null;
-  }
-
-  @Deprecated
-  @Override
-  public String getOrderBy() {
-    if(orderBy == null) {
-      return super.getOrderBy();
-    } else {
-      return orderBy;
-    }
-  }
-
-  public List<QueryOrderingProperty> getOrderingProperties() {
-    return orderingProperties;
-  }
-
-  public void setOrderingProperties(List<QueryOrderingProperty> orderingProperties) {
-    this.orderingProperties = orderingProperties;
   }
 
   public Map<String, String> getExpressions() {
@@ -333,5 +315,23 @@ public abstract class AbstractQuery<T extends Query<?,?>, U> extends ListQueryPa
     validators.remove(validator);
   }
 
+  @SuppressWarnings("unchecked")
+  public List<String> listIds() {
+    this.resultType = ResultType.LIST_IDS;
+    if (commandExecutor != null) {
+      return (List<String>) commandExecutor.execute(this);
+    }
+    return evaluateExpressionsAndExecuteIdsList(Context.getCommandContext());
+  }
+
+  public List<String> evaluateExpressionsAndExecuteIdsList(CommandContext commandContext) {
+    validate();
+    evaluateExpressions();
+    return !hasExcludingConditions() ? executeIdsList(commandContext) : new ArrayList<String>();
+  }
+
+  public List<String> executeIdsList(CommandContext commandContext) {
+    throw new UnsupportedOperationException();
+  }
 
 }

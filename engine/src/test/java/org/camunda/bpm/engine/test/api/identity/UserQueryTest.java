@@ -18,6 +18,7 @@ import java.util.List;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.identity.UserQuery;
+import org.camunda.bpm.engine.impl.persistence.entity.UserEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 
 
@@ -30,7 +31,7 @@ public class UserQueryTest extends PluggableProcessEngineTestCase {
   protected void setUp() throws Exception {
     super.setUp();
 
-    createUser("kermit", "Kermit", "Thefrog", "kermit@muppetshow.com");
+    createUser("kermit", "Kermit_", "The_frog", "kermit_@muppetshow.com");
     createUser("fozzie", "Fozzie", "Bear", "fozzie@muppetshow.com");
     createUser("gonzo", "Gonzo", "The great", "gonzo@muppetshow.com");
 
@@ -114,6 +115,9 @@ public class UserQueryTest extends PluggableProcessEngineTestCase {
 
     query = identityService.createUserQuery().userFirstNameLike("Ker%");
     verifyQueryResults(query, 1);
+
+    identityService.createUserQuery().userFirstNameLike("%mit\\_");
+    verifyQueryResults(query, 1);
   }
 
   public void testQueryByInvalidFirstNameLike() {
@@ -145,7 +149,7 @@ public class UserQueryTest extends PluggableProcessEngineTestCase {
   }
 
   public void testQueryByLastNameLike() {
-    UserQuery query = identityService.createUserQuery().userLastNameLike("%rog%");
+    UserQuery query = identityService.createUserQuery().userLastNameLike("%\\_frog%");
     verifyQueryResults(query, 1);
 
     query = identityService.createUserQuery().userLastNameLike("%ea%");
@@ -163,7 +167,7 @@ public class UserQueryTest extends PluggableProcessEngineTestCase {
   }
 
   public void testQueryByEmail() {
-    UserQuery query = identityService.createUserQuery().userEmail("kermit@muppetshow.com");
+    UserQuery query = identityService.createUserQuery().userEmail("kermit_@muppetshow.com");
     verifyQueryResults(query, 1);
   }
 
@@ -181,7 +185,7 @@ public class UserQueryTest extends PluggableProcessEngineTestCase {
     UserQuery query = identityService.createUserQuery().userEmailLike("%muppetshow.com");
     verifyQueryResults(query, 3);
 
-    query = identityService.createUserQuery().userEmailLike("%kermit%");
+    query = identityService.createUserQuery().userEmailLike("%kermit\\_%");
     verifyQueryResults(query, 1);
   }
 
@@ -305,6 +309,32 @@ public class UserQueryTest extends PluggableProcessEngineTestCase {
         fail("Expected to find user "+user);
       }
     }
+  }
+
+  public void testNativeQuery() {
+    String tablePrefix = processEngineConfiguration.getDatabaseTablePrefix();
+    // just test that the query will be constructed and executed, details are tested in the TaskQueryTest
+    assertEquals(tablePrefix + "ACT_ID_USER", managementService.getTableName(UserEntity.class));
+
+    long userCount = identityService.createUserQuery().count();
+
+    assertEquals(userCount, identityService.createNativeUserQuery().sql("SELECT * FROM " + managementService.getTableName(UserEntity.class)).list().size());
+    assertEquals(userCount, identityService.createNativeUserQuery().sql("SELECT count(*) FROM " + managementService.getTableName(UserEntity.class)).count());
+  }
+
+  public void testNativeQueryOrLike() {
+    String searchPattern = "%frog";
+
+    String fromWhereClauses = String.format("FROM %s WHERE FIRST_ LIKE #{searchPattern} OR LAST_ LIKE #{searchPattern} OR EMAIL_ LIKE #{searchPattern}",
+        managementService.getTableName(UserEntity.class));
+
+    assertEquals(1, identityService.createNativeUserQuery().sql("SELECT * " + fromWhereClauses).parameter("searchPattern", searchPattern).list().size());
+    assertEquals(1, identityService.createNativeUserQuery().sql("SELECT count(*) " + fromWhereClauses).parameter("searchPattern", searchPattern).count());
+  }
+
+  public void testNativeQueryPaging() {
+    assertEquals(2, identityService.createNativeUserQuery().sql("SELECT * FROM " + managementService.getTableName(UserEntity.class)).listPage(1, 2).size());
+    assertEquals(1, identityService.createNativeUserQuery().sql("SELECT * FROM " + managementService.getTableName(UserEntity.class)).listPage(2, 1).size());
   }
 
 }

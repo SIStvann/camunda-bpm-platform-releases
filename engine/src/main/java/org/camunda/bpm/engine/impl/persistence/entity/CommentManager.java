@@ -17,6 +17,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.camunda.bpm.engine.impl.Direction;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
+import org.camunda.bpm.engine.impl.QueryPropertyImpl;
 import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
 import org.camunda.bpm.engine.impl.db.DbEntity;
 import org.camunda.bpm.engine.impl.persistence.AbstractHistoricManager;
@@ -51,7 +54,7 @@ public class CommentManager extends AbstractHistoricManager {
 
     ListQueryParameterObject query = new ListQueryParameterObject();
     query.setParameter(taskId);
-    query.setOrderBy("RES.TIME_ desc");
+    query.getOrderingProperties().add(new QueryOrderingProperty(new QueryPropertyImpl("TIME_"), Direction.DESCENDING));
 
     return getDbEntityManager().selectList("selectEventsByTaskId", query);
   }
@@ -59,6 +62,28 @@ public class CommentManager extends AbstractHistoricManager {
   public void deleteCommentsByTaskId(String taskId) {
     checkHistoryEnabled();
     getDbEntityManager().delete(CommentEntity.class, "deleteCommentsByTaskId", taskId);
+  }
+
+  public void deleteCommentsByProcessInstanceIds(List<String> processInstanceIds) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("processInstanceIds", processInstanceIds);
+    deleteComments(parameters);
+  }
+
+  public void deleteCommentsByTaskProcessInstanceIds(List<String> processInstanceIds) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("taskProcessInstanceIds", processInstanceIds);
+    deleteComments(parameters);
+  }
+
+  public void deleteCommentsByTaskCaseInstanceIds(List<String> caseInstanceIds) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("taskCaseInstanceIds", caseInstanceIds);
+    deleteComments(parameters);
+  }
+
+  protected void deleteComments(Map<String, Object> parameters) {
+    getDbEntityManager().deletePreserveOrder(CommentEntity.class, "deleteCommentsByIds", parameters);
   }
 
   @SuppressWarnings("unchecked")

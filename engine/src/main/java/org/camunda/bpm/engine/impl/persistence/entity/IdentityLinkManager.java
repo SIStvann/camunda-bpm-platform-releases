@@ -26,10 +26,6 @@ import org.camunda.bpm.engine.impl.persistence.AbstractManager;
  */
 public class IdentityLinkManager extends AbstractManager {
 
-  public void deleteIdentityLink(IdentityLinkEntity identityLink) {
-    getDbEntityManager().delete(identityLink);
-  }
-
   @SuppressWarnings("unchecked")
   public List<IdentityLinkEntity> findIdentityLinksByTaskId(String taskId) {
     return getDbEntityManager().selectList("selectIdentityLinksByTask", taskId);
@@ -57,13 +53,6 @@ public class IdentityLinkManager extends AbstractManager {
     parameters.put("userId", userId);
     parameters.put("groupId", groupId);
     return getDbEntityManager().selectList("selectIdentityLinkByProcessDefinitionUserAndGroup", parameters);
-  }
-
-  public void deleteIdentityLinksByTaskId(String taskId) {
-    List<IdentityLinkEntity> identityLinks = findIdentityLinksByTaskId(taskId);
-    for (IdentityLinkEntity identityLink: identityLinks) {
-      deleteIdentityLink(identityLink);
-    }
   }
 
   public void deleteIdentityLinksByProcDef(String processDefId) {

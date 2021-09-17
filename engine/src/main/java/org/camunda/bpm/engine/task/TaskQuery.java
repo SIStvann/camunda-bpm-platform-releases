@@ -39,9 +39,16 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
   /** Only select tasks with the given name */
   TaskQuery taskName(String name);
 
+  /** Only select tasks with a name not matching the given name */
+  TaskQuery taskNameNotEqual(String name);
+
   /** Only select tasks with a name matching the parameter.
    *  The syntax is that of SQL: for example usage: nameLike(%activiti%)*/
   TaskQuery taskNameLike(String nameLike);
+
+  /** Only select tasks with a name not matching the parameter.
+   *  The syntax is that of SQL: for example usage: nameNotLike(%activiti%)*/
+  TaskQuery taskNameNotLike(String nameNotLike);
 
   /** Only select tasks with the given description. */
   TaskQuery taskDescription(String description);
@@ -123,7 +130,7 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
   TaskQuery taskDelegationState(DelegationState delegationState);
 
   /**
-   * Only select tasks for which the given user is a candidate.
+   * Only select tasks for which the given user or one of his groups is a candidate.
    *
    * <p>
    * Per default it only selects tasks which are not already assigned
@@ -193,6 +200,12 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
 
   /** Only select tasks which have no candidate group */
   TaskQuery withoutCandidateGroups();
+
+  /** Only select tasks which have a candidate user */
+  TaskQuery withCandidateUsers();
+
+  /** Only select tasks which have no candidate user */
+  TaskQuery withoutCandidateUsers();
 
   /**
    *  Only select tasks for which users in the given group are candidates.

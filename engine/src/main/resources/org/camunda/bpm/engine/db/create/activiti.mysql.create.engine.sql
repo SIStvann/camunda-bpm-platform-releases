@@ -17,6 +17,9 @@ values ('next.dbid', '1', 1);
 insert into ACT_GE_PROPERTY
 values ('deployment.lock', '0', 1);
 
+insert into ACT_GE_PROPERTY
+values ('history.cleanup.job.lock', '0', 1);
+
 create table ACT_GE_BYTEARRAY (
     ID_ varchar(64),
     REV_ integer,
@@ -115,6 +118,7 @@ create table ACT_RE_PROCDEF (
     SUSPENSION_STATE_ integer,
     TENANT_ID_ varchar(64),
     VERSION_TAG_ varchar(64),
+    HISTORY_TTL_ integer,
     primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
 
@@ -184,7 +188,7 @@ create table ACT_RU_EVENT_SUBSCR (
     EVENT_NAME_ varchar(255),
     EXECUTION_ID_ varchar(64),
     PROC_INST_ID_ varchar(64),
-    ACTIVITY_ID_ varchar(64),
+    ACTIVITY_ID_ varchar(255),
     CONFIGURATION_ varchar(255),
     CREATED_ timestamp not null,
     TENANT_ID_ varchar(64),
@@ -314,6 +318,7 @@ CREATE INDEX ACT_IDX_METER_LOG ON ACT_RU_METER_LOG(NAME_, TIMESTAMP_);
 create index ACT_IDX_EXT_TASK_TOPIC on ACT_RU_EXT_TASK(TOPIC_NAME_);
 create index ACT_IDX_EXT_TASK_TENANT_ID on ACT_RU_EXT_TASK(TENANT_ID_);
 create index ACT_IDX_EXT_TASK_PRIORITY ON ACT_RU_EXT_TASK(PRIORITY_);
+create index ACT_IDX_EXT_TASK_ERR_DETAILS ON ACT_RU_EXT_TASK(ERROR_DETAILS_ID_);
 create index ACT_IDX_AUTH_GROUP_ID on ACT_RU_AUTHORIZATION(GROUP_ID_);
 create index ACT_IDX_JOB_JOB_DEF_ID on ACT_RU_JOB(JOB_DEF_ID_);
 

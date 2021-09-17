@@ -17,7 +17,6 @@ import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
 import java.util.Set;
-
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.query.Query;
 import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
@@ -202,6 +201,15 @@ public interface HistoricProcessInstanceQuery extends Query<HistoricProcessInsta
   /** Order by the process definition id (needs to be followed by {@link #asc()} or {@link #desc()}). */
   HistoricProcessInstanceQuery orderByProcessDefinitionId();
 
+  /** Order by the process definition key (needs to be followed by {@link #asc()} or {@link #desc()}). */
+  HistoricProcessInstanceQuery orderByProcessDefinitionKey();
+
+  /** Order by the process definition name (needs to be followed by {@link #asc()} or {@link #desc()}). */
+  HistoricProcessInstanceQuery orderByProcessDefinitionName();
+
+  /** Order by the process definition version (needs to be followed by {@link #asc()} or {@link #desc()}). */
+  HistoricProcessInstanceQuery orderByProcessDefinitionVersion();
+
   /** Order by the business key (needs to be followed by {@link #asc()} or {@link #desc()}). */
   HistoricProcessInstanceQuery orderByProcessInstanceBusinessKey();
 
@@ -270,4 +278,15 @@ public interface HistoricProcessInstanceQuery extends Query<HistoricProcessInsta
   @Deprecated
   HistoricProcessInstanceQuery finishDateOn(Date date);
 
+  /** Only select historic process instances that executed an activity after the given date. */
+  HistoricProcessInstanceQuery executedActivityAfter(Date date);
+
+  /** Only select historic process instances that executed an activity before the given date. */
+  HistoricProcessInstanceQuery executedActivityBefore(Date date);
+
+  /** Only select historic process instances that executed an job after the given date. */
+  HistoricProcessInstanceQuery executedJobAfter(Date date);
+
+  /** Only select historic process instances that executed an job before the given date. */
+  HistoricProcessInstanceQuery executedJobBefore(Date date);
 }

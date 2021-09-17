@@ -14,7 +14,6 @@ package org.camunda.bpm.engine.impl.jobexecutor;
 
 import java.util.LinkedList;
 import java.util.List;
-
 import org.camunda.bpm.engine.impl.db.entitymanager.cache.DbEntityCache;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 

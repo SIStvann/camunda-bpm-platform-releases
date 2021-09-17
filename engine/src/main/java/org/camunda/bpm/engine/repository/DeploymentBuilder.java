@@ -17,7 +17,6 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.zip.ZipInputStream;
-
 import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resources;
@@ -28,15 +27,36 @@ import org.camunda.bpm.model.cmmn.CmmnModelInstance;
 import org.camunda.bpm.model.dmn.DmnModelInstance;
 
 /**
- * Builder for creating new deployments.
+ * <p>Builder for creating new deployments.</p>
  *
- * A builder instance can be obtained through {@link org.camunda.bpm.engine.RepositoryService#createDeployment()}.
+ * <p>A builder instance can be obtained through {@link org.camunda.bpm.engine.RepositoryService#createDeployment()}.</p>
  *
- * Multiple resources can be added to one deployment before calling the {@link #deploy()}
- * operation.
+ * <p>Multiple resources can be added to one deployment before calling the {@link #deploy()}
+ * operation.</p>
  *
- * After deploying, no more changes can be made to the returned deployment
- * and the builder instance can be disposed.
+ * <p>After deploying, no more changes can be made to the returned deployment
+ * and the builder instance can be disposed.</p>
+ *
+ * <p>In order the resources to be processed as definitions, their names must have one of allowed suffixes (file extensions in case of file reference).</p>
+ * <table>
+ * <thead>
+ *   <tr><th>Resource name suffix</th><th>Will be treated as</th></tr>
+ * <thead>
+ * <tbody>
+ *    <tr>
+ *      <td>.bpmn20.xml, .bpmn</td><td>BPMN process definition</td>
+ *    </tr>
+ *    <tr>
+ *      <td>.cmmn11.xml, .cmmn10.xml, .cmmn</td><td>CMMN case definition</td>
+ *    </tr>
+ *    <tr>
+ *      <td>.dmn11.xml, .dmn</td><td>DMN decision table</td>
+ *    </tr>
+ * </tbody>
+ * </table>
+ *
+ * <p>Additionally resources with resource name suffixes .png, .jpg, .gif and .svg can be treated as diagram images. The deployment resource is considered
+ * to represent the specific model diagram by file name, e.g. bpmnDiagram1.png will be considered to be a diagram image for bpmnDiagram1.bpmn20.xml.</p>
  *
  * @author Tom Baeyens
  * @author Joram Barrez
@@ -46,8 +66,29 @@ public interface DeploymentBuilder {
   DeploymentBuilder addInputStream(String resourceName, InputStream inputStream);
   DeploymentBuilder addClasspathResource(String resource);
   DeploymentBuilder addString(String resourceName, String text);
+
+  /**
+   * Adds a BPMN model to the deployment.
+   * @param resourceName resource name. See suffix requirements for resource names: {@see DeploymentBuilder}.
+   * @param modelInstance model instance
+   * @return
+   */
   DeploymentBuilder addModelInstance(String resourceName, BpmnModelInstance modelInstance);
+
+  /**
+   * Adds a DMN model to the deployment.
+   * @param resourceName resource name. See suffix requirements for resource names: {@see DeploymentBuilder}.
+   * @param modelInstance model instance
+   * @return
+   */
   DeploymentBuilder addModelInstance(String resourceName, DmnModelInstance modelInstance);
+
+  /**
+   * Adds a CMMN model to the deployment.
+   * @param resourceName resource name. See suffix requirements for resource names: {@see DeploymentBuilder}.
+   * @param modelInstance model instance
+   * @return
+   */
   DeploymentBuilder addModelInstance(String resourceName, CmmnModelInstance modelInstance);
 
   DeploymentBuilder addZipInputStream(ZipInputStream zipInputStream);
@@ -151,7 +192,14 @@ public interface DeploymentBuilder {
   DeploymentBuilder source(String source);
 
   /**
-   * Deploys all provided sources to the process engine.
+   * <p>Deploys all provided sources to the process engine and returns the created deployment.</p>
+   *
+   *
+   * <p> The returned {@link Deployment} instance has no information about the definitions, which are deployed
+   * with that deployment. To access this information you can use the {@link #deployWithResult()} method.
+   * This method will return an instance of {@link DeploymentWithDefinitions}, which contains the information
+   * about the successful deployed definitions.
+   * </p>
    *
    * @throws NotFoundException thrown
    *  <ul>
@@ -168,8 +216,31 @@ public interface DeploymentBuilder {
    *     <li>{@link Permissions#CREATE} on {@link Resources#DEPLOYMENT}</li>
    *     <li>{@link Permissions#READ} on {@link Resources#DEPLOYMENT} (if resources from previous deployments are redeployed)</li>
    *   </ul>
+   * @return the created deployment
    */
   Deployment deploy();
+
+  /**
+   * Deploys all provided sources to the process engine and returns the created deployment with the deployed definitions.
+   *
+   * @throws NotFoundException thrown
+   *  <ul>
+   *    <li>if the deployment specified by {@link #nameFromDeployment(String)} does not exist or</li>
+   *    <li>if at least one of given deployments provided by {@link #addDeploymentResources(String)} does not exist.</li>
+   *  </ul>
+   *
+   * @throws NotValidException
+   *    if there are duplicate resource names from different deployments to re-deploy.
+   *
+   * @throws AuthorizationException
+   *  thrown if the current user does not possess the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#CREATE} on {@link Resources#DEPLOYMENT}</li>
+   *     <li>{@link Permissions#READ} on {@link Resources#DEPLOYMENT} (if resources from previous deployments are redeployed)</li>
+   *   </ul>
+   * @return the created deployment, contains the deployed definitions
+   */
+  DeploymentWithDefinitions deployWithResult();
 
   /**
    *  @return the names of the resources which were added to this builder.

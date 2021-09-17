@@ -19,7 +19,7 @@ import org.camunda.bpm.engine.impl.ProcessInstantiationBuilderImpl;
 import org.camunda.bpm.engine.impl.cfg.CommandChecker;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.deploy.cache.DeploymentCache;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 
 public class GetDeployedProcessDefinitionCmd implements Command<ProcessDefinitionEntity> {
@@ -41,7 +41,7 @@ public class GetDeployedProcessDefinitionCmd implements Command<ProcessDefinitio
     this.processDefinitionId = instantiationBuilder.getProcessDefinitionId();
     this.processDefinitionKey = instantiationBuilder.getProcessDefinitionKey();
     this.processDefinitionTenantId = instantiationBuilder.getProcessDefinitionTenantId();
-    this.isTenantIdSet = instantiationBuilder.isTenantIdSet();
+    this.isTenantIdSet = instantiationBuilder.isProcessDefinitionTenantIdSet();
     this.checkReadPermission = checkReadPermission;
   }
 

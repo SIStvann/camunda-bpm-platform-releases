@@ -12,14 +12,6 @@
  */
 package org.camunda.bpm.engine.test.api.runtime;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertThat;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,7 +23,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.camunda.bpm.engine.CaseService;
 import org.camunda.bpm.engine.ManagementService;
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -58,6 +49,17 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.RuleChain;
+import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.processInstanceByProcessDefinitionId;
+import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.processInstanceByProcessInstanceId;
+import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.processInstanceByBusinessKey;
+import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.verifySorting;
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  * @author Joram Barrez
@@ -90,7 +92,7 @@ public class ProcessInstanceQueryTest {
   public RuleChain ruleChain = RuleChain.outerRule(engineRule).around(testHelper);
 
   private static String PROCESS_DEFINITION_KEY = "oneTaskProcess";
-  private static String PROCESS_DEFINITION_KEY_2 = "oneTaskProcess2";
+  private static String PROCESS_DEFINITION_KEY_2 = "otherOneTaskProcess";
 
   protected RuntimeService runtimeService;
   protected RepositoryService repositoryService;
@@ -110,13 +112,13 @@ public class ProcessInstanceQueryTest {
 
   /**
    * Setup starts 4 process instances of oneTaskProcess
-   * and 1 instance of oneTaskProcess2
+   * and 1 instance of otherOneTaskProcess
    */
   @Before
   public void deployTestProcesses() throws Exception {
     org.camunda.bpm.engine.repository.Deployment deployment = engineRule.getRepositoryService().createDeployment()
       .addClasspathResource("org/camunda/bpm/engine/test/api/runtime/oneTaskProcess.bpmn20.xml")
-      .addClasspathResource("org/camunda/bpm/engine/test/api/runtime/oneTaskProcess2.bpmn20.xml")
+      .addClasspathResource("org/camunda/bpm/engine/test/api/runtime/otherOneTaskProcess.bpmn20.xml")
       .deploy();
 
     engineRule.manageDeployment(deployment);
@@ -126,7 +128,7 @@ public class ProcessInstanceQueryTest {
     for (int i = 0; i < 4; i++) {
       processInstanceIds.add(runtimeService.startProcessInstanceByKey(PROCESS_DEFINITION_KEY, i + "").getId());
     }
-    processInstanceIds.add(runtimeService.startProcessInstanceByKey(PROCESS_DEFINITION_KEY_2, "1").getId());
+    processInstanceIds.add(runtimeService.startProcessInstanceByKey(PROCESS_DEFINITION_KEY_2, "businessKey_123").getId());
   }
 
 
@@ -190,13 +192,21 @@ public class ProcessInstanceQueryTest {
     assertEquals(1, runtimeService.createProcessInstanceQuery().processInstanceBusinessKey("1", PROCESS_DEFINITION_KEY).count());
     assertEquals(1, runtimeService.createProcessInstanceQuery().processInstanceBusinessKey("2", PROCESS_DEFINITION_KEY).count());
     assertEquals(1, runtimeService.createProcessInstanceQuery().processInstanceBusinessKey("3", PROCESS_DEFINITION_KEY).count());
-    assertEquals(1, runtimeService.createProcessInstanceQuery().processInstanceBusinessKey("1", PROCESS_DEFINITION_KEY_2).count());
+    assertEquals(1, runtimeService.createProcessInstanceQuery().processInstanceBusinessKey("businessKey_123", PROCESS_DEFINITION_KEY_2).count());
   }
 
   @Test
   public void testQueryByBusinessKey() {
     assertEquals(1, runtimeService.createProcessInstanceQuery().processInstanceBusinessKey("0").count());
-    assertEquals(2, runtimeService.createProcessInstanceQuery().processInstanceBusinessKey("1").count());
+    assertEquals(1, runtimeService.createProcessInstanceQuery().processInstanceBusinessKey("1").count());
+    assertEquals(1, runtimeService.createProcessInstanceQuery().processInstanceBusinessKey("businessKey_123").count());
+  }
+
+  @Test
+  public void testQueryByBusinessKeyLike(){
+    assertEquals(1, runtimeService.createProcessInstanceQuery().processInstanceBusinessKeyLike("business%").count());
+    assertEquals(1, runtimeService.createProcessInstanceQuery().processInstanceBusinessKeyLike("%sinessKey\\_123").count());
+    assertEquals(1, runtimeService.createProcessInstanceQuery().processInstanceBusinessKeyLike("%siness%").count());
   }
 
   @Test
@@ -292,13 +302,24 @@ public class ProcessInstanceQueryTest {
 
   @Test
   public void testQuerySorting() {
-    assertEquals(5, runtimeService.createProcessInstanceQuery().orderByProcessInstanceId().asc().list().size());
-    assertEquals(5, runtimeService.createProcessInstanceQuery().orderByProcessDefinitionId().asc().list().size());
+    List<ProcessInstance> processInstances = runtimeService.createProcessInstanceQuery().orderByProcessInstanceId().asc().list();
+    assertEquals(5, processInstances.size());
+    verifySorting(processInstances, processInstanceByProcessInstanceId());
+
+    processInstances = runtimeService.createProcessInstanceQuery().orderByProcessDefinitionId().asc().list();
+    assertEquals(5, processInstances.size());
+    verifySorting(processInstances, processInstanceByProcessDefinitionId());
+
+    processInstances = runtimeService.createProcessInstanceQuery().orderByBusinessKey().asc().list();
+    assertEquals(5, processInstances.size());
+    verifySorting(processInstances, processInstanceByBusinessKey());
+
     assertEquals(5, runtimeService.createProcessInstanceQuery().orderByProcessDefinitionKey().asc().list().size());
 
     assertEquals(5, runtimeService.createProcessInstanceQuery().orderByProcessInstanceId().desc().list().size());
     assertEquals(5, runtimeService.createProcessInstanceQuery().orderByProcessDefinitionId().desc().list().size());
     assertEquals(5, runtimeService.createProcessInstanceQuery().orderByProcessDefinitionKey().desc().list().size());
+    assertEquals(5, runtimeService.createProcessInstanceQuery().orderByBusinessKey().desc().list().size());
 
     assertEquals(4, runtimeService.createProcessInstanceQuery().processDefinitionKey(PROCESS_DEFINITION_KEY).orderByProcessInstanceId().asc().list().size());
     assertEquals(4, runtimeService.createProcessInstanceQuery().processDefinitionKey(PROCESS_DEFINITION_KEY).orderByProcessInstanceId().desc().list().size());
@@ -1149,7 +1170,7 @@ public class ProcessInstanceQueryTest {
     Set<String> processInstanceIds = new HashSet<String>(this.processInstanceIds);
 
     // start an instance that will not be part of the query
-    runtimeService.startProcessInstanceByKey("oneTaskProcess2", "2");
+    runtimeService.startProcessInstanceByKey(PROCESS_DEFINITION_KEY_2, "2");
 
     ProcessInstanceQuery processInstanceQuery = runtimeService.createProcessInstanceQuery().processInstanceIds(processInstanceIds);
     assertEquals(5, processInstanceQuery.count());
@@ -1189,11 +1210,11 @@ public class ProcessInstanceQueryTest {
 
     assertEquals(5, processInstanceQuery.active().count());
 
-    repositoryService.suspendProcessDefinitionByKey("oneTaskProcess");
+    repositoryService.suspendProcessDefinitionByKey(PROCESS_DEFINITION_KEY);
 
     assertEquals(5, processInstanceQuery.active().count());
 
-    repositoryService.suspendProcessDefinitionByKey("oneTaskProcess", true, null);
+    repositoryService.suspendProcessDefinitionByKey(PROCESS_DEFINITION_KEY, true, null);
 
     assertEquals(1, processInstanceQuery.active().count());
   }
@@ -1204,11 +1225,11 @@ public class ProcessInstanceQueryTest {
 
     assertEquals(0, processInstanceQuery.suspended().count());
 
-    repositoryService.suspendProcessDefinitionByKey("oneTaskProcess");
+    repositoryService.suspendProcessDefinitionByKey(PROCESS_DEFINITION_KEY);
 
     assertEquals(0, processInstanceQuery.suspended().count());
 
-    repositoryService.suspendProcessDefinitionByKey("oneTaskProcess", true, null);
+    repositoryService.suspendProcessDefinitionByKey(PROCESS_DEFINITION_KEY, true, null);
 
     assertEquals(4, processInstanceQuery.suspended().count());
   }
@@ -1335,7 +1356,7 @@ public class ProcessInstanceQueryTest {
 
     List<ProcessInstance> processInstanceList = runtimeService
         .createProcessInstanceQuery()
-        .incidentMessageLike("%exception%").list();
+        .incidentMessageLike("%\\_exception%").list();
 
     assertEquals(1, processInstanceList.size());
   }

@@ -12,14 +12,18 @@
  */
 package org.camunda.bpm.engine.impl.cmd;
 
+import java.util.Arrays;
+
 import org.camunda.bpm.application.impl.ProcessApplicationIdentifier;
 import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.MismatchingMessageCorrelationException;
 import org.camunda.bpm.engine.OptimisticLockingException;
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.persistence.entity.EventSubscriptionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.runtime.CorrelationSet;
 import org.camunda.bpm.engine.impl.util.ClassNameUtil;
 
@@ -215,5 +219,55 @@ public class CommandLogger extends ProcessEngineLogger {
         "Cannot {} because it belongs to no authenticated tenant.",
         command
         ));
+  }
+
+  public void warnDeploymentResourceHasWrongName(String resourceName, String[] suffixes) {
+    logWarn(
+        "035",
+        String.format("Deployment resource '%s' will be ignored as its name must have one of suffixes %s.",
+            resourceName,
+            Arrays.toString(suffixes)
+            ));
+
+  }
+
+  public ProcessEngineException processInstanceDoesNotExist(String processInstanceId) {
+    return new ProcessEngineException(exceptionMessage(
+        "036",
+        "Process instance '{}' cannot be modified. The process instance does not exist",
+        processInstanceId));
+  }
+
+  public ProcessEngineException processDefinitionOfInstanceDoesNotMatchModification(ExecutionEntity processInstance, String processDefinitionId) {
+    return new ProcessEngineException(exceptionMessage(
+      "037",
+      "Process instance '{}' cannot be modified. Its process definition '{}' does not match given process definition '{}'",
+      processInstance.getId(),
+      processInstance.getProcessDefinitionId(),
+      processDefinitionId
+    ));
+  }
+
+  public void debugHistoryCleanupWrongConfiguration() {
+    logDebug("038", "History cleanup won't be scheduled. Either configure batch window or call it with immediatelyDue = true.");
+  }
+
+  public ProcessEngineException processDefinitionOfHistoricInstanceDoesNotMatchTheGivenOne(HistoricProcessInstance historicProcessInstance, String processDefinitionId) {
+    return new ProcessEngineException(exceptionMessage(
+      "039",
+      "Historic process instance '{}' cannot be restarted. Its process definition '{}' does not match given process definition '{}'",
+      historicProcessInstance.getId(),
+      historicProcessInstance.getProcessDefinitionId(),
+      processDefinitionId
+    ));
+  }
+
+  public ProcessEngineException historicProcessInstanceActive(HistoricProcessInstance historicProcessInstance) {
+    return new ProcessEngineException(exceptionMessage(
+      "040",
+      "Historic process instance '{}' cannot be restarted. It is not completed or terminated.",
+      historicProcessInstance.getId(),
+      historicProcessInstance.getProcessDefinitionId()
+    ));
   }
 }

@@ -26,6 +26,7 @@ import org.camunda.bpm.engine.impl.db.PermissionCheck;
 import org.camunda.bpm.engine.impl.db.PermissionCheckBuilder;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionEntity;
+import org.camunda.bpm.engine.impl.history.event.HistoricExternalTaskLogEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.*;
 import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.DecisionDefinition;
@@ -73,6 +74,16 @@ public class AuthorizationCommandChecker implements CommandChecker {
       ProcessDefinitionEntity processDefinition = findLatestProcessDefinitionById(processDefinitionId);
       if (processDefinition != null) {
         checkUpdateProcessDefinitionByKey(processDefinition.getKey());
+      }
+    }
+  }
+
+  @Override
+  public void checkUpdateDecisionDefinitionById(String decisionDefinitionId) {
+    if (getAuthorizationManager().isAuthorizationEnabled()) {
+      DecisionDefinitionEntity decisionDefinition = findLatestDecisionDefinitionById(decisionDefinitionId);
+      if (decisionDefinition != null) {
+        checkUpdateDecisionDefinition(decisionDefinition);
       }
     }
   }
@@ -417,12 +428,20 @@ public class AuthorizationCommandChecker implements CommandChecker {
     getAuthorizationManager().checkAuthorization(READ, DECISION_DEFINITION, decisionDefinition.getKey());
   }
 
+  public void checkUpdateDecisionDefinition(DecisionDefinitionEntity decisionDefinition) {
+    getAuthorizationManager().checkAuthorization(UPDATE, DECISION_DEFINITION, decisionDefinition.getKey());
+  }
+
   public void checkReadDecisionRequirementsDefinition(DecisionRequirementsDefinitionEntity decisionRequirementsDefinition) {
     getAuthorizationManager().checkAuthorization(READ, DECISION_REQUIREMENTS_DEFINITION, decisionRequirementsDefinition.getKey());
   }
 
   @Override
   public void checkReadCaseDefinition(CaseDefinition caseDefinition) {
+  }
+
+  @Override
+  public void checkUpdateCaseDefinition(CaseDefinition caseDefinition) {
   }
 
   // delete permission ////////////////////////////////////////
@@ -486,6 +505,10 @@ public class AuthorizationCommandChecker implements CommandChecker {
 
   protected ProcessDefinitionEntity findLatestProcessDefinitionById(String processDefinitionId) {
     return Context.getCommandContext().getProcessDefinitionManager().findLatestProcessDefinitionById(processDefinitionId);
+  }
+
+  protected DecisionDefinitionEntity findLatestDecisionDefinitionById(String decisionDefinitionId) {
+    return Context.getCommandContext().getDecisionDefinitionManager().findDecisionDefinitionById(decisionDefinitionId);
   }
 
   protected ExecutionEntity findExecutionById(String processInstanceId) {
@@ -621,5 +644,10 @@ public class AuthorizationCommandChecker implements CommandChecker {
     }
   }
 
-
+  @Override
+  public void checkReadHistoricExternalTaskLog(HistoricExternalTaskLogEntity historicExternalTaskLog) {
+    if (historicExternalTaskLog.getProcessDefinitionKey() != null) {
+      getAuthorizationManager().checkAuthorization(READ_HISTORY, PROCESS_DEFINITION, historicExternalTaskLog.getProcessDefinitionKey());
+    }
+  }
 }

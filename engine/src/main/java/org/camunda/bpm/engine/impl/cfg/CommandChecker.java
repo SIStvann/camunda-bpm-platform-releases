@@ -22,6 +22,7 @@ import org.camunda.bpm.engine.impl.batch.BatchEntity;
 import org.camunda.bpm.engine.impl.batch.history.HistoricBatchEntity;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionEntity;
+import org.camunda.bpm.engine.impl.history.event.HistoricExternalTaskLogEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogEventEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity;
@@ -68,6 +69,11 @@ public interface CommandChecker {
    * Checks if it is allowed to update a process instance of the given process definition id.
    */
   void checkUpdateProcessInstanceByProcessDefinitionId(String processDefinitionId);
+
+  /**
+   * Checks if it is allowed to update a decision definition with given id.
+   */
+  void checkUpdateDecisionDefinitionById(String decisionDefinitionId);
 
   /**
    * Checks if it is allowed to update a process definition of the given process definition key.
@@ -215,6 +221,11 @@ public interface CommandChecker {
   void checkReadCaseDefinition(CaseDefinition caseDefinition);
 
   /**
+   * Checks if it is allowed to update the given case definition.
+   */
+  void checkUpdateCaseDefinition(CaseDefinition caseDefinition);
+
+  /**
    * Checks if it is allowed to delete the given historic task instance.
    */
   void checkDeleteHistoricTaskInstance(HistoricTaskInstanceEntity task);
@@ -269,5 +280,10 @@ public interface CommandChecker {
    * Check if it is allowed to read a case instance of the given case execution.
    */
   void checkReadCaseInstance(CaseExecution caseExecution);
+
+  /**
+   * Checks if it is allowed to read the given historic external task log.
+   */
+  void checkReadHistoricExternalTaskLog(HistoricExternalTaskLogEntity historicExternalTaskLog);
 
 }

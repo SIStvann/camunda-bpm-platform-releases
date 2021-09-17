@@ -13,6 +13,7 @@
 package org.camunda.bpm.engine.impl.identity.db;
 
 import java.util.List;
+import java.util.Map;
 
 import org.camunda.bpm.engine.authorization.Permission;
 import org.camunda.bpm.engine.authorization.Permissions;
@@ -20,11 +21,13 @@ import org.camunda.bpm.engine.authorization.Resource;
 import org.camunda.bpm.engine.authorization.Resources;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.GroupQuery;
+import org.camunda.bpm.engine.identity.NativeUserQuery;
 import org.camunda.bpm.engine.identity.Tenant;
 import org.camunda.bpm.engine.identity.TenantQuery;
 import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.identity.UserQuery;
 import org.camunda.bpm.engine.impl.AbstractQuery;
+import org.camunda.bpm.engine.impl.NativeUserQueryImpl;
 import org.camunda.bpm.engine.impl.UserQueryImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.identity.ReadOnlyIdentityProvider;
@@ -33,6 +36,8 @@ import org.camunda.bpm.engine.impl.persistence.AbstractManager;
 import org.camunda.bpm.engine.impl.persistence.entity.GroupEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TenantEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.UserEntity;
+
+import static org.camunda.bpm.engine.impl.util.EncryptionUtil.saltPassword;
 
 /**
  * <p>Read only implementation of DB-backed identity service</p>
@@ -58,6 +63,10 @@ public class DbReadOnlyIdentityServiceProvider extends AbstractManager implement
     return new DbUserQueryImpl();
   }
 
+  @Override public NativeUserQuery createNativeUserQuery() {
+    return new NativeUserQueryImpl(Context.getProcessEngineConfiguration().getCommandExecutorTxRequired());
+  }
+
   public long findUserCountByQueryCriteria(DbUserQueryImpl query) {
     configureQuery(query, Resources.USER);
     return (Long) getDbEntityManager().selectOne("selectUserCountByQueryCriteria", query);
@@ -68,8 +77,17 @@ public class DbReadOnlyIdentityServiceProvider extends AbstractManager implement
     return getDbEntityManager().selectList("selectUserByQueryCriteria", query);
   }
 
+  @SuppressWarnings("unchecked")
+  public List<User> findUserByNativeQuery(Map<String, Object> parameterMap, int firstResult, int maxResults) {
+    return getDbEntityManager().selectListWithRawParameter("selectUserByNativeQuery", parameterMap, firstResult, maxResults);
+  }
+
+  public long findUserCountByNativeQuery(Map<String, Object> parameterMap) {
+    return (Long) getDbEntityManager().selectOne("selectUserCountByNativeQuery", parameterMap);
+  }
+
   public boolean checkPassword(String userId, String password) {
-    User user = findUserById(userId);
+    UserEntity user = findUserById(userId);
     if ((user != null) && (password != null) && matchPassword(password, user)) {
       return true;
     } else {
@@ -77,10 +95,11 @@ public class DbReadOnlyIdentityServiceProvider extends AbstractManager implement
     }
   }
 
-  protected boolean matchPassword(String password, User user) {
+  protected boolean matchPassword(String password, UserEntity user) {
+    String saltedPassword = saltPassword(password, user.getSalt());
     return Context.getProcessEngineConfiguration()
-      .getPasswordEncryptor()
-      .check(password, user.getPassword());
+      .getPasswordManager()
+      .check(saltedPassword, user.getPassword());
   }
 
   // groups //////////////////////////////////////////

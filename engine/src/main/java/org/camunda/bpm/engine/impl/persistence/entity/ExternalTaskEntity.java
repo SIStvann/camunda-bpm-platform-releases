@@ -52,7 +52,7 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
    * characters twice, so for a String consisting only of those,
    * the limit is effectively MAX_EXCEPTION_MESSAGE_LENGTH / 2
    */
-  private static final int MAX_EXCEPTION_MESSAGE_LENGTH = 666;
+  public static final int MAX_EXCEPTION_MESSAGE_LENGTH = 666;
 
   protected String id;
   protected int revision;
@@ -254,7 +254,7 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
     }
   }
 
-  protected String getErrorDetailsByteArrayId() {
+  public String getErrorDetailsByteArrayId() {
     return errorDetailsByteArrayId;
   }
 
@@ -273,6 +273,11 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
   }
 
   public void delete() {
+    deleteFromExecutionAndRuntimeTable();
+    produceHistoricExternalTaskDeletedEvent();
+  }
+
+  protected void deleteFromExecutionAndRuntimeTable() {
     getExecution().removeExternalTask(this);
 
     CommandContext commandContext = Context.getCommandContext();
@@ -296,7 +301,9 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
       associatedExecution.setVariables(variables);
     }
 
-    delete();
+    deleteFromExecutionAndRuntimeTable();
+
+    produceHistoricExternalTaskSuccessfulEvent();
 
     associatedExecution.signal(null, null);
   }
@@ -319,6 +326,7 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
     }
     this.lockExpirationTime = new Date(ClockUtil.getCurrentTime().getTime() + retryDuration);
     setRetriesAndManageIncidents(retries);
+    produceHistoricExternalTaskFailedEvent();
   }
   
   public void bpmnError(String errorCode) {
@@ -437,7 +445,28 @@ public class ExternalTaskEntity implements ExternalTask, DbEntity, HasDbRevision
     externalTask.setProcessDefinitionKey(processDefinition.getKey());
 
     externalTask.insert();
+    externalTask.produceHistoricExternalTaskCreatedEvent();
 
     return externalTask;
+  }
+
+  protected void produceHistoricExternalTaskCreatedEvent() {
+    CommandContext commandContext = Context.getCommandContext();
+    commandContext.getHistoricExternalTaskLogManager().fireExternalTaskCreatedEvent(this);
+  }
+
+  protected void produceHistoricExternalTaskFailedEvent() {
+    CommandContext commandContext = Context.getCommandContext();
+    commandContext.getHistoricExternalTaskLogManager().fireExternalTaskFailedEvent(this);
+  }
+
+  protected void produceHistoricExternalTaskSuccessfulEvent() {
+    CommandContext commandContext = Context.getCommandContext();
+    commandContext.getHistoricExternalTaskLogManager().fireExternalTaskSuccessfulEvent(this);
+  }
+
+  protected void produceHistoricExternalTaskDeletedEvent() {
+    CommandContext commandContext = Context.getCommandContext();
+    commandContext.getHistoricExternalTaskLogManager().fireExternalTaskDeletedEvent(this);
   }
 }

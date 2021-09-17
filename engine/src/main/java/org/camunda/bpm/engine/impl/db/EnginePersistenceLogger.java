@@ -390,8 +390,14 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
     return new SuspendedEntityInteractionException(exceptionMessage("043", "{} with id '{}' is suspended.", type, id));
   }
 
-  public ProcessEngineException updateUnrelatedProcessDefinitionEntityException() {
-    return new ProcessEngineException(exceptionMessage("044", "Cannot update entity from an unrelated process definition"));
+  public void logUpdateUnrelatedProcessDefinitionEntity(String thisKey, String thatKey, String thisDeploymentId, String thatDeploymentId) {
+    logDebug(
+        "044",
+        "Cannot update entity from an unrelated process definition: this key '{}', that key '{}', this deploymentId '{}', that deploymentId '{}'",
+        thisKey,
+        thatKey,
+        thisDeploymentId,
+        thatDeploymentId);
   }
 
   public ProcessEngineException toManyProcessDefinitionsException(int count, String key, Integer version, String tenantId) {
@@ -612,5 +618,30 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
         ));
   }
 
+  public void noHistoryCleanupLockPropertyFound() {
+    logError(
+        "078", "No history cleanup lock property found in databse");
+  }
+
+  public void logUpdateUnrelatedCaseDefinitionEntity(String thisKey, String thatKey, String thisDeploymentId, String thatDeploymentId) {
+    logDebug(
+      "079",
+      "Cannot update entity from an unrelated case definition: this key '{}', that key '{}', this deploymentId '{}', that deploymentId '{}'",
+      thisKey,
+      thatKey,
+      thisDeploymentId,
+      thatDeploymentId
+    );
+  }
+
+  public void logUpdateUnrelatedDecisionDefinitionEntity(String thisKey, String thatKey, String thisDeploymentId, String thatDeploymentId) {
+    logDebug(
+        "080",
+        "Cannot update entity from an unrelated decision definition: this key '{}', that key '{}', this deploymentId '{}', that deploymentId '{}'",
+        thisKey,
+        thatKey,
+        thisDeploymentId,
+        thatDeploymentId);
+  }
 
 }

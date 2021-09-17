@@ -44,6 +44,7 @@ public abstract class DelegateFormHandler {
   }
 
   protected <T> T performContextSwitch(final Callable<T> callable) {
+
     ProcessApplicationReference targetProcessApplication = ProcessApplicationContextUtil.getTargetProcessApplication(deploymentId);
 
     if(targetProcessApplication != null) {

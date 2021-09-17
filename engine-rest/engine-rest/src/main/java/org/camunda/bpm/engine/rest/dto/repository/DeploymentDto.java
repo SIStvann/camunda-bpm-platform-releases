@@ -12,9 +12,9 @@
  */
 package org.camunda.bpm.engine.rest.dto.repository;
 
-import java.util.Date;
+import java.util.*;
 
-import org.camunda.bpm.engine.repository.Deployment;
+import org.camunda.bpm.engine.repository.*;
 import org.camunda.bpm.engine.rest.dto.LinkableDto;
 
 public class DeploymentDto extends LinkableDto {
@@ -55,7 +55,6 @@ public class DeploymentDto extends LinkableDto {
     dto.source = deployment.getSource();
     dto.deploymentTime = deployment.getDeploymentTime();
     dto.tenantId = deployment.getTenantId();
-
     return dto;
   }
 

@@ -25,6 +25,9 @@ import java.util.Map;
 import org.camunda.bpm.engine.impl.json.JsonObjectConverter;
 import org.camunda.bpm.engine.impl.util.json.JSONArray;
 import org.camunda.bpm.engine.impl.util.json.JSONObject;
+import org.joda.time.LocalTime;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 
 /**
  * @author Sebastian Menski
@@ -47,13 +50,13 @@ public final class JsonUtil {
       Iterator keys = jsonObject.keys();
       while (keys.hasNext()) {
         String key = (String) keys.next();
-        if (jsonObject.optJSONObject(key) != null) {
-          map.put(key, jsonObjectAsMap(jsonObject.getJSONObject(key)));
-        } else if (jsonObject.optJSONArray(key) != null) {
-          map.put(key, jsonArrayAsList(jsonObject.getJSONArray(key)));
-        } else {
-          map.put(key, jsonObject.get(key));
+        Object value = optJavaNull(jsonObject.get(key));
+        if (JSONObject.class.isInstance(value)) {
+          value = jsonObjectAsMap(JSONObject.class.cast(value));
+        } else if (JSONArray.class.isInstance(value)) {
+          value = jsonArrayAsList(JSONArray.class.cast(value));
         }
+        map.put(key, value);
       }
       return map;
     }
@@ -73,16 +76,33 @@ public final class JsonUtil {
     else {
       List<Object> list = new ArrayList<Object>();
       for (int i = 0; i < jsonArray.length(); i++) {
-        if (jsonArray.optJSONObject(i) != null) {
-          list.add(jsonObjectAsMap(jsonArray.getJSONObject(i)));
-        } else if (jsonArray.optJSONArray(i) != null) {
-          list.add(jsonArrayAsList(jsonArray.getJSONArray(i)));
-        } else {
-          list.add(jsonArray.get(i));
+        Object value = optJavaNull(jsonArray.get(i));
+        if (JSONObject.class.isInstance(value)) {
+          value = jsonObjectAsMap(JSONObject.class.cast(value));
+        } else if (JSONArray.class.isInstance(value)) {
+          value = jsonArrayAsList(JSONArray.class.cast(value));
         }
+        list.add(value);
       }
       return list;
     }
+  }
+
+  /**
+   * Converts a {@link JSONObject#NULL} to a standard Java <code>null</code>.
+   *
+   * In any other case it just returns the object as provided.
+   *
+   * @param value the object to convert
+   *
+   * @return the object as provided or <code>null</code> in case the special
+   * marker instance {@link JSONObject#NULL} is provided
+   */
+  public static Object optJavaNull(Object value) {
+      if (JSONObject.NULL == value) {
+          return null;
+      }
+      return value;
   }
 
   public static void addField(JSONObject json, String name, Object value) {
@@ -131,6 +151,10 @@ public final class JsonUtil {
     if (date != null) {
       json.put(name, date.getTime());
     }
+  }
+
+  public static Date getDateField(JSONObject json, String name) {
+    return new Date(json.getLong(name));
   }
 
   public static <T> List<T> jsonArrayAsList(JSONArray jsonArray, JsonObjectConverter<T> converter) {

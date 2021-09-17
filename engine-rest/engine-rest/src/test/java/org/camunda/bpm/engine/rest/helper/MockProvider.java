@@ -12,12 +12,6 @@
  */
 package org.camunda.bpm.engine.rest.helper;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -28,7 +22,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import org.camunda.bpm.application.ProcessApplicationInfo;
 import org.camunda.bpm.dmn.engine.DmnDecisionResult;
 import org.camunda.bpm.engine.EntityTypes;
@@ -60,6 +53,7 @@ import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionInstanceStatistics;
 import org.camunda.bpm.engine.history.HistoricDecisionOutputInstance;
 import org.camunda.bpm.engine.history.HistoricDetail;
+import org.camunda.bpm.engine.history.HistoricExternalTaskLog;
 import org.camunda.bpm.engine.history.HistoricFormField;
 import org.camunda.bpm.engine.history.HistoricIdentityLinkLog;
 import org.camunda.bpm.engine.history.HistoricIncident;
@@ -81,16 +75,13 @@ import org.camunda.bpm.engine.impl.persistence.entity.ResourceEntity;
 import org.camunda.bpm.engine.management.ActivityStatistics;
 import org.camunda.bpm.engine.management.IncidentStatistics;
 import org.camunda.bpm.engine.management.JobDefinition;
+import org.camunda.bpm.engine.management.MetricIntervalValue;
 import org.camunda.bpm.engine.management.MetricsQuery;
 import org.camunda.bpm.engine.management.ProcessDefinitionStatistics;
 import org.camunda.bpm.engine.query.PeriodUnit;
 import org.camunda.bpm.engine.query.Query;
-import org.camunda.bpm.engine.repository.CaseDefinition;
-import org.camunda.bpm.engine.repository.DecisionDefinition;
-import org.camunda.bpm.engine.repository.DecisionRequirementsDefinition;
-import org.camunda.bpm.engine.repository.Deployment;
-import org.camunda.bpm.engine.repository.ProcessDefinition;
-import org.camunda.bpm.engine.repository.Resource;
+import org.camunda.bpm.engine.repository.*;
+import org.camunda.bpm.engine.rest.dto.repository.DecisionDefinitionDto;
 import org.camunda.bpm.engine.rest.dto.task.TaskQueryDto;
 import org.camunda.bpm.engine.runtime.CaseExecution;
 import org.camunda.bpm.engine.runtime.CaseInstance;
@@ -117,7 +108,11 @@ import org.camunda.bpm.engine.variable.value.BytesValue;
 import org.camunda.bpm.engine.variable.value.ObjectValue;
 import org.camunda.bpm.engine.variable.value.StringValue;
 import org.camunda.bpm.engine.variable.value.TypedValue;
-import org.camunda.bpm.engine.management.MetricIntervalValue;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Provides mocks for the basic engine entities, such as
@@ -575,6 +570,7 @@ public abstract class MockProvider {
   public static final String EXAMPLE_HISTORIC_VAR_UPDATE_PROC_INST_ID = "aProcInst";
   public static final String EXAMPLE_HISTORIC_VAR_UPDATE_ACT_INST_ID = "anActInst";
   public static final String EXAMPLE_HISTORIC_VAR_UPDATE_EXEC_ID = "anExecutionId";
+  public static final String EXAMPLE_HISTORIC_VAR_UPDATE_OPERATION_ID = "anOperationId";
   public static final String EXAMPLE_HISTORIC_VAR_UPDATE_TASK_ID = "aTaskId";
   public static final String EXAMPLE_HISTORIC_VAR_UPDATE_TIME = "2014-01-01T00:00:00";
   public static final String EXAMPLE_HISTORIC_VAR_UPDATE_NAME = "aVariableName";
@@ -594,6 +590,7 @@ public abstract class MockProvider {
   public static final String EXAMPLE_HISTORIC_FORM_FIELD_PROC_INST_ID = "aProcInst";
   public static final String EXAMPLE_HISTORIC_FORM_FIELD_ACT_INST_ID = "anActInst";
   public static final String EXAMPLE_HISTORIC_FORM_FIELD_EXEC_ID = "anExecutionId";
+  public static final String EXAMPLE_HISTORIC_FORM_FIELD_OPERATION_ID = "anOperationId";
   public static final String EXAMPLE_HISTORIC_FORM_FIELD_TASK_ID = "aTaskId";
   public static final String EXAMPLE_HISTORIC_FORM_FIELD_TIME = "2014-01-01T00:00:00";
   public static final String EXAMPLE_HISTORIC_FORM_FIELD_FIELD_ID = "aFormFieldId";
@@ -849,6 +846,26 @@ public abstract class MockProvider {
   public static final long EXAMPLE_HISTORIC_TASK_INST_DURATION_REPORT_MIN = 5;
   public static final long EXAMPLE_HISTORIC_TASK_INST_DURATION_REPORT_MAX = 15;
   public static final int EXAMPLE_HISTORIC_TASK_INST_DURATION_REPORT_PERIOD = 1;
+
+  // historic external task log
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_ID = "aHistoricExternalTaskLogId";
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_TIMESTAMP = "2015-01-01T00:00:00";
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_EXTERNAL_TASK_ID = "anExternalTaskId";
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_TOPIC_NAME = "aTopicName";
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_WORKER_ID = "aWorkerId";
+  public static final int EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_RETRIES = 5;
+  public static final long EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_PRIORITY = Integer.MAX_VALUE + 42l;
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_ERROR_MSG = "aEXTERNAL_TASKExceptionMsg";
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_ACTIVITY_ID = "anActId";
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_ACTIVITY_INSTANCE_ID = "anActInstanceId";
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_EXECUTION_ID = "anExecId";
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_PROC_INST_ID = "aProcInstId";
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_PROC_DEF_ID = "aProcDefId";
+  public static final String EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_PROC_DEF_KEY = "aProcDefKey";
+  public static final boolean EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_CREATION_LOG= true;
+  public static final boolean EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_FAILURE_LOG = true;
+  public static final boolean EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_SUCCESS_LOG = true;
+  public static final boolean EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_DELETION_LOG = true;
 
 
   public static Task createMockTask() {
@@ -1292,6 +1309,31 @@ public abstract class MockProvider {
     when(mockDeployment.getDeploymentTime()).thenReturn(DateTimeUtil.parseDate(EXAMPLE_DEPLOYMENT_TIME));
     when(mockDeployment.getSource()).thenReturn(EXAMPLE_DEPLOYMENT_SOURCE);
     when(mockDeployment.getTenantId()).thenReturn(tenantId);
+    return mockDeployment;
+  }
+
+  public static DeploymentWithDefinitions createMockDeploymentWithDefinitions() {
+    return createMockDeploymentWithDefinitions(EXAMPLE_TENANT_ID);
+  }
+
+  public static DeploymentWithDefinitions createMockDeploymentWithDefinitions(String tenantId) {
+    DeploymentWithDefinitions mockDeployment = mock(DeploymentWithDefinitions.class);
+    when(mockDeployment.getId()).thenReturn(EXAMPLE_DEPLOYMENT_ID);
+    when(mockDeployment.getName()).thenReturn(EXAMPLE_DEPLOYMENT_NAME);
+    when(mockDeployment.getDeploymentTime()).thenReturn(DateTimeUtil.parseDate(EXAMPLE_DEPLOYMENT_TIME));
+    when(mockDeployment.getSource()).thenReturn(EXAMPLE_DEPLOYMENT_SOURCE);
+    when(mockDeployment.getTenantId()).thenReturn(tenantId);
+    List<ProcessDefinition> mockDefinitions = createMockDefinitions();
+    when(mockDeployment.getDeployedProcessDefinitions()).thenReturn(mockDefinitions);
+
+    List<CaseDefinition> mockCaseDefinitions = createMockCaseDefinitions();
+    when(mockDeployment.getDeployedCaseDefinitions()).thenReturn(mockCaseDefinitions);
+
+    List<DecisionDefinition> mockDecisionDefinitions = createMockDecisionDefinitions();
+    when(mockDeployment.getDeployedDecisionDefinitions()).thenReturn(mockDecisionDefinitions);
+
+    List<DecisionRequirementsDefinition> mockDecisionRequirementsDefinitions = createMockDecisionRequirementsDefinitions();
+    when(mockDeployment.getDeployedDecisionRequirementsDefinitions()).thenReturn(mockDecisionRequirementsDefinitions);
 
     return mockDeployment;
   }
@@ -1899,6 +1941,7 @@ public abstract class MockProvider {
     when(mock.getBusinessKey()).thenReturn(EXAMPLE_PROCESS_INSTANCE_BUSINESS_KEY);
     when(mock.getProcessDefinitionKey()).thenReturn(EXAMPLE_PROCESS_DEFINITION_KEY);
     when(mock.getProcessDefinitionName()).thenReturn(EXAMPLE_PROCESS_DEFINITION_NAME);
+    when(mock.getProcessDefinitionVersion()).thenReturn(EXAMPLE_PROCESS_DEFINITION_VERSION);
     when(mock.getProcessDefinitionId()).thenReturn(EXAMPLE_PROCESS_DEFINITION_ID);
     when(mock.getDeleteReason()).thenReturn(EXAMPLE_HISTORIC_PROCESS_INSTANCE_DELETE_REASON);
     when(mock.getEndTime()).thenReturn(DateTimeUtil.parseDate(EXAMPLE_HISTORIC_PROCESS_INSTANCE_END_TIME));
@@ -2235,6 +2278,7 @@ public abstract class MockProvider {
     when(historicFromField.getCaseInstanceId()).thenReturn(EXAMPLE_HISTORIC_FORM_FIELD_CASE_INST_ID);
     when(historicFromField.getCaseExecutionId()).thenReturn(EXAMPLE_HISTORIC_FORM_FIELD_CASE_EXEC_ID);
     when(historicFromField.getTenantId()).thenReturn(tenantId);
+    when(historicFromField.getUserOperationId()).thenReturn(EXAMPLE_HISTORIC_FORM_FIELD_OPERATION_ID);
 
     return historicFromField;
   }
@@ -2627,6 +2671,12 @@ public abstract class MockProvider {
       .build();
   }
 
+  public static List<DecisionRequirementsDefinition> createMockDecisionRequirementsDefinitions() {
+    List<DecisionRequirementsDefinition> mocks = new ArrayList<DecisionRequirementsDefinition>();
+    mocks.add(createMockDecisionRequirementsDefinition());
+    return mocks;
+  }
+
   public static List<DecisionRequirementsDefinition> createMockTwoDecisionRequirementsDefinitions() {
     List<DecisionRequirementsDefinition> mocks = new ArrayList<DecisionRequirementsDefinition>();
     mocks.add(createMockDecisionRequirementsDefinition());
@@ -2957,5 +3007,44 @@ public abstract class MockProvider {
     decisionResults.add(anotherStatistics);
 
     return decisionResults;
+  }
+  
+  // historic external task log
+  public static List<HistoricExternalTaskLog> createMockHistoricExternalTaskLogs() {
+    List<HistoricExternalTaskLog> mocks = new ArrayList<HistoricExternalTaskLog>();
+    mocks.add(createMockHistoricExternalTaskLog());
+    return mocks;
+  }
+
+  public static HistoricExternalTaskLog createMockHistoricExternalTaskLog() {
+    return createMockHistoricExternalTaskLog(EXAMPLE_TENANT_ID);
+  }
+
+  public static HistoricExternalTaskLog createMockHistoricExternalTaskLog(String tenantId) {
+    HistoricExternalTaskLog mock = mock(HistoricExternalTaskLog.class);
+
+    when(mock.getId()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_ID);
+    when(mock.getTimestamp()).thenReturn(DateTimeUtil.parseDate(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_TIMESTAMP));
+
+    when(mock.getExternalTaskId()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_EXTERNAL_TASK_ID);
+    when(mock.getTopicName()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_TOPIC_NAME);
+    when(mock.getWorkerId()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_WORKER_ID);
+    when(mock.getRetries()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_RETRIES);
+    when(mock.getPriority()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_PRIORITY);
+    when(mock.getErrorMessage()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_ERROR_MSG);
+
+    when(mock.getActivityId()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_ACTIVITY_ID);
+    when(mock.getActivityInstanceId()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_ACTIVITY_INSTANCE_ID);
+    when(mock.getExecutionId()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_EXECUTION_ID);
+    when(mock.getProcessInstanceId()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_PROC_INST_ID);
+    when(mock.getProcessDefinitionId()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_PROC_DEF_ID);
+    when(mock.getProcessDefinitionKey()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_PROC_DEF_KEY);
+    when(mock.getTenantId()).thenReturn(tenantId);
+    when(mock.isCreationLog()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_CREATION_LOG);
+    when(mock.isFailureLog()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_FAILURE_LOG);
+    when(mock.isSuccessLog()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_SUCCESS_LOG);
+    when(mock.isDeletionLog()).thenReturn(EXAMPLE_HISTORIC_EXTERNAL_TASK_LOG_IS_DELETION_LOG);
+
+    return mock;
   }
 }

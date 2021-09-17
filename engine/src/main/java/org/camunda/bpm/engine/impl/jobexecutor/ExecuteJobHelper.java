@@ -12,6 +12,7 @@
  */
 package org.camunda.bpm.engine.impl.jobexecutor;
 
+import org.camunda.bpm.engine.OptimisticLockingException;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cmd.ExecuteJobsCmd;
 import org.camunda.bpm.engine.impl.interceptor.Command;
@@ -54,12 +55,36 @@ public class ExecuteJobHelper {
     if(jobFailureCollector.getJobId() != null) {
       if (jobFailureCollector.getFailure() != null) {
         // the failed job listener is responsible for decrementing the retries and logging the exception to the DB.
+
         FailedJobListener failedJobListener = createFailedJobListener(commandExecutor, jobFailureCollector.getFailure(), jobFailureCollector.getJobId());
-        commandExecutor.execute(failedJobListener);
+
+        OptimisticLockingException exception = callFailedJobListenerWithRetries(commandExecutor, failedJobListener);
+        if (exception != null) {
+          throw exception;
+        }
+
       } else {
         SuccessfulJobListener successListener = createSuccessfulJobListener(commandExecutor);
         commandExecutor.execute(successListener);
       }
+    }
+  }
+
+  /**
+   * Calls FailedJobListener, in case of OptimisticLockException retries configured amount of times.
+   *
+   * @return exception or null if succeeded
+   */
+  private static OptimisticLockingException callFailedJobListenerWithRetries(CommandExecutor commandExecutor, FailedJobListener failedJobListener) {
+    try {
+      commandExecutor.execute(failedJobListener);
+      return null;
+    } catch (OptimisticLockingException ex) {
+      failedJobListener.incrementCountRetries();
+      if (failedJobListener.getRetriesLeft() > 0) {
+        return callFailedJobListenerWithRetries(commandExecutor, failedJobListener);
+      }
+      return ex;
     }
   }
 

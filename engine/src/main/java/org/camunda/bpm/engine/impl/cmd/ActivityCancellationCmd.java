@@ -34,15 +34,19 @@ public class ActivityCancellationCmd extends AbstractProcessInstanceModification
 
   protected String activityId;
 
+  public ActivityCancellationCmd(String activityId) {
+    this(null, activityId);
+  }
 
   public ActivityCancellationCmd(String processInstanceId, String activityId) {
     super(processInstanceId);
     this.activityId = activityId;
-
   }
 
+  @Override
   public Void execute(final CommandContext commandContext) {
     ActivityInstance activityInstanceTree = commandContext.runWithoutAuthorization(new Callable<ActivityInstance>() {
+      @Override
       public ActivityInstance call() throws Exception {
         return new GetActivityInstanceCmd(processInstanceId).execute(commandContext);
       }
@@ -124,6 +128,11 @@ public class ActivityCancellationCmd extends AbstractProcessInstanceModification
     return instances;
   }
 
+  public String getActivityId() {
+    return activityId;
+  }
+
+  @Override
   protected String describe() {
     return "Cancel all instances of activity '" + activityId + "'";
   }

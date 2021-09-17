@@ -21,10 +21,11 @@ import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.impl.HistoricProcessInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.Page;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
 import org.camunda.bpm.engine.impl.history.event.HistoricProcessInstanceEventEntity;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.AbstractHistoricManager;
-
+import org.camunda.bpm.engine.impl.util.ClockUtil;
 
 /**
  * @author Tom Baeyens
@@ -79,9 +80,28 @@ public class HistoricProcessInstanceManager extends AbstractHistoricManager {
       getHistoricJobLogManager()
         .deleteHistoricJobLogsByProcessInstanceId(historicProcessInstanceId);
 
+      getHistoricExternalTaskLogManager()
+        .deleteHistoricExternalTaskLogsByProcessInstanceId(historicProcessInstanceId);
+
       commandContext.getDbEntityManager().delete(HistoricProcessInstanceEntity.class, "deleteHistoricProcessInstance", historicProcessInstanceId);
 
     }
+  }
+
+  public void deleteHistoricProcessInstanceByIds(List<String> processInstanceIds) {
+    CommandContext commandContext = Context.getCommandContext();
+
+    commandContext.getHistoricDetailManager().deleteHistoricDetailsByProcessInstanceIds(processInstanceIds);
+    commandContext.getHistoricVariableInstanceManager().deleteHistoricVariableInstanceByProcessInstanceIds(processInstanceIds);
+    commandContext.getCommentManager().deleteCommentsByProcessInstanceIds(processInstanceIds);
+    commandContext.getAttachmentManager().deleteAttachmentsByProcessInstanceIds(processInstanceIds);
+    commandContext.getHistoricTaskInstanceManager().deleteHistoricTaskInstancesByProcessInstanceIds(processInstanceIds, false);
+    commandContext.getHistoricActivityInstanceManager().deleteHistoricActivityInstancesByProcessInstanceIds(processInstanceIds);
+    commandContext.getHistoricIncidentManager().deleteHistoricIncidentsByProcessInstanceIds(processInstanceIds);
+    commandContext.getHistoricJobLogManager().deleteHistoricJobLogsByProcessInstanceIds(processInstanceIds);
+    commandContext.getHistoricExternalTaskLogManager().deleteHistoricExternalTaskLogsByProcessInstanceIds(processInstanceIds);
+
+    commandContext.getDbEntityManager().deletePreserveOrder(HistoricProcessInstanceEntity.class, "deleteHistoricProcessInstances", processInstanceIds);
   }
 
   public long findHistoricProcessInstanceCountByQueryCriteria(HistoricProcessInstanceQueryImpl historicProcessInstanceQuery) {
@@ -115,4 +135,22 @@ public class HistoricProcessInstanceManager extends AbstractHistoricManager {
     getTenantManager().configureQuery(query);
   }
 
+  public List<String> findHistoricProcessInstanceIdsForCleanup(Integer batchSize) {
+    ListQueryParameterObject parameterObject = new ListQueryParameterObject();
+    parameterObject.setParameter(ClockUtil.getCurrentTime());
+    parameterObject.setFirstResult(0);
+    parameterObject.setMaxResults(batchSize);
+    return (List<String>) getDbEntityManager().selectList("selectHistoricProcessInstanceIdsForCleanup", parameterObject);
+  }
+
+  public Long findHistoricProcessInstanceIdsForCleanupCount() {
+    ListQueryParameterObject parameterObject = new ListQueryParameterObject();
+    parameterObject.setParameter(ClockUtil.getCurrentTime());
+    return (Long) getDbEntityManager().selectOne("selectHistoricProcessInstanceIdsForCleanupCount", parameterObject);
+  }
+
+  public List<String> findHistoricProcessInstanceIds(HistoricProcessInstanceQueryImpl historicProcessInstanceQuery) {
+    configureQuery(historicProcessInstanceQuery);
+    return (List<String>) getDbEntityManager().selectList("selectHistoricProcessInstanceIdsByQueryCriteria", historicProcessInstanceQuery);
+  }
 }

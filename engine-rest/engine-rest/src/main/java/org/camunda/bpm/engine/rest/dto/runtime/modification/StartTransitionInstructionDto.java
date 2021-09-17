@@ -16,6 +16,8 @@ import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
+import org.camunda.bpm.engine.runtime.InstantiationBuilder;
+import org.camunda.bpm.engine.runtime.ModificationBuilder;
 import org.camunda.bpm.engine.runtime.ProcessInstanceModificationBuilder;
 import org.camunda.bpm.engine.runtime.ProcessInstanceModificationInstantiationBuilder;
 import org.camunda.bpm.engine.runtime.ProcessInstantiationBuilder;
@@ -47,11 +49,13 @@ public class StartTransitionInstructionDto extends ProcessInstanceModificationIn
   }
 
   @Override
-  public void applyTo(ProcessInstantiationBuilder builder, ProcessEngine engine, ObjectMapper mapper) {
+  public void applyTo(InstantiationBuilder<?> builder, ProcessEngine engine, ObjectMapper mapper) {
     checkValidity();
 
     builder.startTransition(transitionId);
-    applyVariables(builder, engine, mapper);
+    if (builder instanceof ProcessInstantiationBuilder) {
+      applyVariables((ProcessInstantiationBuilder) builder, engine, mapper);
+    }
   }
 
   protected void checkValidity() {

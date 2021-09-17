@@ -32,9 +32,12 @@ import org.camunda.bpm.engine.ManagementService;
 public interface Batch {
 
   String TYPE_PROCESS_INSTANCE_MIGRATION = "instance-migration";
+  String TYPE_PROCESS_INSTANCE_MODIFICATION = "instance-modification";
+  String TYPE_PROCESS_INSTANCE_RESTART = "instance-restart";
   String TYPE_PROCESS_INSTANCE_DELETION = "instance-deletion";
   String TYPE_HISTORIC_PROCESS_INSTANCE_DELETION = "historic-instance-deletion";
   String TYPE_SET_JOB_RETRIES = "set-job-retries";
+  String TYPE_SET_EXTERNAL_TASK_RETRIES = "set-external-task-retries";
 
   /**
    * @return the id of the batch

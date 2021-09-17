@@ -24,7 +24,7 @@ import org.camunda.bpm.engine.impl.bpmn.parser.EventSubscriptionDeclaration;
 import org.camunda.bpm.engine.impl.cmd.CommandLogger;
 import org.camunda.bpm.engine.impl.event.EventType;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.deploy.cache.DeploymentCache;
 import org.camunda.bpm.engine.impl.persistence.entity.EventSubscriptionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.EventSubscriptionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
@@ -85,6 +85,13 @@ public class DefaultCorrelationHandler implements CorrelationHandler {
     if (correlationKeys != null) {
       for (Map.Entry<String, Object> correlationKey : correlationKeys.entrySet()) {
         query.processVariableValueEquals(correlationKey.getKey(), correlationKey.getValue());
+      }
+    }
+
+    Map<String, Object> localCorrelationKeys = correlationSet.getLocalCorrelationKeys();
+    if (localCorrelationKeys != null) {
+      for (Map.Entry<String, Object> correlationKey : localCorrelationKeys.entrySet()) {
+        query.variableValueEquals(correlationKey.getKey(), correlationKey.getValue());
       }
     }
 

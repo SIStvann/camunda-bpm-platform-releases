@@ -123,6 +123,13 @@ public abstract class JobDeclaration<S, T extends JobEntity> implements Serializ
   }
 
   /**
+   * Re-initialize configuration part.
+    */
+  public T reconfigure(S context, T job) {
+    return job;
+  }
+
+  /**
    * general callback to override any configuration after the defaults have been applied
    */
   protected void postInitialize(S context, T job) {
@@ -176,7 +183,7 @@ public abstract class JobDeclaration<S, T extends JobEntity> implements Serializ
     return Context.getProcessEngineConfiguration().getDefaultNumberOfRetries();
   }
 
-  protected Date resolveDueDate(S context) {
+  public Date resolveDueDate(S context) {
     ProcessEngineConfiguration processEngineConfiguration = Context.getProcessEngineConfiguration();
     if (processEngineConfiguration != null && processEngineConfiguration.isJobExecutorAcquireByDueDate()) {
       return ClockUtil.getCurrentTime();

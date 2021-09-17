@@ -29,6 +29,10 @@ public class ActivityAfterInstantiationCmd extends AbstractInstantiationCmd {
 
   protected String activityId;
 
+  public ActivityAfterInstantiationCmd(String activityId) {
+    this(null, activityId);
+  }
+
   public ActivityAfterInstantiationCmd(String processInstanceId, String activityId) {
     this(processInstanceId, activityId, null);
   }
@@ -39,12 +43,14 @@ public class ActivityAfterInstantiationCmd extends AbstractInstantiationCmd {
     this.activityId = activityId;
   }
 
+  @Override
   protected ScopeImpl getTargetFlowScope(ProcessDefinitionImpl processDefinition) {
     TransitionImpl transition = findTransition(processDefinition);
 
     return transition.getDestination().getFlowScope();
   }
 
+  @Override
   protected CoreModelElement getTargetElement(ProcessDefinitionImpl processDefinition) {
     return findTransition(processDefinition);
   }
@@ -69,10 +75,12 @@ public class ActivityAfterInstantiationCmd extends AbstractInstantiationCmd {
     return (TransitionImpl) activity.getOutgoingTransitions().get(0);
   }
 
-  protected String getTargetElementId() {
+  @Override
+  public String getTargetElementId() {
     return activityId;
   }
 
+  @Override
   protected String describe() {
     StringBuilder sb = new StringBuilder();
     sb.append("Start after activity '");

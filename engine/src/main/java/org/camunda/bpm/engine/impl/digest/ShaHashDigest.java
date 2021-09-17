@@ -20,13 +20,8 @@ package org.camunda.bpm.engine.impl.digest;
  */
 public class ShaHashDigest extends Base64EncodedHashDigest implements PasswordEncryptor {
 
-  protected String getAlgorithmName() {
+  @Override
+  public String hashAlgorithmName() {
     return "SHA";
   }
-  
-  @Override
-  public String encrypt(String password) {
-    return "{SHA}" + super.encrypt(password);
-  }
-
 }

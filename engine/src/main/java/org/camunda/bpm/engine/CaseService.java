@@ -888,5 +888,4 @@ public interface CaseService {
    * @throws NotValidException when the given variable name is null
    */
   void removeVariableLocal(String caseExecutionId, String variableName);
-
 }

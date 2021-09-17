@@ -77,6 +77,7 @@ import org.camunda.bpm.engine.impl.util.EnsureUtil;
 public class DbEntityManager implements Session, EntityLoadListener {
 
   protected static final EnginePersistenceLogger LOG = ProcessEngineLogger.PERSISTENCE_LOGGER;
+  protected static final String TOGGLE_FOREIGN_KEY_STMT = "toggleForeignKey";
 
   protected List<OptimisticLockingListener> optimisticLockingListeners;
 
@@ -87,6 +88,7 @@ public class DbEntityManager implements Session, EntityLoadListener {
   protected DbOperationManager dbOperationManager;
 
   protected PersistenceSession persistenceSession;
+  protected boolean isIgnoreForeignKeysForNextFlush;
 
   public DbEntityManager(IdGenerator idGenerator, PersistenceSession persistenceSession) {
     this.idGenerator = idGenerator;
@@ -191,6 +193,7 @@ public class DbEntityManager implements Session, EntityLoadListener {
     if (persistentObject!=null) {
       return persistentObject;
     }
+
     persistentObject = persistenceSession.selectById(entityClass, id);
 
     if (persistentObject==null) {
@@ -278,21 +281,37 @@ public class DbEntityManager implements Session, EntityLoadListener {
     flushDbOperationManager();
   }
 
+  public void setIgnoreForeignKeysForNextFlush(boolean ignoreForeignKeysForNextFlush) {
+    isIgnoreForeignKeysForNextFlush = ignoreForeignKeysForNextFlush;
+  }
+
   protected void flushDbOperationManager() {
     // obtain totally ordered operation list from operation manager
     List<DbOperation> operationsToFlush = dbOperationManager.calculateFlush();
     LOG.databaseFlushSummary(operationsToFlush);
 
+    // If we want to delete all table data as bulk operation, on tables which have self references,
+    // We need to turn the foreign key check off on MySQL and MariaDB.
+    // On other databases we have to do nothing, the mapped statement will be empty.
+    if (isIgnoreForeignKeysForNextFlush) {
+      persistenceSession.executeNonEmptyUpdateStmt(TOGGLE_FOREIGN_KEY_STMT, false);
+    }
     // execute the flush
-    for (DbOperation dbOperation : operationsToFlush) {
-      try {
-        persistenceSession.executeDbOperation(dbOperation);
+    try {
+      for (DbOperation dbOperation : operationsToFlush) {
+        try {
+          persistenceSession.executeDbOperation(dbOperation);
+        } catch (Exception e) {
+          throw LOG.flushDbOperationException(operationsToFlush, dbOperation, e);
+        }
+        if (dbOperation.isFailed()) {
+          handleOptimisticLockingException(dbOperation);
+        }
       }
-      catch(Exception e) {
-        throw LOG.flushDbOperationException(operationsToFlush, dbOperation, e);
-      }
-      if(dbOperation.isFailed()) {
-        handleOptimisticLockingException(dbOperation);
+    } finally {
+      if (isIgnoreForeignKeysForNextFlush) {
+        persistenceSession.executeNonEmptyUpdateStmt(TOGGLE_FOREIGN_KEY_STMT, true);
+        isIgnoreForeignKeysForNextFlush = false;
       }
     }
   }
@@ -420,11 +439,52 @@ public class DbEntityManager implements Session, EntityLoadListener {
     performBulkOperation(entityType, statement, parameter, UPDATE_BULK);
   }
 
+  /**
+   * Several update operations added by this method will be executed preserving the order of method calls, no matter what entity type they refer to.
+   * They will though be executed after all "not-bulk" operations (e.g. {@link DbEntityManager#insert(DbEntity)} or {@link DbEntityManager#merge(DbEntity)})
+   * and after those updates added by {@link DbEntityManager#update(Class, String, Object)}.
+   * @param entityType
+   * @param statement
+   * @param parameter
+   */
+  public void updatePreserveOrder(Class<? extends DbEntity> entityType, String statement, Object parameter) {
+    performBulkOperationPreserveOrder(entityType, statement, parameter, UPDATE_BULK);
+  }
+
   public void delete(Class<? extends DbEntity> entityType, String statement, Object parameter) {
     performBulkOperation(entityType, statement, parameter, DELETE_BULK);
   }
 
+  /**
+   * Several delete operations added by this method will be executed preserving the order of method calls, no matter what entity type they refer to.
+   * They will though be executed after all "not-bulk" operations (e.g. {@link DbEntityManager#insert(DbEntity)} or {@link DbEntityManager#merge(DbEntity)})
+   * and after those deletes added by {@link DbEntityManager#delete(Class, String, Object)}.
+   * @param entityType
+   * @param statement
+   * @param parameter
+   */
+  public void deletePreserveOrder(Class<? extends DbEntity> entityType, String statement, Object parameter) {
+    performBulkOperationPreserveOrder(entityType, statement, parameter, DELETE_BULK);
+  }
+
   protected DbBulkOperation performBulkOperation(Class<? extends DbEntity> entityType, String statement, Object parameter, DbOperationType operationType) {
+    // create operation
+    DbBulkOperation bulkOperation = createDbBulkOperation(entityType, statement, parameter, operationType);
+
+    // schedule operation
+    dbOperationManager.addOperation(bulkOperation);
+    return bulkOperation;
+  }
+
+  protected DbBulkOperation performBulkOperationPreserveOrder(Class<? extends DbEntity> entityType, String statement, Object parameter, DbOperationType operationType) {
+    DbBulkOperation bulkOperation = createDbBulkOperation(entityType, statement, parameter, operationType);
+
+    // schedule operation
+    dbOperationManager.addOperationPreserveOrder(bulkOperation);
+    return bulkOperation;
+  }
+
+  private DbBulkOperation createDbBulkOperation(Class<? extends DbEntity> entityType, String statement, Object parameter, DbOperationType operationType) {
     // create operation
     DbBulkOperation bulkOperation = new DbBulkOperation();
 
@@ -433,9 +493,6 @@ public class DbEntityManager implements Session, EntityLoadListener {
     bulkOperation.setEntityType(entityType);
     bulkOperation.setStatement(statement);
     bulkOperation.setParameter(parameter);
-
-    // schedule operation
-    dbOperationManager.addOperation(bulkOperation);
     return bulkOperation;
   }
 
@@ -570,5 +627,7 @@ public class DbEntityManager implements Session, EntityLoadListener {
   public List<String> getTableNamesPresentInDatabase() {
     return persistenceSession.getTableNamesPresent();
   }
+
+
 
 }

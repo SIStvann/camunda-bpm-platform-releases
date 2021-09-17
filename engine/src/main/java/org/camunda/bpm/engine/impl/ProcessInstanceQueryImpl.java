@@ -41,6 +41,7 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
   private static final long serialVersionUID = 1L;
   protected String processInstanceId;
   protected String businessKey;
+  protected String businessKeyLike;
   protected String processDefinitionId;
   protected Set<String> processInstanceIds;
   protected String processDefinitionKey;
@@ -89,6 +90,11 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
     ensureNotNull("Business key", businessKey);
     this.businessKey = businessKey;
     this.processDefinitionKey = processDefinitionKey;
+    return this;
+  }
+
+  public ProcessInstanceQuery processInstanceBusinessKeyLike(String businessKeyLike) {
+    this.businessKeyLike = businessKeyLike;
     return this;
   }
 
@@ -157,6 +163,11 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
 
   public ProcessInstanceQuery orderByTenantId() {
     orderBy(ProcessInstanceQueryProperty.TENANT_ID);
+    return this;
+  }
+
+  public ProcessInstanceQuery orderByBusinessKey() {
+    orderBy(ProcessInstanceQueryProperty.BUSINESS_KEY);
     return this;
   }
 
@@ -233,17 +244,6 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
       .findProcessInstancesByQueryCriteria(this, page);
   }
 
-  public List<String> listIds() {
-    this.resultType = ResultType.LIST;
-    return evaluateExpressionsAndExecuteIdsList(Context.getCommandContext());
-  }
-
-  public List<String> evaluateExpressionsAndExecuteIdsList(CommandContext commandContext) {
-    validate();
-    evaluateExpressions();
-    return !hasExcludingConditions() ? executeIdsList(commandContext) : new ArrayList<String>();
-  }
-
   public List<String> executeIdsList(CommandContext commandContext) {
     checkQueryOk();
     ensureVariablesInitialized();
@@ -264,6 +264,10 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
 
   public String getBusinessKey() {
     return businessKey;
+  }
+
+  public String getBusinessKeyLike() {
+    return businessKeyLike;
   }
 
   public String getProcessDefinitionId() {

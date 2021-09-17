@@ -37,7 +37,7 @@ public class LdapGroupQueryTest extends LdapIdentityProviderTest {
   public void testQueryNoFilter() {
     List<Group> groupList = identityService.createGroupQuery().list();
 
-    assertEquals(5, groupList.size());
+    assertEquals(6, groupList.size());
   }
 
   public void testFilterByGroupId() {
@@ -50,6 +50,14 @@ public class LdapGroupQueryTest extends LdapIdentityProviderTest {
 
     group = identityService.createGroupQuery().groupId("whatever").singleResult();
     assertNull(group);
+  }
+
+  public void FAILING_testFilterByGroupIdIn() {
+    List<Group> groups = identityService.createGroupQuery()
+      .groupIdIn("external", "management")
+      .list();
+
+    assertEquals(2, groups.size());
   }
 
   public void testFilterByGroupName() {
@@ -78,18 +86,18 @@ public class LdapGroupQueryTest extends LdapIdentityProviderTest {
 
   public void testFilterByGroupMember() {
     List<Group> list = identityService.createGroupQuery().groupMember("daniel").list();
-    assertEquals(2, list.size());
-    list = identityService.createGroupQuery().groupMember("oscar").list();
-    assertEquals(1, list.size());
-    list = identityService.createGroupQuery().groupMember("ruecker").list();
     assertEquals(3, list.size());
+    list = identityService.createGroupQuery().groupMember("oscar").list();
+    assertEquals(2, list.size());
+    list = identityService.createGroupQuery().groupMember("ruecker").list();
+    assertEquals(4, list.size());
     list = identityService.createGroupQuery().groupMember("non-existing").list();
     assertEquals(0, list.size());
   }
 
   public void testFilterByGroupMemberSpecialCharacter() {
     List<Group> list = identityService.createGroupQuery().groupMember("david(IT)").list();
-    assertEquals(1, list.size());
+    assertEquals(2, list.size());
   }
 
   public void testFilterByGroupMemberPosix() {

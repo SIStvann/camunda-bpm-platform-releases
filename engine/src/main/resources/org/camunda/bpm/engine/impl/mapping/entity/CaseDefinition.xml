@@ -17,6 +17,7 @@
       RESOURCE_NAME_, 
       DGRM_RESOURCE_NAME_, 
       TENANT_ID_,
+      HISTORY_TTL_,
       REV_)
     values (#{id, jdbcType=VARCHAR},
             #{category, jdbcType=VARCHAR},
@@ -27,6 +28,7 @@
             #{resourceName, jdbcType=VARCHAR},
             #{diagramResourceName, jdbcType=VARCHAR},
             #{tenantId, jdbcType=VARCHAR},
+            #{historyTimeToLive, jdbcType=INTEGER},
             1
            )
   </insert>
@@ -35,7 +37,8 @@
 
   <update id="updateCaseDefinition" parameterType="org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionEntity">
     update ${prefix}ACT_RE_CASE_DEF set
-      REV_ = #{revisionNext, jdbcType=INTEGER}
+      REV_ = #{revisionNext, jdbcType=INTEGER},
+      HISTORY_TTL_ = #{historyTimeToLive, jdbcType=INTEGER}
     where ID_ = #{id, jdbcType=VARCHAR}
       and REV_ = #{revision, jdbcType=INTEGER}
   </update>
@@ -58,7 +61,8 @@
     <result property="deploymentId" column="DEPLOYMENT_ID_" jdbcType="VARCHAR"/>
     <result property="resourceName" column="RESOURCE_NAME_" jdbcType="VARCHAR"/>
     <result property="diagramResourceName" column="DGRM_RESOURCE_NAME_" jdbcType="VARCHAR"/>
-    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR"/>    
+    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR"/>
+    <result property="historyTimeToLive" column="HISTORY_TTL_" jdbcType="INTEGER" /> 
   </resultMap>
 
   <!-- CASEDEFINITION SELECT -->
@@ -183,6 +187,7 @@
   </select>
 
   <sql id="selectCaseDefinitionsByQueryCriteriaSql">
+    <bind name="escapeChar" value="'\\'"/>
     from ${prefix}ACT_RE_CASE_DEF RES
     <if test="latest">
       inner join
@@ -211,25 +216,25 @@
         and RES.CATEGORY_ = #{category}
       </if>
       <if test="categoryLike != null">
-        and RES.CATEGORY_ like #{categoryLike}
+        and RES.CATEGORY_ like #{categoryLike} ESCAPE #{escapeChar}
       </if>
       <if test="name != null">
         and RES.NAME_ = #{name}
       </if>
       <if test="nameLike != null">
-        and RES.NAME_ like #{nameLike}
+        and RES.NAME_ like #{nameLike} ESCAPE #{escapeChar}
       </if>
       <if test="key != null">
         and RES.KEY_ = #{key}
       </if>
       <if test="keyLike != null">
-        and RES.KEY_ like #{keyLike}
+        and RES.KEY_ like #{keyLike} ESCAPE #{escapeChar}
       </if>
       <if test="resourceName != null">
         and RES.RESOURCE_NAME_ = #{resourceName}
       </if>
       <if test="resourceNameLike != null">
-        and RES.RESOURCE_NAME_ like #{resourceNameLike}
+        and RES.RESOURCE_NAME_ like #{resourceNameLike} ESCAPE #{escapeChar}
       </if>
       <if test="version != null">
         and RES.VERSION_ = #{version}

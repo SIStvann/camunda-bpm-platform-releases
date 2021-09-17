@@ -444,7 +444,7 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
 
       if (tenantIdProvider != null) {
         VariableMap variableMap = Variables.fromMap(variables);
-        ProcessDefinition processDefinition = (ProcessDefinition) getProcessDefinition();
+        ProcessDefinition processDefinition = getProcessDefinition();
 
         TenantIdProviderProcessInstanceContext ctx;
         if (superExecutionId != null) {
@@ -1136,7 +1136,7 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
       task.setExecution(other);
 
       // update the related local task variables
-      List<VariableInstanceEntity> variables = commandContext.getVariableInstanceManager().findVariableInstancesByTaskId(task.getId());
+      Collection<VariableInstanceEntity> variables = task.getVariablesInternal();
 
       for (VariableInstanceEntity variable : variables) {
         variable.setExecution(other);
@@ -1238,13 +1238,18 @@ public class ExecutionEntity extends PvmExecutionImpl implements Execution, Proc
 
     ActivityImpl currentActivity = getActivity();
 
-    return !(startContext != null && startContext.isDelayFireHistoricVariableEvents())
-        && !(currentActivity != null && isAsyncStartEvent(currentActivity));
+    return (startContext == null || !startContext.isDelayFireHistoricVariableEvents())
+      && (currentActivity == null || isActivityNoStartEvent(currentActivity)
+      || isStartEventInValidStateOrNotAsync(currentActivity));
   }
 
-  protected boolean isAsyncStartEvent(ActivityImpl activity) {
-    return activity.isAsyncBefore()
-        && activity.getActivityBehavior() instanceof NoneStartEventActivityBehavior;
+  protected boolean isActivityNoStartEvent(ActivityImpl currentActivity) {
+    return !(currentActivity.getActivityBehavior() instanceof NoneStartEventActivityBehavior);
+  }
+
+  protected boolean isStartEventInValidStateOrNotAsync(ActivityImpl currentActivity) {
+    return getActivityInstanceState() != ActivityInstanceState.DEFAULT.getStateCode()
+      || !currentActivity.isAsyncBefore();
   }
 
   public void fireHistoricVariableInstanceCreateEvents() {

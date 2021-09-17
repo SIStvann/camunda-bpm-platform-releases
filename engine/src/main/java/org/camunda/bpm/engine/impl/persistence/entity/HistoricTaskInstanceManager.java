@@ -43,8 +43,61 @@ public class HistoricTaskInstanceManager extends AbstractHistoricManager {
     deleteHistoricTaskInstances("processInstanceId", processInstanceId);
   }
 
+  public void deleteHistoricTaskInstancesByProcessInstanceIds(List<String> processInstanceIds) {
+    deleteHistoricTaskInstancesByProcessInstanceIds(processInstanceIds, true);
+  }
+
+  /**
+   * Deletes all data related with tasks, which belongs to specified process instance ids.
+   * @param processInstanceIds
+   * @param deleteVariableInstances when true, will also delete variable instances. Can be false when variable instances were deleted separately.
+   */
+  public void deleteHistoricTaskInstancesByProcessInstanceIds(List<String> processInstanceIds, boolean deleteVariableInstances) {
+
+    CommandContext commandContext = Context.getCommandContext();
+
+    if (deleteVariableInstances) {
+      getHistoricVariableInstanceManager().deleteHistoricVariableInstancesByTaskProcessInstanceIds(processInstanceIds);
+    }
+
+    getHistoricDetailManager()
+        .deleteHistoricDetailsByTaskProcessInstanceIds(processInstanceIds);
+
+    commandContext
+        .getCommentManager()
+        .deleteCommentsByTaskProcessInstanceIds(processInstanceIds);
+
+    getAttachmentManager()
+        .deleteAttachmentsByTaskProcessInstanceIds(processInstanceIds);
+
+    getHistoricIdentityLinkManager()
+        .deleteHistoricIdentityLinksLogByTaskProcessInstanceIds(processInstanceIds);
+
+    getDbEntityManager().deletePreserveOrder(HistoricTaskInstanceEntity.class, "deleteHistoricTaskInstanceByProcessInstanceIds", processInstanceIds);
+  }
+
   public void deleteHistoricTaskInstancesByCaseInstanceId(String caseInstanceId) {
     deleteHistoricTaskInstances("caseInstanceId", caseInstanceId);
+  }
+
+  public void deleteHistoricTaskInstancesByCaseInstanceIds(List<String> caseInstanceIds) {
+
+    CommandContext commandContext = Context.getCommandContext();
+
+    getHistoricDetailManager()
+        .deleteHistoricDetailsByCaseTaskInstanceIds(caseInstanceIds);
+
+    commandContext
+        .getCommentManager()
+        .deleteCommentsByTaskCaseInstanceIds(caseInstanceIds);
+
+    getAttachmentManager()
+        .deleteAttachmentsByTaskCaseInstanceIds(caseInstanceIds);
+
+    getHistoricIdentityLinkManager()
+        .deleteHistoricIdentityLinksLogByTaskCaseInstanceIds(caseInstanceIds);
+
+    getDbEntityManager().deletePreserveOrder(HistoricTaskInstanceEntity.class, "deleteHistoricTaskInstanceByCaseInstanceIds", caseInstanceIds);
   }
 
   public void deleteHistoricTaskInstancesByCaseDefinitionId(String caseDefinitionId) {

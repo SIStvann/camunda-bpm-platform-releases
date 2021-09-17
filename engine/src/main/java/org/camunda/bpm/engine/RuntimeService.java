@@ -12,6 +12,10 @@
  */
 package org.camunda.bpm.engine;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resources;
 import org.camunda.bpm.engine.batch.Batch;
@@ -21,14 +25,27 @@ import org.camunda.bpm.engine.migration.MigrationPlanBuilder;
 import org.camunda.bpm.engine.migration.MigrationPlanExecutionBuilder;
 import org.camunda.bpm.engine.repository.Deployment;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
-import org.camunda.bpm.engine.runtime.*;
+import org.camunda.bpm.engine.runtime.ActivityInstance;
+import org.camunda.bpm.engine.runtime.EventSubscriptionQuery;
+import org.camunda.bpm.engine.runtime.Execution;
+import org.camunda.bpm.engine.runtime.ExecutionQuery;
+import org.camunda.bpm.engine.runtime.IncidentQuery;
+import org.camunda.bpm.engine.runtime.MessageCorrelationBuilder;
+import org.camunda.bpm.engine.runtime.ModificationBuilder;
+import org.camunda.bpm.engine.runtime.NativeExecutionQuery;
+import org.camunda.bpm.engine.runtime.NativeProcessInstanceQuery;
+import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.engine.runtime.ProcessInstanceModificationBuilder;
+import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
+import org.camunda.bpm.engine.runtime.ProcessInstantiationBuilder;
+import org.camunda.bpm.engine.runtime.RestartProcessInstanceBuilder;
+import org.camunda.bpm.engine.runtime.SignalEventReceivedBuilder;
+import org.camunda.bpm.engine.runtime.UpdateProcessInstanceSuspensionStateBuilder;
+import org.camunda.bpm.engine.runtime.UpdateProcessInstanceSuspensionStateSelectBuilder;
+import org.camunda.bpm.engine.runtime.VariableInstanceQuery;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.value.SerializableValue;
 import org.camunda.bpm.engine.variable.value.TypedValue;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 
 
 /** Service which provides access to {@link Deployment}s,
@@ -587,6 +604,23 @@ public interface RuntimeService {
   /**
    * Delete an existing runtime process instances asynchronously using Batch operation.
    *
+   * @param processInstanceIds id's of process instances to delete, cannot be null if processInstanceQuery is null.
+   * @param processInstanceQuery query that will be used to fetch affected process instances.
+   *                             Cannot be null if processInstanceIds are null.
+   * @param deleteReason reason for deleting, which will be stored in the history. Can be null.
+   * @param skipCustomListeners skips custom execution listeners when removing instances
+   * @throws BadUserRequestException
+   *          when no process instance is found with the given id or id is null.
+   * @throws AuthorizationException
+   *          if the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_INSTANCE}
+   *          or no {@link Permissions#DELETE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}
+   *          or no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   */
+  Batch deleteProcessInstancesAsync(List<String> processInstanceIds, ProcessInstanceQuery processInstanceQuery, String deleteReason, boolean skipCustomListeners);
+
+  /**
+   * Delete an existing runtime process instances asynchronously using Batch operation.
+   *
    * @param processInstanceQuery query that will be used to fetch affected process instances.
    *                             Cannot be null.
    * @param deleteReason reason for deleting, which will be stored in the history. Can be null.
@@ -672,6 +706,27 @@ public interface RuntimeService {
    *          or no {@link Permissions#DELETE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void deleteProcessInstances(List<String> processInstanceIds, String deleteReason, boolean skipCustomListeners, boolean externallyTerminated);
+
+  /**
+   * Delete an existing runtime process instance.
+   *
+   * @param processInstanceId id of process instance to delete, cannot be null.
+   * @param deleteReason reason for deleting, which will be stored in the history. Can be null.
+   * @param skipCustomListeners if true, only the built-in {@link ExecutionListener}s
+   * are notified with the {@link ExecutionListener#EVENTNAME_END} event.
+   * @param externallyTerminated indicator if deletion triggered from external context, for instance
+   *                             REST API call
+   * @param skipIoMappings specifies whether input/output mappings for tasks should be invoked
+   *
+   *
+   * @throws BadUserRequestException
+   *          when no process instance is found with the given id or id is null.
+   * @throws AuthorizationException
+   *          if the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_INSTANCE}
+   *          or no {@link Permissions#DELETE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
+   */
+  void deleteProcessInstance(String processInstanceId, String deleteReason, boolean skipCustomListeners, boolean externallyTerminated, boolean skipIoMappings);
+
   /**
    * Finds the activity ids for all executions that are waiting in activities.
    * This is a list because a single activity can be active multiple times.
@@ -1068,7 +1123,7 @@ public interface RuntimeService {
 
   /**
    * Returns a {@link TypedValue} for the variable. Searching for the variable is done in all scopes that are visible
-   * to the given execution (including parent scopes). Returns null when no variable value is found with the given name.
+   * to the given execution (and not searching parent scopes). Returns null when no variable value is found with the given name.
    *
    * @param executionId id of process instance or execution, cannot be null.
    * @param variableName name of variable, cannot be null.
@@ -1809,4 +1864,41 @@ public interface RuntimeService {
    */
   MigrationPlanExecutionBuilder newMigration(MigrationPlan migrationPlan);
 
+  /**
+   * Creates a modification of multiple process instances in terms of activity cancellations
+   * and instantiations via a fluent builder. Returns a fluent builder that can be used to specify
+   * modification instructions and set process instances that should be modified.
+   *
+   * The modification can
+   * either be executed synchronously or asynchronously. A synchronously modification
+   * blocks the caller until the modification was completed. The modification can only be
+   * successfully completed if all process instances can be modified.
+   *
+   * If the modification is executed asynchronously a {@link Batch} is immediately returned.
+   * The modification is then executed as jobs from the process engine and the batch can
+   * be used to track the progress of the modification. The Batch splits the modification
+   * in smaller chunks which will be executed independently.
+   *
+   * @param processDefinitionId the process definition that instances are modified of
+   * @return a fluent builder
+   */
+
+  ModificationBuilder createModification(String processDefinitionId);
+
+  /**
+   * Restarts process instances that are completed or deleted with the initial or last set of variables.
+   *
+   * @param processDefinitionId the id of the process definition, cannot be null.
+   *
+   * @throws ProcessEngineException
+   *          when no process definition is deployed with the given key or a process instance is still active.
+   * @throws AuthorizationException
+   *          if the user has not all of the following permissions
+   *     <ul>
+   *       <li>{@link Permissions#CREATE} permission on {@link Resources#PROCESS_INSTANCE}</li>
+   *       <li>{@link Permissions#CREATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *       <li>{@link Permissions#READ_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}</li>
+   *     </ul>
+   */
+  RestartProcessInstanceBuilder restartProcessInstances(String processDefinitionId);
 }

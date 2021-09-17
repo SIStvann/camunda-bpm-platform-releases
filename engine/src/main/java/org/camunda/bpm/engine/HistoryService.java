@@ -30,6 +30,8 @@ import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricDetailQuery;
+import org.camunda.bpm.engine.history.HistoricExternalTaskLogQuery;
+import org.camunda.bpm.engine.history.HistoricExternalTaskLog;
 import org.camunda.bpm.engine.history.HistoricIdentityLinkLog;
 import org.camunda.bpm.engine.history.HistoricIdentityLinkLogQuery;
 import org.camunda.bpm.engine.history.HistoricIncident;
@@ -53,6 +55,8 @@ import org.camunda.bpm.engine.history.NativeHistoricTaskInstanceQuery;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.history.UserOperationLogQuery;
 import org.camunda.bpm.engine.history.HistoricDecisionInstanceStatisticsQuery;
+import org.camunda.bpm.engine.repository.ProcessDefinition;
+import org.camunda.bpm.engine.runtime.Job;
 
 import java.util.List;
 
@@ -142,11 +146,52 @@ public interface HistoryService {
    * historic details (variable updates, form properties) are deleted as well.
    *
    * @throws BadUserRequestException
-   *          when no process instances is found with the given ids or ids are null.
+   *          when no process instances are found with the given ids or ids are null.
    * @throws AuthorizationException
    *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void deleteHistoricProcessInstances(List<String> processInstanceIds);
+
+  /**
+   * Deletes historic process instances and all related historic data in bulk manner. DELETE SQL statement will be created for each entity type. They will have list
+   * of given process instance ids in IN clause. Therefore, DB limitation for number of values in IN clause must be taken into account.
+   *
+   * @param processInstanceIds list of process instance ids for removal
+   *
+   * @throws BadUserRequestException
+   *          when no process instances are found with the given ids or ids are null or when some of the process instances are not finished yet
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}.
+   */
+  void deleteHistoricProcessInstancesBulk(List<String> processInstanceIds);
+
+  /**
+   * Schedules history cleanup job at batch window start time. The job will delete historic data for finished processes
+   * taking into account {@link ProcessDefinition#getHistoryTimeToLive()} value.
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}
+   * @return history cleanup job. Job id can be used to check job logs, incident etc.
+   */
+  Job cleanUpHistoryAsync();
+
+  /**
+   * Schedules history cleanup job. The job will delete historic data for finished processes
+   * taking into account {@link ProcessDefinition#getHistoryTimeToLive()} value.
+   *
+   * @param immediatelyDue must be true if cleanup must be scheduled at once, otherwise is will be scheduled according to configured batch window
+   * @throws AuthorizationException
+   *      If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}
+   * @return history cleanup job. Job id can be used to check job logs, incident etc.
+   *
+   */
+  Job cleanUpHistoryAsync(boolean immediatelyDue);
+
+  /**
+   * Finds history cleanup job if present.
+   * @return job entity
+   */
+  Job findHistoryCleanupJob();
 
   /**
    * Deletes historic process instances asynchronously. All historic activities, historic task and
@@ -200,6 +245,14 @@ public interface HistoryService {
   void deleteHistoricCaseInstance(String caseInstanceId);
 
   /**
+   * Deletes historic case instances and all related historic data in bulk manner. DELETE SQL statement will be created for each entity type. They will have list
+   * of given case instance ids in IN clause. Therefore, DB limitation for number of values in IN clause must be taken into account.
+   *
+   * @param caseInstanceIds list of case instance ids for removal
+   */
+  void deleteHistoricCaseInstancesBulk(List<String> caseInstanceIds);
+
+  /**
    * Deletes historic decision instances of a decision definition. All historic
    * decision inputs and outputs are deleted as well.
    *
@@ -217,6 +270,17 @@ public interface HistoryService {
   void deleteHistoricDecisionInstance(String decisionDefinitionId);
 
   /**
+   * Deletes decision instances and all related historic data in bulk manner. DELETE SQL statement will be created for each entity type. They will have list
+   * of given decision instance ids in IN clause. Therefore, DB limitation for number of values in IN clause must be taken into account.
+   *
+   * @param decisionInstanceIds list of decision instance ids for removal.
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#DECISION_DEFINITION}.
+   */
+  void deleteHistoricDecisionInstancesBulk(List<String> decisionInstanceIds);
+
+  /**
    * Deletes historic decision instances of a decision definition. All historic
    * decision inputs and outputs are deleted as well.
    *
@@ -232,7 +296,7 @@ public interface HistoryService {
   /**
    * Deletes historic decision instances by its id. All historic
    * decision inputs and outputs are deleted as well.
-   * 
+   *
    * @param historicDecisionInstanceId
    *          the id of the historic decision instance
    * @throws AuthorizationException
@@ -331,4 +395,26 @@ public interface HistoryService {
    * @since 7.6
    */
   HistoricDecisionInstanceStatisticsQuery createHistoricDecisionInstanceStatisticsQuery(String decisionRequirementsDefinitionId);
+
+  /**
+   * Creates a new programmatic query to search for {@link HistoricExternalTaskLog historic external task logs}.
+   *
+   * @since 7.7
+   */
+  HistoricExternalTaskLogQuery createHistoricExternalTaskLogQuery();
+
+  /**
+   * Returns the full error details that occurs when the
+   * historic external task log with the given id was last executed. Returns null
+   * when the historic external task log contains no error details.
+   *
+   * @param historicExternalTaskLogId id of the historic external task log, cannot be null.
+   * @throws ProcessEngineException when no historic external task log exists with the given id.
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#READ_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}.
+   *
+   * @since 7.7
+   */
+  String getHistoricExternalTaskLogErrorDetails(String historicExternalTaskLogId);
 }

@@ -36,10 +36,12 @@ import javax.naming.ldap.InitialLdapContext;
 import javax.naming.ldap.LdapContext;
 import javax.naming.ldap.SortControl;
 
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.authorization.Permission;
 import org.camunda.bpm.engine.authorization.Resource;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.GroupQuery;
+import org.camunda.bpm.engine.identity.NativeUserQuery;
 import org.camunda.bpm.engine.identity.Tenant;
 import org.camunda.bpm.engine.identity.TenantQuery;
 import org.camunda.bpm.engine.identity.User;
@@ -145,6 +147,11 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
     return new LdapUserQueryImpl();
   }
 
+  @Override
+  public NativeUserQuery createNativeUserQuery() {
+    throw new BadUserRequestException("Native user queries are not supported for LDAP identity service provider.");
+  }
+
   public long findUserCountByQueryCriteria(LdapUserQueryImpl query) {
     ensureContextInitialized();
     return findUserByQueryCriteria(query).size();
@@ -157,7 +164,7 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
       return findUsersByGroupId(query);
     } else {
       String userBaseDn = composeDn(ldapConfiguration.getUserSearchBase(), ldapConfiguration.getBaseDn());
-      return findUsersWithoutGroupId(query, userBaseDn);
+      return findUsersWithoutGroupId(query, userBaseDn, false);
     }
   }
 
@@ -181,7 +188,7 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
           NamingEnumeration<?> allMembers = memberAttribute.getAll();
 
           // iterate group members
-          while (allMembers.hasMoreElements() && groupMemberList.size() < query.getMaxResults()) {
+          while (allMembers.hasMoreElements()) {
             groupMemberList.add((String) allMembers.nextElement());
           }
         }
@@ -189,14 +196,18 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
 
       List<User> userList = new ArrayList<User>();
       String userBaseDn = composeDn(ldapConfiguration.getUserSearchBase(), ldapConfiguration.getBaseDn());
+      int memberCount = 0;
       for (String memberId : groupMemberList) {
-        if (ldapConfiguration.isUsePosixGroups()) {
-          query.userId(memberId);
+        if (userList.size() < query.getMaxResults() && memberCount >= query.getFirstResult()) {
+          if (ldapConfiguration.isUsePosixGroups()) {
+            query.userId(memberId);
+          }
+          List<User> users = ldapConfiguration.isUsePosixGroups() ? findUsersWithoutGroupId(query, userBaseDn, true) : findUsersWithoutGroupId(query, memberId, true);
+          if (users.size() > 0) {
+            userList.add(users.get(0));
+          }
         }
-        List<User> users = ldapConfiguration.isUsePosixGroups() ? findUsersWithoutGroupId(query, userBaseDn) : findUsersWithoutGroupId(query, memberId);
-        if (users.size() > 0) {
-          userList.add(users.get(0));
-        }
+        memberCount++;
       }
 
       return userList;
@@ -215,7 +226,7 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
     }
   }
 
-  public List<User> findUsersWithoutGroupId(LdapUserQueryImpl query, String userBaseDn) {
+  public List<User> findUsersWithoutGroupId(LdapUserQueryImpl query, String userBaseDn, boolean ignorePagination) {
 
     if(ldapConfiguration.isSortControlSupported()) {
       applyRequestControls(query);
@@ -230,14 +241,14 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
       // perform client-side paging
       int resultCount = 0;
       List<User> userList = new ArrayList<User>();
-      while (enumeration.hasMoreElements() && userList.size() < query.getMaxResults()) {
+      while (enumeration.hasMoreElements() && (userList.size() < query.getMaxResults() || ignorePagination)) {
         SearchResult result = enumeration.nextElement();
 
         UserEntity user = transformUser(result);
 
         if(isAuthenticatedUser(user) || isAuthorized(READ, USER, user.getId())) {
 
-          if(resultCount >= query.getFirstResult()) {
+          if(resultCount >= query.getFirstResult() || ignorePagination) {
             userList.add(user);
           }
 

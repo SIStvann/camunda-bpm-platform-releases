@@ -21,6 +21,8 @@ import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.DelegateTask;
 import org.camunda.bpm.engine.delegate.VariableScope;
+import org.camunda.bpm.engine.externaltask.ExternalTask;
+import org.camunda.bpm.engine.history.ExternalTaskState;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.IncidentState;
 import org.camunda.bpm.engine.history.JobState;
@@ -36,6 +38,7 @@ import org.camunda.bpm.engine.impl.oplog.UserOperationLogContext;
 import org.camunda.bpm.engine.impl.oplog.UserOperationLogContextEntry;
 import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.ExternalTaskEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogEventEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.IncidentEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
@@ -247,6 +250,7 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
     evt.setVariableName(variableInstance.getName());
     evt.setSerializerName(variableInstance.getSerializerName());
     evt.setTenantId(variableInstance.getTenantId());
+    evt.setUserOperationId(Context.getCommandContext().getOperationId());
 
     ExecutionEntity execution = variableInstance.getExecution();
     if (execution != null) {
@@ -674,7 +678,7 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
   public List<HistoryEvent> createUserOperationLogEvents(UserOperationLogContext context) {
     List<HistoryEvent> historyEvents = new ArrayList<HistoryEvent>();
 
-    String operationId = Context.getProcessEngineConfiguration().getIdGenerator().getNextId();
+    String operationId = Context.getCommandContext().getOperationId();
     context.setOperationId(operationId);
 
     for (UserOperationLogContextEntry entry : context.getEntries()) {
@@ -728,6 +732,7 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
     historicFormPropertyEntity.setPropertyValue(propertyValue);
     historicFormPropertyEntity.setTaskId(taskId);
     historicFormPropertyEntity.setTenantId(execution.getTenantId());
+    historicFormPropertyEntity.setUserOperationId(Context.getCommandContext().getOperationId());
 
     ProcessDefinitionEntity definition = execution.getProcessDefinition();
     if (definition != null) {
@@ -960,6 +965,55 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
       state = JobState.DELETED;
     }
     evt.setState(state.getStateCode());
+  }
+
+  @Override
+  public HistoryEvent createHistoricExternalTaskLogCreatedEvt(ExternalTask task) {
+    return initHistoricExternalTaskLog((ExternalTaskEntity) task, ExternalTaskState.CREATED);
+  }
+
+  @Override
+  public HistoryEvent createHistoricExternalTaskLogFailedEvt(ExternalTask task) {
+    HistoricExternalTaskLogEntity event = initHistoricExternalTaskLog((ExternalTaskEntity) task, ExternalTaskState.FAILED);
+    event.setErrorMessage(task.getErrorMessage());
+    String errorDetails = ((ExternalTaskEntity) task).getErrorDetails();
+    if( errorDetails != null) {
+      event.setErrorDetails(errorDetails);
+    }
+    return event;
+  }
+
+  @Override
+  public HistoryEvent createHistoricExternalTaskLogSuccessfulEvt(ExternalTask task) {
+    return initHistoricExternalTaskLog((ExternalTaskEntity) task, ExternalTaskState.SUCCESSFUL);
+  }
+
+  @Override
+  public HistoryEvent createHistoricExternalTaskLogDeletedEvt(ExternalTask task) {
+    return initHistoricExternalTaskLog((ExternalTaskEntity) task, ExternalTaskState.DELETED);
+  }
+
+  protected HistoricExternalTaskLogEntity initHistoricExternalTaskLog(ExternalTaskEntity entity, ExternalTaskState state) {
+    HistoricExternalTaskLogEntity event = new HistoricExternalTaskLogEntity();
+    event.setTimestamp(ClockUtil.getCurrentTime());
+    event.setExternalTaskId(entity.getId());
+    event.setTopicName(entity.getTopicName());
+    event.setWorkerId(entity.getWorkerId());
+
+    event.setPriority(entity.getPriority());
+    event.setRetries(entity.getRetries());
+
+    event.setActivityId(entity.getActivityId());
+    event.setActivityInstanceId(entity.getActivityInstanceId());
+    event.setExecutionId(entity.getExecutionId());
+
+    event.setProcessInstanceId(entity.getProcessInstanceId());
+    event.setProcessDefinitionId(entity.getProcessDefinitionId());
+    event.setProcessDefinitionKey(entity.getProcessDefinitionKey());
+    event.setTenantId(entity.getTenantId());
+    event.setState(state.getStateCode());
+
+    return event;
   }
 
   // sequence counter //////////////////////////////////////////////////////

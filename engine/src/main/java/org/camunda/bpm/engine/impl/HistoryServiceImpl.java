@@ -23,7 +23,9 @@ import org.camunda.bpm.engine.history.HistoricCaseActivityInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricCaseActivityStatisticsQuery;
 import org.camunda.bpm.engine.history.HistoricCaseInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricDecisionInstanceQuery;
+import org.camunda.bpm.engine.history.HistoricDecisionInstanceStatisticsQuery;
 import org.camunda.bpm.engine.history.HistoricDetailQuery;
+import org.camunda.bpm.engine.history.HistoricExternalTaskLogQuery;
 import org.camunda.bpm.engine.history.HistoricIncidentQuery;
 import org.camunda.bpm.engine.history.HistoricJobLogQuery;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
@@ -40,16 +42,22 @@ import org.camunda.bpm.engine.history.NativeHistoricTaskInstanceQuery;
 import org.camunda.bpm.engine.history.UserOperationLogQuery;
 import org.camunda.bpm.engine.impl.batch.history.DeleteHistoricBatchCmd;
 import org.camunda.bpm.engine.impl.batch.history.HistoricBatchQueryImpl;
+import org.camunda.bpm.engine.impl.cmd.DeleteHistoricProcessInstancesBulkCmd;
+import org.camunda.bpm.engine.impl.cmd.FindHistoryCleanupJobCmd;
+import org.camunda.bpm.engine.impl.cmd.HistoryCleanupCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteHistoricCaseInstanceCmd;
+import org.camunda.bpm.engine.impl.cmd.DeleteHistoricCaseInstancesBulkCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteHistoricProcessInstanceCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteHistoricProcessInstancesCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteHistoricTaskInstanceCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteUserOperationLogEntryCmd;
+import org.camunda.bpm.engine.impl.cmd.GetHistoricExternalTaskLogErrorDetailsCmd;
 import org.camunda.bpm.engine.impl.cmd.GetHistoricJobLogExceptionStacktraceCmd;
 import org.camunda.bpm.engine.impl.cmd.batch.DeleteHistoricProcessInstancesBatchCmd;
 import org.camunda.bpm.engine.impl.dmn.cmd.DeleteHistoricDecisionInstanceByInstanceIdCmd;
 import org.camunda.bpm.engine.impl.dmn.cmd.DeleteHistoricDecisionInstanceByDefinitionIdCmd;
-import org.camunda.bpm.engine.history.HistoricDecisionInstanceStatisticsQuery;
+import org.camunda.bpm.engine.impl.dmn.cmd.DeleteHistoricDecisionInstancesBulkCmd;
+import org.camunda.bpm.engine.runtime.Job;
 
 import java.util.List;
 
@@ -124,6 +132,23 @@ public class HistoryServiceImpl extends ServiceImpl implements HistoryService {
     commandExecutor.execute(new DeleteHistoricProcessInstancesCmd(processInstanceIds));
   }
 
+  public void deleteHistoricProcessInstancesBulk(List<String> processInstanceIds){
+    commandExecutor.execute(new DeleteHistoricProcessInstancesBulkCmd(processInstanceIds));
+  }
+
+  public Job cleanUpHistoryAsync() {
+    return cleanUpHistoryAsync(false);
+  }
+
+  public Job cleanUpHistoryAsync(boolean immediatelyDue) {
+    return commandExecutor.execute(new HistoryCleanupCmd(immediatelyDue));
+  }
+
+  @Override
+  public Job findHistoryCleanupJob() {
+    return commandExecutor.execute(new FindHistoryCleanupJobCmd());
+  }
+
   public Batch deleteHistoricProcessInstancesAsync(List<String> processInstanceIds, String deleteReason) {
     return this.deleteHistoricProcessInstancesAsync(processInstanceIds,null,deleteReason);
   }
@@ -144,8 +169,17 @@ public class HistoryServiceImpl extends ServiceImpl implements HistoryService {
     commandExecutor.execute(new DeleteHistoricCaseInstanceCmd(caseInstanceId));
   }
 
+  public void deleteHistoricCaseInstancesBulk(List<String> caseInstanceIds) {
+    commandExecutor.execute(new DeleteHistoricCaseInstancesBulkCmd(caseInstanceIds));
+  }
+
   public void deleteHistoricDecisionInstance(String decisionDefinitionId) {
     deleteHistoricDecisionInstanceByDefinitionId(decisionDefinitionId);
+  }
+
+  @Override
+  public void deleteHistoricDecisionInstancesBulk(List<String> decisionInstanceIds) {
+    commandExecutor.execute(new DeleteHistoricDecisionInstancesBulkCmd(decisionInstanceIds));
   }
 
   public void deleteHistoricDecisionInstanceByDefinitionId(String decisionDefinitionId) {
@@ -207,5 +241,15 @@ public class HistoryServiceImpl extends ServiceImpl implements HistoryService {
   @Override
   public HistoricDecisionInstanceStatisticsQuery createHistoricDecisionInstanceStatisticsQuery(String decisionRequirementsDefinitionId) {
     return new HistoricDecisionInstanceStatisticsQueryImpl(decisionRequirementsDefinitionId, commandExecutor);
+  }
+
+  @Override
+  public HistoricExternalTaskLogQuery createHistoricExternalTaskLogQuery() {
+    return new HistoricExternalTaskLogQueryImpl(commandExecutor);
+  }
+
+  @Override
+  public String getHistoricExternalTaskLogErrorDetails(String historicExternalTaskLogId) {
+    return commandExecutor.execute(new GetHistoricExternalTaskLogErrorDetailsCmd(historicExternalTaskLogId));
   }
 }
