@@ -13,19 +13,18 @@
 
 package org.camunda.bpm.engine.impl.event;
 
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 import java.util.List;
 
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.bpmn.helper.CompensationUtil;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.entity.CompensateEventSubscriptionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.EventSubscriptionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.pvm.delegate.CompositeActivityBehavior;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.operation.PvmAtomicOperation;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 
 /**
@@ -33,15 +32,14 @@ import org.camunda.bpm.engine.impl.pvm.runtime.operation.PvmAtomicOperation;
  */
 public class CompensationEventHandler implements EventHandler {
 
-  public final static String EVENT_HANDLER_TYPE = "compensate";
-
   @Override
   public String getEventHandlerType() {
-    return EVENT_HANDLER_TYPE;
+    return EventType.COMPENSATE.name();
   }
 
   @Override
   public void handleEvent(EventSubscriptionEntity eventSubscription, Object payload, CommandContext commandContext) {
+    eventSubscription.delete();
 
     String configuration = eventSubscription.getConfiguration();
     ensureNotNull("Compensating execution not set for compensate event subscription with id " + eventSubscription.getId(), "configuration", configuration);
@@ -59,7 +57,7 @@ public class CompensationEventHandler implements EventHandler {
 
     if (compensationHandler.isScope() && !compensationHandler.isCompensationHandler()) {
       // descend into scope:
-      List<CompensateEventSubscriptionEntity> eventsForThisScope = compensatingExecution.getCompensateEventSubscriptions();
+      List<EventSubscriptionEntity> eventsForThisScope = compensatingExecution.getCompensateEventSubscriptions();
       CompensationUtil.throwCompensationEvent(eventsForThisScope, compensatingExecution, false);
 
     } else {

@@ -15,6 +15,11 @@ package org.camunda.bpm.engine.impl.cmd;
 import java.util.Date;
 import java.util.concurrent.Callable;
 
+import org.camunda.bpm.engine.impl.history.HistoryLevel;
+import org.camunda.bpm.engine.impl.history.event.HistoryEvent;
+import org.camunda.bpm.engine.impl.history.event.HistoryEventProcessor;
+import org.camunda.bpm.engine.impl.history.event.HistoryEventTypes;
+import org.camunda.bpm.engine.impl.history.producer.HistoryEventProducer;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.jobexecutor.JobHandlerConfiguration;
@@ -63,8 +68,8 @@ public abstract class AbstractSetStateCmd implements Command<Void> {
         }
       }
 
-    }
-    else {
+      triggerHistoryEvent(commandContext);
+    } else {
       scheduleSuspensionStateUpdate(commandContext);
     }
 
@@ -73,6 +78,10 @@ public abstract class AbstractSetStateCmd implements Command<Void> {
     }
 
     return null;
+  }
+
+  protected void triggerHistoryEvent(CommandContext commandContext) {
+
   }
 
   public void disableLogUserOperation() {

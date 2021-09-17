@@ -46,8 +46,10 @@ public class HistoricVariableInstanceQueryImpl extends AbstractQuery<HistoricVar
   protected String[] taskIds;
   protected String[] executionIds;
   protected String[] caseExecutionIds;
+  protected String[] caseActivityIds;
   protected String[] activityInstanceIds;
   protected String[] tenantIds;
+  protected String[] processInstanceIds;
 
   protected boolean isByteArrayFetchingEnabled = true;
   protected boolean isCustomObjectDeserializationEnabled = true;
@@ -77,6 +79,13 @@ public class HistoricVariableInstanceQueryImpl extends AbstractQuery<HistoricVar
     return this;
   }
 
+  /** Only select historic process variables with the given process instance ids. */
+  public HistoricVariableInstanceQuery processInstanceIdIn(String... processInstanceIds) {
+    ensureNotNull("Process Instance Ids", (Object[]) processInstanceIds);
+    this.processInstanceIds = processInstanceIds;
+    return this;
+  }
+
   public HistoricVariableInstanceQuery taskIdIn(String... taskIds) {
     ensureNotNull("Task Ids", (Object[]) taskIds);
     this.taskIds = taskIds;
@@ -92,6 +101,12 @@ public class HistoricVariableInstanceQueryImpl extends AbstractQuery<HistoricVar
   public HistoricVariableInstanceQuery caseExecutionIdIn(String... caseExecutionIds) {
     ensureNotNull("Case execution ids", (Object[]) caseExecutionIds);
     this.caseExecutionIds = caseExecutionIds;
+    return this;
+  }
+
+  public HistoricVariableInstanceQuery caseActivityIdIn(String... caseActivityIds) {
+    ensureNotNull("Case activity ids", (Object[]) caseActivityIds);
+    this.caseActivityIds = caseActivityIds;
     return this;
   }
 
@@ -213,6 +228,10 @@ public class HistoricVariableInstanceQueryImpl extends AbstractQuery<HistoricVar
     return activityInstanceIds;
   }
 
+  public String[] getProcessInstanceIds() {
+    return processInstanceIds;
+  }
+
   public String[] getTaskIds() {
     return taskIds;
   }
@@ -223,6 +242,10 @@ public class HistoricVariableInstanceQueryImpl extends AbstractQuery<HistoricVar
 
   public String[] getCaseExecutionIds() {
     return caseExecutionIds;
+  }
+
+  public String[] getCaseActivityIds() {
+    return caseActivityIds;
   }
 
   public String getVariableName() {

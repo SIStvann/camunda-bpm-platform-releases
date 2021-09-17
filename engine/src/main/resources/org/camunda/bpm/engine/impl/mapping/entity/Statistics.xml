@@ -69,6 +69,11 @@
     <result property="suspensionState" column="SUSPENSION_STATE_" jdbcType="INTEGER" />
   </resultMap>
 
+  <resultMap id="decisionDefinitionStatisticsResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.DecisionInstanceStatisticsImpl">
+    <id property="decisionDefinitionKey" column="DEC_DEF_KEY_" jdbcType="VARCHAR" />
+    <result property="evaluations" column="EVALUATION_COUNT_" jdbcType="INTEGER" />
+  </resultMap>
+
   <!-- Process Definition Statistics -->  
   <select id ="selectProcessDefinitionStatistics" resultMap="processDefinitionStatisticsResultMap" 
     parameterType="org.camunda.bpm.engine.impl.ProcessDefinitionStatisticsQueryImpl">
@@ -116,6 +121,8 @@
 
                 where
                     E.PARENT_ID_ IS NULL
+                   <bind name="columnPrefix" value="'E.'"/>
+                   <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheckWithPrefix" />
                 group by
                     E.PROC_DEF_ID_
               ) INSTANCE
@@ -134,6 +141,8 @@
                     ${prefix}ACT_RU_JOB J
                 where
                     J.RETRIES_ = 0
+                    <bind name="columnPrefix" value="'J.'"/>
+                    <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheckWithPrefix" />
                 group by
                     J.PROCESS_DEF_ID_
               ) JOB
@@ -158,7 +167,8 @@
                   <if test="includeIncidentsForType != null">
                       I.INCIDENT_TYPE_ = #{includeIncidentsForType}
                   </if>
-
+                  <bind name="columnPrefix" value="'I.'"/>
+                  <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheckWithPrefix" />
                 </where>
                 group by
                     I.PROC_DEF_ID_, I.INCIDENT_TYPE_
@@ -246,7 +256,8 @@
                         </foreach>
                         ) = 1
                     </if>
-
+                    <bind name="columnPrefix" value="'EXECUTION.'"/>
+                    <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheckWithPrefix" />
                   group by
                       PROCDEF.DEPLOYMENT_ID_
                 ) INSTANCE
@@ -279,7 +290,8 @@
                         </foreach>
                         ) = 1
                     </if>
-
+                    <bind name="columnPrefix" value="'JOB.'"/>
+                    <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheckWithPrefix" />  
                   group by
                       DEPLOYMENT_ID_
                 ) JOB
@@ -318,7 +330,8 @@
                         </foreach>
                         ) = 1
                     </if>
-
+                    <bind name="columnPrefix" value="'INC.'"/>
+                    <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheckWithPrefix" />    
                   group by
                       PROCDEF.DEPLOYMENT_ID_, INC.INCIDENT_TYPE_
                 ) INC
@@ -669,5 +682,41 @@
 
   </sql>
 
+  <!-- DRD Statistics -->
+
+  <select id ="selectDecisionDefinitionStatistics" resultMap="decisionDefinitionStatisticsResultMap" parameterType="org.camunda.bpm.engine.impl.HistoricDecisionInstanceStatisticsQueryImpl">
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
+    ${limitBefore}
+    select ${distinct} RES.*
+    ${limitBetween}
+    <include refid="selectDecisionDefinitionStatisticsByQueryCriteriaSql"/>
+    ${orderBy}
+    ${limitAfter}
+  </select>
+
+  <select id ="selectDecisionDefinitionStatisticsCount" resultType="long" parameterType="org.camunda.bpm.engine.impl.HistoricDecisionInstanceStatisticsQueryImpl">
+    select count(distinct RES.ID_)
+    <include refid="selectDecisionDefinitionStatisticsByQueryCriteriaSql"/>
+  </select>
+
+  <sql id="selectDecisionDefinitionStatisticsByQueryCriteriaSql">
+    from (
+      select
+        RES.DEC_DEF_KEY_,
+        RES.DEC_DEF_ID_ as ID_,
+        count(*) as EVALUATION_COUNT_
+      from
+        ${prefix}ACT_HI_DECINST RES
+      where
+        RES.DEC_REQ_ID_ = #{decisionRequirementsDefinitionId, jdbcType=VARCHAR}
+        <if test="decisionInstanceId != null">
+          and (RES.ID_ = #{decisionInstanceId} or RES.ROOT_DEC_INST_ID_ = #{decisionInstanceId, jdbcType=VARCHAR})
+        </if>
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
+      group by
+        RES.DEC_DEF_KEY_,
+        RES.DEC_DEF_ID_
+    ) RES
+  </sql>
 
 </mapper>

@@ -12,17 +12,21 @@
  */
 package org.camunda.bpm.engine.test.cmmn.operation;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.camunda.bpm.engine.exception.cmmn.CaseIllegalStateTransitionException;
 import org.camunda.bpm.engine.impl.cmmn.behavior.StageActivityBehavior;
 import org.camunda.bpm.engine.impl.cmmn.execution.CaseExecutionImpl;
 import org.camunda.bpm.engine.impl.cmmn.execution.CmmnActivityExecution;
 import org.camunda.bpm.engine.impl.cmmn.execution.CmmnCaseInstance;
+import org.camunda.bpm.engine.impl.cmmn.handler.ItemHandler;
 import org.camunda.bpm.engine.impl.cmmn.model.CaseDefinitionBuilder;
 import org.camunda.bpm.engine.impl.cmmn.model.CmmnCaseDefinition;
 import org.camunda.bpm.engine.impl.test.PvmTestCase;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertThat;
 
 /**
  * @author Roman Smirnov
@@ -63,9 +67,6 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
 
     // task A as a child of the case instance
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
-
-    // start task A manually
-    taskA.manualStart();
 
     // when
 
@@ -128,9 +129,6 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // task A as a child of the case instance
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    // start task A manually
-    taskA.manualStart();
-
     // when
 
     // completing task A
@@ -181,6 +179,7 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
       .listener("complete", stateTransitionCollector)
       .createActivity("A")
         .listener("complete", stateTransitionCollector)
+        .property(ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE, defaultManualActivation())
         .behavior(new TaskWaitState())
       .endActivity()
       .buildCaseDefinition();
@@ -232,6 +231,7 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
       .listener("complete", stateTransitionCollector)
       .createActivity("A")
         .listener("complete", stateTransitionCollector)
+        .property(ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE, defaultManualActivation())
         .behavior(new TaskWaitState())
       .endActivity()
       .buildCaseDefinition();
@@ -294,7 +294,6 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // task A as a child of the case instance
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    taskA.manualStart();
     taskA.complete();
 
     // task A is completed
@@ -348,7 +347,6 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // task A as a child of the case instance
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    taskA.manualStart();
     taskA.complete();
 
     // task A is completed
@@ -401,7 +399,6 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // task A as a child of the case instance
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    taskA.manualStart();
     taskA.terminate();
 
     // task A is completed
@@ -452,8 +449,6 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
 
     // task A as a child of the case instance
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
-
-    taskA.manualStart();
     taskA.terminate();
 
     // task A is completed
@@ -495,6 +490,7 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
       .listener("complete", stateTransitionCollector)
       .createActivity("A")
         .listener("disable", stateTransitionCollector)
+        .property(ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE, defaultManualActivation())
         .listener("complete", stateTransitionCollector)
         .behavior(new TaskWaitState())
       .endActivity()
@@ -572,8 +568,6 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // task A as a child of the case instance
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    taskA.manualStart();
-
     // task A is active
     assertTrue(taskA.isActive());
 
@@ -627,6 +621,7 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
       .listener("complete", stateTransitionCollector)
       .createActivity("A")
         .listener("complete", stateTransitionCollector)
+        .property(ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE, defaultManualActivation())
         .behavior(new TaskWaitState())
       .endActivity()
       .buildCaseDefinition();
@@ -677,6 +672,7 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
       .listener("complete", stateTransitionCollector)
       .createActivity("A")
         .listener("complete", stateTransitionCollector)
+        .property(ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE, defaultManualActivation())
         .behavior(new TaskWaitState())
       .endActivity()
       .buildCaseDefinition();
@@ -748,8 +744,6 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // task A as a child of the case instance
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    taskA.manualStart();
-
     // task A is active
     assertTrue(taskA.isActive());
 
@@ -800,11 +794,6 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // task A as a child of the case instance
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    taskA.manualStart();
-
-    // task A is active
-    assertTrue(taskA.isActive());
-
     try {
       // when
       caseInstance.manualComplete();
@@ -841,6 +830,7 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
       .listener("complete", stateTransitionCollector)
       .createActivity("A")
         .listener("complete", stateTransitionCollector)
+        .property(ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE, defaultManualActivation())
         .behavior(new TaskWaitState())
       .endActivity()
       .buildCaseDefinition();
@@ -894,6 +884,7 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
       .listener("complete", stateTransitionCollector)
       .createActivity("A")
         .listener("complete", stateTransitionCollector)
+        .property(ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE, defaultManualActivation())
         .behavior(new TaskWaitState())
       .endActivity()
       .buildCaseDefinition();
@@ -918,8 +909,7 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     } catch (CaseIllegalStateTransitionException e) {
       // then
 
-      // the case instance is still completed
-      assertTrue(caseInstance.isCompleted());
+      assertThat("the case instance is still completed",caseInstance.isCompleted(),is(true));
     }
 
   }
@@ -971,20 +961,11 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // a case execution associated with Stage X
     CmmnActivityExecution stageX = caseInstance.findCaseExecution("X");
 
-    // an active stage X
-    stageX.manualStart();
-
     // a case execution associated with Task A
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    // an active task A
-    taskA.manualStart();
-
     // a case execution associated with Task B
     CmmnActivityExecution taskB = caseInstance.findCaseExecution("B");
-
-    // an active task B
-    taskB.manualStart();
 
     // when ////////////////////////////////////////////////////////////////
 
@@ -1081,20 +1062,11 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // a case execution associated with Stage X
     CmmnActivityExecution stageX = caseInstance.findCaseExecution("X");
 
-    // an active stage X
-    stageX.manualStart();
-
     // a case execution associated with Task A
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    // an active task A
-    taskA.manualStart();
-
     // a case execution associated with Task B
     CmmnActivityExecution taskB = caseInstance.findCaseExecution("B");
-
-    // an active task B
-    taskB.manualStart();
 
     // when ////////////////////////////////////////////////////////////////
 
@@ -1175,6 +1147,7 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
         .behavior(new StageActivityBehavior())
         .createActivity("A")
           .listener("complete", stateTransitionCollector)
+          .property(ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE, defaultManualActivation())
           .behavior(new TaskWaitState())
         .endActivity()
         .createActivity("B")
@@ -1191,17 +1164,11 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // a case execution associated with Stage X
     CmmnActivityExecution stageX = caseInstance.findCaseExecution("X");
 
-    // an active stage X
-    stageX.manualStart();
-
     // a case execution associated with Task A
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
     // a case execution associated with Task B
     CmmnActivityExecution taskB = caseInstance.findCaseExecution("B");
-
-    // an active task B
-    taskB.manualStart();
 
     // when ////////////////////////////////////////////////////////////////
 
@@ -1288,20 +1255,11 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // a case execution associated with Stage X
     CmmnActivityExecution stageX = caseInstance.findCaseExecution("X");
 
-    // an active stage X
-    stageX.manualStart();
-
     // a case execution associated with Task A
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    // an active task A
-    taskA.manualStart();
-
     // a case execution associated with Task B
     CmmnActivityExecution taskB = caseInstance.findCaseExecution("B");
-
-    // an active task B
-    taskB.manualStart();
 
     // when ////////////////////////////////////////////////////////////////
 
@@ -1388,20 +1346,11 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // a case execution associated with Stage X
     CmmnActivityExecution stageX = caseInstance.findCaseExecution("X");
 
-    // an active stage X
-    stageX.manualStart();
-
     // a case execution associated with Task A
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    // an active task A
-    taskA.manualStart();
-
     // a case execution associated with Task B
     CmmnActivityExecution taskB = caseInstance.findCaseExecution("B");
-
-    // an active task B
-    taskB.manualStart();
 
     // when ////////////////////////////////////////////////////////////////
 
@@ -1501,20 +1450,11 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // a case execution associated with Stage X
     CmmnActivityExecution stageX = caseInstance.findCaseExecution("X");
 
-    // an active stage X
-    stageX.manualStart();
-
     // a case execution associated with Task A
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    // an active task A
-    taskA.manualStart();
-
     // a case execution associated with Task B
     CmmnActivityExecution taskB = caseInstance.findCaseExecution("B");
-
-    // an active task B
-    taskB.manualStart();
 
     // when ////////////////////////////////////////////////////////////////
 
@@ -1598,10 +1538,12 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
         .behavior(new StageActivityBehavior())
         .createActivity("A")
           .listener("complete", stateTransitionCollector)
+          .property(ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE, defaultManualActivation())
           .behavior(new TaskWaitState())
         .endActivity()
         .createActivity("B")
           .listener("complete", stateTransitionCollector)
+          .property(ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE, defaultManualActivation())
           .behavior(new TaskWaitState())
         .endActivity()
       .endActivity()
@@ -1613,9 +1555,6 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
 
     // a case execution associated with Stage X
     CmmnActivityExecution stageX = caseInstance.findCaseExecution("X");
-
-    // an active stage X
-    stageX.manualStart();
 
     // a case execution associated with Task A
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
@@ -1717,18 +1656,11 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
     // a case execution associated with Stage X
     CmmnActivityExecution stageX = caseInstance.findCaseExecution("X");
 
-    // an active stage X
-    stageX.manualStart();
-
     // a case execution associated with Task A
     CmmnActivityExecution taskA = caseInstance.findCaseExecution("A");
 
-    taskA.manualStart();
-
     // a case execution associated with Task B
     CmmnActivityExecution taskB = caseInstance.findCaseExecution("B");
-
-    taskB.manualStart();
 
     // when ////////////////////////////////////////////////////////////////
 
@@ -1843,12 +1775,14 @@ public class CaseExecutionCompletionTest extends PvmTestCase {
       .listener("complete", stateTransitionCollector)
       .createActivity("X")
         .listener("complete", stateTransitionCollector)
+        .property(ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE, defaultManualActivation())
         .behavior(new StageActivityBehavior())
       .endActivity()
       .buildCaseDefinition();
 
     CmmnCaseInstance caseInstance = caseDefinition.createCaseInstance();
     caseInstance.create();
+
 
     CmmnActivityExecution stageX = caseInstance.findCaseExecution("X");
 

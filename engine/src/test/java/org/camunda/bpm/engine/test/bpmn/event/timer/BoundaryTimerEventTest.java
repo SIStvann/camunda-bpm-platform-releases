@@ -16,6 +16,8 @@ package org.camunda.bpm.engine.test.bpmn.event.timer;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import static junit.framework.TestCase.assertEquals;
+import static junit.framework.TestCase.assertNotNull;
 
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.impl.util.ClockUtil;

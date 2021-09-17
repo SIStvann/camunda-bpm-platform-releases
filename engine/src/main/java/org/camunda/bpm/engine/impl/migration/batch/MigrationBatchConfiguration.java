@@ -13,16 +13,30 @@
 
 package org.camunda.bpm.engine.impl.migration.batch;
 
-import java.util.List;
-
+import org.camunda.bpm.engine.impl.batch.BatchConfiguration;
 import org.camunda.bpm.engine.migration.MigrationPlan;
 
-public class MigrationBatchConfiguration {
+import java.util.List;
+
+public class MigrationBatchConfiguration extends BatchConfiguration {
 
   protected MigrationPlan migrationPlan;
-  protected List<String> processInstanceIds;
   protected boolean isSkipCustomListeners;
   protected boolean isSkipIoMappings;
+
+  public MigrationBatchConfiguration(List<String> ids) {
+    super(ids);
+  }
+
+  public MigrationBatchConfiguration(List<String> ids,
+                                     MigrationPlan migrationPlan,
+                                     boolean isSkipCustomListeners,
+                                     boolean isSkipIoMappings) {
+    super(ids);
+    this.migrationPlan = migrationPlan;
+    this.isSkipCustomListeners = isSkipCustomListeners;
+    this.isSkipIoMappings = isSkipIoMappings;
+  }
 
   public MigrationPlan getMigrationPlan() {
     return migrationPlan;
@@ -30,14 +44,6 @@ public class MigrationBatchConfiguration {
 
   public void setMigrationPlan(MigrationPlan migrationPlan) {
     this.migrationPlan = migrationPlan;
-  }
-
-  public List<String> getProcessInstanceIds() {
-    return processInstanceIds;
-  }
-
-  public void setProcessInstanceIds(List<String> processInstanceIds) {
-    this.processInstanceIds = processInstanceIds;
   }
 
   public boolean isSkipCustomListeners() {
@@ -56,18 +62,5 @@ public class MigrationBatchConfiguration {
     this.isSkipIoMappings = isSkipIoMappings;
   }
 
-  public static MigrationBatchConfiguration create(MigrationPlan migrationPlan,
-      List<String> processInstanceIds,
-      boolean skipCustomListeners,
-      boolean skipIoMappings) {
-    MigrationBatchConfiguration configuration = new MigrationBatchConfiguration();
-
-    configuration.migrationPlan = migrationPlan;
-    configuration.processInstanceIds = processInstanceIds;
-    configuration.isSkipCustomListeners = skipCustomListeners;
-    configuration.isSkipIoMappings = skipIoMappings;
-
-    return configuration;
-  }
 
 }

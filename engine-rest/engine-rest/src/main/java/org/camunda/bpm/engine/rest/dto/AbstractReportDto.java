@@ -18,32 +18,36 @@ import java.util.List;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.history.ReportResult;
-import org.camunda.bpm.engine.query.Report;
 import org.camunda.bpm.engine.query.PeriodUnit;
+import org.camunda.bpm.engine.query.Report;
 import org.camunda.bpm.engine.rest.dto.converter.PeriodUnitConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 
 import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * @author Roman Smirnov
+ * @param <T> 
  *
  */
 public abstract class AbstractReportDto<T extends Report> extends AbstractSearchQueryDto {
 
+  protected PeriodUnit periodUnit;
+  protected String reportType;
+
   public static final String REPORT_TYPE_DURATION = "duration";
+  public static final String REPORT_TYPE_COUNT = "count";
 
   public static final List<String> VALID_REPORT_TYPE_VALUES;
   static {
     VALID_REPORT_TYPE_VALUES = new ArrayList<String>();
     VALID_REPORT_TYPE_VALUES.add(REPORT_TYPE_DURATION);
+    VALID_REPORT_TYPE_VALUES.add(REPORT_TYPE_COUNT);
   }
-
-  protected String reportType;
-  protected PeriodUnit periodUnit;
 
   // required for populating via jackson
   public AbstractReportDto() {
@@ -53,10 +57,18 @@ public abstract class AbstractReportDto<T extends Report> extends AbstractSearch
     super(objectMapper, queryParameters);
   }
 
+  protected PeriodUnit getPeriodUnit() {
+    return periodUnit;
+  }
+
+  public String getReportType() {
+    return reportType;
+  }
+
   @CamundaQueryParam("reportType")
   public void setReportType(String reportType) {
     if (!VALID_REPORT_TYPE_VALUES.contains(reportType)) {
-      throw new InvalidRequestException(Status.BAD_REQUEST, "reportType parameter has invalid value: " + reportType);
+      throw new InvalidRequestException(Response.Status.BAD_REQUEST, "reportType parameter has invalid value: " + reportType);
     }
     this.reportType = reportType;
   }
@@ -66,22 +78,19 @@ public abstract class AbstractReportDto<T extends Report> extends AbstractSearch
     this.periodUnit = periodUnit;
   }
 
+  protected List<? extends ReportResult> executeReportQuery(T report) {
+    return report.duration(periodUnit);
+  }
+
   public List<? extends ReportResult> executeReport(ProcessEngine engine) {
     T reportQuery = createNewReportQuery(engine);
     applyFilters(reportQuery);
 
-    if (REPORT_TYPE_DURATION.equals(reportType)) {
-      try {
-        return reportQuery.duration(periodUnit);
-      }
-      catch (NotValidException e) {
-        throw new InvalidRequestException(Status.BAD_REQUEST, e, e.getMessage());
-      }
+    try {
+      return executeReportQuery(reportQuery);
+    } catch (NotValidException e) {
+      throw new InvalidRequestException(Status.BAD_REQUEST, e, e.getMessage());
     }
-    else {
-      throw new InvalidRequestException(Status.BAD_REQUEST, "Unknown report type " + reportType);
-    }
-
   }
 
   protected abstract T createNewReportQuery(ProcessEngine engine);

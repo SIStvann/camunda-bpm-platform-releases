@@ -23,20 +23,21 @@ camunda BPM platform provides a rich set of components centered around the BPM l
  * Spring, CDI integration - Programming model integration that allows developers to write Java Applications that interact with running processes.
 
 #### Process Design
- * camunda modeler - A [modeler plugin for eclipse](https://github.com/camunda/camunda-modeler) that allows developers to design & refactor processes inside their IDE.
+ * camunda modeler - A [standalone desktop application](https://github.com/camunda/camunda-modeler) that allows business users and developers to design & configure processes.
  * camunda cycle - Enables BPMN 2.0 based Roundtrip between Business and IT parties involved in a project. Allows to use any BPMN 2.0 modeling tool with camunda BPM.
 
 #### Process Operations
  * camunda engine - JMX and advanced Runtime Container Integration for process engine monitoring.
  * camunda cockpit - Web application tool for process operations.
+ * camunda admin - Web application for managing users, groups, and their access permissions.
 
 #### Human Task Management
- * camunda tasklist - Simple web application demonstrating how the process engine task API can be used.
+ * camunda tasklist - Web application for managing and completing user tasks in the context of processes.
 
 #### And there's more...
 
- * [camunda-bpmn.js](https://github.com/camunda/camunda-bpmn.js) - We have started building a complete BPMN toolkit for Java Script (Parser, Process Engine, Renderer)
- * [camunda BPM incubation](https://github.com/camunda/camunda-bpm-incubation) - This is where we, together with the community, try out new ideas.
+ * [bpmn.io](https://bpmn.io/) - Toolkits for BPMN, CMMN, and DMN in Java Script (rendering, modeling)
+ * [Community Extensions](https://docs.camunda.org/manual/7.5/introduction/extensions/) - Extensions on top of Camunda BPM provided and maintained by our great open source community
 
 
 A Framework
@@ -90,7 +91,6 @@ This will build all the modules that make up the camunda BPM platform but will n
 
 ```
 distro/tomcat/distro/target     (Apache Tomcat 7 Distribution)
-distro/gf31/distro/target       (Glassfish 3 Distribution)
 distro/jbossas7/distro/target   (JBoss AS 7 Distribution)
 ```
 
@@ -103,14 +103,20 @@ The integration testsuites are located under `qa/`. There you'll find a folder n
 In order to run the integration tests, first perform a full install build. Then navigate to the `qa` folder.
 
 We have different maven profiles for selecting
-* *Runtime containers & environments*: jboss, glassfish, tomcat, wildfly
+* *Runtime containers & environments*: jboss, tomcat, wildfly
 * *The testsuite*: engine-integration, webapps-integration
-* *The database*: h2,h2-xa,db2,db2-xa,sqlserver,sqlserver-xa,oracle,oracle-xa,postgresql,postgresql-xa,mysql,mysql-xa (XA is only supprted on JBoss & Glassfish ATM)
+* *The database*: h2,h2-xa,db2,db2-xa,sqlserver,sqlserver-xa,oracle,oracle-xa,postgresql,postgresql-xa,mysql,mysql-xa (XA is only supported on JBoss / Wildfly atm)
 
 In order to configure the build, compose the profiles for runtime container, testsuite, database. Example:
 
 ```
 mvn clean install -Pengine-integration,jboss,h2
+```
+
+For using wildfly as the runtime container you have to additionally specify the wildfly version, either wildfly8 or wildfly10. Example:
+
+```
+mvn clean install -Pengine-integration,wildfly,wildfly10,h2
 ```
 
 If you want to test against an XA database, just add the corresponding XA database profile to the mvn cmdline above. Example:

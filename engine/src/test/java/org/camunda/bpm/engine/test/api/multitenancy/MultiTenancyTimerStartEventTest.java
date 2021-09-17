@@ -27,8 +27,10 @@ import org.camunda.bpm.engine.repository.Deployment;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.JobQuery;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
 import org.camunda.bpm.engine.test.ProcessEngineRule;
 import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
+import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.junit.Before;
@@ -48,7 +50,7 @@ public class MultiTenancyTimerStartEventTest {
   protected static final String TENANT_ONE = "tenant1";
   protected static final String TENANT_TWO = "tenant2";
 
-  protected ProcessEngineRule engineRule = new ProcessEngineRule(true);
+  protected ProcessEngineRule engineRule = new ProvidedProcessEngineRule();
   protected ProcessEngineTestRule testRule = new ProcessEngineTestRule(engineRule);
 
   @Rule
@@ -160,6 +162,31 @@ public class MultiTenancyTimerStartEventTest {
 
     assertThat(jobTenantOne.getRetries(), is(4));
     assertThat(jobTenantTwo.getRetries(), is(3));
+  }
+
+  @Test
+  public void timerStartEventWithTimerCycle() {
+
+    testRule.deployForTenant(TENANT_ONE, Bpmn.createExecutableProcess()
+        .startEvent()
+          .timerWithCycle("R2/PT1M")
+        .userTask()
+        .endEvent()
+        .done());
+
+    // execute first timer cycle
+    Job job = managementService.createJobQuery().singleResult();
+    assertThat(job.getTenantId(), is(TENANT_ONE));
+    managementService.executeJob(job.getId());
+
+    // execute second timer cycle
+    job = managementService.createJobQuery().singleResult();
+    assertThat(job.getTenantId(), is(TENANT_ONE));
+    managementService.executeJob(job.getId());
+
+    ProcessInstanceQuery query = runtimeService.createProcessInstanceQuery();
+    assertThat(query.tenantIdIn(TENANT_ONE).count(), is(2L));
+    assertThat(query.withoutTenantId().count(), is(0L));
   }
 
   protected void executeFailingJobs(List<Job> jobs) {

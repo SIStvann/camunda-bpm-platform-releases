@@ -13,7 +13,9 @@
 
 package org.camunda.bpm.engine.test.api.repository;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -49,6 +51,8 @@ import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.CaseDefinitionQuery;
 import org.camunda.bpm.engine.repository.DecisionDefinition;
 import org.camunda.bpm.engine.repository.DecisionDefinitionQuery;
+import org.camunda.bpm.engine.repository.DecisionRequirementsDefinition;
+import org.camunda.bpm.engine.repository.DecisionRequirementsDefinitionQuery;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.Job;
@@ -56,6 +60,8 @@ import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.bpmn.tasklistener.util.RecorderTaskListener;
 import org.camunda.bpm.engine.test.util.TestExecutionListener;
+import org.camunda.bpm.model.bpmn.Bpmn;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 
 /**
  * @author Frederik Heremans
@@ -76,6 +82,50 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
         return null;
       }
     });
+  }
+
+  private void checkDeployedBytes(InputStream deployedResource, byte[] utf8Bytes) throws IOException {
+    byte[] deployedBytes = new byte[utf8Bytes.length];
+    deployedResource.read(deployedBytes);
+
+    for (int i = 0; i < utf8Bytes.length; i++) {
+      assertEquals(utf8Bytes[i], deployedBytes[i]);
+    }
+  }
+
+  public void testUTF8DeploymentMethod() throws IOException {
+    //given utf8 charset
+    Charset utf8Charset = Charset.forName("UTF-8");
+    Charset defaultCharset = processEngineConfiguration.getDefaultCharset();
+    processEngineConfiguration.setDefaultCharset(utf8Charset);
+
+    //and model instance with umlauts
+    String umlautsString = "äöüÄÖÜß";
+    String resourceName = "deployment.bpmn";
+    BpmnModelInstance instance = Bpmn.createExecutableProcess("umlautsProcess").startEvent(umlautsString).done();
+    String instanceAsString = Bpmn.convertToString(instance);
+
+    //when instance is deployed via addString method
+    org.camunda.bpm.engine.repository.Deployment deployment = repositoryService.createDeployment()
+                                                                               .addString(resourceName, instanceAsString)
+                                                                               .deploy();
+
+    //then bytes are saved in utf-8 format
+    InputStream inputStream = repositoryService.getResourceAsStream(deployment.getId(), resourceName);
+    byte[] utf8Bytes = instanceAsString.getBytes(utf8Charset);
+    checkDeployedBytes(inputStream, utf8Bytes);
+    repositoryService.deleteDeployment(deployment.getId());
+
+
+    //when model instance is deployed via addModelInstance method
+    deployment = repositoryService.createDeployment().addModelInstance(resourceName, instance).deploy();
+
+    //then also the bytes are saved in utf-8 format
+    inputStream = repositoryService.getResourceAsStream(deployment.getId(), resourceName);
+    checkDeployedBytes(inputStream, utf8Bytes);
+
+    repositoryService.deleteDeployment(deployment.getId());
+    processEngineConfiguration.setDefaultCharset(defaultCharset);
   }
 
   @Deployment(resources = {
@@ -117,8 +167,9 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
     try {
       repositoryService.deleteDeployment(processDefinition.getDeploymentId());
       fail("Exception expected");
-    } catch (RuntimeException ae) {
+    } catch (ProcessEngineException pee) {
       // Exception expected when deleting deployment with running process
+      assert(pee.getMessage().contains("Deletion of process definition without cascading failed."));
     }
   }
 
@@ -215,19 +266,19 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
     DeploymentCache deploymentCache = processEngineConfiguration.getDeploymentCache();
 
     // ensure definitions and models are part of the cache
-    assertTrue(deploymentCache.getProcessDefinitionCache().containsKey(processDefinitionId));
-    assertTrue(deploymentCache.getBpmnModelInstanceCache().containsKey(processDefinitionId));
-    assertTrue(deploymentCache.getCaseDefinitionCache().containsKey(caseDefinitionId));
-    assertTrue(deploymentCache.getCmmnModelInstanceCache().containsKey(caseDefinitionId));
+    assertNotNull(deploymentCache.getProcessDefinitionCache().get(processDefinitionId));
+    assertNotNull(deploymentCache.getBpmnModelInstanceCache().get(processDefinitionId));
+    assertNotNull(deploymentCache.getCaseDefinitionCache().get(caseDefinitionId));
+    assertNotNull(deploymentCache.getCmmnModelInstanceCache().get(caseDefinitionId));
 
     // when the deployment is deleted
     repositoryService.deleteDeployment(deploymentId, true);
 
     // then the definitions and models are removed from the cache
-    assertFalse(deploymentCache.getProcessDefinitionCache().containsKey(processDefinitionId));
-    assertFalse(deploymentCache.getBpmnModelInstanceCache().containsKey(processDefinitionId));
-    assertFalse(deploymentCache.getCaseDefinitionCache().containsKey(caseDefinitionId));
-    assertFalse(deploymentCache.getCmmnModelInstanceCache().containsKey(caseDefinitionId));
+    assertNull(deploymentCache.getProcessDefinitionCache().get(processDefinitionId));
+    assertNull(deploymentCache.getBpmnModelInstanceCache().get(processDefinitionId));
+    assertNull(deploymentCache.getCaseDefinitionCache().get(caseDefinitionId));
+    assertNull(deploymentCache.getCmmnModelInstanceCache().get(caseDefinitionId));
   }
 
   public void testFindDeploymentResourceNamesNullDeploymentId() {
@@ -475,6 +526,35 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
     }
   }
 
+  @Deployment(resources = { "org/camunda/bpm/engine/test/repository/drg.dmn" })
+  public void testGetDecisionRequirementsDefinition() {
+    DecisionRequirementsDefinitionQuery query = repositoryService.createDecisionRequirementsDefinitionQuery();
+
+    DecisionRequirementsDefinition decisionRequirementsDefinition = query.singleResult();
+    String decisionRequirementsDefinitionId = decisionRequirementsDefinition.getId();
+
+    DecisionRequirementsDefinition definition = repositoryService.getDecisionRequirementsDefinition(decisionRequirementsDefinitionId);
+
+    assertNotNull(definition);
+    assertEquals(decisionRequirementsDefinitionId, definition.getId());
+  }
+
+  public void testGetDecisionRequirementsDefinitionByInvalidId() {
+    try {
+      repositoryService.getDecisionRequirementsDefinition("invalid");
+      fail();
+    } catch (Exception e) {
+      assertTextPresent("no deployed decision requirements definition found with id 'invalid'", e.getMessage());
+    }
+
+    try {
+      repositoryService.getDecisionRequirementsDefinition(null);
+      fail();
+    } catch (NotValidException e) {
+      assertTextPresent("decisionRequirementsDefinitionId is null", e.getMessage());
+    }
+  }
+
   @Deployment(resources = { "org/camunda/bpm/engine/test/repository/one.dmn" })
   public void testGetDecisionModel() throws Exception {
     DecisionDefinitionQuery query = repositoryService.createDecisionDefinitionQuery();
@@ -506,6 +586,67 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
       fail();
     } catch (NotValidException e) {
       assertTextPresent("decisionDefinitionId is null", e.getMessage());
+    }
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/repository/drg.dmn" })
+  public void testGetDecisionRequirementsModel() throws Exception {
+    DecisionRequirementsDefinitionQuery query = repositoryService.createDecisionRequirementsDefinitionQuery();
+
+    DecisionRequirementsDefinition decisionRequirementsDefinition = query.singleResult();
+    String decisionRequirementsDefinitionId = decisionRequirementsDefinition.getId();
+
+    InputStream decisionRequirementsModel = repositoryService.getDecisionRequirementsModel(decisionRequirementsDefinitionId);
+
+    assertNotNull(decisionRequirementsModel);
+
+    byte[] readInputStream = IoUtil.readInputStream(decisionRequirementsModel, "decisionRequirementsModel");
+    String model = new String(readInputStream, "UTF-8");
+
+    assertTrue(model.contains("<definitions id=\"dish\" name=\"Dish\" namespace=\"test-drg\""));
+    IoUtil.closeSilently(decisionRequirementsModel);
+  }
+
+  public void testGetDecisionRequirementsModelByInvalidId() throws Exception {
+    try {
+      repositoryService.getDecisionRequirementsModel("invalid");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("no deployed decision requirements definition found with id 'invalid'", e.getMessage());
+    }
+
+    try {
+      repositoryService.getDecisionRequirementsModel(null);
+      fail();
+    } catch (NotValidException e) {
+      assertTextPresent("decisionRequirementsDefinitionId is null", e.getMessage());
+    }
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/repository/drg.dmn",
+                           "org/camunda/bpm/engine/test/repository/drg.png" })
+  public void testGetDecisionRequirementsDiagram() throws Exception {
+
+    DecisionRequirementsDefinitionQuery query = repositoryService.createDecisionRequirementsDefinitionQuery();
+
+    DecisionRequirementsDefinition decisionRequirementsDefinition = query.singleResult();
+    String decisionRequirementsDefinitionId = decisionRequirementsDefinition.getId();
+
+    InputStream actualDrd = repositoryService.getDecisionRequirementsDiagram(decisionRequirementsDefinitionId);
+
+    assertNotNull(actualDrd);
+  }
+
+  public void testGetDecisionRequirementsDiagramByInvalidId() throws Exception {
+    try {
+      repositoryService.getDecisionRequirementsDiagram("invalid");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("no deployed decision requirements definition found with id 'invalid'", e.getMessage());
+    }
+
+    try {
+      repositoryService.getDecisionRequirementsDiagram(null);
+    } catch (ProcessEngineException e) {
+      assertTextPresent("decisionRequirementsDefinitionId is null", e.getMessage());
     }
   }
 
@@ -687,11 +828,11 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
 
   public void testGetProcessDefinitions() {
     List<String> deploymentIds = new ArrayList<String>();
-    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='IDR' name='Insurance Damage Report 1' />" + "</definitions>")));
-    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='IDR' name='Insurance Damage Report 2' />" + "</definitions>")));
-    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='IDR' name='Insurance Damage Report 3' />" + "</definitions>")));
-    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='EN' name='Expense Note 1' />" + "</definitions>")));
-    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='EN' name='Expense Note 2' />" + "</definitions>")));
+    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='IDR' name='Insurance Damage Report 1' isExecutable='true' />" + "</definitions>")));
+    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='IDR' name='Insurance Damage Report 2' isExecutable='true' />" + "</definitions>")));
+    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='IDR' name='Insurance Damage Report 3' isExecutable='true' />" + "</definitions>")));
+    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='EN' name='Expense Note 1' isExecutable='true' />" + "</definitions>")));
+    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='EN' name='Expense Note 2' isExecutable='true' />" + "</definitions>")));
 
     List<ProcessDefinition> processDefinitions = repositoryService
       .createProcessDefinitionQuery()
@@ -738,8 +879,8 @@ public class RepositoryServiceTest extends PluggableProcessEngineTestCase {
 
   public void testDeployIdenticalProcessDefinitions() {
     List<String> deploymentIds = new ArrayList<String>();
-    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='IDR' name='Insurance Damage Report' />" + "</definitions>")));
-    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='IDR' name='Insurance Damage Report' />" + "</definitions>")));
+    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='IDR' name='Insurance Damage Report' isExecutable='true' />" + "</definitions>")));
+    deploymentIds.add(deployProcessString(("<definitions " + NAMESPACE + " " + TARGET_NAMESPACE + ">" + "  <process id='IDR' name='Insurance Damage Report' isExecutable='true' />" + "</definitions>")));
 
     List<ProcessDefinition> processDefinitions = repositoryService
       .createProcessDefinitionQuery()

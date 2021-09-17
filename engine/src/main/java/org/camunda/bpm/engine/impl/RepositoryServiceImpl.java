@@ -14,6 +14,7 @@
 package org.camunda.bpm.engine.impl;
 
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.util.Date;
 import java.util.List;
 
@@ -30,6 +31,7 @@ import org.camunda.bpm.engine.exception.dmn.DmnModelInstanceNotFoundException;
 import org.camunda.bpm.engine.impl.cmd.AddIdentityLinkForProcessDefinitionCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteDeploymentCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteIdentityLinkForProcessDefinitionCmd;
+import org.camunda.bpm.engine.impl.cmd.DeleteProcessDefinitionCmd;
 import org.camunda.bpm.engine.impl.cmd.DeployCmd;
 import org.camunda.bpm.engine.impl.cmd.GetDeployedProcessDefinitionCmd;
 import org.camunda.bpm.engine.impl.cmd.GetDeploymentBpmnModelInstanceCmd;
@@ -49,8 +51,12 @@ import org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionQueryImp
 import org.camunda.bpm.engine.impl.dmn.cmd.GetDeploymentDecisionDefinitionCmd;
 import org.camunda.bpm.engine.impl.dmn.cmd.GetDeploymentDecisionDiagramCmd;
 import org.camunda.bpm.engine.impl.dmn.cmd.GetDeploymentDecisionModelCmd;
+import org.camunda.bpm.engine.impl.dmn.cmd.GetDeploymentDecisionRequirementsDefinitionCmd;
+import org.camunda.bpm.engine.impl.dmn.cmd.GetDeploymentDecisionRequirementsDiagramCmd;
+import org.camunda.bpm.engine.impl.dmn.cmd.GetDeploymentDecisionRequirementsModelCmd;
 import org.camunda.bpm.engine.impl.dmn.cmd.GetDeploymentDmnModelInstanceCmd;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionQueryImpl;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionQueryImpl;
 import org.camunda.bpm.engine.impl.pvm.ReadOnlyProcessDefinition;
 import org.camunda.bpm.engine.impl.repository.DeploymentBuilderImpl;
 import org.camunda.bpm.engine.impl.repository.ProcessApplicationDeploymentBuilderImpl;
@@ -59,6 +65,8 @@ import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.CaseDefinitionQuery;
 import org.camunda.bpm.engine.repository.DecisionDefinition;
 import org.camunda.bpm.engine.repository.DecisionDefinitionQuery;
+import org.camunda.bpm.engine.repository.DecisionRequirementsDefinition;
+import org.camunda.bpm.engine.repository.DecisionRequirementsDefinitionQuery;
 import org.camunda.bpm.engine.repository.Deployment;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.repository.DeploymentQuery;
@@ -79,6 +87,16 @@ import org.camunda.bpm.model.dmn.DmnModelInstance;
  * @author Joram Barrez
  */
 public class RepositoryServiceImpl extends ServiceImpl implements RepositoryService {
+
+  protected Charset deploymentCharset;
+
+  public Charset getDeploymentCharset() {
+    return deploymentCharset;
+  }
+
+  public void setDeploymentCharset(Charset deploymentCharset) {
+    this.deploymentCharset = deploymentCharset;
+  }
 
   public DeploymentBuilder createDeployment() {
     return new DeploymentBuilderImpl(this);
@@ -108,6 +126,21 @@ public class RepositoryServiceImpl extends ServiceImpl implements RepositoryServ
     commandExecutor.execute(new DeleteDeploymentCmd(deploymentId, cascade, skipCustomListeners));
   }
 
+  @Override
+  public void deleteProcessDefinition(String processDefinitionId) {
+    deleteProcessDefinition(processDefinitionId, false);
+  }
+
+  @Override
+  public void deleteProcessDefinition(String processDefinitionId, boolean cascade) {
+    deleteProcessDefinition(processDefinitionId, cascade, false);
+  }
+
+  @Override
+  public void deleteProcessDefinition(String processDefinitionId, boolean cascade, boolean skipCustomListeners) {
+    commandExecutor.execute(new DeleteProcessDefinitionCmd(processDefinitionId, cascade, skipCustomListeners));
+  }
+
   public ProcessDefinitionQuery createProcessDefinitionQuery() {
     return new ProcessDefinitionQueryImpl(commandExecutor);
   }
@@ -118,6 +151,10 @@ public class RepositoryServiceImpl extends ServiceImpl implements RepositoryServ
 
   public DecisionDefinitionQuery createDecisionDefinitionQuery() {
     return new DecisionDefinitionQueryImpl(commandExecutor);
+  }
+
+  public DecisionRequirementsDefinitionQuery createDecisionRequirementsDefinitionQuery() {
+    return new DecisionRequirementsDefinitionQueryImpl(commandExecutor);
   }
 
   @SuppressWarnings("unchecked")
@@ -322,6 +359,16 @@ public class RepositoryServiceImpl extends ServiceImpl implements RepositoryServ
     }
   }
 
+  public DecisionRequirementsDefinition getDecisionRequirementsDefinition(String decisionRequirementsDefinitionId) {
+    try {
+      return commandExecutor.execute(new GetDeploymentDecisionRequirementsDefinitionCmd(decisionRequirementsDefinitionId));
+    } catch (NullValueException e) {
+      throw new NotValidException(e.getMessage(), e);
+    } catch (DecisionDefinitionNotFoundException e) {
+      throw new NotFoundException(e.getMessage(), e);
+    }
+  }
+
   public InputStream getDecisionModel(String decisionDefinitionId) {
     try {
       return commandExecutor.execute(new GetDeploymentDecisionModelCmd(decisionDefinitionId));
@@ -334,8 +381,24 @@ public class RepositoryServiceImpl extends ServiceImpl implements RepositoryServ
     }
   }
 
+  public InputStream getDecisionRequirementsModel(String decisionRequirementsDefinitionId) {
+    try {
+      return commandExecutor.execute(new GetDeploymentDecisionRequirementsModelCmd(decisionRequirementsDefinitionId));
+    } catch (NullValueException e) {
+      throw new NotValidException(e.getMessage(), e);
+    } catch (DecisionDefinitionNotFoundException e) {
+      throw new NotFoundException(e.getMessage(), e);
+    } catch (DeploymentResourceNotFoundException e) {
+      throw new NotFoundException(e.getMessage(), e);
+    }
+  }
+
   public InputStream getDecisionDiagram(String decisionDefinitionId) {
     return commandExecutor.execute(new GetDeploymentDecisionDiagramCmd(decisionDefinitionId));
+  }
+
+  public InputStream getDecisionRequirementsDiagram(String decisionRequirementsDefinitionId) {
+    return commandExecutor.execute(new GetDeploymentDecisionRequirementsDiagramCmd(decisionRequirementsDefinitionId));
   }
 
 }

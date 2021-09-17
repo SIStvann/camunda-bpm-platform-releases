@@ -1141,6 +1141,102 @@ public class HistoricTaskInstanceRestServiceQueryTest extends AbstractRestServic
   }
 
   @Test
+  public void testQueryByAssigned() {
+    given()
+      .queryParam("assigned", true)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().get(HISTORIC_TASK_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).taskAssigned();
+  }
+
+  @Test
+  public void testQueryByAssignedAsPost() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("assigned", true);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(params)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().post(HISTORIC_TASK_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).taskAssigned();
+  }
+
+  @Test
+  public void testQueryByWithCandidateGroups() {
+    given()
+      .queryParam("withCandidateGroups", true)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().get(HISTORIC_TASK_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).withCandidateGroups();
+  }
+
+  @Test
+  public void testQueryByWithCandidateGroupsAsPost() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("withCandidateGroups", true);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(params)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().post(HISTORIC_TASK_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).withCandidateGroups();
+  }
+
+  @Test
+  public void testQueryByWithoutCandidateGroups() {
+    given()
+      .queryParam("withoutCandidateGroups", true)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().get(HISTORIC_TASK_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).withoutCandidateGroups();
+  }
+
+  @Test
+  public void testQueryByWithoutCandidateGroupsAsPost() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("withoutCandidateGroups", true);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(params)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().post(HISTORIC_TASK_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).withoutCandidateGroups();
+  }
+
+  @Test
+  public void testQueryByUnassigned() {
+    given()
+      .queryParam("unassigned", true)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().get(HISTORIC_TASK_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).taskUnassigned();
+  }
+
+  @Test
+  public void testQueryByUnassignedAsPost() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("unassigned", true);
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(params)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().post(HISTORIC_TASK_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).taskUnassigned();
+  }
+
+  @Test
   public void testQueryByFinished() {
     given()
       .queryParam("finished", true)
@@ -1893,6 +1989,50 @@ public class HistoricTaskInstanceRestServiceQueryTest extends AbstractRestServic
 
     verify(mockedQuery).taskHadCandidateGroup(taskHadCandidateGroup);
   }
+
+  @Test
+  public void testQueryByTaskDefinitionKeyIn() {
+
+    String taskDefinitionKey1 = "aTaskDefinitionKey";
+    String taskDefinitionKey2 = "anotherTaskDefinitionKey";
+
+    given()
+      .queryParam("taskDefinitionKeyIn", taskDefinitionKey1 + "," + taskDefinitionKey2)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(HISTORIC_TASK_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).taskDefinitionKeyIn(taskDefinitionKey1, taskDefinitionKey2);
+    verify(mockedQuery).list();
+  }
+
+  @Test
+  public void testQueryByTaskDefinitionKeyInAsPost() {
+
+    String taskDefinitionKey1 = "aTaskDefinitionKey";
+    String taskDefinitionKey2 = "anotherTaskDefinitionKey";
+
+    List<String> taskDefinitionKeys = new ArrayList<String>();
+    taskDefinitionKeys.add(taskDefinitionKey1);
+    taskDefinitionKeys.add(taskDefinitionKey2);
+
+    Map<String, Object> queryParameters = new HashMap<String, Object>();
+    queryParameters.put("taskDefinitionKeyIn", taskDefinitionKeys);
+
+    given()
+        .contentType(POST_JSON_CONTENT_TYPE)
+        .body(queryParameters)
+    .expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(HISTORIC_TASK_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).taskDefinitionKeyIn(taskDefinitionKey1, taskDefinitionKey2);
+    verify(mockedQuery).list();
+  }
+
+
   private List<HistoricTaskInstance> createMockHistoricTaskInstancesTwoTenants() {
     return Arrays.asList(
         MockProvider.createMockHistoricTaskInstance(MockProvider.EXAMPLE_TENANT_ID),

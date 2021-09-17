@@ -66,6 +66,4 @@ public abstract class FormDataImpl implements FormData, Serializable {
   public void setFormFields(List<FormField> formFields) {
     this.formFields = formFields;
   }
-
-
 }

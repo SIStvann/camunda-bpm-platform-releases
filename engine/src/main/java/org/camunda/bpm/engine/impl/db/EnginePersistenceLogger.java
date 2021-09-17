@@ -595,4 +595,22 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
         ));
   }
 
+  public ProcessEngineException deleteProcessDefinitionWithProcessInstancesException(String processDefinitionId, Long processInstanceCount) {
+    return new ProcessEngineException(exceptionMessage(
+        "076",
+        "Deletion of process definition without cascading failed. Process definition with id: {} can't be deleted, since there exists {} dependening process instances.",
+        processDefinitionId, processInstanceCount
+        ));
+  }
+
+  public ProcessEngineException resolveParentOfExecutionFailedException(String parentId, String executionId) {
+    return new ProcessEngineException(exceptionMessage(
+        "077",
+        "Cannot resolve parent with id '{}' of execution '{}', perhaps it was deleted in the meantime",
+        parentId,
+        executionId
+        ));
+  }
+
+
 }

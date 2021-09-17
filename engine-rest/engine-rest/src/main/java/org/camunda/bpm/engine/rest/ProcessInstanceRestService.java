@@ -13,15 +13,19 @@
 package org.camunda.bpm.engine.rest;
 
 import org.camunda.bpm.engine.rest.dto.CountResultDto;
+import org.camunda.bpm.engine.rest.dto.batch.BatchDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceQueryDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceSuspensionStateDto;
+import org.camunda.bpm.engine.rest.dto.runtime.SetJobRetriesByProcessDto;
+import org.camunda.bpm.engine.rest.dto.runtime.batch.DeleteProcessInstancesDto;
 import org.camunda.bpm.engine.rest.sub.runtime.ProcessInstanceResource;
 import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 import javax.ws.rs.core.UriInfo;
 import java.util.List;
 
@@ -44,8 +48,8 @@ public interface ProcessInstanceRestService {
   @GET
   @Produces(MediaType.APPLICATION_JSON)
   List<ProcessInstanceDto> getProcessInstances(@Context UriInfo uriInfo,
-      @QueryParam("firstResult") Integer firstResult,
-      @QueryParam("maxResults") Integer maxResults);
+                                               @QueryParam("firstResult") Integer firstResult,
+                                               @QueryParam("maxResults") Integer maxResults);
 
   /**
    * Expects the same parameters as
@@ -61,8 +65,8 @@ public interface ProcessInstanceRestService {
   @Consumes(MediaType.APPLICATION_JSON)
   @Produces(MediaType.APPLICATION_JSON)
   List<ProcessInstanceDto> queryProcessInstances(ProcessInstanceQueryDto query,
-      @QueryParam("firstResult") Integer firstResult,
-      @QueryParam("maxResults") Integer maxResults);
+                                                 @QueryParam("firstResult") Integer firstResult,
+                                                 @QueryParam("maxResults") Integer maxResults);
 
   @GET
   @Path("/count")
@@ -79,5 +83,17 @@ public interface ProcessInstanceRestService {
   @Path("/suspended")
   @Consumes(MediaType.APPLICATION_JSON)
   void updateSuspensionState(ProcessInstanceSuspensionStateDto dto);
+
+  @POST
+  @Path("/delete")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  BatchDto deleteAsync(DeleteProcessInstancesDto dto);
+
+  @POST
+  @Path("/job-retries")
+  @Consumes(MediaType.APPLICATION_JSON)
+  @Produces(MediaType.APPLICATION_JSON)
+  BatchDto setRetriesByProcess (SetJobRetriesByProcessDto setJobRetriesDto);
 
 }

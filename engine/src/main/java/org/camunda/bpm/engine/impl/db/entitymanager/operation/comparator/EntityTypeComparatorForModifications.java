@@ -20,8 +20,9 @@ import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionEntity;
 import org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseExecutionEntity;
 import org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseSentryPartEntity;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.CompensateEventSubscriptionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.DeploymentEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.EventSubscriptionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
@@ -32,10 +33,8 @@ import org.camunda.bpm.engine.impl.persistence.entity.IncidentEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.MembershipEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.MessageEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.MessageEventSubscriptionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ResourceEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.SignalEventSubscriptionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TenantEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TenantMembershipEntity;
@@ -63,9 +62,6 @@ public class EntityTypeComparatorForModifications implements Comparator<Class<?>
     typeOrder.put(IdentityLinkEntity.class, 1);
 
     typeOrder.put(EventSubscriptionEntity.class, 1);
-    typeOrder.put(MessageEventSubscriptionEntity.class, 1);
-    typeOrder.put(CompensateEventSubscriptionEntity.class, 1);
-    typeOrder.put(SignalEventSubscriptionEntity.class, 1);
 
     typeOrder.put(JobEntity.class, 1);
     typeOrder.put(MessageEntity.class, 1);
@@ -94,6 +90,8 @@ public class EntityTypeComparatorForModifications implements Comparator<Class<?>
     // 4
     typeOrder.put(ProcessDefinitionEntity.class, 4);
     typeOrder.put(CaseDefinitionEntity.class, 4);
+    typeOrder.put(DecisionDefinitionEntity.class, 4);
+    typeOrder.put(DecisionRequirementsDefinitionEntity.class, 4);
     typeOrder.put(ResourceEntity.class, 4);
 
     // 5

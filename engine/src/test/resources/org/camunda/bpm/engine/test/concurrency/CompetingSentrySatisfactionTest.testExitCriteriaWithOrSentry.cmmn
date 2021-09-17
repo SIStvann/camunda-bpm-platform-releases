@@ -9,7 +9,7 @@
 
       <planItem id="PI_HumanTask_1" definitionRef="HumanTask_1" />
       <planItem id="PI_HumanTask_2" definitionRef="HumanTask_2" />
-      <planItem id="PI_HumanTask_3" definitionRef="HumanTask_3">
+      <planItem id="ProcessTask_3" definitionRef="ProcessTask_1">
         <exitCriterion sentryRef="Sentry_1" />
         <exitCriterion sentryRef="Sentry_2" />
       </planItem>
@@ -25,7 +25,13 @@
         </planItemOnPart>
       </sentry>
 
-      <humanTask id="HumanTask_1" />
+      <humanTask id="HumanTask_1" >
+        <defaultControl>
+          <manualActivationRule>
+            <condition>${true}</condition>
+          </manualActivationRule>
+        </defaultControl>
+      </humanTask>
 
       <humanTask id="HumanTask_2">
         <defaultControl>
@@ -35,7 +41,13 @@
         </defaultControl>
       </humanTask>
 
-      <humanTask id="HumanTask_3" />
+      <processTask id="ProcessTask_1" name="A Process Task" processRef="oneTaskProcess" >
+        <defaultControl>
+          <manualActivationRule>
+            <condition>${true}</condition>
+          </manualActivationRule>
+        </defaultControl>
+      </processTask>
 
     </casePlanModel>
   </case>

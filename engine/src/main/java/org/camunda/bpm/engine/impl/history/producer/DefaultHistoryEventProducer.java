@@ -12,9 +12,7 @@
  */
 package org.camunda.bpm.engine.impl.history.producer;
 
-import static org.camunda.bpm.engine.impl.util.JobExceptionUtil.createJobExceptionByteArray;
-import static org.camunda.bpm.engine.impl.util.JobExceptionUtil.getJobExceptionStacktrace;
-import static org.camunda.bpm.engine.impl.util.StringUtil.toByteArray;
+import static org.camunda.bpm.engine.impl.util.ExceptionUtil.createJobExceptionByteArray;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +21,7 @@ import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.delegate.DelegateExecution;
 import org.camunda.bpm.engine.delegate.DelegateTask;
 import org.camunda.bpm.engine.delegate.VariableScope;
+import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.IncidentState;
 import org.camunda.bpm.engine.history.JobState;
 import org.camunda.bpm.engine.impl.batch.BatchEntity;
@@ -31,17 +30,7 @@ import org.camunda.bpm.engine.impl.cfg.IdGenerator;
 import org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionEntity;
 import org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseExecutionEntity;
 import org.camunda.bpm.engine.impl.context.Context;
-import org.camunda.bpm.engine.impl.history.event.HistoricActivityInstanceEventEntity;
-import org.camunda.bpm.engine.impl.history.event.HistoricFormPropertyEventEntity;
-import org.camunda.bpm.engine.impl.history.event.HistoricIdentityLinkLogEventEntity;
-import org.camunda.bpm.engine.impl.history.event.HistoricIncidentEventEntity;
-import org.camunda.bpm.engine.impl.history.event.HistoricProcessInstanceEventEntity;
-import org.camunda.bpm.engine.impl.history.event.HistoricTaskInstanceEventEntity;
-import org.camunda.bpm.engine.impl.history.event.HistoricVariableUpdateEventEntity;
-import org.camunda.bpm.engine.impl.history.event.HistoryEvent;
-import org.camunda.bpm.engine.impl.history.event.HistoryEventType;
-import org.camunda.bpm.engine.impl.history.event.HistoryEventTypes;
-import org.camunda.bpm.engine.impl.history.event.UserOperationLogEntryEventEntity;
+import org.camunda.bpm.engine.impl.history.event.*;
 import org.camunda.bpm.engine.impl.migration.instance.MigratingActivityInstance;
 import org.camunda.bpm.engine.impl.oplog.UserOperationLogContext;
 import org.camunda.bpm.engine.impl.oplog.UserOperationLogContextEntry;
@@ -62,6 +51,9 @@ import org.camunda.bpm.engine.runtime.Incident;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.task.IdentityLink;
 
+import static org.camunda.bpm.engine.impl.util.ExceptionUtil.getExceptionStacktrace;
+import static org.camunda.bpm.engine.impl.util.StringUtil.toByteArray;
+
 /**
  * @author Daniel Meyer
  * @author Ingo Richtsmeier
@@ -79,10 +71,9 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
     String parentActivityInstanceId = null;
     ExecutionEntity parentExecution = execution.getParent();
 
-    if (parentExecution != null && CompensationBehavior.isCompensationThrowing(parentExecution)) {
+    if (parentExecution != null && CompensationBehavior.isCompensationThrowing(parentExecution) && execution.getActivity() != null) {
       parentActivityInstanceId = CompensationBehavior.getParentActivityInstanceId(execution);
-    }
-    else {
+    } else {
       parentActivityInstanceId = execution.getParentActivityInstanceId();
     }
 
@@ -130,7 +121,7 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
     evt.setExecutionId(execution.getId());
     evt.setTenantId(execution.getTenantId());
 
-    ProcessDefinitionEntity definition = (ProcessDefinitionEntity) execution.getProcessDefinition();
+    ProcessDefinitionEntity definition = execution.getProcessDefinition();
     if (definition != null) {
       evt.setProcessDefinitionKey(definition.getKey());
     }
@@ -162,7 +153,7 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
     String caseInstanceId = execution.getCaseInstanceId();
     String tenantId = execution.getTenantId();
 
-    ProcessDefinitionEntity definition = (ProcessDefinitionEntity) execution.getProcessDefinition();
+    ProcessDefinitionEntity definition = execution.getProcessDefinition();
     String processDefinitionKey = null;
     if (definition != null) {
       processDefinitionKey = definition.getKey();
@@ -259,7 +250,7 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
 
     ExecutionEntity execution = variableInstance.getExecution();
     if (execution != null) {
-      ProcessDefinitionEntity definition = (ProcessDefinitionEntity) execution.getProcessDefinition();
+      ProcessDefinitionEntity definition = execution.getProcessDefinition();
       if (definition != null) {
         evt.setProcessDefinitionId(definition.getId());
         evt.setProcessDefinitionKey(definition.getKey());
@@ -364,8 +355,12 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
         scopeActivityInstanceId = scopeExecution.getActivityInstanceId();
       }
     }
+    else if (variableInstance.getCaseExecutionId() != null) {
+      scopeActivityInstanceId = variableInstance.getCaseExecutionId();
+    }
 
     ExecutionEntity sourceExecution = null;
+    CaseExecutionEntity sourceCaseExecution = null;
     if (sourceVariableScope instanceof ExecutionEntity) {
       sourceExecution = (ExecutionEntity) sourceVariableScope;
       sourceActivityInstanceId = sourceExecution.getActivityInstanceId();
@@ -375,6 +370,16 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
       if (sourceExecution != null) {
         sourceActivityInstanceId = sourceExecution.getActivityInstanceId();
       }
+      else {
+        sourceCaseExecution = ((TaskEntity) sourceVariableScope).getCaseExecution();
+        if (sourceCaseExecution != null) {
+          sourceActivityInstanceId = sourceCaseExecution.getId();
+        }
+      }
+    }
+    else if (sourceVariableScope instanceof CaseExecutionEntity) {
+      sourceCaseExecution = (CaseExecutionEntity) sourceVariableScope;
+      sourceActivityInstanceId = sourceCaseExecution.getId();
     }
 
     // create event
@@ -459,6 +464,9 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
       evt.setSuperProcessInstanceId(superExecution.getProcessInstanceId());
     }
 
+    //state
+    evt.setState(HistoricProcessInstance.STATE_ACTIVE);
+
     // set start user Id
     evt.setStartUserId(Context.getCommandContext().getAuthenticatedUserId());
 
@@ -473,6 +481,12 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
 
     // initialize event
     initProcessInstanceEvent(evt, executionEntity, HistoryEventTypes.PROCESS_INSTANCE_UPDATE);
+
+    if (executionEntity.isSuspended()) {
+      evt.setState(HistoricProcessInstance.STATE_SUSPENDED);
+    } else {
+      evt.setState(HistoricProcessInstance.STATE_ACTIVE);
+    }
 
     return evt;
   }
@@ -499,6 +513,8 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
     // initialize event
     initProcessInstanceEvent(evt, executionEntity, HistoryEventTypes.PROCESS_INSTANCE_END);
 
+    determineEndState(executionEntity, evt);
+
     // set end activity id
     evt.setEndActivityId(executionEntity.getActivityId());
     evt.setEndTime(ClockUtil.getCurrentTime());
@@ -513,6 +529,17 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
     }
 
     return evt;
+  }
+
+  protected void determineEndState(ExecutionEntity executionEntity, HistoricProcessInstanceEventEntity evt) {
+    //determine state
+    if (executionEntity.getActivity() != null) {
+      evt.setState(HistoricProcessInstance.STATE_COMPLETED);
+    } else if (executionEntity.getActivity() == null && executionEntity.isExternallyTerminated()) {
+      evt.setState(HistoricProcessInstance.STATE_EXTERNALLY_TERMINATED);
+    } else if (executionEntity.getActivity() == null && !executionEntity.isExternallyTerminated()) {
+      evt.setState(HistoricProcessInstance.STATE_INTERNALLY_TERMINATED);
+    }
   }
 
   public HistoryEvent createActivityInstanceStartEvt(DelegateExecution execution) {
@@ -702,7 +729,7 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
     historicFormPropertyEntity.setTaskId(taskId);
     historicFormPropertyEntity.setTenantId(execution.getTenantId());
 
-    ProcessDefinitionEntity definition = (ProcessDefinitionEntity) execution.getProcessDefinition();
+    ProcessDefinitionEntity definition = execution.getProcessDefinition();
     if (definition != null) {
       historicFormPropertyEntity.setProcessDefinitionKey(definition.getKey());
     }
@@ -864,7 +891,7 @@ public class DefaultHistoryEventProducer implements HistoryEventProducer {
       event.setJobExceptionMessage(exception.getMessage());
 
       // stacktrace
-      String exceptionStacktrace = getJobExceptionStacktrace(exception);
+      String exceptionStacktrace = getExceptionStacktrace(exception);
       byte[] exceptionBytes = toByteArray(exceptionStacktrace);
       ByteArrayEntity byteArray = createJobExceptionByteArray(exceptionBytes);
       event.setExceptionByteArrayId(byteArray.getId());

@@ -29,6 +29,7 @@ import java.util.List;
 
 import org.camunda.bpm.engine.IdentityService;
 import org.camunda.bpm.engine.authorization.Permission;
+import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resource;
 import org.camunda.bpm.engine.filter.Filter;
 import org.camunda.bpm.engine.identity.Group;
@@ -36,11 +37,13 @@ import org.camunda.bpm.engine.identity.Tenant;
 import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.identity.Authentication;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.repository.DecisionDefinition;
+import org.camunda.bpm.engine.repository.DecisionRequirementsDefinition;
 import org.camunda.bpm.engine.repository.Deployment;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
@@ -101,7 +104,6 @@ public class DefaultAuthorizationProvider implements ResourceAuthorizationProvid
   }
 
   public AuthorizationEntity[] tenantMembershipCreated(Tenant tenant, Group group) {
-
     AuthorizationEntity userAuthorization = createGrantAuthorization(null, group.getId(), TENANT, tenant.getId(), READ);
 
     return new AuthorizationEntity[]{ userAuthorization };
@@ -275,6 +277,11 @@ public class DefaultAuthorizationProvider implements ResourceAuthorizationProvid
     return null;
   }
 
+  public AuthorizationEntity[] newDecisionRequirementsDefinition(DecisionRequirementsDefinition decisionRequirementsDefinition) {
+    // no default authorizations on decision requirements definitions.
+    return null;
+  }
+
   // helper //////////////////////////////////////////////////////////////
 
   protected AuthorizationManager getAuthorizationManager() {
@@ -295,6 +302,7 @@ public class DefaultAuthorizationProvider implements ResourceAuthorizationProvid
   protected AuthorizationEntity updateAuthorization(AuthorizationEntity authorization, String userId, String groupId, Resource resource, String resourceId, Permission... permissions) {
     if (authorization == null) {
       authorization = createGrantAuthorization(userId, groupId, resource, resourceId);
+      updateAuthorizationBasedOnCacheEntries(authorization, userId, groupId, resource, resourceId);
     }
 
     if (permissions != null) {
@@ -334,5 +342,44 @@ public class DefaultAuthorizationProvider implements ResourceAuthorizationProvid
     return Context
       .getProcessEngineConfiguration()
       .getDefaultUserPermissionForTask();
+  }
+
+  /**
+   * Searches through the cache, if there is already an authorization with same rights. If that's the case
+   * update the given authorization with the permissions and remove the old one from the cache.
+   */
+  protected void updateAuthorizationBasedOnCacheEntries(AuthorizationEntity authorization, String userId, String groupId,
+                                                        Resource resource, String resourceId) {
+    DbEntityManager dbManager = Context.getCommandContext().getDbEntityManager();
+    List<AuthorizationEntity> list = dbManager.getCachedEntitiesByType(AuthorizationEntity.class);
+    for (AuthorizationEntity authEntity : list) {
+      boolean hasSameAuthRights = hasEntitySameAuthorizationRights(authEntity, userId, groupId, resource, resourceId);
+      if (hasSameAuthRights) {
+        int previousPermissions = authEntity.getPermissions();
+        authorization.setPermissions(previousPermissions);
+        dbManager.getDbEntityCache().remove(authEntity);
+        return;
+      }
+    }
+  }
+
+  protected boolean hasEntitySameAuthorizationRights(AuthorizationEntity authEntity, String userId, String groupId,
+                                                     Resource resource, String resourceId) {
+    boolean sameUserId = areIdsEqual(authEntity.getUserId(), userId);
+    boolean sameGroupId = areIdsEqual(authEntity.getGroupId(), groupId);
+    boolean sameResourceId = areIdsEqual(authEntity.getResourceId(), (resourceId));
+    boolean sameResourceType = authEntity.getResourceType() == resource.resourceType();
+    boolean sameAuthorizationType = authEntity.getAuthorizationType() == AUTH_TYPE_GRANT;
+    return sameUserId && sameGroupId &&
+        sameResourceType && sameResourceId &&
+        sameAuthorizationType;
+  }
+
+  protected boolean areIdsEqual(String firstId, String secondId) {
+    if (firstId == null || secondId == null) {
+      return firstId == secondId;
+    }else {
+      return firstId.equals(secondId);
+    }
   }
 }

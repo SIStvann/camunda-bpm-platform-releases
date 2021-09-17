@@ -22,8 +22,19 @@ drop index ACT_IDX_IDENT_LNK_USER;
 drop index ACT_IDX_IDENT_LNK_GROUP;
 drop index ACT_IDX_VARIABLE_TASK_ID;
 
-drop index ACT_IDX_METER_LOG;
+-- new metric milliseconds column
+DROP INDEX ACT_IDX_METER_LOG_MS;
+DROP INDEX ACT_IDX_METER_LOG_NAME_MS;
+DROP INDEX ACT_IDX_METER_LOG_REPORT;
+
+-- old metric timestamp column
+DROP INDEX ACT_IDX_METER_LOG_TIME;
+DROP INDEX ACT_IDX_METER_LOG;
+
 drop index ACT_IDX_EXT_TASK_TOPIC;
+
+drop index ACT_IDX_JOB_EXECUTION_ID;
+drop index ACT_IDX_JOB_HANDLER;
 
 alter table ACT_GE_BYTEARRAY
     drop constraint ACT_FK_BYTEARR_DEPL;
@@ -108,6 +119,9 @@ alter table ACT_RU_BATCH
 
 alter table ACT_RU_BATCH
     drop constraint ACT_FK_BATCH_JOB_DEF;
+
+alter table ACT_RU_EXT_TASK
+    drop CONSTRAINT ACT_FK_EXT_TASK_ERROR_DETAILS;
 
 drop index ACT_IDX_EVENT_SUBSCR_CONFIG_;
 drop index ACT_IDX_EVENT_SUBSCR;

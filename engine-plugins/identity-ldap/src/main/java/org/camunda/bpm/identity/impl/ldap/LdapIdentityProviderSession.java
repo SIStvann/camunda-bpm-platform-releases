@@ -45,6 +45,7 @@ import org.camunda.bpm.engine.identity.TenantQuery;
 import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.identity.UserQuery;
 import org.camunda.bpm.engine.impl.AbstractQuery;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.UserQueryImpl;
 import org.camunda.bpm.engine.impl.UserQueryProperty;
 import org.camunda.bpm.engine.impl.identity.IdentityProviderException;
@@ -371,7 +372,7 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
   public List<Group> findGroupByQueryCriteria(LdapGroupQuery query) {
     ensureContextInitialized();
 
-    String groupBaseDn = composeDn(ldapConfiguration.getGroupSearchBase(),ldapConfiguration.getBaseDn());
+    String groupBaseDn = composeDn(ldapConfiguration.getGroupSearchBase(), ldapConfiguration.getBaseDn());
 
     if(ldapConfiguration.isSortControlSupported()) {
       applyRequestControls(query);
@@ -512,26 +513,27 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
     return group;
   }
 
-  @SuppressWarnings("rawtypes")
-  protected void applyRequestControls(AbstractQuery query) {
+  protected void applyRequestControls(AbstractQuery<?, ?> query) {
 
     try {
       List<Control> controls = new ArrayList<Control>();
 
-      String orderBy = query.getOrderBy();
+      List<QueryOrderingProperty> orderBy = query.getOrderingProperties();
       if(orderBy != null) {
-        orderBy = orderBy.substring(0, orderBy.length()-4);
-        if(UserQueryProperty.USER_ID.getName().equals(orderBy)) {
-          controls.add(new SortControl(ldapConfiguration.getUserIdAttribute(), Control.CRITICAL));
+        for (QueryOrderingProperty orderingProperty : orderBy) {
+          String propertyName = orderingProperty.getQueryProperty().getName();
+          if(UserQueryProperty.USER_ID.getName().equals(propertyName)) {
+            controls.add(new SortControl(ldapConfiguration.getUserIdAttribute(), Control.CRITICAL));
 
-        } else if(UserQueryProperty.EMAIL.getName().equals(orderBy)) {
-          controls.add(new SortControl(ldapConfiguration.getUserEmailAttribute(), Control.CRITICAL));
+          } else if(UserQueryProperty.EMAIL.getName().equals(propertyName)) {
+            controls.add(new SortControl(ldapConfiguration.getUserEmailAttribute(), Control.CRITICAL));
 
-        } else if(UserQueryProperty.FIRST_NAME.getName().equals(orderBy)) {
-          controls.add(new SortControl(ldapConfiguration.getUserFirstnameAttribute(), Control.CRITICAL));
+          } else if(UserQueryProperty.FIRST_NAME.getName().equals(propertyName)) {
+            controls.add(new SortControl(ldapConfiguration.getUserFirstnameAttribute(), Control.CRITICAL));
 
-        } else if(UserQueryProperty.LAST_NAME.getName().equals(orderBy)) {
-          controls.add(new SortControl(ldapConfiguration.getUserLastnameAttribute(), Control.CRITICAL));
+          } else if(UserQueryProperty.LAST_NAME.getName().equals(propertyName)) {
+            controls.add(new SortControl(ldapConfiguration.getUserLastnameAttribute(), Control.CRITICAL));
+          }
         }
       }
 

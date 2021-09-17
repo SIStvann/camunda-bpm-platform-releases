@@ -27,6 +27,8 @@ import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.CaseDefinitionQuery;
 import org.camunda.bpm.engine.repository.DecisionDefinition;
 import org.camunda.bpm.engine.repository.DecisionDefinitionQuery;
+import org.camunda.bpm.engine.repository.DecisionRequirementsDefinition;
+import org.camunda.bpm.engine.repository.DecisionRequirementsDefinitionQuery;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.repository.DeploymentQuery;
 import org.camunda.bpm.engine.repository.DiagramLayout;
@@ -115,6 +117,61 @@ public interface RepositoryService {
    */
   void deleteDeployment(String deploymentId, boolean cascade, boolean skipCustomListeners);
 
+
+  /**
+   * Deletes the process definition which belongs to the given process definition id.
+   * Same behavior as {@link RepositoryService#deleteProcessDefinition(java.lang.String, boolean, boolean)}
+   * Both boolean parameters of this method are per default false. The deletion is
+   * in this case not cascading.
+   *
+   * @param processDefinitionId the id, which corresponds to the process definition
+   * @throws ProcessEngineException
+   *          If the process definition does not exist
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @see RepositoryService#deleteProcessDefinition(java.lang.String, boolean, boolean)
+   */
+  void deleteProcessDefinition(String processDefinitionId);
+
+  /**
+   * Deletes the process definition which belongs to the given process definition id.
+   * Cascades the deletion if the cascade is set to true.
+   * Same behavior as {@link RepositoryService#deleteProcessDefinition(java.lang.String, boolean, boolean)}
+   * The skipCustomListeners parameter is per default false. The custom listeners are called
+   * if the cascading flag is set to true and the process instances are deleted.
+   *
+   * @param processDefinitionId the id, which corresponds to the process definition
+   * @param cascade if set to true, all process instances (including) history are deleted
+   * @throws ProcessEngineException
+   *          If the process definition does not exist
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_DEFINITION}.
+   * @see RepositoryService#deleteProcessDefinition(java.lang.String, boolean, boolean)
+   */
+  void deleteProcessDefinition(String processDefinitionId, boolean cascade);
+
+
+  /**
+   * Deletes the process definition which belongs to the given process definition id.
+   * Cascades the deletion if the cascade is set to true the custom listener
+   * can be skipped if the third parameter is set to true.
+   *
+   * @param processDefinitionId the id, which corresponds to the process definition
+   * @param cascade if set to true, all process instances (including) history are deleted
+   * @param skipCustomListeners if true, only the built-in {@link ExecutionListener}s
+   *            are notified with the {@link ExecutionListener#EVENTNAME_END} event.
+   *            Is only used if cascade set to true.
+   *
+   * @throws ProcessEngineException
+   *          If the process definition does not exist
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_DEFINITION}.
+   */
+  void deleteProcessDefinition(String processDefinitionId, boolean cascade, boolean skipCustomListeners);
+
   /**
    * Retrieves a list of deployment resource names for the given deployment,
    * ordered alphabetically.
@@ -179,6 +236,11 @@ public interface RepositoryService {
    * Query decision definitions.
    */
   DecisionDefinitionQuery createDecisionDefinitionQuery();
+
+  /**
+   * Query decision requirements definition.
+   */
+  DecisionRequirementsDefinitionQuery createDecisionRequirementsDefinitionQuery();
 
   /**
    * Query process definitions.
@@ -572,7 +634,18 @@ public interface RepositoryService {
   DecisionDefinition getDecisionDefinition(String decisionDefinitionId);
 
   /**
-   * Gives access to a deployed decision model, e.g., a DMN 1.0 XML file,
+   * Returns the {@link DecisionRequirementsDefinition}.
+   *
+   * @throws NotValidException when the given decision requirements definition id is null
+   * @throws NotFoundException when no decision requirements definition is found for the given decision requirements definition id
+   * @throws ProcessEngineException when an internal exception happens during the execution of the command.
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#READ} permission on {@link Resources#DECISION_REQUIREMENTS_DEFINITION}.
+   */
+  DecisionRequirementsDefinition getDecisionRequirementsDefinition(String decisionRequirementsDefinitionId);
+
+  /**
+   * Gives access to a deployed decision model, e.g., a DMN 1.1 XML file,
    * through a stream of bytes.
    *
    * @param decisionDefinitionId
@@ -587,16 +660,43 @@ public interface RepositoryService {
   InputStream getDecisionModel(String decisionDefinitionId);
 
   /**
+   * Gives access to a deployed decision requirements model, e.g., a DMN 1.1 XML file,
+   * through a stream of bytes.
+   *
+   * @param decisionRequirementsDefinitionId
+   *          id of a {@link DecisionRequirementsDefinition}, cannot be null.
+   *
+   * @throws NotValidException when the given decision requirements definition id or deployment id or resource name is null
+   * @throws NotFoundException when no decision requirements definition or deployment resource is found for the given decision requirements definition id
+   * @throws ProcessEngineException when an internal exception happens during the execution of the command
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#READ} permission on {@link Resources#DECISION_REQUIREMENTS_DEFINITION}.
+   */
+  InputStream getDecisionRequirementsModel(String decisionRequirementsDefinitionId);
+
+  /**
    * Gives access to a deployed decision diagram, e.g., a PNG image, through a
    * stream of bytes.
    *
    * @param decisionDefinitionId id of a {@link DecisionDefinition}, cannot be null.
    * @return null when the diagram resource name of a {@link DecisionDefinition} is null.
-   * @throws ProcessEngineException when the process diagram doesn't exist.
+   * @throws ProcessEngineException when the decision diagram doesn't exist.
    * @throws AuthorizationException
    *          If the user has no {@link Permissions#READ} permission on {@link Resources#DECISION_DEFINITION}.
    */
   InputStream getDecisionDiagram(String decisionDefinitionId);
+
+  /**
+   * Gives access to a deployed decision requirements diagram, e.g., a PNG image, through a
+   * stream of bytes.
+   *
+   * @param decisionRequirementsDefinitionId id of a {@link DecisionRequirementsDefinition}, cannot be null.
+   * @return null when the diagram resource name of a {@link DecisionRequirementsDefinition} is null.
+   * @throws ProcessEngineException when the decision requirements diagram doesn't exist.
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#READ} permission on {@link Resources#DECISION_REQUIREMENTS_DEFINITION}.
+   */
+  InputStream getDecisionRequirementsDiagram(String decisionRequirementsDefinitionId);
 
 }
 

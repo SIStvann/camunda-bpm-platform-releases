@@ -13,10 +13,13 @@
 
 package org.camunda.bpm.engine.rest.dto.history;
 
+import static java.lang.Boolean.TRUE;
+
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+
 import javax.ws.rs.core.MultivaluedMap;
 
 import org.camunda.bpm.engine.ProcessEngine;
@@ -45,8 +48,13 @@ public class HistoricDecisionInstanceQueryDto extends AbstractQueryDto<HistoricD
 
   protected String decisionInstanceId;
   protected String[] decisionInstanceIdIn;
+
   protected String decisionDefinitionId;
+  protected String[] decisionDefinitionIdIn;
+
   protected String decisionDefinitionKey;
+  protected String[] decisionDefinitionKeyIn;
+
   protected String decisionDefinitionName;
   protected String processDefinitionId;
   protected String processDefinitionKey;
@@ -63,6 +71,10 @@ public class HistoricDecisionInstanceQueryDto extends AbstractQueryDto<HistoricD
   protected Boolean includeOutputs;
   protected Boolean disableBinaryFetching;
   protected Boolean disableCustomObjectDeserialization;
+  protected String rootDecisionInstanceId;
+  protected Boolean rootDecisionInstancesOnly;
+  protected String decisionRequirementsDefinitionId;
+  protected String decisionRequirementsDefinitionKey;
   protected List<String> tenantIds;
 
   public HistoricDecisionInstanceQueryDto() {
@@ -87,9 +99,19 @@ public class HistoricDecisionInstanceQueryDto extends AbstractQueryDto<HistoricD
     this.decisionDefinitionId = decisionDefinitionId;
   }
 
+  @CamundaQueryParam(value = "decisionDefinitionIdIn", converter = StringArrayConverter.class)
+  public void setDecisionDefinitionIdIn(String[] decisionDefinitionIdIn) {
+    this.decisionDefinitionIdIn = decisionDefinitionIdIn;
+  }
+
   @CamundaQueryParam("decisionDefinitionKey")
   public void setDecisionDefinitionKey(String decisionDefinitionKey) {
     this.decisionDefinitionKey = decisionDefinitionKey;
+  }
+
+  @CamundaQueryParam(value = "decisionDefinitionKeyIn", converter = StringArrayConverter.class)
+  public void setDecisionDefinitionKeyIn(String[] decisionDefinitionKeyIn) {
+    this.decisionDefinitionKeyIn = decisionDefinitionKeyIn;
   }
 
   @CamundaQueryParam("decisionDefinitionName")
@@ -146,7 +168,7 @@ public class HistoricDecisionInstanceQueryDto extends AbstractQueryDto<HistoricD
   public void setEvaluatedAfter(Date evaluatedAfter) {
     this.evaluatedAfter = evaluatedAfter;
   }
-  
+
   @CamundaQueryParam(value = "userId")
   public void setUserId(String userId) {
     this.userId = userId;
@@ -172,19 +194,42 @@ public class HistoricDecisionInstanceQueryDto extends AbstractQueryDto<HistoricD
     this.disableCustomObjectDeserialization = disableCustomObjectDeserialization;
   }
 
+  @CamundaQueryParam(value = "rootDecisionInstanceId")
+  public void setRootDecisionInstanceId(String rootDecisionInstanceId) {
+    this.rootDecisionInstanceId = rootDecisionInstanceId;
+  }
+
+  @CamundaQueryParam(value = "rootDecisionInstancesOnly", converter = BooleanConverter.class)
+  public void setRootDecisionInstancesOnly(Boolean rootDecisionInstancesOnly) {
+    this.rootDecisionInstancesOnly = rootDecisionInstancesOnly;
+  }
+
+  @CamundaQueryParam(value = "decisionRequirementsDefinitionId")
+  public void setDecisionRequirementsDefinitionId(String decisionRequirementsDefinitionId) {
+    this.decisionRequirementsDefinitionId = decisionRequirementsDefinitionId;
+  }
+
+  @CamundaQueryParam(value = "decisionRequirementsDefinitionKey")
+  public void setDecisionRequirementsDefinitionKey(String decisionRequirementsDefinitionKey) {
+    this.decisionRequirementsDefinitionKey = decisionRequirementsDefinitionKey;
+  }
+
   @CamundaQueryParam(value = "tenantIdIn", converter = StringListConverter.class)
   public void setTenantIdIn(List<String> tenantIds) {
     this.tenantIds = tenantIds;
   }
 
+  @Override
   protected boolean isValidSortByValue(String value) {
     return VALID_SORT_BY_VALUES.contains(value);
   }
 
+  @Override
   protected HistoricDecisionInstanceQuery createNewQuery(ProcessEngine engine) {
     return engine.getHistoryService().createHistoricDecisionInstanceQuery();
   }
 
+  @Override
   protected void applyFilters(HistoricDecisionInstanceQuery query) {
     if (decisionInstanceId != null) {
       query.decisionInstanceId(decisionInstanceId);
@@ -195,8 +240,14 @@ public class HistoricDecisionInstanceQueryDto extends AbstractQueryDto<HistoricD
     if (decisionDefinitionId != null) {
       query.decisionDefinitionId(decisionDefinitionId);
     }
+    if (decisionDefinitionIdIn != null) {
+      query.decisionDefinitionIdIn(decisionDefinitionIdIn);
+    }
     if (decisionDefinitionKey != null) {
       query.decisionDefinitionKey(decisionDefinitionKey);
+    }
+    if (decisionDefinitionKeyIn != null) {
+      query.decisionDefinitionKeyIn(decisionDefinitionKeyIn);
     }
     if (decisionDefinitionName != null) {
       query.decisionDefinitionName(decisionDefinitionName);
@@ -234,23 +285,36 @@ public class HistoricDecisionInstanceQueryDto extends AbstractQueryDto<HistoricD
     if (userId != null) {
       query.userId(userId);
     }
-    if (includeInputs != null && includeInputs) {
+    if (TRUE.equals(includeInputs)) {
       query.includeInputs();
     }
-    if (includeOutputs != null && includeOutputs) {
+    if (TRUE.equals(includeOutputs)) {
       query.includeOutputs();
     }
-    if (disableBinaryFetching != null && disableBinaryFetching) {
+    if (TRUE.equals(disableBinaryFetching)) {
       query.disableBinaryFetching();
     }
-    if (disableCustomObjectDeserialization != null && disableCustomObjectDeserialization) {
+    if (TRUE.equals(disableCustomObjectDeserialization)) {
       query.disableCustomObjectDeserialization();
+    }
+    if (rootDecisionInstanceId != null) {
+      query.rootDecisionInstanceId(rootDecisionInstanceId);
+    }
+    if (TRUE.equals(rootDecisionInstancesOnly)) {
+      query.rootDecisionInstancesOnly();
+    }
+    if (decisionRequirementsDefinitionId != null) {
+      query.decisionRequirementsDefinitionId(decisionRequirementsDefinitionId);
+    }
+    if (decisionRequirementsDefinitionKey != null) {
+      query.decisionRequirementsDefinitionKey(decisionRequirementsDefinitionKey);
     }
     if (tenantIds != null && !tenantIds.isEmpty()) {
       query.tenantIdIn(tenantIds.toArray(new String[tenantIds.size()]));
     }
   }
 
+  @Override
   protected void applySortBy(HistoricDecisionInstanceQuery query, String sortBy, Map<String, Object> parameters, ProcessEngine engine) {
     if (sortBy.equals(SORT_BY_EVALUATION_TIME_VALUE)) {
       query.orderByEvaluationTime();

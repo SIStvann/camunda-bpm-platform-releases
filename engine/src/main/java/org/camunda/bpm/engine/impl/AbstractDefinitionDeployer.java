@@ -148,21 +148,7 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
         return diagramForFileResource;
       }
     }
-
-    return generateDiagramResourceForDefinition(deployment, resourceName, definition, resources);
-  }
-
-  /**
-   * Generate a diagram resource for a definition and return the name of the image resource.
-   *
-   * @param deployment the deployment entity
-   * @param resourceName the name of the definition resource
-   * @param definition the definition entity
-   * @param resources the resources of the deployment
-   * @return the name of the generated diagram resource or null if non was created
-   */
-  protected String generateDiagramResourceForDefinition(DeploymentEntity deployment, String resourceName, DefinitionEntity definition, Map<String, ResourceEntity> resources) {
-    // default don't generate diagram resources
+    // no matching diagram found
     return null;
   }
 
@@ -245,13 +231,15 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
       String definitionKey = definition.getKey();
 
       DefinitionEntity persistedDefinition = findDefinitionByDeploymentAndKey(deploymentId, definitionKey);
-
-      persistedDefinitionLoaded(deployment, definition, persistedDefinition);
-
-      updateDefinitionByPersistedDefinition(deployment, definition, persistedDefinition);
-
-      registerDefinition(deployment, definition, properties);
+      handlePersistedDefinition(definition, persistedDefinition, deployment, properties);
     }
+  }
+
+  protected void handlePersistedDefinition(DefinitionEntity definition,
+            DefinitionEntity persistedDefinition, DeploymentEntity deployment, Properties properties) {
+    persistedDefinitionLoaded(deployment, definition, persistedDefinition);
+    updateDefinitionByPersistedDefinition(deployment, definition, persistedDefinition);
+    registerDefinition(deployment, definition, properties);
   }
 
   protected void updateDefinitionByPersistedDefinition(DeploymentEntity deployment, DefinitionEntity definition, DefinitionEntity persistedDefinition) {

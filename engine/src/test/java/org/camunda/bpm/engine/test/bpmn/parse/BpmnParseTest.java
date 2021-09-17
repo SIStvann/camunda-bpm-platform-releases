@@ -22,6 +22,10 @@ import org.camunda.bpm.engine.impl.bpmn.behavior.EventSubProcessStartEventActivi
 import org.camunda.bpm.engine.impl.bpmn.behavior.NoneStartEventActivityBehavior;
 import org.camunda.bpm.engine.impl.bpmn.behavior.ThrowEscalationEventActivityBehavior;
 import org.camunda.bpm.engine.impl.bpmn.helper.BpmnProperties;
+import org.camunda.bpm.engine.ActivityTypes;
+import org.camunda.bpm.engine.impl.bpmn.behavior.BoundaryConditionalEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.EventSubProcessStartConditionalEventActivityBehavior;
+import org.camunda.bpm.engine.impl.bpmn.behavior.IntermediateConditionalEventBehavior;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.Command;
@@ -35,8 +39,11 @@ import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
 import org.camunda.bpm.engine.impl.pvm.process.TransitionImpl;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.impl.test.TestHelper;
+import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.api.runtime.migration.models.CallActivityModels;
+import org.camunda.bpm.engine.test.api.runtime.migration.models.ProcessModels;
 import org.junit.Test;
 
 /**
@@ -446,7 +453,7 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
     ActivityImpl miActivity = findActivityInDeployedProcessDefinition("undoBookHotel");
     ScopeImpl flowScope = miActivity.getFlowScope();
 
-    assertEquals("multiInstanceBody", flowScope.getProperty(BpmnParse.PROPERTYNAME_TYPE));
+    assertEquals(ActivityTypes.MULTI_INSTANCE_BODY, flowScope.getProperty(BpmnParse.PROPERTYNAME_TYPE));
     assertEquals("bookHotel" + BpmnParse.MULTI_INSTANCE_BODY_ID_SUFFIX, ((ActivityImpl) flowScope).getActivityId());
   }
 
@@ -455,7 +462,7 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
     ActivityImpl miActivity = findActivityInDeployedProcessDefinition("undoBookHotel");
     ScopeImpl flowScope = miActivity.getFlowScope();
 
-    assertEquals("multiInstanceBody", flowScope.getProperty(BpmnParse.PROPERTYNAME_TYPE));
+    assertEquals(ActivityTypes.MULTI_INSTANCE_BODY, flowScope.getProperty(BpmnParse.PROPERTYNAME_TYPE));
     assertEquals("scope" + BpmnParse.MULTI_INSTANCE_BODY_ID_SUFFIX, ((ActivityImpl) flowScope).getActivityId());
   }
 
@@ -463,7 +470,7 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
   public void testParseSignalStartEvent(){
     ActivityImpl signalStartActivity = findActivityInDeployedProcessDefinition("start");
 
-    assertEquals("signalStartEvent", signalStartActivity.getProperty("type"));
+    assertEquals(ActivityTypes.START_EVENT_SIGNAL, signalStartActivity.getProperty("type"));
     assertEquals(NoneStartEventActivityBehavior.class, signalStartActivity.getActivityBehavior().getClass());
   }
 
@@ -471,7 +478,7 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
   public void testParseEscalationBoundaryEvent() {
     ActivityImpl escalationBoundaryEvent = findActivityInDeployedProcessDefinition("escalationBoundaryEvent");
 
-    assertEquals("boundaryEscalation", escalationBoundaryEvent.getProperties().get(BpmnProperties.TYPE));
+    assertEquals(ActivityTypes.BOUNDARY_ESCALATION, escalationBoundaryEvent.getProperties().get(BpmnProperties.TYPE));
     assertEquals(BoundaryEventActivityBehavior.class, escalationBoundaryEvent.getActivityBehavior().getClass());
   }
 
@@ -479,7 +486,7 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
   public void testParseEscalationIntermediateThrowingEvent() {
     ActivityImpl escalationThrowingEvent = findActivityInDeployedProcessDefinition("escalationThrowingEvent");
 
-    assertEquals("intermediateEscalationThrowEvent", escalationThrowingEvent.getProperties().get(BpmnProperties.TYPE));
+    assertEquals(ActivityTypes.INTERMEDIATE_EVENT_ESCALATION_THROW, escalationThrowingEvent.getProperties().get(BpmnProperties.TYPE));
     assertEquals(ThrowEscalationEventActivityBehavior.class, escalationThrowingEvent.getActivityBehavior().getClass());
   }
 
@@ -487,7 +494,7 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
   public void testParseEscalationEndEvent() {
     ActivityImpl escalationEndEvent = findActivityInDeployedProcessDefinition("escalationEndEvent");
 
-    assertEquals("escalationEndEvent", escalationEndEvent.getProperties().get(BpmnProperties.TYPE));
+    assertEquals(ActivityTypes.END_EVENT_ESCALATION, escalationEndEvent.getProperties().get(BpmnProperties.TYPE));
     assertEquals(ThrowEscalationEventActivityBehavior.class, escalationEndEvent.getActivityBehavior().getClass());
   }
 
@@ -495,8 +502,56 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
   public void testParseEscalationStartEvent() {
     ActivityImpl escalationStartEvent = findActivityInDeployedProcessDefinition("escalationStartEvent");
 
-    assertEquals("escalationStartEvent", escalationStartEvent.getProperties().get(BpmnProperties.TYPE));
+    assertEquals(ActivityTypes.START_EVENT_ESCALATION, escalationStartEvent.getProperties().get(BpmnProperties.TYPE));
     assertEquals(EventSubProcessStartEventActivityBehavior.class, escalationStartEvent.getActivityBehavior().getClass());
+  }
+
+
+  public void parseInvalidConditionalEvent(String processDefinitionResource) {
+    try {
+      String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), processDefinitionResource);
+      repositoryService.createDeployment().name(resource).addClasspathResource(resource).deploy();
+      fail("Exception expected: Process definition could be parsed, conditional event definition contains no condition.");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("Conditional event must contain an expression for evaluation.", e.getMessage());
+    }
+  }
+
+  public void testParseInvalidConditionalBoundaryEvent() {
+    parseInvalidConditionalEvent("testParseInvalidConditionalBoundaryEvent");
+  }
+
+  @Deployment
+  public void testParseConditionalBoundaryEvent() {
+    ActivityImpl conditionalBoundaryEvent = findActivityInDeployedProcessDefinition("conditionalBoundaryEvent");
+
+    assertEquals(ActivityTypes.BOUNDARY_CONDITIONAL, conditionalBoundaryEvent.getProperties().get(BpmnProperties.TYPE));
+    assertEquals(BoundaryConditionalEventActivityBehavior.class, conditionalBoundaryEvent.getActivityBehavior().getClass());
+  }
+
+  public void testParseInvalidIntermediateConditionalEvent() {
+    parseInvalidConditionalEvent("testParseInvalidIntermediateConditionalEvent");
+  }
+
+  @Deployment
+  public void testParseIntermediateConditionalEvent() {
+    ActivityImpl intermediateConditionalEvent = findActivityInDeployedProcessDefinition("intermediateConditionalEvent");
+
+    assertEquals(ActivityTypes.INTERMEDIATE_EVENT_CONDITIONAL, intermediateConditionalEvent.getProperties().get(BpmnProperties.TYPE));
+    assertEquals(IntermediateConditionalEventBehavior.class, intermediateConditionalEvent.getActivityBehavior().getClass());
+  }
+
+  public void testParseInvalidEventSubprocessConditionalStartEvent() {
+    parseInvalidConditionalEvent("testParseInvalidEventSubprocessConditionalStartEvent");
+  }
+
+  @Deployment
+  public void testParseEventSubprocessConditionalStartEvent() {
+    ActivityImpl conditionalStartEventSubProcess = findActivityInDeployedProcessDefinition("conditionalStartEventSubProcess");
+
+    assertEquals(ActivityTypes.START_EVENT_CONDITIONAL, conditionalStartEventSubProcess.getProperties().get(BpmnProperties.TYPE));
+    assertEquals(EventSubProcessStartConditionalEventActivityBehavior.class, conditionalStartEventSubProcess.getActivityBehavior().getClass());
+
   }
 
   protected void assertActivityBounds(ActivityImpl activity, int x, int y, int width, int height) {
@@ -521,6 +576,86 @@ public class BpmnParseTest extends PluggableProcessEngineTestCase {
                                                         .getProcessDefinitionCache()
                                                         .get(processDefinition.getId());
     return cachedProcessDefinition.findActivity(activityId);
+  }
+
+  public void testNoCamundaInSourceThrowsError() {
+    try {
+      String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), "testNoCamundaInSourceThrowsError");
+      repositoryService.createDeployment().name(resource).addClasspathResource(resource).deploy();
+      fail("Process camunda:in extension element should contain source!");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("Missing parameter 'source' or 'sourceExpression' when passing variables", e.getMessage());
+    }
+  }
+
+  public void testEmptyCamundaInSourceThrowsError() {
+    try {
+      String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), "testEmptyCamundaInSourceThrowsError");
+      repositoryService.createDeployment().name(resource).addClasspathResource(resource).deploy();
+      fail("Process camunda:in extension element should contain source!");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("Empty attribute 'source' when passing variables", e.getMessage());
+    }
+  }
+
+  public void testNoCamundaInTargetThrowsError() {
+    try {
+      String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), "testNoCamundaInTargetThrowsError");
+      repositoryService.createDeployment().name(resource).addClasspathResource(resource).deploy();
+      fail("Process camunda:in extension element should contain target!");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("Missing attribute 'target' when attribute 'source' or 'sourceExpression' is set", e.getMessage());
+    }
+  }
+
+  public void testEmptyCamundaInTargetThrowsError() {
+    try {
+      String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), "testEmptyCamundaInTargetThrowsError");
+      repositoryService.createDeployment().name(resource).addClasspathResource(resource).deploy();
+      fail("Process camunda:in extension element should contain target!");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("Empty attribute 'target' when attribute 'source' or 'sourceExpression' is set", e.getMessage());
+    }
+  }
+
+  public void testNoCamundaOutSourceThrowsError() {
+    try {
+      String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), "testNoCamundaOutSourceThrowsError");
+      repositoryService.createDeployment().name(resource).addClasspathResource(resource).deploy();
+      fail("Process camunda:out extension element should contain source!");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("Missing parameter 'source' or 'sourceExpression' when passing variables", e.getMessage());
+    }
+  }
+
+  public void testEmptyCamundaOutSourceThrowsError() {
+    try {
+      String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), "testEmptyCamundaOutSourceThrowsError");
+      repositoryService.createDeployment().name(resource).addClasspathResource(resource).deploy();
+      fail("Process camunda:out extension element should contain source!");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("Empty attribute 'source' when passing variables", e.getMessage());
+    }
+  }
+
+  public void testNoCamundaOutTargetThrowsError() {
+    try {
+      String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), "testNoCamundaOutTargetThrowsError");
+      repositoryService.createDeployment().name(resource).addClasspathResource(resource).deploy();
+      fail("Process camunda:out extension element should contain target!");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("Missing attribute 'target' when attribute 'source' or 'sourceExpression' is set", e.getMessage());
+    }
+  }
+
+  public void testEmptyCamundaOutTargetThrowsError() {
+    try {
+      String resource = TestHelper.getBpmnProcessDefinitionResource(getClass(), "testEmptyCamundaOutTargetThrowsError");
+      repositoryService.createDeployment().name(resource).addClasspathResource(resource).deploy();
+      fail("Process camunda:out extension element should contain target!");
+    } catch (ProcessEngineException e) {
+      assertTextPresent("Empty attribute 'target' when attribute 'source' or 'sourceExpression' is set", e.getMessage());
+    }
   }
 
 }

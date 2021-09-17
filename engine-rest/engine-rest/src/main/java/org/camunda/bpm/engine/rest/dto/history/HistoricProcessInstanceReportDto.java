@@ -12,18 +12,20 @@
  */
 package org.camunda.bpm.engine.rest.dto.history;
 
-import java.util.Date;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceReport;
 import org.camunda.bpm.engine.rest.dto.AbstractReportDto;
 import org.camunda.bpm.engine.rest.dto.CamundaQueryParam;
 import org.camunda.bpm.engine.rest.dto.converter.DateConverter;
 import org.camunda.bpm.engine.rest.dto.converter.StringArrayConverter;
+import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 
 import javax.ws.rs.core.MultivaluedMap;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
+import javax.ws.rs.core.Response;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 
 /**
  * @author Roman Smirnov
@@ -35,6 +37,14 @@ public class HistoricProcessInstanceReportDto extends AbstractReportDto<Historic
   protected String[] processDefinitionKeyIn;
   protected Date startedAfter;
   protected Date startedBefore;
+
+  public static final String REPORT_TYPE_DURATION = "duration";
+
+  public static final List<String> VALID_REPORT_TYPE_VALUES;
+  static {
+    VALID_REPORT_TYPE_VALUES = new ArrayList<String>();
+    VALID_REPORT_TYPE_VALUES.add(REPORT_TYPE_DURATION);
+  }
 
   public HistoricProcessInstanceReportDto() {
   }
@@ -63,10 +73,12 @@ public class HistoricProcessInstanceReportDto extends AbstractReportDto<Historic
     this.startedBefore = startedBefore;
   }
 
+  @Override
   protected HistoricProcessInstanceReport createNewReportQuery(ProcessEngine engine) {
     return engine.getHistoryService().createHistoricProcessInstanceReport();
   }
 
+  @Override
   protected void applyFilters(HistoricProcessInstanceReport reportQuery) {
     if (processDefinitionIdIn != null && processDefinitionIdIn.length > 0) {
       reportQuery.processDefinitionIdIn(processDefinitionIdIn);
@@ -79,6 +91,9 @@ public class HistoricProcessInstanceReportDto extends AbstractReportDto<Historic
     }
     if (startedBefore != null) {
       reportQuery.startedBefore(startedBefore);
+    }
+    if (!REPORT_TYPE_DURATION.equals(reportType)) {
+      throw new InvalidRequestException(Response.Status.BAD_REQUEST, "Unknown report type " + reportType);
     }
   }
 

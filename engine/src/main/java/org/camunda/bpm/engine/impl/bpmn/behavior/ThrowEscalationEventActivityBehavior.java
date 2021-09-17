@@ -18,6 +18,7 @@ import java.util.List;
 import org.camunda.bpm.engine.impl.bpmn.helper.BpmnProperties;
 import org.camunda.bpm.engine.impl.bpmn.parser.Escalation;
 import org.camunda.bpm.engine.impl.bpmn.parser.EscalationEventDefinition;
+import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.PvmScope;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityExecution;
@@ -26,7 +27,6 @@ import org.camunda.bpm.engine.impl.tree.ActivityExecutionMappingCollector;
 import org.camunda.bpm.engine.impl.tree.ActivityExecutionTuple;
 import org.camunda.bpm.engine.impl.tree.OutputVariablesPropagator;
 import org.camunda.bpm.engine.impl.tree.ReferenceWalker;
-import org.camunda.bpm.engine.impl.tree.ReferenceWalker.WalkCondition;
 import org.camunda.bpm.engine.impl.tree.TreeVisitor;
 
 /**
@@ -97,26 +97,11 @@ public class ThrowEscalationEventActivityBehavior extends AbstractBpmnActivityBe
 
   protected void leaveExecution(ActivityExecution execution, final PvmActivity currentActivity, EscalationEventDefinition escalationEventDefinition) {
 
-    if (escalationEventDefinition != null && isEscalationEventSubprocessOnTheSameScope(escalationEventDefinition.getEscalationHandler(), currentActivity)) {
-      ActivityExecution childExecution = getChildExecutionForActivity(execution, currentActivity);
-      leave(childExecution);
-    } else {
+    // execution tree could have been expanded by triggering a non-interrupting event
+    ExecutionEntity replacingExecution = ((ExecutionEntity) execution).getReplacedBy();
 
-      leave(execution);
-    }
-  }
-
-  protected boolean isEscalationEventSubprocessOnTheSameScope(PvmActivity escalationHandler, final PvmActivity activity) {
-    return escalationHandler.isSubProcessScope() && escalationHandler.getFlowScope().equals(activity.getFlowScope());
-  }
-
-  protected ActivityExecution getChildExecutionForActivity(ActivityExecution execution, final PvmActivity activity) {
-    for (ActivityExecution childExecution : execution.getExecutions()) {
-      if (activity.equals(childExecution.getActivity())) {
-        return childExecution;
-      }
-    }
-    return null;
+    ExecutionEntity leavingExecution = (ExecutionEntity) (replacingExecution != null ? replacingExecution : execution);
+    leave(leavingExecution);
   }
 
   protected class EscalationEventDefinitionFinder implements TreeVisitor<PvmScope> {

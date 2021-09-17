@@ -130,6 +130,7 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
 
       // only fail if no test failure was recorded
       TestHelper.assertAndEnsureCleanDbAndCache(processEngine, exception == null);
+      TestHelper.resetIdGenerator(processEngineConfiguration);
       ClockUtil.reset();
 
       // Can't do this in the teardown, as the teardown will be called as part
@@ -354,14 +355,6 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     return false;
   }
 
-  @Deprecated
-  private static class InteruptTask extends InterruptTask {
-    public InteruptTask(Thread thread) {
-      super(thread);
-    }
-  }
-
-
   private static class InterruptTask extends TimerTask {
     protected boolean timeLimitExceeded = false;
     protected Thread thread;
@@ -443,10 +436,7 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
       deploymentBuilder.addModelInstance("testProcess-"+i+".bpmn", bpmnModelInstance);
     }
 
-    deploymentId = deploymentBuilder.deploy().getId();
-    deploymentIds.add(deploymentId);
-
-    return deploymentId;
+    return deploymentWithBuilder(deploymentBuilder);
   }
 
   protected String deployment(DeploymentBuilder deploymentBuilder, String... resources) {
@@ -454,7 +444,11 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
       deploymentBuilder.addClasspathResource(resources[i]);
     }
 
-    deploymentId = deploymentBuilder.deploy().getId();
+    return deploymentWithBuilder(deploymentBuilder);
+  }
+
+  protected String deploymentWithBuilder(DeploymentBuilder builder) {
+    deploymentId = builder.deploy().getId();
     deploymentIds.add(deploymentId);
 
     return deploymentId;

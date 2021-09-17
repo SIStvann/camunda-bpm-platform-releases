@@ -14,6 +14,7 @@
 package org.camunda.bpm.engine.impl.cfg.multitenancy;
 
 import org.camunda.bpm.engine.history.HistoricCaseInstance;
+import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
@@ -23,14 +24,8 @@ import org.camunda.bpm.engine.impl.cfg.CommandChecker;
 import org.camunda.bpm.engine.impl.cmd.CommandLogger;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.DeploymentEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogEventEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.TenantManager;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.*;
 import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.DecisionDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
@@ -85,6 +80,22 @@ public class TenantCommandChecker implements CommandChecker {
   @Override
   public void checkUpdateProcessDefinitionByKey(String processDefinitionKey) {
   }
+
+  @Override
+  public void checkDeleteProcessDefinitionById(String processDefinitionId) {
+    if (getTenantManager().isTenantCheckEnabled()) {
+      ProcessDefinitionEntity processDefinition = findLatestProcessDefinitionById(processDefinitionId);
+      if (processDefinition != null && !getTenantManager().isAuthenticatedTenant(processDefinition.getTenantId())) {
+        throw LOG.exceptionCommandWithUnauthorizedTenant("delete the process definition '"+ processDefinitionId + "'");
+      }
+    }
+  }
+
+  @Override
+  public void checkDeleteProcessDefinitionByKey(String processDefinitionKey) {
+  }
+
+
 
   @Override
   public void checkUpdateProcessInstanceByProcessDefinitionId(String processDefinitionId) {
@@ -286,6 +297,12 @@ public class TenantCommandChecker implements CommandChecker {
     }
   }
 
+  public void checkReadDecisionRequirementsDefinition(DecisionRequirementsDefinitionEntity decisionRequirementsDefinition) {
+    if (decisionRequirementsDefinition != null && !getTenantManager().isAuthenticatedTenant(decisionRequirementsDefinition.getTenantId())) {
+      throw LOG.exceptionCommandWithUnauthorizedTenant("get the decision requirements definition '"+ decisionRequirementsDefinition.getId() + "'");
+    }
+  }
+
   public void checkReadCaseDefinition(CaseDefinition caseDefinition) {
     if (caseDefinition != null && !getTenantManager().isAuthenticatedTenant(caseDefinition.getTenantId())) {
       throw LOG.exceptionCommandWithUnauthorizedTenant("get the case definition '"+ caseDefinition.getId() + "'");
@@ -317,8 +334,20 @@ public class TenantCommandChecker implements CommandChecker {
   public void checkDeleteHistoricDecisionInstance(String decisionDefinitionKey) {
     // No tenant check here because it is called in the SQL query:
     // HistoricDecisionInstance.selectHistoricDecisionInstancesByDecisionDefinitionId
-    // It is necessary to make the check there because the query may be return only the
+    // It is necessary to make the check there because of performance issues. If the check
+    // is done here then the we get all history decision instances (also from possibly
+    // other tenants) and then filter them. If there are a lot instances this can cause
+    // latency. Therefore does the SQL query only return the
     // historic decision instances which belong to the authenticated tenant.
+  }
+
+  @Override
+  public void checkDeleteHistoricDecisionInstance(HistoricDecisionInstance decisionInstance) {
+    if (decisionInstance != null && !getTenantManager().isAuthenticatedTenant(decisionInstance.getTenantId())) {
+      throw LOG.exceptionCommandWithUnauthorizedTenant(
+          "delete the historic decision instance '" + decisionInstance.getId() + "'"
+      );
+    }
   }
 
   @Override
@@ -330,6 +359,14 @@ public class TenantCommandChecker implements CommandChecker {
 
   @Override
   public void checkReadHistoryAnyProcessDefinition() {
+    // No tenant check here because it is called in the SQL query:
+    // Report.selectHistoricProcessInstanceDurationReport
+    // It is necessary to make the check there because the query may be return only the
+    // historic process instances which belong to the authenticated tenant.
+  }
+
+  @Override
+  public void checkReadHistoryAnyTaskInstance() {
     // No tenant check here because it is called in the SQL query:
     // Report.selectHistoricProcessInstanceDurationReport
     // It is necessary to make the check there because the query may be return only the

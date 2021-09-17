@@ -16,8 +16,8 @@ import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureOnlyOneNotNull;
 
 import java.util.Map;
 
-import org.camunda.bpm.dmn.engine.DmnDecisionTableResult;
-import org.camunda.bpm.engine.dmn.DecisionEvaluationBuilder;
+import org.camunda.bpm.dmn.engine.DmnDecisionResult;
+import org.camunda.bpm.engine.dmn.DecisionsEvaluationBuilder;
 import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.exception.NullValueException;
@@ -26,10 +26,7 @@ import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.dmn.cmd.EvaluateDecisionCmd;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 
-/**
- * @author Kristin Polenz
- */
-public class DecisionEvaluationBuilderImpl implements DecisionEvaluationBuilder {
+public class DecisionEvaluationBuilderImpl implements DecisionsEvaluationBuilder {
 
   private final static DecisionLogger LOG = ProcessEngineLogger.DECISION_LOGGER;
 
@@ -49,29 +46,29 @@ public class DecisionEvaluationBuilderImpl implements DecisionEvaluationBuilder 
     this.commandExecutor = commandExecutor;
   }
 
-  public DecisionEvaluationBuilder variables(Map<String, Object> variables) {
+  public DecisionsEvaluationBuilder variables(Map<String, Object> variables) {
     this.variables = variables;
     return this;
   }
 
-  public DecisionEvaluationBuilder version(Integer version) {
+  public DecisionsEvaluationBuilder version(Integer version) {
     this.version = version;
     return this;
   }
 
-  public DecisionEvaluationBuilder decisionDefinitionTenantId(String tenantId) {
+  public DecisionsEvaluationBuilder decisionDefinitionTenantId(String tenantId) {
     this.decisionDefinitionTenantId = tenantId;
     isTenantIdSet = true;
     return this;
   }
 
-  public DecisionEvaluationBuilder decisionDefinitionWithoutTenantId() {
+  public DecisionsEvaluationBuilder decisionDefinitionWithoutTenantId() {
     this.decisionDefinitionTenantId = null;
     isTenantIdSet = true;
     return this;
   }
 
-  public DmnDecisionTableResult evaluate() {
+  public DmnDecisionResult evaluate() {
      ensureOnlyOneNotNull(NotValidException.class, "either decision definition id or key must be set", decisionDefinitionId, decisionDefinitionKey);
 
      if (isTenantIdSet && decisionDefinitionId != null) {
@@ -89,13 +86,13 @@ public class DecisionEvaluationBuilderImpl implements DecisionEvaluationBuilder 
     }
   }
 
-  public static DecisionEvaluationBuilder evaluateDecisionTableByKey(CommandExecutor commandExecutor, String decisionDefinitionKey) {
+  public static DecisionsEvaluationBuilder evaluateDecisionByKey(CommandExecutor commandExecutor, String decisionDefinitionKey) {
     DecisionEvaluationBuilderImpl builder = new DecisionEvaluationBuilderImpl(commandExecutor);
     builder.decisionDefinitionKey = decisionDefinitionKey;
     return builder;
   }
 
-  public static DecisionEvaluationBuilder evaluateDecisionTableById(CommandExecutor commandExecutor, String decisionDefinitionId) {
+  public static DecisionsEvaluationBuilder evaluateDecisionById(CommandExecutor commandExecutor, String decisionDefinitionId) {
     DecisionEvaluationBuilderImpl builder = new DecisionEvaluationBuilderImpl(commandExecutor);
     builder.decisionDefinitionId = decisionDefinitionId;
     return builder;

@@ -14,6 +14,7 @@ import org.camunda.bpm.engine.TaskService;
 import org.camunda.bpm.engine.externaltask.LockedExternalTask;
 import org.camunda.bpm.engine.test.ProcessEngineRule;
 import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
+import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -25,8 +26,9 @@ public class MultiTenancyExternalTaskCmdsTenantCheckTest {
   protected static final String TENANT_ONE = "tenant1";
   
   protected static final String PROCESS_DEFINITION_KEY = "twoExternalTaskProcess";
-  
-  protected ProcessEngineRule engineRule = new ProcessEngineRule(true);
+  private static final String ERROR_DETAILS = "anErrorDetail";
+
+  protected ProcessEngineRule engineRule = new ProvidedProcessEngineRule();
   
   protected ProcessEngineTestRule testRule = new ProcessEngineTestRule(engineRule);
   
@@ -468,5 +470,61 @@ public class MultiTenancyExternalTaskCmdsTenantCheckTest {
     externalTaskService.unlock(externalTaskId);
     // then
     assertThat(externalTaskService.createExternalTaskQuery().locked().count(), is(0L));
+  }
+
+  // get error details tests
+  @Test
+  public void testGetErrorDetailsWithAuthenticatedTenant() {
+    // given
+    String externalTaskId = externalTaskService.fetchAndLock(5, WORKER_ID)
+      .topic(TOPIC_NAME, LOCK_TIME)
+      .execute()
+      .get(0)
+      .getId();
+
+    externalTaskService.handleFailure(externalTaskId,WORKER_ID,ERROR_MESSAGE,ERROR_DETAILS,1,1000L);
+
+    identityService.setAuthentication("aUserId", null, Arrays.asList(TENANT_ONE));
+
+    // when then
+    assertThat(externalTaskService.getExternalTaskErrorDetails(externalTaskId), is(ERROR_DETAILS));
+  }
+
+  @Test
+  public void testGetErrorDetailsWithNoAuthenticatedTenant() {
+    // given
+    String externalTaskId = externalTaskService.fetchAndLock(5, WORKER_ID)
+        .topic(TOPIC_NAME, LOCK_TIME)
+        .execute()
+        .get(0)
+        .getId();
+
+    externalTaskService.handleFailure(externalTaskId,WORKER_ID,ERROR_MESSAGE,ERROR_DETAILS,1,1000L);
+
+    identityService.setAuthentication("aUserId", null);
+
+    thrown.expect(ProcessEngineException.class);
+    thrown.expectMessage("Cannot read the process instance '"
+      + processInstanceId +"' because it belongs to no authenticated tenant.");
+    // when
+    externalTaskService.getExternalTaskErrorDetails(externalTaskId);
+  }
+
+  @Test
+  public void testGetErrorDetailsWithDisabledTenantCheck() {
+    // given
+    String externalTaskId = externalTaskService.fetchAndLock(5, WORKER_ID)
+        .topic(TOPIC_NAME, LOCK_TIME)
+        .execute()
+        .get(0)
+        .getId();
+
+    externalTaskService.handleFailure(externalTaskId,WORKER_ID,ERROR_MESSAGE,ERROR_DETAILS,1,1000L);
+
+    identityService.setAuthentication("aUserId", null);
+    engineRule.getProcessEngineConfiguration().setTenantCheckEnabled(false);
+
+    // then
+    assertThat(externalTaskService.getExternalTaskErrorDetails(externalTaskId), is(ERROR_DETAILS));
   }
 }

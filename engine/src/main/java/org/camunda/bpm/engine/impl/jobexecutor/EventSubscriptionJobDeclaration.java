@@ -73,7 +73,7 @@ public class EventSubscriptionJobDeclaration extends JobDeclaration<EventSubscri
   }
 
   public String getEventName() {
-    return eventSubscriptionDeclaration.getEventName();
+    return eventSubscriptionDeclaration.getUnresolvedEventName();
   }
 
   public String getActivityId() {
@@ -99,13 +99,13 @@ public class EventSubscriptionJobDeclaration extends JobDeclaration<EventSubscri
   }
 
   /**
-   * Assumes that an activity has at most one declaration of a eventName + eventType combination.
+   * Assumes that an activity has at most one declaration of a certain eventType.
    */
   public static EventSubscriptionJobDeclaration findDeclarationForSubscription(EventSubscriptionEntity eventSubscription) {
     List<EventSubscriptionJobDeclaration> declarations = getDeclarationsForActivity(eventSubscription.getActivity());
 
     for (EventSubscriptionJobDeclaration declaration : declarations) {
-      if (declaration.getEventName().equals(eventSubscription.getEventName()) && declaration.getEventType().equals(eventSubscription.getEventType())) {
+      if (declaration.getEventType().equals(eventSubscription.getEventType())) {
         return declaration;
       }
     }

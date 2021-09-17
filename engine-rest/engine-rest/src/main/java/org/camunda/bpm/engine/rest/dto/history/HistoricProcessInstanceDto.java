@@ -22,6 +22,7 @@ public class HistoricProcessInstanceDto {
   private String businessKey;
   private String processDefinitionId;
   private String processDefinitionKey;
+  private String processDefinitionName;
   private Date startTime;
   private Date endTime;
   private Long durationInMillis;
@@ -32,6 +33,7 @@ public class HistoricProcessInstanceDto {
   private String superCaseInstanceId;
   private String caseInstanceId;
   private String tenantId;
+  private String state;
 
   public String getId() {
     return id;
@@ -47,6 +49,10 @@ public class HistoricProcessInstanceDto {
 
   public String getProcessDefinitionKey() {
     return processDefinitionKey;
+  }
+
+  public String getProcessDefinitionName() {
+    return processDefinitionName;
   }
 
   public Date getStartTime() {
@@ -89,6 +95,14 @@ public class HistoricProcessInstanceDto {
     return tenantId;
   }
 
+  public String getState() {
+    return state;
+  }
+
+  public void setState(String state) {
+    this.state = state;
+  }
+
   public static HistoricProcessInstanceDto fromHistoricProcessInstance(HistoricProcessInstance historicProcessInstance) {
 
     HistoricProcessInstanceDto dto = new HistoricProcessInstanceDto();
@@ -97,6 +111,7 @@ public class HistoricProcessInstanceDto {
     dto.businessKey = historicProcessInstance.getBusinessKey();
     dto.processDefinitionId = historicProcessInstance.getProcessDefinitionId();
     dto.processDefinitionKey = historicProcessInstance.getProcessDefinitionKey();
+    dto.processDefinitionName = historicProcessInstance.getProcessDefinitionName();
     dto.startTime = historicProcessInstance.getStartTime();
     dto.endTime = historicProcessInstance.getEndTime();
     dto.durationInMillis = historicProcessInstance.getDurationInMillis();
@@ -107,6 +122,7 @@ public class HistoricProcessInstanceDto {
     dto.superCaseInstanceId = historicProcessInstance.getSuperCaseInstanceId();
     dto.caseInstanceId = historicProcessInstance.getCaseInstanceId();
     dto.tenantId = historicProcessInstance.getTenantId();
+    dto.state = historicProcessInstance.getState();
 
     return dto;
   }

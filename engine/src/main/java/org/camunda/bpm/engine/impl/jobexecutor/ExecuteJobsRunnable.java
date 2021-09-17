@@ -16,7 +16,6 @@ import java.util.List;
 
 import org.camunda.bpm.engine.impl.ProcessEngineImpl;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
-import org.camunda.bpm.engine.impl.cmd.ExecuteJobsCmd;
 import org.camunda.bpm.engine.impl.cmd.UnlockJobCmd;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
@@ -28,7 +27,7 @@ import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
  */
 public class ExecuteJobsRunnable implements Runnable {
 
-  private final JobExecutorLogger LOG = ProcessEngineLogger.JOB_EXECUTOR_LOGGER;
+  private static final JobExecutorLogger LOG = ProcessEngineLogger.JOB_EXECUTOR_LOGGER;
 
   protected final List<String> jobIds;
   protected JobExecutor jobExecutor;
@@ -75,8 +74,12 @@ public class ExecuteJobsRunnable implements Runnable {
     }
   }
 
+  /**
+   * Note: this is a hook to be overridden by
+   * org.camunda.bpm.container.impl.threading.ra.inflow.JcaInflowExecuteJobsRunnable.executeJob(String, CommandExecutor)
+   */
   protected void executeJob(String nextJobId, CommandExecutor commandExecutor) {
-    commandExecutor.execute(new ExecuteJobsCmd(nextJobId));
+    ExecuteJobHelper.executeJob(nextJobId, commandExecutor);
   }
 
   protected void unlockJob(String nextJobId, CommandExecutor commandExecutor) {

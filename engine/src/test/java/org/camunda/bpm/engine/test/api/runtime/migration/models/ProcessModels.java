@@ -34,12 +34,21 @@ public class ProcessModels {
     return Bpmn.createExecutableProcess(processKey);
   }
 
+  public static ProcessBuilder newModel(int processNumber) {
+    return newModel(PROCESS_KEY + processNumber);
+  }
+
+  public static final String USER_TASK_ID = "userTask";
   public static final BpmnModelInstance ONE_TASK_PROCESS =
       newModel()
       .startEvent("startEvent")
-      .userTask("userTask").name("User Task")
+      .userTask(USER_TASK_ID).name("User Task")
       .endEvent("endEvent")
       .done();
+
+  public static final BpmnModelInstance ONE_TASK_PROCESS_WITH_DOCUMENTATION =
+      modify(ONE_TASK_PROCESS)
+          .addDocumentation("This is a documentation!");
 
   public static final BpmnModelInstance TWO_TASKS_PROCESS =
       newModel()
@@ -56,7 +65,7 @@ public class ProcessModels {
       .subProcess("subProcess")
         .embeddedSubProcess()
           .startEvent("subProcessStart")
-          .userTask("userTask").name("User Task")
+          .userTask(USER_TASK_ID).name("User Task")
           .endEvent("subProcessEnd")
         .subProcessDone()
       .endEvent()
@@ -71,7 +80,7 @@ public class ProcessModels {
          .subProcess("innerSubProcess")
            .embeddedSubProcess()
              .startEvent()
-             .userTask("userTask").name("User Task")
+             .userTask(USER_TASK_ID).name("User Task")
              .endEvent()
            .subProcessDone()
            .endEvent()
@@ -117,7 +126,7 @@ public class ProcessModels {
                .subProcess("subProcess3")
                  .embeddedSubProcess()
                    .startEvent()
-                   .userTask("userTask").name("User Task")
+                   .userTask(USER_TASK_ID).name("User Task")
                    .endEvent()
                .subProcessDone()
                .endEvent()
@@ -230,12 +239,12 @@ public class ProcessModels {
       .done();
 
   public static final BpmnModelInstance SCOPE_TASK_PROCESS = modify(ONE_TASK_PROCESS)
-    .activityBuilder("userTask")
+    .activityBuilder(USER_TASK_ID)
     .camundaInputParameter("foo", "bar")
     .done();
 
   public static final BpmnModelInstance SCOPE_TASK_SUBPROCESS_PROCESS = modify(SUBPROCESS_PROCESS)
-    .activityBuilder("userTask")
+    .activityBuilder(USER_TASK_ID)
     .camundaInputParameter("foo", "bar")
     .done();
 
@@ -267,5 +276,13 @@ public class ProcessModels {
       .scriptText("foo")
     .endEvent("endEvent")
     .done();
+
+  public static BpmnModelInstance oneTaskProcess(int processNumber) {
+    return newModel(processNumber)
+        .startEvent()
+        .userTask(USER_TASK_ID)
+        .endEvent()
+        .done();
+  }
 
 }

@@ -67,6 +67,12 @@ public interface HistoricCaseInstanceQuery extends Query<HistoricCaseInstanceQue
    */
   HistoricCaseInstanceQuery caseInstanceBusinessKeyLike(String caseInstanceBusinessKeyLike);
 
+  /**
+   * <p>Only selects historic case instances with historic case activity instances
+   * in at least one of the given case activity ids.</p>
+   */
+  HistoricCaseInstanceQuery caseActivityIdIn(String... caseActivityIds);
+
   /** Only select historic case instances that were created before the given date. */
   HistoricCaseInstanceQuery createdBefore(Date date);
 
@@ -106,6 +112,9 @@ public interface HistoricCaseInstanceQuery extends Query<HistoricCaseInstanceQue
 
   /** Only select historic case instances with one of the given tenant ids. */
   HistoricCaseInstanceQuery tenantIdIn(String... tenantIds);
+
+  /** Only selects historic case instances which have no tenant id. */
+  HistoricCaseInstanceQuery withoutTenantId();
 
   /** Only select historic case instances which are active */
   HistoricCaseInstanceQuery active();

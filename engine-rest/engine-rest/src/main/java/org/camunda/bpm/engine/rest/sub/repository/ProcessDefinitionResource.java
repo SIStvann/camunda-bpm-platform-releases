@@ -45,6 +45,10 @@ public interface ProcessDefinitionResource {
   @Path("/diagram")
   Response getProcessDefinitionDiagram();
 
+  @DELETE
+  Response deleteProcessDefinition(@QueryParam("cascade") boolean cascade,
+                                   @QueryParam("skipCustomListeners") boolean skipCustomListeners);
+
   @POST
   @Path("/start")
   @Consumes(MediaType.APPLICATION_JSON)
@@ -70,7 +74,7 @@ public interface ProcessDefinitionResource {
   @GET
   @Path("/rendered-form")
   @Produces(MediaType.APPLICATION_XHTML_XML)
-  String getRenderedForm();
+  Response getRenderedForm();
 
   @PUT
   @Path("/suspended")

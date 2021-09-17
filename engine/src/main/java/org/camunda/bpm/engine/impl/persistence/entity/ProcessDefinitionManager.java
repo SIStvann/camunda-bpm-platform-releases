@@ -13,6 +13,7 @@
 
 package org.camunda.bpm.engine.impl.persistence.entity;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,17 +22,23 @@ import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.Page;
 import org.camunda.bpm.engine.impl.ProcessDefinitionQueryImpl;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
+import org.camunda.bpm.engine.impl.ProcessInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.cfg.auth.ResourceAuthorizationProvider;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
+import org.camunda.bpm.engine.impl.event.EventType;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventJobHandler;
 import org.camunda.bpm.engine.impl.persistence.AbstractManager;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
+import org.camunda.bpm.engine.runtime.Job;
 
 
 /**
  * @author Tom Baeyens
  * @author Falko Menge
  * @author Saeid Mirzaei
+ * @author Christopher Zell
  */
 public class ProcessDefinitionManager extends AbstractManager {
 
@@ -179,9 +186,142 @@ public class ProcessDefinitionManager extends AbstractManager {
 
   // delete  ///////////////////////////////////////////////////////////
 
-  public void deleteProcessDefinitionsByDeploymentId(String deploymentId) {
-    getDbEntityManager().delete(ProcessDefinitionEntity.class, "deleteProcessDefinitionsByDeploymentId", deploymentId);
+  /**
+   * Cascades the deletion of the process definition to the process instances.
+   * Skips the custom listeners if the flag was set to true.
+   *
+   * @param processDefinitionId the process definition id
+   * @param skipCustomListeners true if the custom listeners should be skipped at process instance deletion
+   */
+  protected void cascadeDeleteProcessInstancesForProcessDefinition(String processDefinitionId, boolean skipCustomListeners) {
+    getProcessInstanceManager()
+            .deleteProcessInstancesByProcessDefinition(processDefinitionId, "deleted process definition", true, skipCustomListeners);
   }
+
+  /**
+   * Cascades the deletion of a process definition to the history, deletes the history.
+   *
+   * @param processDefinitionId the process definition id
+   */
+  protected void cascadeDeleteHistoryForProcessDefinition(String processDefinitionId) {
+     // remove historic incidents which are not referenced to a process instance
+    getHistoricIncidentManager().deleteHistoricIncidentsByProcessDefinitionId(processDefinitionId);
+
+     // remove historic identity links which are not reference to a process instance
+    getHistoricIdentityLinkManager().deleteHistoricIdentityLinksLogByProcessDefinitionId(processDefinitionId);
+
+     // remove historic job log entries not related to a process instance
+    getHistoricJobLogManager().deleteHistoricJobLogsByProcessDefinitionId(processDefinitionId);
+  }
+
+  /**
+   * Deletes the timer start events for the given process definition.
+   *
+   * @param processDefinition the process definition
+   */
+  protected void deleteTimerStartEventsForProcessDefinition(ProcessDefinition processDefinition) {
+    List<JobEntity> timerStartJobs = getJobManager().findJobsByConfiguration(TimerStartEventJobHandler.TYPE, processDefinition.getKey(), processDefinition.getTenantId());
+
+    ProcessDefinitionEntity latestVersion = getProcessDefinitionManager()
+        .findLatestProcessDefinitionByKeyAndTenantId(processDefinition.getKey(), processDefinition.getTenantId());
+
+    // delete timer start event jobs only if this is the latest version of the process definition.
+    if(latestVersion != null && latestVersion.getId().equals(processDefinition.getId())) {
+      for (Job job : timerStartJobs) {
+        ((JobEntity)job).delete();
+      }
+    }
+  }
+
+  /**
+   * Deletes the subscriptions for the process definition, which is
+   * identified by the given process definition id.
+   *
+   * @param processDefinitionId the id of the process definition
+   */
+  public void deleteSubscriptionsForProcessDefinition(String processDefinitionId) {
+    List<EventSubscriptionEntity> eventSubscriptionsToRemove = new ArrayList<EventSubscriptionEntity>();
+    // remove message event subscriptions:
+    List<EventSubscriptionEntity> messageEventSubscriptions = getEventSubscriptionManager()
+      .findEventSubscriptionsByConfiguration(EventType.MESSAGE.name(), processDefinitionId);
+    eventSubscriptionsToRemove.addAll(messageEventSubscriptions);
+
+    // remove signal event subscriptions:
+    List<EventSubscriptionEntity> signalEventSubscriptions = getEventSubscriptionManager().findEventSubscriptionsByConfiguration(EventType.SIGNAL.name(), processDefinitionId);
+    eventSubscriptionsToRemove.addAll(signalEventSubscriptions);
+
+    for (EventSubscriptionEntity eventSubscriptionEntity : eventSubscriptionsToRemove) {
+      eventSubscriptionEntity.delete();
+    }
+  }
+
+ /**
+  * Deletes the given process definition from the database and cache.
+  * If cascadeToHistory and cascadeToInstances is set to true it deletes
+  * the history and the process instances.
+  *
+  * *Note*: If more than one process definition, from one deployment, is deleted in
+  * a single transaction and the cascadeToHistory and cascadeToInstances flag was set to true it
+  * can cause a dirty deployment cache. The process instances of ALL process definitions must be deleted,
+  * before every process definition can be deleted! In such cases the cascadeToInstances flag
+  * have to set to false!
+  *
+  * On deletion of all process instances, the task listeners will be deleted as well.
+  * Deletion of tasks and listeners needs the redeployment of deployments.
+  * It can cause to problems if is done sequential with the deletion of process definition
+  * in a single transaction.
+  *
+  * *For example*:
+  * Deployment contains two process definition. First process definition
+  * and instances will be removed, also cleared from the cache.
+  * Second process definition will be removed and his instances.
+  * Deletion of instances will cause redeployment this deploys again
+  * first into the cache. Only the second will be removed from cache and
+  * first remains in the cache after the deletion process.
+  *
+  * @param processDefinition the process definition which should be deleted
+  * @param processDefinitionId the id of the process definition
+  * @param cascadeToHistory if true the history will deleted as well
+  * @param cascadeToInstances if true the process instances are deleted as well
+  * @param skipCustomListeners if true skips the custom listeners on deletion of instances
+  */
+  public void deleteProcessDefinition(ProcessDefinition processDefinition, String processDefinitionId, boolean cascadeToHistory, boolean cascadeToInstances, boolean skipCustomListeners) {
+
+    if (cascadeToHistory) {
+      cascadeDeleteHistoryForProcessDefinition(processDefinitionId);
+      if (cascadeToInstances) {
+        cascadeDeleteProcessInstancesForProcessDefinition(processDefinitionId, skipCustomListeners);
+      }
+    } else {
+      ProcessInstanceQueryImpl procInstQuery = new ProcessInstanceQueryImpl().processDefinitionId(processDefinitionId);
+      long processInstanceCount = getProcessInstanceManager().findProcessInstanceCountByQueryCriteria(procInstQuery);
+      if (processInstanceCount != 0) {
+        throw LOG.deleteProcessDefinitionWithProcessInstancesException(processDefinitionId, processInstanceCount);
+      }
+    }
+
+    // remove related authorization parameters in IdentityLink table
+    getIdentityLinkManager().deleteIdentityLinksByProcDef(processDefinitionId);
+
+    // remove timer start events:
+    deleteTimerStartEventsForProcessDefinition(processDefinition);
+
+    //delete process definition from database
+    getDbEntityManager().delete(ProcessDefinitionEntity.class, "deleteProcessDefinitionsById", processDefinitionId);
+
+    // remove process definition from cache:
+    Context
+      .getProcessEngineConfiguration()
+      .getDeploymentCache()
+      .removeProcessDefinition(processDefinitionId);
+
+    deleteSubscriptionsForProcessDefinition(processDefinitionId);
+
+    // delete job definitions
+    getJobDefinitionManager().deleteJobDefinitionsByProcessDefinitionId(processDefinition.getId());
+
+  }
+
 
   // helper ///////////////////////////////////////////////////////////
 

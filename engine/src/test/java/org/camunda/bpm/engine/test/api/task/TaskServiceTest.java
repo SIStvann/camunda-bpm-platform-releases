@@ -13,26 +13,12 @@
 
 package org.camunda.bpm.engine.test.api.task;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-import org.apache.tools.ant.filters.TokenFilter.ContainsString;
 import org.camunda.bpm.engine.OptimisticLockingException;
+import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.TaskAlreadyClaimedException;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.history.HistoricDetail;
-import org.camunda.bpm.engine.history.HistoricIdentityLinkLog;
 import org.camunda.bpm.engine.history.HistoricTaskInstance;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.User;
@@ -53,10 +39,27 @@ import org.camunda.bpm.engine.task.IdentityLink;
 import org.camunda.bpm.engine.task.IdentityLinkType;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.RequiredHistoryLevel;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
-import org.camunda.bpm.model.bpmn.Bpmn;
-import org.camunda.bpm.model.bpmn.BpmnModelInstance;
+
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.core.IsNull.nullValue;
+import static org.junit.Assert.assertThat;
 
 /**
  * @author Frederik Heremans
@@ -662,10 +665,6 @@ public class TaskServiceTest extends PluggableProcessEngineTestCase {
         .activityId("PI_HumanTask_1")
         .singleResult()
         .getId();
-
-    caseService
-      .withCaseExecution(caseExecutionId)
-      .manualStart();
 
     Task task = taskService.createTaskQuery().singleResult();
     assertNotNull(task);
@@ -1418,10 +1417,6 @@ public class TaskServiceTest extends PluggableProcessEngineTestCase {
         .singleResult()
         .getId();
 
-    caseService
-      .withCaseExecution(caseExecutionId)
-      .manualStart();
-
     Task task = taskService.createTaskQuery().singleResult();
     assertNotNull(task);
 
@@ -1568,14 +1563,25 @@ public class TaskServiceTest extends PluggableProcessEngineTestCase {
     }
   }
 
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_AUDIT)
+  public void testCreateTaskAttachmentWithNullTaskAndProcessInstance() {
+    try {
+      taskService.createAttachment("web page", null, null, "weatherforcast", "temperatures and more", new ByteArrayInputStream("someContent".getBytes()));
+      fail("expected process engine exception");
+    } catch (ProcessEngineException e) {}
+  }
+
+  @Deployment(resources={
+      "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml"})
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_AUDIT)
   public void testCreateTaskAttachmentWithNullTaskId() {
-    int historyLevel = processEngineConfiguration.getHistoryLevel().getId();
-    if (historyLevel> ProcessEngineConfigurationImpl.HISTORYLEVEL_NONE) {
-      try {
-        taskService.createAttachment("web page", null, "someprocessinstanceid", "weatherforcast", "temperatures and more", new ByteArrayInputStream("someContent".getBytes()));
-        fail("expected process engine exception");
-      } catch (ProcessEngineException e) {}
-    }
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("oneTaskProcess");
+    Attachment attachment = taskService.createAttachment("web page", null, processInstance.getId(), "weatherforcast", "temperatures and more", new ByteArrayInputStream("someContent".getBytes()));
+    Attachment fetched = taskService.getAttachment(attachment.getId());
+    assertThat(fetched,is(notNullValue()));
+    assertThat(fetched.getTaskId(), is(nullValue()));
+    assertThat(fetched.getProcessInstanceId(),is(notNullValue()));
+    taskService.deleteAttachment(attachment.getId());
   }
 
   public void testDeleteTaskAttachmentWithNullParameters() {
@@ -1859,10 +1865,6 @@ public class TaskServiceTest extends PluggableProcessEngineTestCase {
         .singleResult()
         .getId();
 
-    caseService
-      .withCaseExecution(humanTaskId)
-      .manualStart();
-
     String taskId = taskService.createTaskQuery().singleResult().getId();
 
     String variableName = "aVariable";
@@ -1888,10 +1890,6 @@ public class TaskServiceTest extends PluggableProcessEngineTestCase {
         .activityId("PI_HumanTask_1")
         .singleResult()
         .getId();
-
-    caseService
-      .withCaseExecution(humanTaskId)
-      .manualStart();
 
     String variableName = "aVariable";
     String variableValue = "aValue";
@@ -1944,10 +1942,6 @@ public class TaskServiceTest extends PluggableProcessEngineTestCase {
         .activityId("PI_HumanTask_1")
         .singleResult()
         .getId();
-
-    caseService
-      .withCaseExecution(humanTaskId)
-      .manualStart();
 
     String variableName = "aVariable";
     String variableValue = "aValue";

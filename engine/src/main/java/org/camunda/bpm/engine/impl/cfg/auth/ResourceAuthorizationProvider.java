@@ -18,6 +18,7 @@ import org.camunda.bpm.engine.identity.Tenant;
 import org.camunda.bpm.engine.identity.User;
 import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity;
 import org.camunda.bpm.engine.repository.DecisionDefinition;
+import org.camunda.bpm.engine.repository.DecisionRequirementsDefinition;
 import org.camunda.bpm.engine.repository.Deployment;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
@@ -242,5 +243,14 @@ public interface ResourceAuthorizationProvider {
    *         {@link DecisionDefinition} is created.
    */
   public AuthorizationEntity[] newDecisionDefinition(DecisionDefinition decisionDefinition);
+
+  /**
+   * <p>Invoked whenever a new decision requirements definition is created.</p>
+   *
+   * @param decisionRequirementsDefinition the newly created decision requirements definition
+   * @return a list of authorizations to be automatically added when a new
+   *         {@link DecisionRequirementsDefinition} is created.
+   */
+  public AuthorizationEntity[] newDecisionRequirementsDefinition(DecisionRequirementsDefinition decisionRequirementsDefinition);
 
 }

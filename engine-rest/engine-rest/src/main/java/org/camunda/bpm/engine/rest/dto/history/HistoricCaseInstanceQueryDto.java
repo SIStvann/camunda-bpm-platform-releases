@@ -12,14 +12,13 @@
  */
 package org.camunda.bpm.engine.rest.dto.history;
 
+import static java.lang.Boolean.TRUE;
+
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.history.HistoricCaseInstanceQuery;
@@ -32,6 +31,9 @@ import org.camunda.bpm.engine.rest.dto.converter.StringListConverter;
 import org.camunda.bpm.engine.rest.dto.converter.StringSetConverter;
 import org.camunda.bpm.engine.rest.dto.converter.VariableListConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
+
+import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.Response.Status;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -71,7 +73,9 @@ public class HistoricCaseInstanceQueryDto extends AbstractQueryDto<HistoricCaseI
   private String superProcessInstanceId;
   private String subProcessInstanceId;
   private List<String> tenantIds;
+  private Boolean withoutTenantId;
   public String createdBy;
+  public List<String> caseActivityIdIn;
 
   public Date createdBefore;
   public Date createdAfter;
@@ -162,6 +166,11 @@ public class HistoricCaseInstanceQueryDto extends AbstractQueryDto<HistoricCaseI
     this.tenantIds = tenantIds;
   }
 
+  @CamundaQueryParam(value = "withoutTenantId", converter = BooleanConverter.class)
+  public void setWithoutTenantId(Boolean withoutTenantId) {
+    this.withoutTenantId = withoutTenantId;
+  }
+
   @CamundaQueryParam("createdBy")
   public void setCreatedBy(String createdBy) {
     this.createdBy = createdBy;
@@ -215,6 +224,11 @@ public class HistoricCaseInstanceQueryDto extends AbstractQueryDto<HistoricCaseI
   @CamundaQueryParam(value = "variables", converter = VariableListConverter.class)
   public void setVariables(List<VariableQueryParameterDto> variables) {
     this.variables = variables;
+  }
+
+  @CamundaQueryParam(value = "caseActivityIdIn", converter = StringListConverter.class)
+  public void setCaseActivityIdIn(List<String> caseActivityIdIn) {
+    this.caseActivityIdIn = caseActivityIdIn;
   }
 
   @Override
@@ -272,6 +286,9 @@ public class HistoricCaseInstanceQueryDto extends AbstractQueryDto<HistoricCaseI
     if (tenantIds != null && !tenantIds.isEmpty()) {
       query.tenantIdIn(tenantIds.toArray(new String[tenantIds.size()]));
     }
+    if (TRUE.equals(withoutTenantId)) {
+      query.withoutTenantId();
+    }
     if (createdBy != null) {
       query.createdBy(createdBy);
     }
@@ -301,6 +318,9 @@ public class HistoricCaseInstanceQueryDto extends AbstractQueryDto<HistoricCaseI
     }
     if (notClosed != null && notClosed) {
       query.notClosed();
+    }
+    if (caseActivityIdIn != null && !caseActivityIdIn.isEmpty()) {
+      query.caseActivityIdIn(caseActivityIdIn.toArray(new String[caseActivityIdIn.size()]));
     }
     if (variables != null) {
       for (VariableQueryParameterDto variableQueryParam : variables) {

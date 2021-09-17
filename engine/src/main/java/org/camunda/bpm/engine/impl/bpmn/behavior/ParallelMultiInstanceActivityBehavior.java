@@ -12,9 +12,6 @@
  */
 package org.camunda.bpm.engine.impl.bpmn.behavior;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.camunda.bpm.engine.impl.migration.instance.MigratingActivityInstance;
 import org.camunda.bpm.engine.impl.migration.instance.parser.MigratingInstanceParseContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
@@ -23,7 +20,11 @@ import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityExecution;
 import org.camunda.bpm.engine.impl.pvm.delegate.MigrationObserverBehavior;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
+import org.camunda.bpm.engine.impl.pvm.runtime.Callback;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * @author Daniel Meyer
@@ -101,6 +102,8 @@ public class ParallelMultiInstanceActivityBehavior extends MultiInstanceActivity
       scopeExecution.setActivity((PvmActivity) endedExecution.getActivity().getFlowScope());
       scopeExecution.setActive(true);
       leave(scopeExecution);
+    } else {
+      ((ExecutionEntity) scopeExecution).dispatchDelayedEventsAndPerformOperation((Callback<PvmExecutionImpl, Void>) null);
     }
   }
 

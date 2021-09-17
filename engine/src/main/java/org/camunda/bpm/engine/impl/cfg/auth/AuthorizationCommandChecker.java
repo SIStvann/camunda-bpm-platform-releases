@@ -13,50 +13,28 @@
 
 package org.camunda.bpm.engine.impl.cfg.auth;
 
-import static org.camunda.bpm.engine.authorization.Authorization.ANY;
-import static org.camunda.bpm.engine.authorization.Permissions.CREATE;
-import static org.camunda.bpm.engine.authorization.Permissions.CREATE_INSTANCE;
-import static org.camunda.bpm.engine.authorization.Permissions.DELETE;
-import static org.camunda.bpm.engine.authorization.Permissions.DELETE_HISTORY;
-import static org.camunda.bpm.engine.authorization.Permissions.DELETE_INSTANCE;
-import static org.camunda.bpm.engine.authorization.Permissions.READ;
-import static org.camunda.bpm.engine.authorization.Permissions.READ_HISTORY;
-import static org.camunda.bpm.engine.authorization.Permissions.READ_INSTANCE;
-import static org.camunda.bpm.engine.authorization.Permissions.READ_TASK;
-import static org.camunda.bpm.engine.authorization.Permissions.TASK_ASSIGN;
-import static org.camunda.bpm.engine.authorization.Permissions.TASK_WORK;
-import static org.camunda.bpm.engine.authorization.Permissions.UPDATE;
-import static org.camunda.bpm.engine.authorization.Permissions.UPDATE_INSTANCE;
-import static org.camunda.bpm.engine.authorization.Permissions.UPDATE_TASK;
-import static org.camunda.bpm.engine.authorization.Resources.BATCH;
-import static org.camunda.bpm.engine.authorization.Resources.DECISION_DEFINITION;
-import static org.camunda.bpm.engine.authorization.Resources.DEPLOYMENT;
-import static org.camunda.bpm.engine.authorization.Resources.PROCESS_DEFINITION;
-import static org.camunda.bpm.engine.authorization.Resources.PROCESS_INSTANCE;
-import static org.camunda.bpm.engine.authorization.Resources.TASK;
-
-import org.camunda.bpm.engine.impl.batch.BatchEntity;
-import org.camunda.bpm.engine.impl.batch.history.HistoricBatchEntity;
 import org.camunda.bpm.engine.history.HistoricCaseInstance;
+import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
+import org.camunda.bpm.engine.impl.batch.BatchEntity;
+import org.camunda.bpm.engine.impl.batch.history.HistoricBatchEntity;
 import org.camunda.bpm.engine.impl.cfg.CommandChecker;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.CompositePermissionCheck;
 import org.camunda.bpm.engine.impl.db.PermissionCheck;
 import org.camunda.bpm.engine.impl.db.PermissionCheckBuilder;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
-import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogEventEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.*;
 import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.repository.DecisionDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.CaseExecution;
+
+import static org.camunda.bpm.engine.authorization.Authorization.ANY;
+import static org.camunda.bpm.engine.authorization.Permissions.*;
+import static org.camunda.bpm.engine.authorization.Resources.*;
 
 /**
  * {@link CommandChecker} that uses the {@link AuthorizationManager} to perform
@@ -102,6 +80,21 @@ public class AuthorizationCommandChecker implements CommandChecker {
   @Override
   public void checkUpdateProcessDefinitionByKey(String processDefinitionKey) {
     getAuthorizationManager().checkAuthorization(UPDATE, PROCESS_DEFINITION, processDefinitionKey);
+  }
+
+  @Override
+  public void checkDeleteProcessDefinitionById(String processDefinitionId) {
+    if (getAuthorizationManager().isAuthorizationEnabled()) {
+      ProcessDefinitionEntity processDefinition = findLatestProcessDefinitionById(processDefinitionId);
+      if (processDefinition != null) {
+        checkDeleteProcessDefinitionByKey(processDefinition.getKey());
+      }
+    }
+  }
+
+  @Override
+  public void checkDeleteProcessDefinitionByKey(String processDefinitionKey) {
+    getAuthorizationManager().checkAuthorization(DELETE, PROCESS_DEFINITION, processDefinitionKey);
   }
 
   @Override
@@ -424,6 +417,10 @@ public class AuthorizationCommandChecker implements CommandChecker {
     getAuthorizationManager().checkAuthorization(READ, DECISION_DEFINITION, decisionDefinition.getKey());
   }
 
+  public void checkReadDecisionRequirementsDefinition(DecisionRequirementsDefinitionEntity decisionRequirementsDefinition) {
+    getAuthorizationManager().checkAuthorization(READ, DECISION_REQUIREMENTS_DEFINITION, decisionRequirementsDefinition.getKey());
+  }
+
   @Override
   public void checkReadCaseDefinition(CaseDefinition caseDefinition) {
   }
@@ -453,6 +450,12 @@ public class AuthorizationCommandChecker implements CommandChecker {
     getAuthorizationManager().checkAuthorization(DELETE_HISTORY, DECISION_DEFINITION, decisionDefinitionKey);
   }
 
+  public void checkDeleteHistoricDecisionInstance(HistoricDecisionInstance decisionInstance) {
+    getAuthorizationManager().checkAuthorization(
+        DELETE_HISTORY, DECISION_DEFINITION, decisionInstance.getDecisionDefinitionKey()
+    );
+  }
+
   public void checkReadHistoricJobLog(HistoricJobLogEventEntity historicJobLog) {
     if (historicJobLog.getProcessDefinitionKey() != null) {
       getAuthorizationManager().checkAuthorization(READ_HISTORY, PROCESS_DEFINITION, historicJobLog.getProcessDefinitionKey());
@@ -461,6 +464,10 @@ public class AuthorizationCommandChecker implements CommandChecker {
 
   public void checkReadHistoryAnyProcessDefinition() {
     getAuthorizationManager().checkAuthorization(READ_HISTORY, PROCESS_DEFINITION, ANY);
+  }
+
+  public void checkReadHistoryAnyTaskInstance() {
+    getAuthorizationManager().checkAuthorization(READ_HISTORY, TASK, ANY);
   }
 
   @Override

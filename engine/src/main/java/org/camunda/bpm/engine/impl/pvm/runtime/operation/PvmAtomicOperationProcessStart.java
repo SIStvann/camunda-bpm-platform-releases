@@ -15,6 +15,7 @@ package org.camunda.bpm.engine.impl.pvm.runtime.operation;
 
 import org.camunda.bpm.engine.delegate.ExecutionListener;
 import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
+import org.camunda.bpm.engine.impl.pvm.runtime.Callback;
 import org.camunda.bpm.engine.impl.pvm.runtime.InstantiationStack;
 import org.camunda.bpm.engine.impl.pvm.runtime.ProcessInstanceStartContext;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
@@ -53,18 +54,32 @@ public class PvmAtomicOperationProcessStart extends AbstractPvmEventAtomicOperat
   }
 
   protected void eventNotificationsCompleted(PvmExecutionImpl execution) {
-    ProcessInstanceStartContext processInstanceStartContext = execution.getProcessInstanceStartContext();
-    InstantiationStack instantiationStack = processInstanceStartContext.getInstantiationStack();
-    if (instantiationStack.getActivities().isEmpty()) {
-      execution.setActivity(instantiationStack.getTargetActivity());
-      execution.performOperation(ACTIVITY_START_CREATE_SCOPE);
-    }
-    else {
-      // initialize the activity instance id
-      execution.setActivityInstanceId(execution.getId());
-      execution.performOperation(ACTIVITY_INIT_STACK);
 
-    }
+    execution.continueIfExecutionDoesNotAffectNextOperation(new Callback<PvmExecutionImpl, Void>() {
+      @Override
+      public Void callback(PvmExecutionImpl execution) {
+        execution.dispatchEvent(null);
+        return null;
+      }
+    }, new Callback<PvmExecutionImpl, Void>() {
+      @Override
+      public Void callback(PvmExecutionImpl execution) {
+        ProcessInstanceStartContext processInstanceStartContext = execution.getProcessInstanceStartContext();
+        InstantiationStack instantiationStack = processInstanceStartContext.getInstantiationStack();
+
+        if (instantiationStack.getActivities().isEmpty()) {
+          execution.setActivity(instantiationStack.getTargetActivity());
+          execution.performOperation(ACTIVITY_START_CREATE_SCOPE);
+        } else {
+          // initialize the activity instance id
+          execution.setActivityInstanceId(execution.getId());
+          execution.performOperation(ACTIVITY_INIT_STACK);
+
+        }
+        return null;
+      }
+    }, execution);
+
   }
 
   public String getCanonicalName() {

@@ -17,6 +17,11 @@ import java.util.Collections;
 import org.camunda.bpm.engine.impl.test.CmmnProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.CaseExecution;
 import org.camunda.bpm.engine.test.Deployment;
+import org.junit.Ignore;
+
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsNull.notNullValue;
+import static org.junit.Assert.assertThat;
 
 /**
  * @author Thorben Lindhauer
@@ -68,6 +73,36 @@ public class ManualActivationRuleTest extends CmmnProcessEngineTestCase {
     assertNotNull(taskExecution);
     assertFalse(taskExecution.isEnabled());
     assertTrue(taskExecution.isActive());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/cmmn/activation/ManualActivationRuleTest.testActivationWithoutDefinition.cmmn")
+  public void testActivationWithoutManualActivationDefined() {
+    caseService.createCaseInstanceByKey("case");
+
+    CaseExecution taskExecution = caseService.createCaseExecutionQuery().activityId("PI_HumanTask_1").singleResult();
+    assertThat(taskExecution,is(notNullValue()));
+    assertThat(taskExecution.isEnabled(),is(false));
+    assertThat("Human Task is active, when ManualActivation is omitted",taskExecution.isActive(),is(true));
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/cmmn/activation/ManualActivationRuleTest.testActivationWithoutManualActivationExpressionDefined.cmmn")
+  public void testActivationWithoutManualActivationExpressionDefined() {
+    caseService.createCaseInstanceByKey("case");
+
+    CaseExecution taskExecution = caseService.createCaseExecutionQuery().activityId("PI_HumanTask_1").singleResult();
+    assertThat(taskExecution,is(notNullValue()));
+    assertThat(taskExecution.isEnabled(),is(true));
+    assertThat("Human Task is not active, when ManualActivation's condition is empty",taskExecution.isActive(),is(false));
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/cmmn/activation/ManualActivationRuleTest.testActivationWithoutManualActivationConditionDefined.cmmn")
+  public void testActivationWithoutManualActivationConditionDefined() {
+    caseService.createCaseInstanceByKey("case");
+
+    CaseExecution taskExecution = caseService.createCaseExecutionQuery().activityId("PI_HumanTask_1").singleResult();
+    assertThat(taskExecution,is(notNullValue()));
+    assertThat(taskExecution.isEnabled(),is(true));
+    assertThat("Human Task is not active, when ManualActivation's condition is empty",taskExecution.isActive(),is(false));
   }
 
 }

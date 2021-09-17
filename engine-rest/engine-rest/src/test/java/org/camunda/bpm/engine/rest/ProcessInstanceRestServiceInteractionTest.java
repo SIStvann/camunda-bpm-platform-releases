@@ -2,27 +2,13 @@ package org.camunda.bpm.engine.rest;
 
 import static com.jayway.restassured.RestAssured.given;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_TASK_ID;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Matchers.*;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyCollectionOf;
-import static org.mockito.Matchers.anyMapOf;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.argThat;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.inOrder;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -36,9 +22,16 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.AuthorizationException;
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.batch.Batch;
+import org.camunda.bpm.engine.impl.ManagementServiceImpl;
 import org.camunda.bpm.engine.impl.RuntimeServiceImpl;
+import org.camunda.bpm.engine.impl.batch.BatchEntity;
 import org.camunda.bpm.engine.impl.util.IoUtil;
+import org.camunda.bpm.engine.rest.dto.batch.BatchDto;
+import org.camunda.bpm.engine.rest.dto.history.HistoricProcessInstanceQueryDto;
+import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceQueryDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceSuspensionStateDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
@@ -53,6 +46,7 @@ import org.camunda.bpm.engine.rest.helper.variable.EqualsNullValue;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsObjectValue;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsPrimitiveValue;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsUntypedValue;
+import org.camunda.bpm.engine.rest.util.JsonPathUtil;
 import org.camunda.bpm.engine.rest.util.ModificationInstructionBuilder;
 import org.camunda.bpm.engine.rest.util.VariablesBuilder;
 import org.camunda.bpm.engine.rest.util.container.TestContainerRule;
@@ -68,6 +62,7 @@ import org.camunda.bpm.engine.variable.type.ValueType;
 import org.camunda.bpm.engine.variable.value.FileValue;
 import org.camunda.bpm.engine.variable.value.LongValue;
 import org.camunda.bpm.engine.variable.value.ObjectValue;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -79,20 +74,25 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.type.TypeFactory;
 import com.jayway.restassured.http.ContentType;
 import com.jayway.restassured.response.Response;
+import org.mockito.Mockito;
 
 public class ProcessInstanceRestServiceInteractionTest extends
     AbstractRestServiceTest {
 
+  protected static final String TEST_DELETE_REASON = "test";
+  protected static final String RETRIES = "retries";
   @ClassRule
   public static TestContainerRule rule = new TestContainerRule();
 
   protected static final String PROCESS_INSTANCE_URL = TEST_RESOURCE_ROOT_PATH + "/process-instance";
   protected static final String SINGLE_PROCESS_INSTANCE_URL = PROCESS_INSTANCE_URL + "/{id}";
   protected static final String PROCESS_INSTANCE_VARIABLES_URL = SINGLE_PROCESS_INSTANCE_URL + "/variables";
+  protected static final String DELETE_PROCESS_INSTANCES_ASYNC_URL = PROCESS_INSTANCE_URL + "/delete";
+  protected static final String SET_JOB_RETRIES_ASYNC_URL = PROCESS_INSTANCE_URL + "/job-retries";
   protected static final String SINGLE_PROCESS_INSTANCE_VARIABLE_URL = PROCESS_INSTANCE_VARIABLES_URL + "/{varId}";
   protected static final String SINGLE_PROCESS_INSTANCE_BINARY_VARIABLE_URL = SINGLE_PROCESS_INSTANCE_VARIABLE_URL + "/data";
   protected static final String PROCESS_INSTANCE_ACTIVIY_INSTANCES_URL = SINGLE_PROCESS_INSTANCE_URL + "/activity-instances";
-  private static final String EXAMPLE_PROCESS_INSTANCE_ID_WITH_NULL_VALUE_AS_VARIABLE = "aProcessInstanceWithNullValueAsVariable";
+  protected static final String EXAMPLE_PROCESS_INSTANCE_ID_WITH_NULL_VALUE_AS_VARIABLE = "aProcessInstanceWithNullValueAsVariable";
   protected static final String SINGLE_PROCESS_INSTANCE_SUSPENDED_URL = SINGLE_PROCESS_INSTANCE_URL + "/suspended";
   protected static final String PROCESS_INSTANCE_SUSPENDED_URL = PROCESS_INSTANCE_URL + "/suspended";
   protected static final String PROCESS_INSTANCE_MODIFICATION_URL = SINGLE_PROCESS_INSTANCE_URL + "/modification";
@@ -110,6 +110,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
   }
 
   private RuntimeServiceImpl runtimeServiceMock;
+  private ManagementServiceImpl mockManagementService;
 
   private UpdateProcessInstanceSuspensionStateTenantBuilder mockUpdateSuspensionStateBuilder;
   private UpdateProcessInstanceSuspensionStateSelectBuilder mockUpdateSuspensionStateSelectBuilder;
@@ -117,6 +118,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
   @Before
   public void setUpRuntimeData() {
     runtimeServiceMock = mock(RuntimeServiceImpl.class);
+    mockManagementService = mock(ManagementServiceImpl.class);
     // variables
     when(runtimeServiceMock.getVariablesTyped(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, true)).thenReturn(EXAMPLE_VARIABLES);
     when(runtimeServiceMock.getVariablesTyped(MockProvider.ANOTHER_EXAMPLE_PROCESS_INSTANCE_ID, true)).thenReturn(EXAMPLE_OBJECT_VARIABLES);
@@ -135,6 +137,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
 
     // runtime service
     when(processEngine.getRuntimeService()).thenReturn(runtimeServiceMock);
+    when(processEngine.getManagementService()).thenReturn(mockManagementService);
   }
 
   @Test
@@ -226,6 +229,56 @@ public class ProcessInstanceRestServiceInteractionTest extends
       .when().get(PROCESS_INSTANCE_VARIABLES_URL);
 
     Assert.assertEquals("Should return exactly one variable", 1, response.jsonPath().getMap("").size());
+  }
+
+  @Test
+  public void testDeleteAsync() {
+    List<String> ids = Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID);
+    when(runtimeServiceMock.deleteProcessInstancesAsync(anyListOf(String.class), any(ProcessInstanceQuery.class), anyString())).thenReturn(new BatchEntity());
+    Map<String, Object> messageBodyJson = new HashMap<String, Object>();
+    messageBodyJson.put("processInstanceIds", ids);
+    messageBodyJson.put("deleteReason", TEST_DELETE_REASON);
+    given()
+        .contentType(ContentType.JSON).body(messageBodyJson)
+        .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .when().post(DELETE_PROCESS_INSTANCES_ASYNC_URL);
+
+    verify(runtimeServiceMock, times(1)).deleteProcessInstancesAsync(ids, null, TEST_DELETE_REASON);
+  }
+
+  @Test
+  public void testDeleteAsyncWithQuery() {
+    Map<String, Object> messageBodyJson = new HashMap<String, Object>();
+    messageBodyJson.put("deleteReason", TEST_DELETE_REASON);
+    ProcessInstanceQueryDto query = new ProcessInstanceQueryDto();
+    messageBodyJson.put("processInstanceQuery", query);
+    when(runtimeServiceMock.deleteProcessInstancesAsync(anyListOf(String.class), any(ProcessInstanceQuery.class), anyString())).thenReturn(new BatchEntity());
+
+    given()
+        .contentType(ContentType.JSON).body(messageBodyJson)
+        .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .when().post(DELETE_PROCESS_INSTANCES_ASYNC_URL);
+
+    verify(runtimeServiceMock, times(1)).deleteProcessInstancesAsync(
+        anyListOf(String.class), Mockito.any(ProcessInstanceQuery.class), Mockito.eq(TEST_DELETE_REASON));
+  }
+
+
+  @Test
+  public void testDeleteAsyncWithBadRequestQuery() {
+    doThrow(new BadUserRequestException("process instance ids are empty"))
+      .when(runtimeServiceMock).deleteProcessInstancesAsync(eq((List<String>) null), eq((ProcessInstanceQuery) null), anyString());
+
+    Map<String, Object> messageBodyJson = new HashMap<String, Object>();
+    messageBodyJson.put("deleteReason", TEST_DELETE_REASON);
+
+    given()
+        .contentType(ContentType.JSON).body(messageBodyJson)
+        .then().expect()
+        .statusCode(Status.BAD_REQUEST.getStatusCode())
+        .when().post(DELETE_PROCESS_INSTANCES_ASYNC_URL);
   }
 
   @Test
@@ -511,12 +564,12 @@ public class ProcessInstanceRestServiceInteractionTest extends
       .then().expect().statusCode(Status.NO_CONTENT.getStatusCode())
       .when().delete(SINGLE_PROCESS_INSTANCE_URL);
 
-    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null);
+    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null, false, true);
   }
 
   @Test
   public void testDeleteNonExistingProcessInstance() {
-    doThrow(new ProcessEngineException("expected exception")).when(runtimeServiceMock).deleteProcessInstance(anyString(), anyString());
+    doThrow(new ProcessEngineException("expected exception")).when(runtimeServiceMock).deleteProcessInstance(anyString(), anyString(),anyBoolean(),anyBoolean());
 
     given().pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
       .then().expect().statusCode(Status.NOT_FOUND.getStatusCode()).contentType(ContentType.JSON)
@@ -528,7 +581,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
   @Test
   public void testDeleteProcessInstanceThrowsAuthorizationException() {
     String message = "expected exception";
-    doThrow(new AuthorizationException(message)).when(runtimeServiceMock).deleteProcessInstance(anyString(), anyString());
+    doThrow(new AuthorizationException(message)).when(runtimeServiceMock).deleteProcessInstance(anyString(), anyString(),anyBoolean(),anyBoolean());
 
     given()
       .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
@@ -547,7 +600,7 @@ public class ProcessInstanceRestServiceInteractionTest extends
       .then().expect().statusCode(Status.NO_CONTENT.getStatusCode())
       .when().delete(SINGLE_PROCESS_INSTANCE_URL);
 
-    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null);
+    verify(runtimeServiceMock).deleteProcessInstance(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, null, false, true);
   }
 
   @Test
@@ -2354,6 +2407,107 @@ public class ProcessInstanceRestServiceInteractionTest extends
       .post(PROCESS_INSTANCE_MODIFICATION_URL);
   }
 
+  @Test
+  public void testSetRetriesByProcessAsync() {
+    List<String> ids = Arrays.asList(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID);
+    Batch batchEntity = MockProvider.createMockBatch();
+    when(mockManagementService.setJobRetriesAsync(
+        anyListOf(String.class),
+        any(ProcessInstanceQuery.class),
+        anyInt())
+    ).thenReturn(batchEntity);
+
+    Map<String, Object> messageBodyJson = new HashMap<String, Object>();
+    messageBodyJson.put("processInstances", ids);
+    messageBodyJson.put(RETRIES, 5);
+
+    Response response = given()
+        .contentType(ContentType.JSON).body(messageBodyJson)
+        .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .when().post(SET_JOB_RETRIES_ASYNC_URL);
+
+    verifyBatchJson(response.asString());
+
+    verify(mockManagementService, times(1)).setJobRetriesAsync(
+        eq(ids), eq((ProcessInstanceQuery) null), eq(5));
+  }
+
+  @Test
+  public void testSetRetriesByProcessAsyncWithQuery() {
+    Batch batchEntity = MockProvider.createMockBatch();
+    when(mockManagementService.setJobRetriesAsync(
+        anyListOf(String.class),
+        any(ProcessInstanceQuery.class),
+        anyInt())
+    ).thenReturn(batchEntity);
+
+    Map<String, Object> messageBodyJson = new HashMap<String, Object>();
+    messageBodyJson.put(RETRIES, 5);
+    HistoricProcessInstanceQueryDto query = new HistoricProcessInstanceQueryDto();
+    messageBodyJson.put("processInstanceQuery", query);
+
+    Response response = given()
+        .contentType(ContentType.JSON).body(messageBodyJson)
+        .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .when().post(SET_JOB_RETRIES_ASYNC_URL);
+
+    verifyBatchJson(response.asString());
+
+    verify(mockManagementService, times(1)).setJobRetriesAsync(
+        eq((List<String>) null), any(ProcessInstanceQuery.class), Mockito.eq(5));
+  }
+
+
+  @Test
+  public void testSetRetriesByProcessWithBadRequestQuery() {
+    doThrow(new BadUserRequestException("job ids are empty"))
+        .when(mockManagementService).setJobRetriesAsync(eq((List<String>) null), eq((ProcessInstanceQuery) null), anyInt());
+
+    Map<String, Object> messageBodyJson = new HashMap<String, Object>();
+    messageBodyJson.put(RETRIES, 5);
+
+    given()
+        .contentType(ContentType.JSON).body(messageBodyJson)
+        .then().expect()
+        .statusCode(Status.BAD_REQUEST.getStatusCode())
+        .when().post(SET_JOB_RETRIES_ASYNC_URL);
+  }
+
+  @Test
+  public void testSetRetriesByProcessWithoutRetries() {
+    Map<String, Object> messageBodyJson = new HashMap<String, Object>();
+    messageBodyJson.put("processInstances", null);
+
+    given()
+        .contentType(ContentType.JSON)
+        .body(messageBodyJson)
+        .then().expect()
+        .statusCode(Status.BAD_REQUEST.getStatusCode())
+        .when().post(SET_JOB_RETRIES_ASYNC_URL);
+  }
+
+  @Test
+  public void testSetRetriesByProcessWithNegativeRetries() {
+    doThrow(new BadUserRequestException("retries are negative"))
+        .when(mockManagementService).setJobRetriesAsync(
+        anyListOf(String.class),
+        any(ProcessInstanceQuery.class),
+        eq(-1));
+
+    Map<String, Object> messageBodyJson = new HashMap<String, Object>();
+    messageBodyJson.put(RETRIES, -1);
+    HistoricProcessInstanceQueryDto query = new HistoricProcessInstanceQueryDto();
+    messageBodyJson.put("processInstanceQuery", query);
+
+    given()
+        .contentType(ContentType.JSON).body(messageBodyJson)
+        .then().expect()
+        .statusCode(Status.BAD_REQUEST.getStatusCode())
+        .when().post(SET_JOB_RETRIES_ASYNC_URL);
+  }
+
 
   @SuppressWarnings("unchecked")
   protected ProcessInstanceModificationInstantiationBuilder setUpMockModificationBuilder() {
@@ -2373,5 +2527,19 @@ public class ProcessInstanceRestServiceInteractionTest extends
 
     return mockModificationBuilder;
 
+  }
+
+  protected void verifyBatchJson(String batchJson) {
+    BatchDto batch = JsonPathUtil.from(batchJson).getObject("", BatchDto.class);
+    assertNotNull("The returned batch should not be null.", batch);
+    assertEquals(MockProvider.EXAMPLE_BATCH_ID, batch.getId());
+    assertEquals(MockProvider.EXAMPLE_BATCH_TYPE, batch.getType());
+    assertEquals(MockProvider.EXAMPLE_BATCH_TOTAL_JOBS, batch.getTotalJobs());
+    assertEquals(MockProvider.EXAMPLE_BATCH_JOBS_PER_SEED, batch.getBatchJobsPerSeed());
+    assertEquals(MockProvider.EXAMPLE_INVOCATIONS_PER_BATCH_JOB, batch.getInvocationsPerBatchJob());
+    assertEquals(MockProvider.EXAMPLE_SEED_JOB_DEFINITION_ID, batch.getSeedJobDefinitionId());
+    assertEquals(MockProvider.EXAMPLE_MONITOR_JOB_DEFINITION_ID, batch.getMonitorJobDefinitionId());
+    assertEquals(MockProvider.EXAMPLE_BATCH_JOB_DEFINITION_ID, batch.getBatchJobDefinitionId());
+    assertEquals(MockProvider.EXAMPLE_TENANT_ID, batch.getTenantId());
   }
 }

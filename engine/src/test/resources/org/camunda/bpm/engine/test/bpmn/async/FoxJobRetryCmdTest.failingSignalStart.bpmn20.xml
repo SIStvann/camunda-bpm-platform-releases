@@ -7,7 +7,7 @@
 
   <signal id="signal" name="abort" />
 
-  <process id="failingSignalProcess">
+  <process id="failingSignalProcess" isExecutable="true">
     
     <startEvent id="signalStart">
         <signalEventDefinition signalRef="signal" />
@@ -15,7 +15,7 @@
       
     <sequenceFlow sourceRef="signalStart" targetRef="failingServiceTask" />
   
-    <serviceTask id="failingServiceTask" camunda:class="org.camunda.bpm.engine.test.cmd.FailingDelegate"/>
+    <serviceTask id="failingServiceTask" camunda:class="org.camunda.bpm.engine.test.bpmn.async.FailingDelegate"/>
     
     <sequenceFlow sourceRef="failingServiceTask" targetRef="end" /> 
        

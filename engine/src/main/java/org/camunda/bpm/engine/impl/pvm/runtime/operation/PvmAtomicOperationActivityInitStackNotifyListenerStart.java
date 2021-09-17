@@ -56,6 +56,8 @@ public class PvmAtomicOperationActivityInitStackNotifyListenerStart extends PvmA
   protected void eventNotificationsCompleted(PvmExecutionImpl execution) {
     super.eventNotificationsCompleted(execution);
 
+    execution.activityInstanceStarted();
+
     ExecutionStartContext startContext = execution.getExecutionStartContext();
     InstantiationStack instantiationStack = startContext.getInstantiationStack();
 

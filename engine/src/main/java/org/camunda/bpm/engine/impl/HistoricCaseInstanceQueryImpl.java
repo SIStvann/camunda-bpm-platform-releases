@@ -57,6 +57,9 @@ public class HistoricCaseInstanceQueryImpl extends AbstractVariableQueryImpl<His
   protected Date closedBefore;
   protected Date closedAfter;
   protected String caseDefinitionKey;
+  protected String[] caseActivityIds;
+
+  protected boolean isTenantIdSet = false;
   protected String[] tenantIds;
 
   public HistoricCaseInstanceQueryImpl() {
@@ -119,6 +122,12 @@ public class HistoricCaseInstanceQueryImpl extends AbstractVariableQueryImpl<His
     return this;
   }
 
+  public HistoricCaseInstanceQuery caseActivityIdIn(String... caseActivityIds) {
+    ensureNotNull("caseActivityIds", (Object[]) caseActivityIds);
+    this.caseActivityIds = caseActivityIds;
+    return this;
+  }
+
   public HistoricCaseInstanceQuery createdAfter(Date date) {
     createdAfter = date;
     return this;
@@ -172,6 +181,13 @@ public class HistoricCaseInstanceQueryImpl extends AbstractVariableQueryImpl<His
   public HistoricCaseInstanceQuery tenantIdIn(String... tenantIds) {
     ensureNotNull("tenantIds", (Object[]) tenantIds);
     this.tenantIds = tenantIds;
+    isTenantIdSet = true;
+    return this;
+  }
+
+  public HistoricCaseInstanceQuery withoutTenantId() {
+    tenantIds = null;
+    isTenantIdSet = true;
     return this;
   }
 

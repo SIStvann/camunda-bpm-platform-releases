@@ -372,6 +372,7 @@ public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestSer
     String returnedProcessInstanceBusinessKey = from(content).getString("[0].businessKey");
     String returnedProcessDefinitionId = from(content).getString("[0].processDefinitionId");
     String returnedProcessDefinitionKey = from(content).getString("[0].processDefinitionKey");
+    String returnedProcessDefinitionName = from(content).getString("[0].processDefinitionName");
     String returnedStartTime = from(content).getString("[0].startTime");
     String returnedEndTime = from(content).getString("[0].endTime");
     long returnedDurationInMillis = from(content).getLong("[0].durationInMillis");
@@ -382,11 +383,13 @@ public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestSer
     String returnedSuperCaseInstanceId = from(content).getString("[0].superCaseInstanceId");
     String returnedCaseInstanceId = from(content).getString("[0].caseInstanceId");
     String returnedTenantId = from(content).getString("[0].tenantId");
+    String returnedState = from(content).getString("[0].state");
 
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, returnedProcessInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_INSTANCE_BUSINESS_KEY, returnedProcessInstanceBusinessKey);
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, returnedProcessDefinitionId);
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY, returnedProcessDefinitionKey);
+    Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_NAME, returnedProcessDefinitionName);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_START_TIME.toString(), returnedStartTime);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_END_TIME.toString(), returnedEndTime);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_DURATION_MILLIS, returnedDurationInMillis);
@@ -397,6 +400,7 @@ public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestSer
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_SUPER_CASE_INSTANCE_ID, returnedSuperCaseInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_CASE_INSTANCE_ID, returnedCaseInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_TENANT_ID, returnedTenantId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_STATE, returnedState);
   }
 
   @Test
@@ -446,6 +450,7 @@ public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestSer
     parameters.put("superCaseInstanceId", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_SUPER_CASE_INSTANCE_ID);
     parameters.put("subCaseInstanceId", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_SUB_CASE_INSTANCE_ID);
     parameters.put("caseInstanceId", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_CASE_INSTANCE_ID);
+    parameters.put("state", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_STATE);
 
     return parameters;
   }
@@ -766,6 +771,108 @@ public class HistoricProcessInstanceRestServiceQueryTest extends AbstractRestSer
     InOrder inOrder = inOrder(mockedQuery);
     inOrder.verify(mockedQuery).withIncidents();
     inOrder.verify(mockedQuery).list();
+  }
+
+  @Test
+  public void testQueryWithIncidentStatusOpen() {
+    given()
+      .queryParam("incidentStatus", "open")
+      .then()
+      .expect()
+      .statusCode(Status.OK.getStatusCode())
+      .when()
+      .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    InOrder inOrder = inOrder(mockedQuery);
+    inOrder.verify(mockedQuery).incidentStatus("open");
+    inOrder.verify(mockedQuery).list();
+  }
+
+  @Test
+  public void testQueryWithIncidentStatusOpenAsPost() {
+    Map<String, String> body = new HashMap<String, String>();
+    body.put("incidentStatus", "open");
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(body)
+      .then()
+      .expect()
+      .statusCode(Status.OK.getStatusCode())
+      .when()
+      .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    InOrder inOrder = inOrder(mockedQuery);
+    inOrder.verify(mockedQuery).incidentStatus("open");
+    inOrder.verify(mockedQuery).list();
+  }
+
+  @Test
+  public void testQueryCountIncidentStatusOpenForPost() {
+    Map<String,String> body = new HashMap<String, String>();
+    body.put("incidentStatus", "open");
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(body)
+    .then()
+      .expect()
+        .body("count", equalTo(1))
+      .when()
+        .post(HISTORIC_PROCESS_INSTANCE_COUNT_RESOURCE_URL);
+
+    verify(mockedQuery).count();
+    verify(mockedQuery).incidentStatus("open");
+  }
+
+  @Test
+  public void testQueryWithIncidentStatusResolved() {
+    given()
+      .queryParam("incidentStatus", "resolved")
+      .then()
+      .expect()
+      .statusCode(Status.OK.getStatusCode())
+      .when()
+      .get(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    InOrder inOrder = inOrder(mockedQuery);
+    inOrder.verify(mockedQuery).incidentStatus("resolved");
+    inOrder.verify(mockedQuery).list();
+  }
+
+  @Test
+  public void testQueryWithIncidentStatusResolvedAsPost() {
+    Map<String, String> body = new HashMap<String, String>();
+    body.put("incidentStatus", "resolved");
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(body)
+      .then()
+      .expect()
+      .statusCode(Status.OK.getStatusCode())
+      .when()
+      .post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    InOrder inOrder = inOrder(mockedQuery);
+    inOrder.verify(mockedQuery).incidentStatus("resolved");
+    inOrder.verify(mockedQuery).list();
+  }
+
+  @Test
+  public void testQueryCountIncidentStatusResolvedForPost() {
+    Map<String,String> body = new HashMap<String, String>();
+    body.put("incidentStatus", "resolved");
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(body)
+    .then()
+      .expect()
+        .body("count", equalTo(1))
+      .when()
+        .post(HISTORIC_PROCESS_INSTANCE_COUNT_RESOURCE_URL);
+
+    verify(mockedQuery).count();
+    verify(mockedQuery).incidentStatus("resolved");
   }
 
   @Test

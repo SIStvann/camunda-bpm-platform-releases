@@ -41,10 +41,7 @@ public abstract class StageOrTaskActivityBehavior extends PlanItemDefinitionActi
   }
 
   public void created(CmmnActivityExecution execution) {
-    if (!execution.isCompleted() && !execution.isTerminated() && isAtLeastOneExitCriterionSatisfied(execution)) {
-      fireExitCriteria(execution);
-
-    } else if (execution.isAvailable() && isAtLeastOneEntryCriterionSatisfied(execution)) {
+    if (execution.isAvailable() && isAtLeastOneEntryCriterionSatisfied(execution)) {
       fireEntryCriteria(execution);
     }
   }
@@ -216,15 +213,14 @@ public abstract class StageOrTaskActivityBehavior extends PlanItemDefinitionActi
   // manual activation rule //////////////////////////////////////////////
 
   protected boolean evaluateManualActivationRule(CmmnActivityExecution execution) {
+    boolean manualActivation = false;
     CmmnActivity activity = execution.getActivity();
-
     Object manualActivationRule = activity.getProperty(PROPERTY_MANUAL_ACTIVATION_RULE);
     if (manualActivationRule != null) {
       CaseControlRule rule = (CaseControlRule) manualActivationRule;
-      return rule.evaluate(execution);
+      manualActivation = rule.evaluate(execution);
     }
-
-    return true;
+    return manualActivation;
   }
 
   // helper ///////////////////////////////////////////////////////////

@@ -151,7 +151,7 @@
     select * from ${prefix}ACT_RU_EXECUTION
     where PROC_INST_ID_ = #{parameter}
   </select>
-  
+
   <select id="selectProcessInstanceIdsByProcessDefinitionId" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
     select ID_
     from ${prefix}ACT_RU_EXECUTION

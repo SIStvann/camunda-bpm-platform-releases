@@ -79,7 +79,6 @@ public class UserOperationLogDeletionTest extends AbstractUserOperationLogTest {
         .activityId("PI_HumanTask_1")
         .singleResult()
         .getId();
-    caseService.manuallyStartCaseExecution(caseExecutionId);
 
     String taskId = taskService.createTaskQuery().singleResult().getId();
     taskService.setAssignee(taskId, "demo");
@@ -133,7 +132,6 @@ public class UserOperationLogDeletionTest extends AbstractUserOperationLogTest {
         .activityId("PI_HumanTask_1")
         .singleResult()
         .getId();
-    caseService.manuallyStartCaseExecution(caseExecutionId);
 
     String taskId = taskService.createTaskQuery().singleResult().getId();
     taskService.complete(taskId);
@@ -149,6 +147,31 @@ public class UserOperationLogDeletionTest extends AbstractUserOperationLogTest {
     historyService.deleteHistoricCaseInstance(caseInstanceId);
 
     // then
+    assertEquals(1, query.count());
+  }
+
+
+  @Deployment(resources = PROCESS_PATH)
+  public void testDeleteProcessDefinitionKeepUserOperationLog() {
+    // given
+    String processDefinitionId = repositoryService
+        .createProcessDefinitionQuery()
+        .singleResult()
+        .getId();
+
+    String processInstanceId = runtimeService.startProcessInstanceByKey(PROCESS_KEY).getId();
+
+    runtimeService.suspendProcessInstanceById(processInstanceId);
+
+    UserOperationLogQuery query = historyService
+        .createUserOperationLogQuery()
+        .processInstanceId(processInstanceId);
+    assertEquals(1, query.count());
+
+    // when
+    repositoryService.deleteProcessDefinition(processDefinitionId, true);
+
+    // then new log is created and old stays
     assertEquals(1, query.count());
   }
 

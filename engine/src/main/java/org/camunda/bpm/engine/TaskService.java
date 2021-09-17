@@ -30,6 +30,7 @@ import org.camunda.bpm.engine.task.IdentityLinkType;
 import org.camunda.bpm.engine.task.NativeTaskQuery;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
+import org.camunda.bpm.engine.task.TaskReport;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.value.SerializableValue;
 import org.camunda.bpm.engine.variable.value.TypedValue;
@@ -902,10 +903,36 @@ public interface TaskService {
   /** The comments related to the given process instance. */
   List<Comment> getProcessInstanceComments(String processInstanceId);
 
-  /** Add a new attachment to a task and/or a process instance and use an input stream to provide the content */
+  /**
+   * Add a new attachment to a task and/or a process instance and use an input stream to provide the content
+   * please use method in runtime service to operate on process instance.
+   *
+   * Either taskId or processInstanceId has to be provided
+   *
+   * @param taskId - task that should have an attachment
+   * @param processInstanceId - id of a process to use if task id is null
+   * @param attachmentType - name of the attachment, can be null
+   * @param attachmentName - name of the attachment, can be null
+   * @param attachmentDescription  - full text description, can be null
+   * @param content - byte array with content of attachment
+   *
+   */
   Attachment createAttachment(String attachmentType, String taskId, String processInstanceId, String attachmentName, String attachmentDescription, InputStream content);
 
-  /** Add a new attachment to a task and/or a process instance and use an url as the content */
+  /**
+   * Add a new attachment to a task and/or a process instance and use an url as the content
+   * please use method in runtime service to operate on process instance
+   *
+   * Either taskId or processInstanceId has to be provided
+   *
+   * @param taskId - task that should have an attachment
+   * @param processInstanceId - id of a process to use if task id is null
+   * @param attachmentType - name of the attachment, can be null
+   * @param attachmentName - name of the attachment, can be null
+   * @param attachmentDescription  - full text description, can be null
+   * @param url - url of the attachment, can be null
+   *
+   */
   Attachment createAttachment(String attachmentType, String taskId, String processInstanceId, String attachmentName, String attachmentDescription, String url);
 
   /** Update the name and decription of an attachment */
@@ -937,4 +964,7 @@ public interface TaskService {
 
   /** The list of subtasks for this parent task */
   List<Task> getSubTasks(String parentTaskId);
+
+  /** Instantiate a task report */
+  TaskReport createTaskReport();
 }

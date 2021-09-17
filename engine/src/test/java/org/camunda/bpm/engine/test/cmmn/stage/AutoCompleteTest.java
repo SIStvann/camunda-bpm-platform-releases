@@ -133,9 +133,6 @@ public class AutoCompleteTest extends CmmnProcessEngineTestCase {
         .singleResult()
         .getId();
 
-    // when (1)
-    manualStart(stageId);
-
     // then (1)
     CaseExecution stage = executionQuery
         .activityId("PI_Stage_1")
@@ -253,7 +250,6 @@ public class AutoCompleteTest extends CmmnProcessEngineTestCase {
         .activityId("PI_HumanTask_3")
         .singleResult()
         .getId();
-    manualStart(humanTask3Id);
 
     // when (1)
     complete(humanTask3Id);
@@ -269,7 +265,6 @@ public class AutoCompleteTest extends CmmnProcessEngineTestCase {
         .activityId("PI_HumanTask_2")
         .singleResult()
         .getId();
-    manualStart(humanTask2Id);
 
     // when (2)
     complete(humanTask2Id);
@@ -335,6 +330,12 @@ public class AutoCompleteTest extends CmmnProcessEngineTestCase {
         .singleResult()
         .getId();
 
+    CaseExecution humanTask2 = executionQuery
+      .activityId("PI_HumanTask_2")
+      .singleResult();
+
+    manualStart(humanTask2.getId());
+ 
     // when
     complete(humanTask1Id);
 

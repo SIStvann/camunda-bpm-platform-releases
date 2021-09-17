@@ -13,10 +13,10 @@
 
 package org.camunda.bpm.engine.impl.dmn.cmd;
 
-import static org.camunda.bpm.engine.impl.util.DecisionTableUtil.evaluateDecisionTable;
+import static org.camunda.bpm.engine.impl.util.DecisionEvaluationUtil.evaluateDecision;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureOnlyOneNotNull;
 
-import org.camunda.bpm.dmn.engine.DmnDecisionTableResult;
+import org.camunda.bpm.dmn.engine.DmnDecisionResult;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.cfg.CommandChecker;
 import org.camunda.bpm.engine.impl.dmn.DecisionEvaluationBuilderImpl;
@@ -32,10 +32,8 @@ import org.camunda.bpm.engine.variable.Variables;
  *
  * If the decision definition key given then specify the version and tenant-id.
  * If no version is provided then the latest version is taken.
- *
- * @author Kristin Polenz
  */
-public class EvaluateDecisionCmd implements Command<DmnDecisionTableResult> {
+public class EvaluateDecisionCmd implements Command<DmnDecisionResult> {
 
   protected String decisionDefinitionKey;
   protected String decisionDefinitionId;
@@ -54,7 +52,7 @@ public class EvaluateDecisionCmd implements Command<DmnDecisionTableResult> {
   }
 
   @Override
-  public DmnDecisionTableResult execute(CommandContext commandContext) {
+  public DmnDecisionResult execute(CommandContext commandContext) {
     ensureOnlyOneNotNull("either decision definition id or key must be set", decisionDefinitionId, decisionDefinitionKey);
 
     DecisionDefinition decisionDefinition = getDecisionDefinition(commandContext);
@@ -67,9 +65,9 @@ public class EvaluateDecisionCmd implements Command<DmnDecisionTableResult> {
 
   }
 
-  protected DmnDecisionTableResult doEvaluateDecision(DecisionDefinition decisionDefinition, VariableMap variables) {
+  protected DmnDecisionResult doEvaluateDecision(DecisionDefinition decisionDefinition, VariableMap variables) {
     try {
-      return evaluateDecisionTable(decisionDefinition, variables);
+      return evaluateDecision(decisionDefinition, variables);
     }
     catch (Exception e) {
       throw new ProcessEngineException("Exception while evaluating decision with key '"+decisionDefinitionKey+"'", e);

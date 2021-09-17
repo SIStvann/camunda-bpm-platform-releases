@@ -49,6 +49,7 @@ import static org.mockito.Mockito.when;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -97,6 +98,7 @@ import org.camunda.bpm.engine.rest.helper.ErrorMessageHelper;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.helper.VariableTypeHelper;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsPrimitiveValue;
+import org.camunda.bpm.engine.rest.util.EncodingUtil;
 import org.camunda.bpm.engine.rest.util.VariablesBuilder;
 import org.camunda.bpm.engine.rest.util.container.TestContainerRule;
 import org.camunda.bpm.engine.task.Attachment;
@@ -603,7 +605,24 @@ public class TaskRestServiceInteractionTest extends
         .get(RENDERED_FORM_URL);
 
     String responseContent = response.asString();
-    System.out.println(responseContent);
+    Assertions.assertThat(responseContent).isEqualTo(expectedResult);
+  }
+
+  @Test
+  public void testGetRenderedFormForDifferentPlatformEncoding() throws NoSuchFieldException, IllegalAccessException, UnsupportedEncodingException {
+    String expectedResult = "<formField>unicode symbol: \u2200</formField>";
+    when(formServiceMock.getRenderedTaskForm(MockProvider.EXAMPLE_TASK_ID)).thenReturn(expectedResult);
+
+    Response response = given()
+        .pathParam("id", EXAMPLE_TASK_ID)
+        .then()
+          .expect()
+            .statusCode(Status.OK.getStatusCode())
+            .contentType(XHTML_XML_CONTENT_TYPE)
+        .when()
+          .get(RENDERED_FORM_URL);
+
+    String responseContent = new String(response.asByteArray(), EncodingUtil.DEFAULT_ENCODING);
     Assertions.assertThat(responseContent).isEqualTo(expectedResult);
   }
 

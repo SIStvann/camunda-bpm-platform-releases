@@ -19,7 +19,7 @@ import java.util.List;
 import org.camunda.bpm.engine.impl.bpmn.behavior.BoundaryEventActivityBehavior;
 import org.camunda.bpm.engine.impl.bpmn.behavior.EventSubProcessStartEventActivityBehavior;
 import org.camunda.bpm.engine.impl.bpmn.helper.BpmnProperties;
-import org.camunda.bpm.engine.impl.bpmn.parser.ActivityTypes;
+import org.camunda.bpm.engine.ActivityTypes;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 
 /**
@@ -37,10 +37,12 @@ public class SupportedPassiveEventTriggerActivityValidator implements MigrationA
     ActivityTypes.BOUNDARY_SIGNAL,
     ActivityTypes.BOUNDARY_TIMER,
     ActivityTypes.BOUNDARY_COMPENSATION,
+    ActivityTypes.BOUNDARY_CONDITIONAL,
     ActivityTypes.START_EVENT_MESSAGE,
     ActivityTypes.START_EVENT_SIGNAL,
     ActivityTypes.START_EVENT_TIMER,
-    ActivityTypes.START_EVENT_COMPENSATION
+    ActivityTypes.START_EVENT_COMPENSATION,
+    ActivityTypes.START_EVENT_CONDITIONAL
   );
 
   public boolean valid(ActivityImpl activity) {

@@ -12,17 +12,12 @@
  */
 package org.camunda.bpm.engine.impl;
 
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.camunda.bpm.engine.RuntimeService;
+import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.form.FormData;
+import org.camunda.bpm.engine.impl.cmd.CreateAttachmentCmd;
 import org.camunda.bpm.engine.impl.cmd.DeleteProcessInstanceCmd;
+import org.camunda.bpm.engine.impl.cmd.DeleteProcessInstancesCmd;
 import org.camunda.bpm.engine.impl.cmd.FindActiveActivityIdsCmd;
 import org.camunda.bpm.engine.impl.cmd.GetActivityInstanceCmd;
 import org.camunda.bpm.engine.impl.cmd.GetExecutionVariableCmd;
@@ -34,6 +29,7 @@ import org.camunda.bpm.engine.impl.cmd.PatchExecutionVariablesCmd;
 import org.camunda.bpm.engine.impl.cmd.RemoveExecutionVariablesCmd;
 import org.camunda.bpm.engine.impl.cmd.SetExecutionVariablesCmd;
 import org.camunda.bpm.engine.impl.cmd.SignalCmd;
+import org.camunda.bpm.engine.impl.cmd.batch.DeleteProcessInstanceBatchCmd;
 import org.camunda.bpm.engine.impl.migration.MigrationPlanBuilderImpl;
 import org.camunda.bpm.engine.impl.migration.MigrationPlanExecutionBuilderImpl;
 import org.camunda.bpm.engine.impl.runtime.UpdateProcessInstanceSuspensionStateBuilderImpl;
@@ -54,8 +50,18 @@ import org.camunda.bpm.engine.runtime.ProcessInstantiationBuilder;
 import org.camunda.bpm.engine.runtime.SignalEventReceivedBuilder;
 import org.camunda.bpm.engine.runtime.UpdateProcessInstanceSuspensionStateSelectBuilder;
 import org.camunda.bpm.engine.runtime.VariableInstanceQuery;
+import org.camunda.bpm.engine.task.Attachment;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.value.TypedValue;
+
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 /**
  * @author Tom Baeyens
@@ -142,11 +148,34 @@ public class RuntimeServiceImpl extends ServiceImpl implements RuntimeService {
   }
 
   public void deleteProcessInstance(String processInstanceId, String deleteReason) {
-    commandExecutor.execute(new DeleteProcessInstanceCmd(processInstanceId, deleteReason, false));
+    deleteProcessInstance(processInstanceId,deleteReason,false);
+  }
+
+  @Override
+  public Batch deleteProcessInstancesAsync(List<String> processInstanceIds, ProcessInstanceQuery processInstanceQuery, String deleteReason) {
+    return commandExecutor.execute(new DeleteProcessInstanceBatchCmd(processInstanceIds, processInstanceQuery, deleteReason));
+  }
+
+  @Override
+  public Batch deleteProcessInstancesAsync(List<String> processInstanceIds, String deleteReason) {
+    return commandExecutor.execute(new DeleteProcessInstanceBatchCmd(processInstanceIds, null, deleteReason));
+  }
+
+  @Override
+  public Batch deleteProcessInstancesAsync(ProcessInstanceQuery processInstanceQuery, String deleteReason) {
+    return commandExecutor.execute(new DeleteProcessInstanceBatchCmd(null, processInstanceQuery, deleteReason));
   }
 
   public void deleteProcessInstance(String processInstanceId, String deleteReason, boolean skipCustomListeners) {
-    commandExecutor.execute(new DeleteProcessInstanceCmd(processInstanceId, deleteReason, skipCustomListeners));
+    deleteProcessInstance(processInstanceId,deleteReason,skipCustomListeners,false);
+  }
+
+  public void deleteProcessInstance(String processInstanceId, String deleteReason, boolean skipCustomListeners, boolean externallyTerminated) {
+    commandExecutor.execute(new DeleteProcessInstanceCmd(processInstanceId, deleteReason, skipCustomListeners, externallyTerminated));
+  }
+
+  public void deleteProcessInstances(List<String> processInstanceIds, String deleteReason, boolean skipCustomListeners, boolean externallyTerminated){
+    commandExecutor.execute(new DeleteProcessInstancesCmd(processInstanceIds, deleteReason, skipCustomListeners, externallyTerminated));
   }
 
   public ExecutionQuery createExecutionQuery() {

@@ -23,7 +23,7 @@ alter table ACT_RU_EXECUTION
 alter table ACT_RU_EXECUTION
     drop foreign key ACT_FK_EXE_SUPER;
 
-alter table ACT_RU_EXECUTION 
+alter table ACT_RU_EXECUTION
     drop foreign key ACT_FK_EXE_PROCDEF;
 
 alter table ACT_RU_IDENTITYLINK
@@ -86,6 +86,9 @@ alter table ACT_RU_BATCH
 alter table ACT_RU_BATCH
     drop foreign key ACT_FK_BATCH_JOB_DEF;
 
+alter table ACT_RU_EXT_TASK
+    drop foreign key ACT_FK_EXT_TASK_ERROR_DETAILS;
+
 drop index ACT_IDX_EVENT_SUBSCR_CONFIG_;
 drop index ACT_IDX_ATHRZ_PROCEDEF;
 
@@ -110,7 +113,16 @@ drop index ACT_IDX_VARIABLE_PROCINST;
 drop index ACT_IDX_TASK_EXEC;
 drop index ACT_IDX_TASK_PROCINST;
 drop index ACT_IDX_TASK_PROC_DEF_ID;
-drop index ACT_IDX_METER_LOG;
+
+-- new metric milliseconds column
+DROP INDEX ACT_IDX_METER_LOG_MS;
+DROP INDEX ACT_IDX_METER_LOG_NAME_MS;
+DROP INDEX ACT_IDX_METER_LOG_REPORT;
+
+-- old metric timestamp column
+DROP INDEX ACT_IDX_METER_LOG_TIME;
+DROP INDEX ACT_IDX_METER_LOG;
+
 drop index ACT_IDX_AUTH_RESOURCE_ID;
 drop index ACT_IDX_EXT_TASK_TOPIC;
 drop index ACT_IDX_EXT_TASK_EXEC;
@@ -140,6 +152,9 @@ drop index ACT_IDX_BATCH_MONITOR_JOB_DEF;
 drop index ACT_IDX_BATCH_JOB_DEF;
 
 drop index ACT_IDX_PROCDEF_VER_TAG;
+
+drop index ACT_IDX_JOB_EXECUTION_ID;
+drop index ACT_IDX_JOB_HANDLER;
 
 drop table ACT_GE_PROPERTY;
 drop table ACT_GE_BYTEARRAY;

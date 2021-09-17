@@ -15,11 +15,13 @@ package org.camunda.bpm.engine.impl.cfg;
 
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricCaseInstance;
+import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.batch.BatchEntity;
 import org.camunda.bpm.engine.impl.batch.history.HistoricBatchEntity;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
+import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionRequirementsDefinitionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogEventEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity;
@@ -73,6 +75,20 @@ public interface CommandChecker {
   void checkUpdateProcessDefinitionByKey(String processDefinitionKey);
 
   /**
+   * Checks if it is allowed to delete a process definition, which corresponds to the given id.
+   *
+   * @param processDefinitionId the id which corresponds to the process definition
+   */
+  void checkDeleteProcessDefinitionById(String processDefinitionId);
+
+  /**
+   * Checks if it is allowed to delete a process definition, which corresponds to the given key.
+   *
+   * @param processDefinitionKey the key which corresponds to the process definition
+   */
+  void checkDeleteProcessDefinitionByKey(String processDefinitionKey);
+
+  /**
    *  Checks if it is allowed to update a process instance of the given process definition key.
    */
   void checkUpdateProcessInstanceByProcessDefinitionKey(String processDefinitionKey);
@@ -94,7 +110,7 @@ public interface CommandChecker {
   void checkReadProcessInstance(String processInstanceId);
 
   /**
-   * Checks if it is allowed to read the given job. 
+   * Checks if it is allowed to read the given job.
    */
   void checkReadJob(JobEntity job);
 
@@ -177,7 +193,7 @@ public interface CommandChecker {
    * Check if it is allowed to work on a task
    */
   void checkTaskWork(TaskEntity task);
-  
+
   /**
    *  Check if it is allowed to delete a task
    */
@@ -187,6 +203,11 @@ public interface CommandChecker {
    * Checks if it is allowed to read the given decision definition.
    */
   void checkReadDecisionDefinition(DecisionDefinitionEntity decisionDefinition);
+
+  /**
+   * Checks if it is allowed to read the given decision requirements definition.
+   */
+  void checkReadDecisionRequirementsDefinition(DecisionRequirementsDefinitionEntity decisionRequirementsDefinition);
 
   /**
    * Checks if it is allowed to read the given case definition.
@@ -215,6 +236,11 @@ public interface CommandChecker {
   void checkDeleteHistoricDecisionInstance(String decisionDefinitionKey);
 
   /**
+   * Checks if it is allowed to delete the given historic decision instance.
+   */
+  void checkDeleteHistoricDecisionInstance(HistoricDecisionInstance instance);
+
+  /**
    * Checks if it is allowed to read the given historic job log.
    */
   void checkReadHistoricJobLog(HistoricJobLogEventEntity historicJobLog);
@@ -223,6 +249,11 @@ public interface CommandChecker {
    * Check if it is allowed to read the history for any process definition.
    */
   void checkReadHistoryAnyProcessDefinition();
+
+  /**
+   * Check if it is allowed to read the history for any task instance
+   */
+  void checkReadHistoryAnyTaskInstance();
 
   /**
    * Check if it is allowed to update a case instance of the given case execution.

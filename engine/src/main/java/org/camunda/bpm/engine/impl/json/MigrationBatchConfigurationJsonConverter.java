@@ -13,12 +13,12 @@
 
 package org.camunda.bpm.engine.impl.json;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import org.camunda.bpm.engine.impl.migration.batch.MigrationBatchConfiguration;
 import org.camunda.bpm.engine.impl.util.JsonUtil;
 import org.camunda.bpm.engine.impl.util.json.JSONObject;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class MigrationBatchConfigurationJsonConverter extends JsonObjectConverter<MigrationBatchConfiguration> {
 
@@ -33,7 +33,7 @@ public class MigrationBatchConfigurationJsonConverter extends JsonObjectConverte
     JSONObject json = new JSONObject();
 
     JsonUtil.addField(json, MIGRATION_PLAN, MigrationPlanJsonConverter.INSTANCE, configuration.getMigrationPlan());
-    JsonUtil.addListField(json, PROCESS_INSTANCE_IDS, configuration.getProcessInstanceIds());
+    JsonUtil.addListField(json, PROCESS_INSTANCE_IDS, configuration.getIds());
     JsonUtil.addField(json, SKIP_LISTENERS, configuration.isSkipCustomListeners());
     JsonUtil.addField(json, SKIP_IO_MAPPINGS, configuration.isSkipIoMappings());
 
@@ -41,10 +41,9 @@ public class MigrationBatchConfigurationJsonConverter extends JsonObjectConverte
   }
 
   public MigrationBatchConfiguration toObject(JSONObject json) {
-    MigrationBatchConfiguration configuration = new MigrationBatchConfiguration();
+    MigrationBatchConfiguration configuration = new MigrationBatchConfiguration(readProcessInstanceIds(json));
 
     configuration.setMigrationPlan(JsonUtil.jsonObject(json.getJSONObject(MIGRATION_PLAN), MigrationPlanJsonConverter.INSTANCE));
-    configuration.setProcessInstanceIds(readProcessInstanceIds(json));
     configuration.setSkipCustomListeners(json.getBoolean(SKIP_LISTENERS));
     configuration.setSkipIoMappings(json.getBoolean(SKIP_IO_MAPPINGS));
 

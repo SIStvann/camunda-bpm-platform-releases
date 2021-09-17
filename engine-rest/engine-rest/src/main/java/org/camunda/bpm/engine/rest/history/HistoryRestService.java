@@ -41,6 +41,12 @@ public interface HistoryRestService {
   @Path(HistoricActivityStatisticsRestService.PATH)
   HistoricActivityStatisticsRestService getActivityStatisticsService();
 
+  @Path(HistoricCaseActivityStatisticsRestService.PATH)
+  HistoricCaseActivityStatisticsRestService getCaseActivityStatisticsService();
+
+  @Path(HistoricDecisionStatisticsRestService.PATH)
+  HistoricDecisionStatisticsRestService getDecisionStatisticsService();
+
   @Path(UserOperationLogRestService.PATH)
   UserOperationLogRestService getUserOperationLogRestService();
 

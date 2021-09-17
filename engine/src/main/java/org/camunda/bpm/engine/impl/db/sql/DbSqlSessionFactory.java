@@ -90,6 +90,7 @@ public class DbSqlSessionFactory implements SessionFactory {
     databaseSpecificDatepart1.put(H2, "");
     databaseSpecificDatepart2.put(H2, "(");
     databaseSpecificDatepart3.put(H2, ")");
+    
     databaseSpecificDummyTable.put(H2, "");
     databaseSpecificTrueConstant.put(H2, "1");
     databaseSpecificFalseConstant.put(H2, "0");
@@ -101,6 +102,7 @@ public class DbSqlSessionFactory implements SessionFactory {
     constants.put("constant.for.update", "for update");
     constants.put("constant.datepart.quarter", "QUARTER");
     constants.put("constant.datepart.month", "MONTH");
+    constants.put("constant.null.startTime", "null START_TIME_");
     dbSpecificConstants.put(H2, constants);
 
     // mysql specific
@@ -122,6 +124,7 @@ public class DbSqlSessionFactory implements SessionFactory {
       databaseSpecificDatepart1.put(mysqlLikeDatabase, "");
       databaseSpecificDatepart2.put(mysqlLikeDatabase, "(");
       databaseSpecificDatepart3.put(mysqlLikeDatabase, ")");
+
       databaseSpecificDummyTable.put(mysqlLikeDatabase, "");
       databaseSpecificTrueConstant.put(mysqlLikeDatabase, "1");
       databaseSpecificFalseConstant.put(mysqlLikeDatabase, "0");
@@ -137,6 +140,7 @@ public class DbSqlSessionFactory implements SessionFactory {
       constants.put("constant.for.update", "for update");
       constants.put("constant.datepart.quarter", "QUARTER");
       constants.put("constant.datepart.month", "MONTH");
+      constants.put("constant.null.startTime", "null START_TIME_");
       dbSpecificConstants.put(mysqlLikeDatabase, constants);
     }
 
@@ -156,6 +160,7 @@ public class DbSqlSessionFactory implements SessionFactory {
     databaseSpecificDatepart1.put(POSTGRES, "extract(");
     databaseSpecificDatepart2.put(POSTGRES, " from ");
     databaseSpecificDatepart3.put(POSTGRES, ")");
+
     databaseSpecificDummyTable.put(POSTGRES, "");
     databaseSpecificTrueConstant.put(POSTGRES, "true");
     databaseSpecificFalseConstant.put(POSTGRES, "false");
@@ -190,6 +195,7 @@ public class DbSqlSessionFactory implements SessionFactory {
     constants.put("constant.for.update", "for update");
     constants.put("constant.datepart.quarter", "QUARTER");
     constants.put("constant.datepart.month", "MONTH");
+    constants.put("constant.null.startTime", "null START_TIME_");
     dbSpecificConstants.put(POSTGRES, constants);
 
     // oracle
@@ -209,11 +215,14 @@ public class DbSqlSessionFactory implements SessionFactory {
     databaseSpecificDatepart1.put(ORACLE, "to_number(to_char(");
     databaseSpecificDatepart2.put(ORACLE, ",");
     databaseSpecificDatepart3.put(ORACLE, "))");
+
     databaseSpecificTrueConstant.put(ORACLE, "1");
     databaseSpecificFalseConstant.put(ORACLE, "0");
     databaseSpecificIfNull.put(ORACLE, "NVL");
 
     addDatabaseSpecificStatement(ORACLE, "selectHistoricProcessInstanceDurationReport", "selectHistoricProcessInstanceDurationReport_oracle");
+    addDatabaseSpecificStatement(ORACLE, "selectHistoricTaskInstanceDurationReport", "selectHistoricTaskInstanceDurationReport_oracle");
+    addDatabaseSpecificStatement(ORACLE, "selectHistoricTaskInstanceCountByTaskNameReport", "selectHistoricTaskInstanceCountByTaskNameReport_oracle");
     addDatabaseSpecificStatement(ORACLE, "selectFilterByQueryCriteria", "selectFilterByQueryCriteria_oracleDb2");
 
     constants = new HashMap<String, String>();
@@ -222,6 +231,7 @@ public class DbSqlSessionFactory implements SessionFactory {
     constants.put("constant.for.update", "for update");
     constants.put("constant.datepart.quarter", "'Q'");
     constants.put("constant.datepart.month", "'MM'");
+    constants.put("constant.null.startTime", "null START_TIME_");
     dbSpecificConstants.put(ORACLE, constants);
 
     // db2
@@ -240,10 +250,12 @@ public class DbSqlSessionFactory implements SessionFactory {
     databaseSpecificDatepart1.put(DB2, "");
     databaseSpecificDatepart2.put(DB2, "(");
     databaseSpecificDatepart3.put(DB2, ")");
+
     databaseSpecificDummyTable.put(DB2, "FROM SYSIBM.SYSDUMMY1");
     databaseSpecificTrueConstant.put(DB2, "1");
     databaseSpecificFalseConstant.put(DB2, "0");
     databaseSpecificIfNull.put(DB2, "NVL");
+    addDatabaseSpecificStatement(DB2, "selectMeterLogAggregatedByTimeInterval", "selectMeterLogAggregatedByTimeInterval_db2_or_mssql");
     addDatabaseSpecificStatement(DB2, "selectExecutionByNativeQuery", "selectExecutionByNativeQuery_mssql_or_db2");
     addDatabaseSpecificStatement(DB2, "selectHistoricActivityInstanceByNativeQuery", "selectHistoricActivityInstanceByNativeQuery_mssql_or_db2");
     addDatabaseSpecificStatement(DB2, "selectHistoricCaseActivityInstanceByNativeQuery", "selectHistoricCaseActivityInstanceByNativeQuery_mssql_or_db2");
@@ -260,6 +272,7 @@ public class DbSqlSessionFactory implements SessionFactory {
     constants.put("constant.for.update", "for read only with rs use and keep update locks");
     constants.put("constant.datepart.quarter", "QUARTER");
     constants.put("constant.datepart.month", "MONTH");
+    constants.put("constant.null.startTime", "CAST(NULL as timestamp) as START_TIME_");
     dbSpecificConstants.put(DB2, constants);
 
     // mssql
@@ -278,10 +291,12 @@ public class DbSqlSessionFactory implements SessionFactory {
     databaseSpecificDatepart1.put(MSSQL, "datepart(");
     databaseSpecificDatepart2.put(MSSQL, ",");
     databaseSpecificDatepart3.put(MSSQL, ")");
+
     databaseSpecificDummyTable.put(MSSQL, "");
     databaseSpecificTrueConstant.put(MSSQL, "1");
     databaseSpecificFalseConstant.put(MSSQL, "0");
     databaseSpecificIfNull.put(MSSQL, "ISNULL");
+    addDatabaseSpecificStatement(MSSQL, "selectMeterLogAggregatedByTimeInterval", "selectMeterLogAggregatedByTimeInterval_db2_or_mssql");
     addDatabaseSpecificStatement(MSSQL, "selectExecutionByNativeQuery", "selectExecutionByNativeQuery_mssql_or_db2");
     addDatabaseSpecificStatement(MSSQL, "selectHistoricActivityInstanceByNativeQuery", "selectHistoricActivityInstanceByNativeQuery_mssql_or_db2");
     addDatabaseSpecificStatement(MSSQL, "selectHistoricCaseActivityInstanceByNativeQuery", "selectHistoricCaseActivityInstanceByNativeQuery_mssql_or_db2");
@@ -299,6 +314,7 @@ public class DbSqlSessionFactory implements SessionFactory {
     constants.put("constant.op_message", "NEW_VALUE_ + '_|_' + PROPERTY_");
     constants.put("constant.datepart.quarter", "QUARTER");
     constants.put("constant.datepart.month", "MONTH");
+    constants.put("constant.null.startTime", "null START_TIME_");
     dbSpecificConstants.put(MSSQL, constants);
   }
 

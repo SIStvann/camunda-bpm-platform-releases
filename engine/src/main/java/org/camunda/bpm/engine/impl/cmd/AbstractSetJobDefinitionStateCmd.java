@@ -191,5 +191,4 @@ public abstract class AbstractSetJobDefinitionStateCmd extends AbstractSetStateC
   }
 
   protected abstract AbstractSetJobStateCmd getNextCommand(UpdateJobSuspensionStateBuilderImpl jobCommandBuilder);
-
 }

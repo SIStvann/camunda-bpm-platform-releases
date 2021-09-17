@@ -15,6 +15,9 @@ create table ACT_HI_DECINST (
     EVAL_TIME_ datetime2 not null,
     COLLECT_VALUE_ double precision,
     USER_ID_ nvarchar(255),
+    ROOT_DEC_INST_ID_ nvarchar(64),
+    DEC_REQ_ID_ nvarchar(64),
+    DEC_REQ_KEY_ nvarchar(255),
     TENANT_ID_ nvarchar(64),
     primary key (ID_)
 );
@@ -23,7 +26,7 @@ create table ACT_HI_DECINST (
 create table ACT_HI_DEC_IN (
     ID_ nvarchar(64) NOT NULL,
     DEC_INST_ID_ nvarchar(64) NOT NULL,
-    CLAUSE_ID_ nvarchar(64) NOT NULL,
+    CLAUSE_ID_ nvarchar(64),
     CLAUSE_NAME_ nvarchar(255),
     VAR_TYPE_ nvarchar(100),
     BYTEARRAY_ID_ nvarchar(64),
@@ -39,9 +42,9 @@ create table ACT_HI_DEC_IN (
 create table ACT_HI_DEC_OUT (
     ID_ nvarchar(64) NOT NULL,
     DEC_INST_ID_ nvarchar(64) NOT NULL,
-    CLAUSE_ID_ nvarchar(64) NOT NULL,
+    CLAUSE_ID_ nvarchar(64),
     CLAUSE_NAME_ nvarchar(255),
-    RULE_ID_ nvarchar(64) NOT NULL,
+    RULE_ID_ nvarchar(64),
     RULE_ORDER_ int,
     VAR_NAME_ nvarchar(255),
     VAR_TYPE_ nvarchar(100),
@@ -63,6 +66,9 @@ create index ACT_IDX_HI_DEC_INST_ACT on ACT_HI_DECINST(ACT_ID_);
 create index ACT_IDX_HI_DEC_INST_ACT_INST on ACT_HI_DECINST(ACT_INST_ID_);
 create index ACT_IDX_HI_DEC_INST_TIME on ACT_HI_DECINST(EVAL_TIME_);
 create index ACT_IDX_HI_DEC_INST_TENANT_ID on ACT_HI_DECINST(TENANT_ID_);
+create index ACT_IDX_HI_DEC_INST_ROOT_ID on ACT_HI_DECINST(ROOT_DEC_INST_ID_);
+create index ACT_IDX_HI_DEC_INST_REQ_ID on ACT_HI_DECINST(DEC_REQ_ID_);
+create index ACT_IDX_HI_DEC_INST_REQ_KEY on ACT_HI_DECINST(DEC_REQ_KEY_);
 
 create index ACT_IDX_HI_DEC_IN_INST on ACT_HI_DEC_IN(DEC_INST_ID_);
 create index ACT_IDX_HI_DEC_IN_CLAUSE on ACT_HI_DEC_IN(DEC_INST_ID_, CLAUSE_ID_);

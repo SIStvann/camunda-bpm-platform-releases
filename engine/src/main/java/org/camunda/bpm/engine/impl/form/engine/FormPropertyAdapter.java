@@ -74,6 +74,11 @@ public class FormPropertyAdapter implements FormField {
     return Collections.emptyMap();
   }
 
+  @Override
+  public boolean isBusinessKey() {
+    return false;
+  }
+
   public TypedValue getDefaultValueTyped() {
     return getValue();
   }

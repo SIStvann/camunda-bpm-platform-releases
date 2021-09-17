@@ -34,6 +34,7 @@ import org.camunda.bpm.engine.runtime.CaseInstanceBuilder;
 import org.camunda.bpm.engine.test.ProcessEngineRule;
 import org.camunda.bpm.engine.test.RequiredHistoryLevel;
 import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
+import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.value.StringValue;
@@ -58,7 +59,7 @@ public class MultiTenancyCaseInstanceCmdsTenantCheckTest {
 
   protected static final String ACTIVITY_ID = "PI_HumanTask_1";
 
-  protected ProcessEngineRule engineRule = new ProcessEngineRule(true);
+  protected ProcessEngineRule engineRule = new ProvidedProcessEngineRule();
 
   protected ProcessEngineTestRule testRule = new ProcessEngineTestRule(engineRule);
 
@@ -299,6 +300,44 @@ public class MultiTenancyCaseInstanceCmdsTenantCheckTest {
     assertThat(historicCaseInstance.isClosed(), is(true));
   }
 
+  @Test
+  public void terminateCaseInstanceNoAuthenticatedTenants() {
+    
+    identityService.setAuthentication("user", null, null);
+
+    thrown.expect(ProcessEngineException.class);
+    thrown.expectMessage("Cannot update the case execution");
+
+    caseService.terminateCaseExecution(caseInstanceId);
+  }
+
+  @Test
+  public void terminateCaseExecutionWithAuthenticatedTenant() {
+    identityService.setAuthentication("user", null, Arrays.asList(TENANT_ONE));
+
+    caseService.terminateCaseExecution(caseInstanceId);
+
+    HistoricCaseInstance historicCaseInstance = getHistoricCaseInstance();
+
+    assertThat(historicCaseInstance, notNullValue());
+    assertThat(historicCaseInstance.isTerminated(), is(true));
+
+  }
+
+  @Test
+  public void terminateCaseExecutionDisabledTenantCheck() {
+    
+    identityService.setAuthentication("user", null, null);
+    processEngineConfiguration.setTenantCheckEnabled(false);
+
+    caseService.terminateCaseExecution(caseInstanceId);
+    
+    HistoricCaseInstance historicCaseInstance = getHistoricCaseInstance();
+
+    assertThat(historicCaseInstance, notNullValue());
+    assertThat(historicCaseInstance.isTerminated(), is(true));
+  }
+  
   @Test
   public void getVariablesNoAuthenticatedTenants() {
     identityService.setAuthentication("user", null, null);

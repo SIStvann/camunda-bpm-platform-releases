@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.history.HistoricTaskInstance;
 import org.camunda.bpm.engine.history.HistoricTaskInstanceQuery;
 import org.camunda.bpm.engine.impl.context.Context;
@@ -50,13 +51,17 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
   protected String taskDeleteReasonLike;
   protected String taskOwner;
   protected String taskOwnerLike;
+  protected Boolean assigned;
+  protected Boolean unassigned;
   protected String taskAssignee;
   protected String taskAssigneeLike;
-  protected String taskDefinitionKey;
+  protected String[] taskDefinitionKeys;
   protected String taskInvolvedUser;
   protected String taskInvolvedGroup;
   protected String taskHadCandidateUser;
   protected String taskHadCandidateGroup;
+  protected Boolean withCandidateGroups;
+  protected Boolean withoutCandidateGroups;
   protected Integer taskPriority;
   protected boolean finished;
   protected boolean unfinished;
@@ -68,9 +73,9 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
   protected Date dueBefore;
   protected Date followUpDate;
   protected Date followUpBefore;
+
   protected Date followUpAfter;
   protected String[] tenantIds;
-
   protected String caseDefinitionId;
   protected String caseDefinitionKey;
   protected String caseDefinitionName;
@@ -114,7 +119,7 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
   }
 
   public HistoricTaskInstanceQuery activityInstanceIdIn(String... activityInstanceIds) {
-    ensureNotNull("activityInstanceIds", activityInstanceIds);
+    ensureNotNull("activityInstanceIds", (Object[]) activityInstanceIds);
     this.activityInstanceIds = activityInstanceIds;
     return this;
   }
@@ -170,6 +175,16 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
 
   public HistoricTaskInstanceQueryImpl taskDeleteReasonLike(String taskDeleteReasonLike) {
     this.taskDeleteReasonLike = taskDeleteReasonLike;
+    return this;
+  }
+
+  public HistoricTaskInstanceQueryImpl taskAssigned() {
+    this.assigned = true;
+    return this;
+  }
+
+  public HistoricTaskInstanceQueryImpl taskUnassigned() {
+    this.unassigned = true;
     return this;
   }
 
@@ -239,7 +254,12 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
   }
 
   public HistoricTaskInstanceQuery taskDefinitionKey(String taskDefinitionKey) {
-    this.taskDefinitionKey = taskDefinitionKey;
+    return taskDefinitionKeyIn(taskDefinitionKey);
+  }
+
+  public HistoricTaskInstanceQuery taskDefinitionKeyIn(String... taskDefinitionKeys) {
+    ensureNotNull(NotValidException.class, "taskDefinitionKeys", (Object[]) taskDefinitionKeys);
+    this.taskDefinitionKeys = taskDefinitionKeys;
     return this;
   }
 
@@ -270,6 +290,16 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
 
   public HistoricTaskInstanceQuery taskHadCandidateGroup(String groupId){
     this.taskHadCandidateGroup = groupId;
+    return this;
+  }
+
+  public HistoricTaskInstanceQuery withCandidateGroups() {
+    this.withCandidateGroups = true;
+    return this;
+  }
+
+  public HistoricTaskInstanceQuery withoutCandidateGroups() {
+    this.withoutCandidateGroups = true;
     return this;
   }
 
@@ -454,6 +484,22 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
     return processDefinitionId;
   }
 
+  public Boolean isAssigned() {
+    return assigned;
+  }
+
+  public Boolean isUnassigned() {
+    return unassigned;
+  }
+
+  public Boolean isWithCandidateGroups() {
+    return withCandidateGroups;
+  }
+
+  public Boolean isWithoutCandidateGroups() {
+    return withoutCandidateGroups;
+  }
+
   public boolean isFinished() {
     return finished;
   }
@@ -498,8 +544,8 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
     return taskId;
   }
 
-  public String getTaskDefinitionKey() {
-    return taskDefinitionKey;
+  public String[] getTaskDefinitionKeys() {
+    return taskDefinitionKeys;
   }
 
   public List<TaskQueryVariableValue> getVariables() {

@@ -18,7 +18,9 @@ import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.apache.commons.lang.time.DateUtils;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
@@ -31,6 +33,7 @@ import org.camunda.bpm.engine.impl.history.event.HistoricProcessInstanceEventEnt
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
+import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
@@ -97,7 +100,7 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
     assertEquals(0, historyService.createHistoricProcessInstanceQuery().unfinished().count());
     assertEquals(1, historyService.createHistoricProcessInstanceQuery().finished().count());
 
-    ProcessInstance processInstance2 = runtimeService.startProcessInstanceByKey("oneTaskProcess", "myBusinessKey");
+    runtimeService.startProcessInstanceByKey("oneTaskProcess", "myBusinessKey");
     assertEquals(1, historyService.createHistoricProcessInstanceQuery().finished().count());
     assertEquals(1, historyService.createHistoricProcessInstanceQuery().unfinished().count());
     assertEquals(0, historyService.createHistoricProcessInstanceQuery().finished().unfinished().count());
@@ -233,7 +236,7 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
   @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
   public void testHistoricProcessInstanceQueryWithIncidents() {
     // start instance with incidents
-    ProcessInstance pi = runtimeService.startProcessInstanceByKey("Process_1");
+    runtimeService.startProcessInstanceByKey("Process_1");
     executeAvailableJobs();
 
     // start instance without incidents
@@ -259,6 +262,63 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
 
     assertEquals(0, historyService.createHistoricProcessInstanceQuery().incidentMessage("Unknown message").count());
     assertEquals(0, historyService.createHistoricProcessInstanceQuery().incidentMessage("Unknown message").list().size());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/mgmt/IncidentTest.testShouldDeleteIncidentAfterJobWasSuccessfully.bpmn"})
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testHistoricProcessInstanceQueryIncidentStatusOpen() {
+    //given a processes instance, which will fail
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("fail", true);
+    runtimeService.startProcessInstanceByKey("failingProcessWithUserTask", parameters);
+
+    //when jobs are executed till retry count is zero
+    executeAvailableJobs();
+
+    //then query for historic process instance with open incidents will return one
+    assertEquals(1, historyService.createHistoricProcessInstanceQuery().incidentStatus("open").count());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/mgmt/IncidentTest.testShouldDeleteIncidentAfterJobWasSuccessfully.bpmn"})
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testHistoricProcessInstanceQueryIncidentStatusResolved() {
+    //given a incident processes instance
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("fail", true);
+    ProcessInstance pi1 = runtimeService.startProcessInstanceByKey("failingProcessWithUserTask", parameters);
+    executeAvailableJobs();
+
+    //when `fail` variable is set to true and job retry count is set to one and executed again
+    runtimeService.setVariable(pi1.getId(), "fail", false);
+    Job jobToResolve = managementService.createJobQuery().processInstanceId(pi1.getId()).singleResult();
+    managementService.setJobRetries(jobToResolve.getId(), 1);
+    executeAvailableJobs();
+
+    //then query for historic process instance with resolved incidents will return one
+    assertEquals(1, historyService.createHistoricProcessInstanceQuery().incidentStatus("resolved").count());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/mgmt/IncidentTest.testShouldDeleteIncidentAfterJobWasSuccessfully.bpmn"})
+  @RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
+  public void testHistoricProcessInstanceQueryIncidentStatusOpenWithTwoProcesses() {
+    //given two processes, which will fail, are started
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("fail", true);
+    ProcessInstance pi1 = runtimeService.startProcessInstanceByKey("failingProcessWithUserTask", parameters);
+    runtimeService.startProcessInstanceByKey("failingProcessWithUserTask", parameters);
+    executeAvailableJobs();
+    assertEquals(2, historyService.createHistoricProcessInstanceQuery().incidentStatus("open").count());
+
+    //when 'fail' variable is set to false, job retry count is set to one
+    //and available jobs are executed
+    runtimeService.setVariable(pi1.getId(), "fail", false);
+    Job jobToResolve = managementService.createJobQuery().processInstanceId(pi1.getId()).singleResult();
+    managementService.setJobRetries(jobToResolve.getId(), 1);
+    executeAvailableJobs();
+
+    //then query with open and with resolved incidents returns one
+    assertEquals(1, historyService.createHistoricProcessInstanceQuery().incidentStatus("open").count());
+    assertEquals(1, historyService.createHistoricProcessInstanceQuery().incidentStatus("resolved").count());
   }
 
   public void testHistoricProcessInstanceQueryWithIncidentMessageNull() {
@@ -469,17 +529,6 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
         .create()
         .getId();
 
-    String processTaskId = caseService
-        .createCaseExecutionQuery()
-        .activityId("PI_ProcessTask_1")
-        .singleResult()
-        .getId();
-
-    // when
-    caseService
-      .withCaseExecution(processTaskId)
-      .manualStart();
-
     // then
     HistoricProcessInstanceQuery query = historyService.createHistoricProcessInstanceQuery();
 
@@ -527,17 +576,6 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
         .withCaseDefinitionByKey("case")
         .create()
         .getId();
-
-    String processTaskId = caseService
-        .createCaseExecutionQuery()
-        .activityId("PI_ProcessTask_1")
-        .singleResult()
-        .getId();
-
-    // when
-    caseService
-      .withCaseExecution(processTaskId)
-      .manualStart();
 
     // then
     HistoricProcessInstanceQuery query = historyService.createHistoricProcessInstanceQuery();
@@ -598,17 +636,6 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
       .businessKey(businessKey)
       .create()
       .getId();
-
-    String processTaskId = caseService
-        .createCaseExecutionQuery()
-        .activityId("PI_ProcessTask_1")
-        .singleResult()
-        .getId();
-
-    // when
-    caseService
-      .withCaseExecution(processTaskId)
-      .manualStart();
 
     // then
     HistoricProcessInstanceQuery query = historyService.createHistoricProcessInstanceQuery();
@@ -770,14 +797,6 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
   public void testQueryBySuperCaseInstanceId() {
     String superCaseInstanceId = caseService.createCaseInstanceByKey("oneProcessTaskCase").getId();
 
-    String processTaskId = caseService
-        .createCaseExecutionQuery()
-        .activityId("PI_ProcessTask_1")
-        .singleResult()
-        .getId();
-
-    caseService.manuallyStartCaseExecution(processTaskId);
-
     HistoricProcessInstanceQuery query = historyService
         .createHistoricProcessInstanceQuery()
         .superCaseInstanceId(superCaseInstanceId);
@@ -852,13 +871,11 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
   public void testSuperCaseInstanceIdProperty() {
     String superCaseInstanceId = caseService.createCaseInstanceByKey("oneProcessTaskCase").getId();
 
-    String processTaskId = caseService
+    caseService
         .createCaseExecutionQuery()
         .activityId("PI_ProcessTask_1")
         .singleResult()
         .getId();
-
-    caseService.manuallyStartCaseExecution(processTaskId);
 
     HistoricProcessInstance instance = historyService
         .createHistoricProcessInstanceQuery()
@@ -913,6 +930,21 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
 
     assertNull(historicProcessInstance.getEndTime());
     assertNull(historicProcessInstance.getDurationInMillis());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml")
+  public void testRetrieveProcessDefinitionName() {
+
+    // given
+    String processInstanceId = runtimeService.startProcessInstanceByKey("oneTaskProcess").getId();
+
+    // when
+    HistoricProcessInstance historicProcessInstance = historyService.createHistoricProcessInstanceQuery()
+        .processInstanceId(processInstanceId)
+        .singleResult();
+
+    // then
+    assertEquals("The One Task Process", historicProcessInstance.getProcessDefinitionName());
   }
 
 }

@@ -20,7 +20,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.logging.Level;
 
 import org.camunda.bpm.application.InvocationContext;
 import org.camunda.bpm.application.ProcessApplicationReference;
@@ -55,7 +54,6 @@ import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayManager;
 import org.camunda.bpm.engine.impl.persistence.entity.CommentManager;
 import org.camunda.bpm.engine.impl.persistence.entity.DeploymentManager;
 import org.camunda.bpm.engine.impl.persistence.entity.EventSubscriptionManager;
-import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ExternalTaskManager;
 import org.camunda.bpm.engine.impl.persistence.entity.FilterManager;
@@ -75,6 +73,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.IdentityInfoManager;
 import org.camunda.bpm.engine.impl.persistence.entity.IdentityLinkManager;
 import org.camunda.bpm.engine.impl.persistence.entity.IncidentManager;
 import org.camunda.bpm.engine.impl.persistence.entity.JobDefinitionManager;
+import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.JobManager;
 import org.camunda.bpm.engine.impl.persistence.entity.MeterLogManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionManager;
@@ -84,10 +83,10 @@ import org.camunda.bpm.engine.impl.persistence.entity.ResourceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.StatisticsManager;
 import org.camunda.bpm.engine.impl.persistence.entity.TableDataManager;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskManager;
+import org.camunda.bpm.engine.impl.persistence.entity.TaskReportManager;
 import org.camunda.bpm.engine.impl.persistence.entity.TenantManager;
 import org.camunda.bpm.engine.impl.persistence.entity.UserOperationLogManager;
 import org.camunda.bpm.engine.impl.persistence.entity.VariableInstanceManager;
-import org.camunda.bpm.engine.impl.pvm.runtime.AtomicOperation;
 
 /**
  * @author Tom Baeyens
@@ -101,6 +100,7 @@ public class CommandContext {
   protected boolean authorizationCheckEnabled = true;
   protected boolean userOperationLogEnabled = true;
   protected boolean tenantCheckEnabled = true;
+  protected boolean restrictUserOperationLogToAuthenticatedUsers;
 
   protected TransactionContext transactionContext;
   protected Map<Class< ? >, SessionFactory> sessionFactories;
@@ -109,10 +109,7 @@ public class CommandContext {
   protected ProcessEngineConfigurationImpl processEngineConfiguration;
   protected FailedJobCommandFactory failedJobCommandFactory;
 
-  protected List<AtomicOperationInvocation> queuedInvocations = new ArrayList<AtomicOperationInvocation>();
-  protected BpmnStackTrace bpmnStackTrace = new BpmnStackTrace();
-
-  protected boolean isExecuting = false;
+  protected JobEntity currentJob = null;
 
   protected List<CommandContextListener> commandContextListeners = new LinkedList<CommandContextListener>();
 
@@ -125,73 +122,7 @@ public class CommandContext {
     this.failedJobCommandFactory = processEngineConfiguration.getFailedJobCommandFactory();
     sessionFactories = processEngineConfiguration.getSessionFactories();
     this.transactionContext = transactionContextFactory.openTransactionContext(this);
-  }
-
-  public void performOperation(AtomicOperation executionOperation, ExecutionEntity execution) {
-    performOperation(executionOperation, execution, false);
-  }
-
-  public void performOperationAsync(AtomicOperation executionOperation, ExecutionEntity execution) {
-    performOperation(executionOperation, execution, true);
-  }
-
-  public void performOperation(final AtomicOperation executionOperation, final ExecutionEntity execution, final boolean performAsync) {
-    AtomicOperationInvocation invocation = new AtomicOperationInvocation(executionOperation, execution, performAsync);
-    queuedInvocations.add(0, invocation);
-    performNext();
-  }
-
-  protected void performNext() {
-    AtomicOperationInvocation nextInvocation = queuedInvocations.get(0);
-
-    if(nextInvocation.operation.isAsyncCapable() && isExecuting) {
-      // will be picked up by while loop below
-      return;
-    }
-
-    ProcessApplicationReference targetProcessApplication = getTargetProcessApplication(nextInvocation.execution);
-    if(requiresContextSwitch(targetProcessApplication)) {
-
-      Context.executeWithinProcessApplication(new Callable<Void>() {
-        public Void call() throws Exception {
-          performNext();
-          return null;
-        }
-
-      }, targetProcessApplication, new InvocationContext(nextInvocation.execution));
-    }
-    else {
-      if(!nextInvocation.operation.isAsyncCapable()) {
-        // if operation is not async capable, perform right away.
-        invokeNext();
-      }
-      else {
-        try  {
-          isExecuting = true;
-          while (!queuedInvocations.isEmpty()) {
-            // assumption: all operations are executed within the same process application...
-            nextInvocation = queuedInvocations.get(0);
-            invokeNext();
-          }
-        }
-        finally {
-          isExecuting = false;
-        }
-      }
-    }
-  }
-
-  protected void invokeNext() {
-    AtomicOperationInvocation invocation = queuedInvocations.remove(0);
-    try {
-      invocation.execute(bpmnStackTrace);
-    }
-    catch(RuntimeException e) {
-      // log bpmn stacktrace
-      bpmnStackTrace.printStackTrace(Context.getProcessEngineConfiguration().isBpmnStacktraceVerbose());
-      // rethrow
-      throw e;
-    }
+    this.restrictUserOperationLogToAuthenticatedUsers = processEngineConfiguration.isRestrictUserOperationLogToAuthenticatedUsers();
   }
 
   public void performOperation(final CmmnAtomicOperation executionOperation, final CaseExecutionEntity execution) {
@@ -220,10 +151,6 @@ public class CommandContext {
 
   public ProcessEngineConfigurationImpl getProcessEngineConfiguration() {
     return processEngineConfiguration;
-  }
-
-  protected ProcessApplicationReference getTargetProcessApplication(ExecutionEntity execution) {
-    return ProcessApplicationContextUtil.getTargetProcessApplication(execution);
   }
 
   protected ProcessApplicationReference getTargetProcessApplication(CaseExecutionEntity execution) {
@@ -265,7 +192,6 @@ public class CommandContext {
             // fire command failed (must not fail itself)
             fireCommandFailed(commandInvocationContext.getThrowable());
 
-            Level loggingLevel = Level.SEVERE;
             if (shouldLogInfo(commandInvocationContext.getThrowable())) {
               LOG.infoException(commandInvocationContext.getThrowable());
             }
@@ -376,6 +302,10 @@ public class CommandContext {
 
   public TaskManager getTaskManager() {
     return getSession(TaskManager.class);
+  }
+
+  public TaskReportManager getTaskReportManager() {
+    return getSession(TaskReportManager.class);
   }
 
   public MeterLogManager getMeterLogManager() {
@@ -656,4 +586,19 @@ public class CommandContext {
     return tenantCheckEnabled;
   }
 
+  public JobEntity getCurrentJob() {
+    return currentJob;
+  }
+
+  public void setCurrentJob(JobEntity currentJob) {
+    this.currentJob = currentJob;
+  }
+
+  public boolean isRestrictUserOperationLogToAuthenticatedUsers() {
+    return restrictUserOperationLogToAuthenticatedUsers;
+  }
+
+  public void setRestrictUserOperationLogToAuthenticatedUsers(boolean restrictUserOperationLogToAuthenticatedUsers) {
+    this.restrictUserOperationLogToAuthenticatedUsers = restrictUserOperationLogToAuthenticatedUsers;
+  }
 }

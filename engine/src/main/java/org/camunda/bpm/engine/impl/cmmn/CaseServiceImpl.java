@@ -263,4 +263,11 @@ public class CaseServiceImpl extends ServiceImpl implements CaseService {
     withCaseExecution(caseInstanceId).close();
   }
 
+  public void terminateCaseExecution(String caseExecutionId) {
+    withCaseExecution(caseExecutionId).terminate();
+  }
+
+  public void terminateCaseExecution(String caseExecutionId, Map<String, Object> variables) {
+    withCaseExecution(caseExecutionId).setVariables(variables).terminate();
+  }
 }

@@ -13,12 +13,20 @@
 package org.camunda.bpm.engine.rest.impl;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.ProcessEngine;
+import org.camunda.bpm.engine.RuntimeService;
+import org.camunda.bpm.engine.batch.Batch;
+import org.camunda.bpm.engine.exception.NullValueException;
+import org.camunda.bpm.engine.impl.util.EnsureUtil;
 import org.camunda.bpm.engine.rest.ProcessInstanceRestService;
 import org.camunda.bpm.engine.rest.dto.CountResultDto;
+import org.camunda.bpm.engine.rest.dto.batch.BatchDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceQueryDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceSuspensionStateDto;
+import org.camunda.bpm.engine.rest.dto.runtime.SetJobRetriesByProcessDto;
+import org.camunda.bpm.engine.rest.dto.runtime.batch.DeleteProcessInstancesDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.sub.runtime.ProcessInstanceResource;
 import org.camunda.bpm.engine.rest.sub.runtime.impl.ProcessInstanceResourceImpl;
@@ -108,6 +116,53 @@ public class ProcessInstanceRestServiceImpl extends AbstractRestProcessEngineAwa
     }
 
     dto.updateSuspensionState(getProcessEngine());
+  }
+
+  @Override
+  public BatchDto deleteAsync(DeleteProcessInstancesDto dto) {
+    RuntimeService runtimeService = getProcessEngine().getRuntimeService();
+
+    ProcessInstanceQuery processInstanceQuery = null;
+    if (dto.getProcessInstanceQuery() != null) {
+      processInstanceQuery = dto.getProcessInstanceQuery().toQuery(getProcessEngine());
+    }
+
+    try {
+      Batch batch = runtimeService.deleteProcessInstancesAsync(
+        dto.getProcessInstanceIds(),
+        processInstanceQuery,
+        dto.getDeleteReason());
+      return BatchDto.fromBatch(batch);
+    }
+    catch (BadUserRequestException e) {
+      throw new InvalidRequestException(Status.BAD_REQUEST, e.getMessage());
+    }
+  }
+
+
+  @Override
+  public BatchDto setRetriesByProcess(SetJobRetriesByProcessDto setJobRetriesDto) {
+    try {
+      EnsureUtil.ensureNotNull("setJobRetriesDto", setJobRetriesDto);
+      EnsureUtil.ensureNotNull("retries", setJobRetriesDto.getRetries());
+    } catch (NullValueException e) {
+      throw new InvalidRequestException(Status.BAD_REQUEST, e.getMessage());
+    }
+    ProcessInstanceQuery processInstanceQuery = null;
+    if (setJobRetriesDto.getProcessInstanceQuery() != null) {
+      processInstanceQuery = setJobRetriesDto.getProcessInstanceQuery().toQuery(getProcessEngine());
+    }
+
+    try {
+      Batch batch = getProcessEngine().getManagementService().setJobRetriesAsync(
+          setJobRetriesDto.getProcessInstances(),
+          processInstanceQuery,
+          setJobRetriesDto.getRetries().intValue()
+      );
+      return BatchDto.fromBatch(batch);
+    } catch (BadUserRequestException e) {
+      throw new InvalidRequestException(Status.BAD_REQUEST, e.getMessage());
+    }
   }
 
 }

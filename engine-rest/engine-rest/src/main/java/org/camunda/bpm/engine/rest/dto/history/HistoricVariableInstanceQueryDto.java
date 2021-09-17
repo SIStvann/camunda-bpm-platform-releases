@@ -52,6 +52,8 @@ public class HistoricVariableInstanceQueryDto extends AbstractQueryDto<HistoricV
   protected String[] taskIdIn;
   protected String[] activityInstanceIdIn;
   protected String[] caseExecutionIdIn;
+  protected String[] caseActivityIdIn;
+  protected String[] processInstanceIdIn;
   protected List<String> tenantIds;
 
   public HistoricVariableInstanceQueryDto() {
@@ -96,6 +98,11 @@ public class HistoricVariableInstanceQueryDto extends AbstractQueryDto<HistoricV
     this.taskIdIn = taskIdIn;
   }
 
+  @CamundaQueryParam(value="processInstanceIdIn", converter = StringArrayConverter.class)
+  public void setProcessInstanceIdIn(String[] processInstanceIdIn) {
+    this.processInstanceIdIn = processInstanceIdIn;
+  }
+
   @CamundaQueryParam(value="activityInstanceIdIn", converter = StringArrayConverter.class)
   public void setActivityInstanceIdIn(String[] activityInstanceIdIn) {
     this.activityInstanceIdIn = activityInstanceIdIn;
@@ -104,6 +111,11 @@ public class HistoricVariableInstanceQueryDto extends AbstractQueryDto<HistoricV
   @CamundaQueryParam(value="caseExecutionIdIn", converter = StringArrayConverter.class)
   public void setCaseExecutionIdIn(String[] caseExecutionIdIn) {
     this.caseExecutionIdIn = caseExecutionIdIn;
+  }
+
+  @CamundaQueryParam(value="caseActivityIdIn", converter = StringArrayConverter.class)
+  public void setCaseActivityIdIn(String[] caseActivityIdIn) {
+    this.caseActivityIdIn = caseActivityIdIn;
   }
 
   @CamundaQueryParam(value = "tenantIdIn", converter = StringListConverter.class)
@@ -149,11 +161,17 @@ public class HistoricVariableInstanceQueryDto extends AbstractQueryDto<HistoricV
     if (taskIdIn != null && taskIdIn.length > 0) {
       query.taskIdIn(taskIdIn);
     }
+    if (processInstanceIdIn != null && processInstanceIdIn.length > 0) {
+      query.processInstanceIdIn(processInstanceIdIn);
+    }
     if (activityInstanceIdIn != null && activityInstanceIdIn.length > 0) {
       query.activityInstanceIdIn(activityInstanceIdIn);
     }
     if (caseExecutionIdIn != null && caseExecutionIdIn.length > 0) {
       query.caseExecutionIdIn(caseExecutionIdIn);
+    }
+    if (caseActivityIdIn != null && caseActivityIdIn.length > 0) {
+      query.caseActivityIdIn(caseActivityIdIn);
     }
     if (tenantIds != null && !tenantIds.isEmpty()) {
       query.tenantIdIn(tenantIds.toArray(new String[tenantIds.size()]));

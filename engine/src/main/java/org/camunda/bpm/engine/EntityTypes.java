@@ -38,5 +38,6 @@ public class EntityTypes {
   public static final String TENANT = "Tenant";
   public static final String TENANT_MEMBERSHIP = "TenantMembership";
   public static final String BATCH = "Batch";
+  public static final String DECISION_REQUIREMENTS_DEFINITION = "DecisionRequirementsDefinition";
 
 }

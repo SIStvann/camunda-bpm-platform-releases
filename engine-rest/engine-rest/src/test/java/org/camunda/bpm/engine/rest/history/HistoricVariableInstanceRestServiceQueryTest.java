@@ -537,6 +537,39 @@ public class HistoricVariableInstanceRestServiceQueryTest extends AbstractRestSe
   }
 
   @Test
+  public void testHistoricVariableQueryByProcessInstanceIdIn () {
+    String aProcessInstanceId = "aProcessInstanceId";
+    String anotherProcessInstanceId = "anotherProcessInstanceId";
+
+    given()
+            .queryParam("processInstanceIdIn", aProcessInstanceId + "," + anotherProcessInstanceId)
+            .then().expect().statusCode(Status.OK.getStatusCode())
+            .when().get(HISTORIC_VARIABLE_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).processInstanceIdIn(aProcessInstanceId, anotherProcessInstanceId);
+  }
+
+  @Test
+  public void testHistoricVariableQueryByProcessInstanceIdInAsPOST() {
+    String aProcessInstanceId = "aProcessInstanceId";
+    String anotherProcessInstanceId = "anotherProcessInstanceId";
+
+    List<String> processInstanceIdIn= new ArrayList<String>();
+    processInstanceIdIn.add(aProcessInstanceId);
+    processInstanceIdIn.add(anotherProcessInstanceId);
+    processInstanceIdIn.add(null);
+
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("processInstanceIdIn", processInstanceIdIn);
+
+    given().contentType(POST_JSON_CONTENT_TYPE).body(json)
+            .then().expect().statusCode(Status.OK.getStatusCode())
+            .when().post(HISTORIC_VARIABLE_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).processInstanceIdIn(aProcessInstanceId, anotherProcessInstanceId,null);
+  }
+
+  @Test
   public void testHistoricVariableQueryByActivityInstanceIds() {
       String anActivityInstanceId = "anActivityInstanceId";
       String anotherActivityInstanceId = "anotherActivityInstanceId";
@@ -680,6 +713,37 @@ public class HistoricVariableInstanceRestServiceQueryTest extends AbstractRestSe
 
     assertThat(returnedTenantId1).isEqualTo(MockProvider.EXAMPLE_TENANT_ID);
     assertThat(returnedTenantId2).isEqualTo(MockProvider.ANOTHER_EXAMPLE_TENANT_ID);
+  }
+
+  @Test
+  public void testHistoricVariableQueryByCaseActivityIds() {
+
+    String caseExecutionIds = MockProvider.EXAMPLE_CASE_ACTIVITY_ID + "," + MockProvider.ANOTHER_EXAMPLE_CASE_ACTIVITY_ID;
+
+    given()
+      .queryParam("caseActivityIdIn", caseExecutionIds)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(HISTORIC_VARIABLE_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).caseActivityIdIn(MockProvider.EXAMPLE_CASE_ACTIVITY_ID, MockProvider.ANOTHER_EXAMPLE_CASE_ACTIVITY_ID);
+  }
+
+  @Test
+  public void testHistoricVariableQueryByCaseActivityIdsAsPost() {
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("caseActivityIdIn", Arrays.asList(MockProvider.EXAMPLE_CASE_ACTIVITY_ID, MockProvider.ANOTHER_EXAMPLE_CASE_ACTIVITY_ID));
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(json)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(HISTORIC_VARIABLE_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).caseActivityIdIn(MockProvider.EXAMPLE_CASE_ACTIVITY_ID, MockProvider.ANOTHER_EXAMPLE_CASE_ACTIVITY_ID);
   }
 
   private List<HistoricVariableInstance> createMockHistoricVariableInstancesTwoTenants() {

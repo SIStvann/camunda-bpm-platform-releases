@@ -5,6 +5,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.junit.Assert.assertThat;
 
 import java.util.Arrays;
+import java.util.List;
 
 import org.camunda.bpm.engine.CaseService;
 import org.camunda.bpm.engine.DecisionService;
@@ -15,17 +16,13 @@ import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.TaskService;
-import org.camunda.bpm.engine.history.HistoricCaseInstanceQuery;
-import org.camunda.bpm.engine.history.HistoricDecisionInstanceQuery;
-import org.camunda.bpm.engine.history.HistoricJobLog;
-import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
-import org.camunda.bpm.engine.history.HistoricTaskInstance;
-import org.camunda.bpm.engine.history.HistoricTaskInstanceQuery;
+import org.camunda.bpm.engine.history.*;
 import org.camunda.bpm.engine.runtime.CaseInstanceBuilder;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.ProcessEngineRule;
 import org.camunda.bpm.engine.test.RequiredHistoryLevel;
 import org.camunda.bpm.engine.test.util.ProcessEngineTestRule;
+import org.camunda.bpm.engine.test.util.ProvidedProcessEngineRule;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.model.bpmn.Bpmn;
@@ -48,7 +45,7 @@ public class MultiTenancyHistoricDataCmdsTenantCheckTest {
 
   protected static final String PROCESS_DEFINITION_KEY = "failingProcess";
 
-  protected ProcessEngineRule engineRule = new ProcessEngineRule(true);
+  protected ProcessEngineRule engineRule = new ProvidedProcessEngineRule();
 
   protected ProcessEngineTestRule testRule = new ProcessEngineTestRule(engineRule);
 
@@ -78,7 +75,7 @@ public class MultiTenancyHistoricDataCmdsTenantCheckTest {
       .endEvent()
       .done();
 
-  protected static final String CMMN_PROCESS = "org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn";
+  protected static final String CMMN_PROCESS_WITH_MANUAL_ACTIVATION = "org/camunda/bpm/engine/test/api/cmmn/oneTaskCaseWithManualActivation.cmmn";
 
   protected static final String DMN = "org/camunda/bpm/engine/test/api/multitenancy/simpleDecisionTable.dmn";
 
@@ -186,7 +183,7 @@ public class MultiTenancyHistoricDataCmdsTenantCheckTest {
 
   @Test
   public void failToDeleteHistoricCaseInstanceNoAuthenticatedTenants() {
-    testRule.deployForTenant(TENANT_ONE, CMMN_PROCESS);
+    testRule.deployForTenant(TENANT_ONE, CMMN_PROCESS_WITH_MANUAL_ACTIVATION);
     String caseInstanceId = createAndCloseCaseInstance(null);
 
     identityService.setAuthentication("user", null, null);
@@ -199,7 +196,7 @@ public class MultiTenancyHistoricDataCmdsTenantCheckTest {
 
   @Test
   public void deleteHistoricCaseInstanceWithAuthenticatedTenant() {
-    testRule.deployForTenant(TENANT_ONE, CMMN_PROCESS);
+    testRule.deployForTenant(TENANT_ONE, CMMN_PROCESS_WITH_MANUAL_ACTIVATION);
     String caseInstanceId = createAndCloseCaseInstance(null);
 
     identityService.setAuthentication("user", null, Arrays.asList(TENANT_ONE));
@@ -215,8 +212,8 @@ public class MultiTenancyHistoricDataCmdsTenantCheckTest {
 
   @Test
   public void deleteHistoricCaseInstanceWithDisabledTenantCheck() {
-    testRule.deployForTenant(TENANT_ONE, CMMN_PROCESS);
-    testRule.deployForTenant(TENANT_TWO, CMMN_PROCESS);
+    testRule.deployForTenant(TENANT_ONE, CMMN_PROCESS_WITH_MANUAL_ACTIVATION);
+    testRule.deployForTenant(TENANT_TWO, CMMN_PROCESS_WITH_MANUAL_ACTIVATION);
 
     String caseInstanceIdOne = createAndCloseCaseInstance(TENANT_ONE);
     String caseInstanceIdTwo = createAndCloseCaseInstance(TENANT_TWO);
@@ -239,7 +236,7 @@ public class MultiTenancyHistoricDataCmdsTenantCheckTest {
 
     identityService.setAuthentication("user", null, null);
 
-    historyService.deleteHistoricDecisionInstance(decisionDefinitionId);
+    historyService.deleteHistoricDecisionInstanceByDefinitionId(decisionDefinitionId);
 
     identityService.clearAuthentication();
 
@@ -255,7 +252,7 @@ public class MultiTenancyHistoricDataCmdsTenantCheckTest {
 
     identityService.setAuthentication("user", null, Arrays.asList(TENANT_ONE));
 
-    historyService.deleteHistoricDecisionInstance(decisionDefinitionId);
+    historyService.deleteHistoricDecisionInstanceByDefinitionId(decisionDefinitionId);
 
     identityService.clearAuthentication();
 
@@ -275,10 +272,80 @@ public class MultiTenancyHistoricDataCmdsTenantCheckTest {
     identityService.setAuthentication("user", null, null);
     processEngineConfiguration.setTenantCheckEnabled(false);
 
-    historyService.deleteHistoricDecisionInstance(decisionDefinitionIdOne);
-    historyService.deleteHistoricDecisionInstance(decisionDefinitionIdTwo);
+    historyService.deleteHistoricDecisionInstanceByDefinitionId(decisionDefinitionIdOne);
+    historyService.deleteHistoricDecisionInstanceByDefinitionId(decisionDefinitionIdTwo);
 
     HistoricDecisionInstanceQuery query = historyService.createHistoricDecisionInstanceQuery();
+    assertThat(query.count(), is(0L));
+  }
+
+  @Test
+  public void failToDeleteHistoricDecisionInstanceByInstanceIdNoAuthenticatedTenants() {
+
+    // given
+    testRule.deployForTenant(TENANT_ONE, DMN);
+    evaluateDecisionTable(null);
+
+    HistoricDecisionInstanceQuery query =
+        historyService.createHistoricDecisionInstanceQuery();
+    HistoricDecisionInstance historicDecisionInstance = query.includeInputs().includeOutputs().singleResult();
+
+    // when
+    identityService.setAuthentication("user", null, null);
+
+    // then
+    thrown.expect(ProcessEngineException.class);
+    thrown.expectMessage("Cannot delete the historic decision instance");
+
+    historyService.deleteHistoricDecisionInstanceByInstanceId(historicDecisionInstance.getId());
+  }
+
+  @Test
+  public void deleteHistoricDecisionInstanceByInstanceIdWithAuthenticatedTenant() {
+
+    // given
+    testRule.deployForTenant(TENANT_ONE, DMN);
+    evaluateDecisionTable(null);
+
+    HistoricDecisionInstanceQuery query =
+        historyService.createHistoricDecisionInstanceQuery();
+    HistoricDecisionInstance historicDecisionInstance = query.includeInputs().includeOutputs().singleResult();
+
+    // when
+    identityService.setAuthentication("user", null, Arrays.asList(TENANT_ONE));
+    historyService.deleteHistoricDecisionInstanceByInstanceId(historicDecisionInstance.getId());
+
+    // then
+    identityService.clearAuthentication();
+    assertThat(query.count(), is(0L));
+  }
+
+  @Test
+  public void deleteHistoricDecisionInstanceByInstanceIdWithDisabledTenantCheck() {
+
+    // given
+    testRule.deployForTenant(TENANT_ONE, DMN);
+    testRule.deployForTenant(TENANT_TWO, DMN);
+
+    evaluateDecisionTable(TENANT_ONE);
+    evaluateDecisionTable(TENANT_TWO);
+
+    HistoricDecisionInstanceQuery query =
+        historyService.createHistoricDecisionInstanceQuery();
+    List<HistoricDecisionInstance> historicDecisionInstances = query.includeInputs().includeOutputs().list();
+    assertThat(historicDecisionInstances.size(), is(2));
+
+    // when user has no authorization
+    identityService.setAuthentication("user", null, null);
+    // and when tenant check is disabled
+    processEngineConfiguration.setTenantCheckEnabled(false);
+    // and when all decision instances are deleted
+    for(HistoricDecisionInstance in: historicDecisionInstances){
+      historyService.deleteHistoricDecisionInstanceByInstanceId(in.getId());
+    }
+
+    // then
+    identityService.clearAuthentication();
     assertThat(query.count(), is(0L));
   }
 

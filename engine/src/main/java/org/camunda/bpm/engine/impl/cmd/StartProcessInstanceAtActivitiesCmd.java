@@ -12,6 +12,7 @@
  */
 package org.camunda.bpm.engine.impl.cmd;
 
+
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotEmpty;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
@@ -26,17 +27,20 @@ import org.camunda.bpm.engine.impl.core.model.CoreModelElement;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.ExecutionVariableSnapshotObserver;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.ProcessInstanceWithVariablesImpl;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 import org.camunda.bpm.engine.impl.pvm.process.ProcessDefinitionImpl;
 import org.camunda.bpm.engine.impl.pvm.process.TransitionImpl;
-import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.engine.runtime.ProcessInstanceWithVariables;
+import org.camunda.bpm.engine.variable.VariableMap;
 
 /**
  * @author Thorben Lindhauer
  *
  */
-public class StartProcessInstanceAtActivitiesCmd implements Command<ProcessInstance> {
+public class StartProcessInstanceAtActivitiesCmd implements Command<ProcessInstanceWithVariables> {
 
   private final static CommandLogger LOG = ProcessEngineLogger.CMD_LOGGER;
 
@@ -46,7 +50,7 @@ public class StartProcessInstanceAtActivitiesCmd implements Command<ProcessInsta
     this.instantiationBuilder = instantiationBuilder;
   }
 
-  public ProcessInstance execute(CommandContext commandContext) {
+  public ProcessInstanceWithVariables execute(CommandContext commandContext) {
 
     ProcessDefinitionEntity processDefinition = new GetDeployedProcessDefinitionCmd(instantiationBuilder, false).execute(commandContext);
 
@@ -64,13 +68,11 @@ public class StartProcessInstanceAtActivitiesCmd implements Command<ProcessInsta
     ExecutionEntity processInstance = processDefinition
         .createProcessInstance(instantiationBuilder.getBusinessKey(), instantiationBuilder.getCaseInstanceId(), initialActivity);
     processInstance.setSkipCustomListeners(modificationBuilder.isSkipCustomListeners());
-    processInstance.startWithoutExecuting();
+    VariableMap variables = modificationBuilder.getProcessVariables();
 
-    processInstance.setActivity(null);
-    processInstance.setActivityInstanceId(processInstance.getId());
+    final ExecutionVariableSnapshotObserver variablesListener = new ExecutionVariableSnapshotObserver(processInstance);
 
-    // set variables
-    processInstance.setVariables(modificationBuilder.getProcessVariables());
+    processInstance.startWithoutExecuting(variables);
 
     // prevent ending of the process instance between instructions
     processInstance.setPreserveScope(true);
@@ -94,8 +96,9 @@ public class StartProcessInstanceAtActivitiesCmd implements Command<ProcessInsta
       processInstance.propagateEnd();
     }
 
-    return processInstance;
+    return new ProcessInstanceWithVariablesImpl(processInstance, variablesListener.getVariables());
   }
+
 
   /**
    * get the activity that is started by the first instruction, if exists;

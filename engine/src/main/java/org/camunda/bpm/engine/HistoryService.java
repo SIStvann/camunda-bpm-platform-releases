@@ -16,18 +16,21 @@ package org.camunda.bpm.engine;
 
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resources;
+import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.batch.history.HistoricBatchQuery;
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
 import org.camunda.bpm.engine.history.HistoricActivityInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricActivityStatisticsQuery;
 import org.camunda.bpm.engine.history.HistoricCaseActivityInstance;
 import org.camunda.bpm.engine.history.HistoricCaseActivityInstanceQuery;
+import org.camunda.bpm.engine.history.HistoricCaseActivityStatisticsQuery;
 import org.camunda.bpm.engine.history.HistoricCaseInstance;
 import org.camunda.bpm.engine.history.HistoricCaseInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricDetailQuery;
+import org.camunda.bpm.engine.history.HistoricIdentityLinkLog;
 import org.camunda.bpm.engine.history.HistoricIdentityLinkLogQuery;
 import org.camunda.bpm.engine.history.HistoricIncident;
 import org.camunda.bpm.engine.history.HistoricIncidentQuery;
@@ -38,6 +41,7 @@ import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceReport;
 import org.camunda.bpm.engine.history.HistoricTaskInstance;
 import org.camunda.bpm.engine.history.HistoricTaskInstanceQuery;
+import org.camunda.bpm.engine.history.HistoricTaskInstanceReport;
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
 import org.camunda.bpm.engine.history.HistoricVariableInstanceQuery;
 import org.camunda.bpm.engine.history.NativeHistoricActivityInstanceQuery;
@@ -48,6 +52,9 @@ import org.camunda.bpm.engine.history.NativeHistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.history.NativeHistoricTaskInstanceQuery;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.history.UserOperationLogQuery;
+import org.camunda.bpm.engine.history.HistoricDecisionInstanceStatisticsQuery;
+
+import java.util.List;
 
 /**
  * Service exposing information about ongoing and past process instances.  This is different
@@ -72,6 +79,11 @@ public interface HistoryService {
    * Query for the number of historic activity instances aggregated by activities of a single process definition.
    */
   HistoricActivityStatisticsQuery createHistoricActivityStatisticsQuery(String processDefinitionId);
+
+  /**
+   * Query for the number of historic case activity instances aggregated by case activities of a single case definition.
+   */
+  HistoricCaseActivityStatisticsQuery createHistoricCaseActivityStatisticsQuery(String caseDefinitionId);
 
   /** Creates a new programmatic query to search for {@link HistoricTaskInstance}s. */
   HistoricTaskInstanceQuery createHistoricTaskInstanceQuery();
@@ -126,6 +138,54 @@ public interface HistoryService {
   void deleteHistoricProcessInstance(String processInstanceId);
 
   /**
+   * Deletes historic process instances. All historic activities, historic task and
+   * historic details (variable updates, form properties) are deleted as well.
+   *
+   * @throws BadUserRequestException
+   *          when no process instances is found with the given ids or ids are null.
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}.
+   */
+  void deleteHistoricProcessInstances(List<String> processInstanceIds);
+
+  /**
+   * Deletes historic process instances asynchronously. All historic activities, historic task and
+   * historic details (variable updates, form properties) are deleted as well.
+   *
+   * @throws BadUserRequestException
+   *          when no process instances is found with the given ids or ids are null.
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}
+   *          or no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   */
+  Batch deleteHistoricProcessInstancesAsync(List<String> processInstanceIds, String deleteReason);
+
+  /**
+   * Deletes historic process instances asynchronously based on query. All historic activities, historic task and
+   * historic details (variable updates, form properties) are deleted as well.
+   *
+   * @throws BadUserRequestException
+   *          when no process instances is found with the given ids or ids are null.
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}
+   *          or no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   */
+  Batch deleteHistoricProcessInstancesAsync(HistoricProcessInstanceQuery query, String deleteReason);
+
+  /**
+   * Deletes historic process instances asynchronously based on query and a list of process instances. Query result and
+   * list of ids will be merged.
+   * All historic activities, historic task and historic details (variable updates, form properties) are deleted as well.
+   *
+   * @throws BadUserRequestException
+   *          when no process instances is found with the given ids or ids are null.
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}
+   *          or no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   */
+  Batch deleteHistoricProcessInstancesAsync(List<String> processInstanceIds, HistoricProcessInstanceQuery query, String deleteReason);
+
+  /**
    * Deletes a user operation log entry. Does not cascade to any related entities.
    *
    * @throws AuthorizationException
@@ -143,13 +203,42 @@ public interface HistoryService {
    * Deletes historic decision instances of a decision definition. All historic
    * decision inputs and outputs are deleted as well.
    *
+   * @deprecated Note that this method name is not expressive enough, because it is also possible to delete the historic
+   * decision instance by the instance id. Therefore use {@link #deleteHistoricDecisionInstanceByDefinitionId} instead
+   * to delete the historic decision instance by the definition id.
+   *
    * @param decisionDefinitionId
    *          the id of the decision definition
    *
    * @throws AuthorizationException
    *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#DECISION_DEFINITION}.
    */
+  @Deprecated
   void deleteHistoricDecisionInstance(String decisionDefinitionId);
+
+  /**
+   * Deletes historic decision instances of a decision definition. All historic
+   * decision inputs and outputs are deleted as well.
+   *
+   * @param decisionDefinitionId
+   *          the id of the decision definition
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#DECISION_DEFINITION}.
+   */
+  void deleteHistoricDecisionInstanceByDefinitionId(String decisionDefinitionId);
+
+
+  /**
+   * Deletes historic decision instances by its id. All historic
+   * decision inputs and outputs are deleted as well.
+   * 
+   * @param historicDecisionInstanceId
+   *          the id of the historic decision instance
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#DECISION_DEFINITION}.
+   */
+  void deleteHistoricDecisionInstanceByInstanceId(String historicDecisionInstanceId);
 
   /**
    * creates a native query to search for {@link HistoricProcessInstance}s via SQL
@@ -211,6 +300,13 @@ public interface HistoryService {
   HistoricProcessInstanceReport createHistoricProcessInstanceReport();
 
   /**
+   * Creates a new programmatic query to create a historic task instance report.
+   *
+   * @since 7.6
+   */
+  HistoricTaskInstanceReport createHistoricTaskInstanceReport();
+
+  /**
    * Creates a query to search for {@link org.camunda.bpm.engine.batch.history.HistoricBatch} instances.
    *
    * @since 7.5
@@ -227,4 +323,12 @@ public interface HistoryService {
    */
   void deleteHistoricBatch(String id);
 
+
+  /**
+   * Query for the statistics of DRD evaluation.
+   *
+   * @param decisionRequirementsDefinitionId - id of decision requirement definition
+   * @since 7.6
+   */
+  HistoricDecisionInstanceStatisticsQuery createHistoricDecisionInstanceStatisticsQuery(String decisionRequirementsDefinitionId);
 }

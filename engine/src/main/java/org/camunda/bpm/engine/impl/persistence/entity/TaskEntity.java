@@ -12,20 +12,6 @@
  */
 package org.camunda.bpm.engine.impl.persistence.entity;
 
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
-
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
 import org.camunda.bpm.engine.ProcessEngineServices;
 import org.camunda.bpm.engine.delegate.DelegateCaseExecution;
 import org.camunda.bpm.engine.delegate.DelegateTask;
@@ -33,7 +19,6 @@ import org.camunda.bpm.engine.delegate.Expression;
 import org.camunda.bpm.engine.delegate.TaskListener;
 import org.camunda.bpm.engine.delegate.VariableScope;
 import org.camunda.bpm.engine.exception.NullValueException;
-import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cfg.auth.ResourceAuthorizationProvider;
@@ -42,12 +27,12 @@ import org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseExecutionEntity;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.core.instance.CoreExecution;
 import org.camunda.bpm.engine.impl.core.variable.CoreVariableInstance;
+import org.camunda.bpm.engine.impl.core.variable.event.VariableEvent;
 import org.camunda.bpm.engine.impl.core.variable.scope.AbstractVariableScope;
 import org.camunda.bpm.engine.impl.core.variable.scope.VariableInstanceFactory;
 import org.camunda.bpm.engine.impl.core.variable.scope.VariableInstanceLifecycleListener;
 import org.camunda.bpm.engine.impl.core.variable.scope.VariableListenerInvocationListener;
 import org.camunda.bpm.engine.impl.core.variable.scope.VariableStore;
-import org.camunda.bpm.engine.impl.core.variable.scope.VariableStore.VariableStoreObserver;
 import org.camunda.bpm.engine.impl.core.variable.scope.VariableStore.VariablesProvider;
 import org.camunda.bpm.engine.impl.db.DbEntity;
 import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
@@ -69,6 +54,21 @@ import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.bpm.model.bpmn.instance.UserTask;
 import org.camunda.bpm.model.xml.instance.ModelElementInstance;
 import org.camunda.bpm.model.xml.type.ModelElementType;
+
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import static org.camunda.bpm.engine.delegate.TaskListener.EVENTNAME_DELETE;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 /**
  * @author Tom Baeyens
@@ -93,6 +93,7 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
   protected DelegationState delegationState;
 
   protected String parentTaskId;
+  protected transient TaskEntity parentTask;
 
   protected String name;
   protected String description;
@@ -135,8 +136,7 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
 
   @SuppressWarnings({ "unchecked" })
   protected transient VariableStore<VariableInstanceEntity> variableStore
-    = new VariableStore<VariableInstanceEntity>(this, Arrays.<VariableStoreObserver<VariableInstanceEntity>>asList(
-        new TaskEntityReferencer(this)));
+    = new VariableStore<VariableInstanceEntity>(this, new TaskEntityReferencer(this));
 
 
   protected transient boolean skipCustomListeners = false;
@@ -276,6 +276,10 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
   }
 
   public void complete() {
+
+    if (TaskListener.EVENTNAME_COMPLETE.equals(this.eventName) || TaskListener.EVENTNAME_DELETE.equals(this.eventName)) {
+      throw LOG.invokeTaskListenerException(new IllegalStateException("invalid task state"));
+    }
     // if the task is associated with a case
     // execution then call complete on the
     // associated case execution. The case
@@ -327,7 +331,7 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
 
   public void delete(String deleteReason, boolean cascade) {
     this.deleteReason = deleteReason;
-    fireEvent(TaskListener.EVENTNAME_DELETE);
+    fireEvent(EVENTNAME_DELETE);
 
     Context
       .getCommandContext()
@@ -480,13 +484,19 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
 
   @Override
   @SuppressWarnings({ "unchecked", "rawtypes" })
-  protected List<VariableInstanceLifecycleListener<CoreVariableInstance>> getVariableInstanceLifecycleListeners(AbstractVariableScope sourceScope) {
+  protected List<VariableInstanceLifecycleListener<CoreVariableInstance>> getVariableInstanceLifecycleListeners() {
     return Arrays.<VariableInstanceLifecycleListener<CoreVariableInstance>>asList(
         (VariableInstanceLifecycleListener) VariableInstanceEntityPersistenceListener.INSTANCE,
         (VariableInstanceLifecycleListener) VariableInstanceSequenceCounterListener.INSTANCE,
-        (VariableInstanceLifecycleListener) VariableInstanceHistoryListener.INSTANCE,
-        (VariableInstanceLifecycleListener) VariableListenerInvocationListener.INSTANCE
+        (VariableInstanceLifecycleListener) VariableInstanceHistoryListener.INSTANCE
       );
+  }
+
+  @Override
+  public void dispatchEvent(VariableEvent variableEvent) {
+    if (execution != null && variableEvent.getVariableInstance().getTaskId() == null) {
+      execution.handleConditionalEventOnVariableChange(variableEvent);
+    }
   }
 
   @Override
@@ -505,6 +515,9 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
     if (getCaseExecution()!=null) {
       return caseExecution;
     }
+    if (getParentTask() != null) {
+      return parentTask;
+    }
     return null;
   }
 
@@ -514,6 +527,15 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
   }
 
   // execution ////////////////////////////////////////////////////////////////
+
+  public TaskEntity getParentTask() {
+    if ( parentTask == null && parentTaskId != null) {
+      this.parentTask = Context.getCommandContext()
+                                .getTaskManager()
+                                .findTaskById(parentTaskId);
+    }
+    return parentTask;
+  }
 
   @Override
   public ExecutionEntity getExecution() {
@@ -1414,5 +1436,4 @@ public class TaskEntity extends AbstractVariableScope implements Task, DelegateT
   public void addIdentityLinkChanges(String type, String oldProperty, String newProperty) {
     identityLinkChanges.add(new PropertyChange(type, oldProperty, newProperty));
   }
-
 }

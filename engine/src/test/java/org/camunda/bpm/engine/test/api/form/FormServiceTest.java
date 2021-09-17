@@ -42,7 +42,6 @@ import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.impl.util.CollectionUtil;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
-import org.camunda.bpm.engine.runtime.CaseExecution;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
@@ -514,9 +513,6 @@ public class FormServiceTest extends PluggableProcessEngineTestCase {
   public void testSubmitTaskFormForCmmnHumanTask() {
     caseService.createCaseInstanceByKey("oneTaskCase");
 
-    CaseExecution caseExecution = caseService.createCaseExecutionQuery().enabled().singleResult();
-    caseService.withCaseExecution(caseExecution.getId()).manualStart();
-
     Task task = taskService.createTaskQuery().singleResult();
 
     String stringValue = "some string";
@@ -971,47 +967,61 @@ public class FormServiceTest extends PluggableProcessEngineTestCase {
   }
 
   @Deployment(resources = {
-      "org/camunda/bpm/engine/test/api/form/util/VacationRequest_deprecated_forms.bpmn20.xml",
-      "org/camunda/bpm/engine/test/api/form/util/approve.form",
-      "org/camunda/bpm/engine/test/api/form/util/request.form",
-      "org/camunda/bpm/engine/test/api/form/util/adjustRequest.form" })
-    public void testTaskFormsWithVacationRequestProcess() {
+    "org/camunda/bpm/engine/test/api/form/util/VacationRequest_deprecated_forms.bpmn20.xml",
+    "org/camunda/bpm/engine/test/api/form/util/approve.form",
+    "org/camunda/bpm/engine/test/api/form/util/request.form",
+    "org/camunda/bpm/engine/test/api/form/util/adjustRequest.form" })
+  public void testTaskFormsWithVacationRequestProcess() {
 
-      // Get start form
-      String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
-      Object startForm = formService.getRenderedStartForm(procDefId, "juel");
-      assertNotNull(startForm);
+    // Get start form
+    String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
+    Object startForm = formService.getRenderedStartForm(procDefId, "juel");
+    assertNotNull(startForm);
 
-      ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery().singleResult();
-      String processDefinitionId = processDefinition.getId();
-      assertEquals("org/camunda/bpm/engine/test/api/form/util/request.form", formService.getStartFormData(processDefinitionId).getFormKey());
+    ProcessDefinition processDefinition = repositoryService.createProcessDefinitionQuery().singleResult();
+    String processDefinitionId = processDefinition.getId();
+    assertEquals("org/camunda/bpm/engine/test/api/form/util/request.form", formService.getStartFormData(processDefinitionId).getFormKey());
 
-      // Define variables that would be filled in through the form
-      Map<String, String> formProperties = new HashMap<String, String>();
-      formProperties.put("employeeName", "kermit");
-      formProperties.put("numberOfDays", "4");
-      formProperties.put("vacationMotivation", "I'm tired");
-      formService.submitStartFormData(procDefId, formProperties);
+    // Define variables that would be filled in through the form
+    Map<String, String> formProperties = new HashMap<String, String>();
+    formProperties.put("employeeName", "kermit");
+    formProperties.put("numberOfDays", "4");
+    formProperties.put("vacationMotivation", "I'm tired");
+    formService.submitStartFormData(procDefId, formProperties);
 
-      // Management should now have a task assigned to them
-      Task task = taskService.createTaskQuery().taskCandidateGroup("management").singleResult();
-      assertEquals("Vacation request by kermit", task.getDescription());
-      Object taskForm = formService.getRenderedTaskForm(task.getId(), "juel");
-      assertNotNull(taskForm);
+    // Management should now have a task assigned to them
+    Task task = taskService.createTaskQuery().taskCandidateGroup("management").singleResult();
+    assertEquals("Vacation request by kermit", task.getDescription());
+    Object taskForm = formService.getRenderedTaskForm(task.getId(), "juel");
+    assertNotNull(taskForm);
 
-      // Rejecting the task should put the process back to first task
-      taskService.complete(task.getId(), CollectionUtil.singletonMap("vacationApproved", "false"));
-      task = taskService.createTaskQuery().singleResult();
-      assertEquals("Adjust vacation request", task.getName());
-    }
+    // Rejecting the task should put the process back to first task
+    taskService.complete(task.getId(), CollectionUtil.singletonMap("vacationApproved", "false"));
+    task = taskService.createTaskQuery().singleResult();
+    assertEquals("Adjust vacation request", task.getName());
+  }
 
-    @Deployment
-    public void testTaskFormUnavailable() {
-      String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
-      assertNull(formService.getRenderedStartForm(procDefId));
+  @Deployment
+  public void testTaskFormUnavailable() {
+    String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
+    assertNull(formService.getRenderedStartForm(procDefId));
 
-      runtimeService.startProcessInstanceByKey("noStartOrTaskForm");
-      Task task = taskService.createTaskQuery().singleResult();
-      assertNull(formService.getRenderedTaskForm(task.getId()));
-    }
+    runtimeService.startProcessInstanceByKey("noStartOrTaskForm");
+    Task task = taskService.createTaskQuery().singleResult();
+    assertNull(formService.getRenderedTaskForm(task.getId()));
+  }
+
+  @Deployment
+  public void testBusinessKey() {
+    // given
+    String procDefId = repositoryService.createProcessDefinitionQuery().singleResult().getId();
+
+    // when
+    StartFormData startFormData = formService.getStartFormData(procDefId);
+
+    // then
+    FormField formField = startFormData.getFormFields().get(0);
+    assertTrue(formField.isBusinessKey());
+  }
+
 }

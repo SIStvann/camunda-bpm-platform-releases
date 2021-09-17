@@ -321,6 +321,8 @@ public class HistoricCaseInstanceRestServiceQueryTest extends AbstractRestServic
     String returnedCaseInstanceId = from(content).getString("[0].id");
     String returnedCaseInstanceBusinessKey = from(content).getString("[0].businessKey");
     String returnedCaseDefinitionId = from(content).getString("[0].caseDefinitionId");
+    String returnedCaseDefinitionKey = from(content).getString("[0].caseDefinitionKey");
+    String returnedCaseDefinitionName = from(content).getString("[0].caseDefinitionName");
     String returnedCreateTime = from(content).getString("[0].createTime");
     String returnedCloseTime = from(content).getString("[0].closeTime");
     long returnedDurationInMillis = from(content).getLong("[0].durationInMillis");
@@ -336,6 +338,8 @@ public class HistoricCaseInstanceRestServiceQueryTest extends AbstractRestServic
     Assert.assertEquals(MockProvider.EXAMPLE_CASE_INSTANCE_ID, returnedCaseInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_CASE_INSTANCE_BUSINESS_KEY, returnedCaseInstanceBusinessKey);
     Assert.assertEquals(MockProvider.EXAMPLE_CASE_DEFINITION_ID, returnedCaseDefinitionId);
+    Assert.assertEquals(MockProvider.EXAMPLE_CASE_DEFINITION_KEY, returnedCaseDefinitionKey);
+    Assert.assertEquals(MockProvider.EXAMPLE_CASE_DEFINITION_NAME, returnedCaseDefinitionName);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_CASE_INSTANCE_CREATE_TIME, returnedCreateTime);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_CASE_INSTANCE_CLOSE_TIME, returnedCloseTime);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_CASE_INSTANCE_DURATION_MILLIS, returnedDurationInMillis);
@@ -912,12 +916,99 @@ public class HistoricCaseInstanceRestServiceQueryTest extends AbstractRestServic
     assertThat(returnedTenantId2).isEqualTo(MockProvider.ANOTHER_EXAMPLE_TENANT_ID);
   }
 
+  @Test
+  public void testWithoutTenantIdParameter() {
+    mockedQuery = setUpMockHistoricCaseInstanceQuery(Arrays.asList(MockProvider.createMockHistoricCaseInstance(null)));
+
+    Response response = given()
+      .queryParam("withoutTenantId", true)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(HISTORIC_CASE_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).withoutTenantId();
+    verify(mockedQuery).list();
+
+    String content = response.asString();
+    List<String> definitions = from(content).getList("");
+    assertThat(definitions).hasSize(1);
+
+    String returnedTenantId1 = from(content).getString("[0].tenantId");
+    assertThat(returnedTenantId1).isEqualTo(null);
+  }
+
+  @Test
+  public void testWithoutTenantIdPostParameter() {
+    mockedQuery = setUpMockHistoricCaseInstanceQuery(Arrays.asList(MockProvider.createMockHistoricCaseInstance(null)));
+
+    Map<String, Object> queryParameters = new HashMap<String, Object>();
+    queryParameters.put("withoutTenantId", true);
+
+    Response response = given()
+        .contentType(POST_JSON_CONTENT_TYPE)
+        .body(queryParameters)
+    .expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(HISTORIC_CASE_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).withoutTenantId();
+    verify(mockedQuery).list();
+
+    String content = response.asString();
+    List<String> definitions = from(content).getList("");
+    assertThat(definitions).hasSize(1);
+
+    String returnedTenantId1 = from(content).getString("[0].tenantId");
+    assertThat(returnedTenantId1).isEqualTo(null);
+  }
+
   private List<HistoricCaseInstance> createMockHistoricCaseInstancesTwoTenants() {
     return Arrays.asList(
         MockProvider.createMockHistoricCaseInstance(MockProvider.EXAMPLE_TENANT_ID),
         MockProvider.createMockHistoricCaseInstance(MockProvider.ANOTHER_EXAMPLE_TENANT_ID));
   }
 
+  @Test
+  public void testCaseActivityIdListParameter() {
+
+    Response response = given()
+      .queryParam("caseActivityIdIn", MockProvider.EXAMPLE_CASE_ACTIVITY_ID_LIST)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(HISTORIC_CASE_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).caseActivityIdIn(MockProvider.EXAMPLE_CASE_ACTIVITY_ID, MockProvider.ANOTHER_EXAMPLE_CASE_ACTIVITY_ID);
+    verify(mockedQuery).list();
+
+    String content = response.asString();
+    List<String> historicCaseInstances = from(content).getList("");
+    assertThat(historicCaseInstances).hasSize(1);
+  }
+
+  @Test
+  public void testCaseActivityIdListPostParameter() {
+
+    Map<String, Object> queryParameters = new HashMap<String, Object>();
+    queryParameters.put("caseActivityIdIn", MockProvider.EXAMPLE_CASE_ACTIVITY_ID_LIST.split(","));
+
+    Response response = given()
+        .contentType(POST_JSON_CONTENT_TYPE)
+        .body(queryParameters)
+    .expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(HISTORIC_CASE_INSTANCE_RESOURCE_URL);
+
+    verify(mockedQuery).caseActivityIdIn(MockProvider.EXAMPLE_CASE_ACTIVITY_ID, MockProvider.ANOTHER_EXAMPLE_CASE_ACTIVITY_ID);
+    verify(mockedQuery).list();
+
+    String content = response.asString();
+    List<String> historicCaseInstances = from(content).getList("");
+    assertThat(historicCaseInstances).hasSize(1);
+  }
 
   protected void executeAndVerifySorting(String sortBy, String sortOrder, Status expectedStatus) {
     given()

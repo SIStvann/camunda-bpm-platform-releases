@@ -65,7 +65,9 @@ public class ExternalTaskQueryTopicBuilderImpl implements ExternalTaskQueryTopic
   public ExternalTaskQueryTopicBuilder variables(String... variables) {
     // don't use plain Arrays.asList since this returns an instance of a different list class
     // that is private and may mess mybatis queries up
-    currentInstruction.setVariablesToFetch(new ArrayList<String>(Arrays.asList(variables)));
+    if (variables != null) {
+      currentInstruction.setVariablesToFetch(new ArrayList<String>(Arrays.asList(variables)));
+    }
     return this;
   }
 
@@ -78,6 +80,11 @@ public class ExternalTaskQueryTopicBuilderImpl implements ExternalTaskQueryTopic
     if (currentInstruction != null) {
       this.instructions.put(currentInstruction.getTopicName(), currentInstruction);
     }
+  }
+
+  public ExternalTaskQueryTopicBuilder enableCustomObjectDeserialization() {
+    currentInstruction.setDeserializeVariables(true);
+    return this;
   }
 
 }

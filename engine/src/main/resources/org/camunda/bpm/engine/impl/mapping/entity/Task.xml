@@ -207,7 +207,7 @@
 
   <sql id="selectTaskByQueryCriteriaSql">
     from ${prefix}ACT_RU_TASK RES
-    <if test="candidateUser != null || candidateGroups != null || involvedUser != null">
+    <if test="candidateUser != null || candidateGroups != null || involvedUser != null || withCandidateGroups">
       inner join ${prefix}ACT_RU_IDENTITYLINK I on I.TASK_ID_ = RES.ID_
     </if>
     <if test="processDefinitionKey != null || processDefinitionName != null || processDefinitionNameLike != null ||
@@ -252,10 +252,12 @@
         RES.ID_ = #{taskId}
       </if>
       <if test="name != null">
-        and RES.NAME_ = #{name}
+        <!-- based on CAM-6363 compare name case insensitive -->
+        and UPPER(RES.NAME_) = UPPER(#{name})
       </if>
       <if test="nameLike != null">
-        and RES.NAME_ like #{nameLike}
+        <!-- based on CAM-6165 compare name like case insensitive -->
+        and UPPER(RES.NAME_) like UPPER(#{nameLike})
       </if>
       <if test="description != null">
         and RES.DESCRIPTION_ = #{description}
@@ -283,6 +285,9 @@
       </if>
       <if test="unassigned">
         and RES.ASSIGNEE_ IS NULL
+      </if>
+      <if test="assigned">
+        and RES.ASSIGNEE_ IS NOT NULL
       </if>
       <if test="noDelegationState">
         and RES.DELEGATION_ IS NULL
@@ -426,13 +431,14 @@
           and RES.TENANT_ID_ is null
         </if>
       </if>
-      <if test="candidateUser != null || candidateGroups != null">
+      <if test="candidateUser != null || candidateGroups != null || withCandidateGroups">
         <if test="!includeAssignedTasks">
           and RES.ASSIGNEE_ is null
         </if>
         and I.TYPE_ = 'candidate'
-        and
-        (
+        <if test="candidateUser != null || candidateGroups != null">
+          and
+          (
           <if test="candidateUser != null">
             I.USER_ID_ = #{candidateUser}
           </if>
@@ -446,11 +452,34 @@
               #{group}
             </foreach>
           </if>
+          )
+        </if>
+
+        <if test="withCandidateGroups">
+          and I.GROUP_ID_ is not null
+        </if>
+
+      </if>
+
+      <if test="withoutCandidateGroups">
+        <if test="!includeAssignedTasks">
+          and RES.ASSIGNEE_ is null
+        </if>
+        and RES.ID_ not in (
+          select
+            TASK_ID_
+          from
+            ${prefix}ACT_RU_IDENTITYLINK ARIEL
+          <where>
+            ARIEL.TYPE_ = 'candidate' and ARIEL.GROUP_ID_ is not null
+          </where>
         )
       </if>
+
       <if test="involvedUser != null">
         and I.USER_ID_ = #{involvedUser}
       </if>
+
       
       <!-- queryVariables -->
       <!-- PLEASE NOTE: If you change anything have a look into the HistoricVariableInstance & HistoricProcessInstance, the same query object is used there! -->
@@ -527,6 +556,37 @@
 
   <select id="selectTaskCountByNativeQuery" parameterType="java.util.Map" resultType="long">
      ${sql}
+  </select>
+
+  <!-- TASK GROUP ASSIGNMENT REPORT RESULT MAP -->
+
+  <resultMap id="taskCountByCandidateGroupReportResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.TaskCountByCandidateGroupResultEntity">
+    <result property="taskCount" column="TASK_COUNT_" jdbcType="INTEGER" />
+    <result property="groupName" column="GROUP_NAME_" jdbcType="VARCHAR" />
+  </resultMap>
+
+  <select id="selectTaskCountByCandidateGroupReportQuery" parameterType="org.camunda.bpm.engine.impl.TaskReportImpl" resultMap="taskCountByCandidateGroupReportResultMap">
+    SELECT
+        COUNT(T.ID_) AS TASK_COUNT_,
+        I.GROUP_ID_ AS GROUP_NAME_
+    FROM
+        ${prefix}ACT_RU_TASK T
+    LEFT JOIN
+        ${prefix}ACT_RU_IDENTITYLINK I
+    ON
+        I.TASK_ID_ = T.ID_
+
+    <where>
+      T.ASSIGNEE_ IS NULL
+      <bind name="columnPrefix" value="'T.'"/>
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheckWithPrefix" />
+    </where>
+
+    GROUP BY
+        I.GROUP_ID_
+    ORDER BY
+        GROUP_NAME_
+    ASC
   </select>
 
 </mapper>
