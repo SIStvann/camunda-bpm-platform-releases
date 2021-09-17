@@ -13,20 +13,7 @@
 
 package org.camunda.bpm.engine.rest.impl;
 
-import static org.camunda.bpm.engine.authorization.Authorization.ANY;
-import static org.camunda.bpm.engine.authorization.Permissions.CREATE;
-import static org.camunda.bpm.engine.authorization.Resources.FILTER;
-
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-
-import javax.ws.rs.HttpMethod;
-import javax.ws.rs.core.MultivaluedMap;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriInfo;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.camunda.bpm.engine.EntityTypes;
 import org.camunda.bpm.engine.FilterService;
 import org.camunda.bpm.engine.ProcessEngine;
@@ -41,7 +28,19 @@ import org.camunda.bpm.engine.rest.dto.runtime.FilterQueryDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.sub.runtime.FilterResource;
 import org.camunda.bpm.engine.rest.sub.runtime.impl.FilterResourceImpl;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import javax.ws.rs.HttpMethod;
+import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriBuilder;
+import javax.ws.rs.core.UriInfo;
+import java.net.URI;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.camunda.bpm.engine.authorization.Authorization.ANY;
+import static org.camunda.bpm.engine.authorization.Permissions.CREATE;
+import static org.camunda.bpm.engine.authorization.Resources.FILTER;
 
 
 /**
@@ -65,7 +64,7 @@ public class FilterRestServiceImpl extends AbstractAuthorizedRestResource implem
 
     List<FilterDto> filters = new ArrayList<FilterDto>();
     for (Filter filter : matchingFilters) {
-      FilterDto dto = FilterDto.fromFilter(filter, getObjectMapper());
+      FilterDto dto = FilterDto.fromFilter(filter);
       if (itemCount != null && itemCount) {
         dto.setItemCount(filterService.count(filter.getId()));
       }
@@ -114,7 +113,7 @@ public class FilterRestServiceImpl extends AbstractAuthorizedRestResource implem
     }
 
     try {
-      filterDto.updateFilter(filter, getProcessEngine(), getObjectMapper());
+      filterDto.updateFilter(filter, getProcessEngine());
     }
     catch (NotValidException e) {
       throw new InvalidRequestException(Response.Status.BAD_REQUEST, e, "Unable to create filter with invalid content");
@@ -122,7 +121,7 @@ public class FilterRestServiceImpl extends AbstractAuthorizedRestResource implem
 
     filterService.saveFilter(filter);
 
-    return FilterDto.fromFilter(filter, getObjectMapper());
+    return FilterDto.fromFilter(filter);
   }
 
   protected FilterQuery getQueryFromQueryParameters(MultivaluedMap<String, String> queryParameters) {

@@ -11,6 +11,7 @@ import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Matchers.isNull;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -20,10 +21,12 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import javax.ws.rs.core.Response.Status;
@@ -31,6 +34,7 @@ import javax.ws.rs.core.Response.Status;
 import org.camunda.bpm.ProcessApplicationService;
 import org.camunda.bpm.application.ProcessApplicationInfo;
 import org.camunda.bpm.container.RuntimeContainerDelegate;
+import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.FormService;
 import org.camunda.bpm.engine.ManagementService;
 import org.camunda.bpm.engine.ProcessEngineException;
@@ -38,6 +42,7 @@ import org.camunda.bpm.engine.RepositoryService;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.form.StartFormData;
 import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
+import org.camunda.bpm.engine.impl.digest._apacheCommonsCodec.Base64;
 import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.impl.util.ReflectUtil;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
@@ -50,16 +55,20 @@ import org.camunda.bpm.engine.rest.helper.ErrorMessageHelper;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.helper.VariableTypeHelper;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsObjectValue;
+import org.camunda.bpm.engine.rest.helper.variable.EqualsPrimitiveValue;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsUntypedValue;
 import org.camunda.bpm.engine.rest.sub.repository.impl.ProcessDefinitionResourceImpl;
+import org.camunda.bpm.engine.rest.util.ModificationInstructionBuilder;
 import org.camunda.bpm.engine.rest.util.VariablesBuilder;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.engine.runtime.ProcessInstantiationBuilder;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.type.ValueType;
 import org.fest.assertions.Assertions;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InOrder;
 import org.mockito.Matchers;
 
 import com.jayway.restassured.http.ContentType;
@@ -75,6 +84,7 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   protected static final String XML_DEFINITION_URL = SINGLE_PROCESS_DEFINITION_URL + "/xml";
   protected static final String XML_DEFINITION_BY_KEY_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_URL + "/xml";
   protected static final String DIAGRAM_DEFINITION_URL = SINGLE_PROCESS_DEFINITION_URL + "/diagram";
+  protected static final String DIAGRAM_DEFINITION_KEY_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_URL + "/diagram";
 
   protected static final String START_FORM_URL = SINGLE_PROCESS_DEFINITION_URL + "/startForm";
   protected static final String START_FORM_BY_KEY_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_URL + "/startForm";
@@ -83,6 +93,7 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   protected static final String SUBMIT_FORM_URL = SINGLE_PROCESS_DEFINITION_URL + "/submit-form";
   protected static final String SUBMIT_FORM_BY_KEY_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_URL + "/submit-form";
   protected static final String START_FORM_VARIABLES_URL = SINGLE_PROCESS_DEFINITION_URL + "/form-variables";
+  protected static final String START_FORM_VARIABLES_BY_KEY_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_URL + "/form-variables";
 
   protected static final String SINGLE_PROCESS_DEFINITION_SUSPENDED_URL = SINGLE_PROCESS_DEFINITION_URL + "/suspended";
   protected static final String SINGLE_PROCESS_DEFINITION_BY_KEY_SUSPENDED_URL = SINGLE_PROCESS_DEFINITION_BY_KEY_URL + "/suspended";
@@ -273,6 +284,66 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   }
 
   @Test
+  public void testGetProcessDiagramGetDefinitionThrowsAuthorizationException() {
+    String message = "expected exception";
+    when(repositoryServiceMock.getProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(DIAGRAM_DEFINITION_URL);
+  }
+
+  @Test
+  public void testGetProcessDiagramThrowsAuthorizationException() {
+    String message = "expected exception";
+    when(repositoryServiceMock.getProcessDiagram(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(DIAGRAM_DEFINITION_URL);
+  }
+
+  @Test
+  public void testGetProcessDiagramGetDefinitionThrowsAuthorizationException_ByKey() {
+    String message = "expected exception";
+    when(repositoryServiceMock.getProcessDefinition(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(DIAGRAM_DEFINITION_KEY_URL);
+  }
+
+  @Test
+  public void testGetProcessDiagramThrowsAuthorizationException_ByKey() {
+    String message = "expected exception";
+    when(repositoryServiceMock.getProcessDiagram(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(DIAGRAM_DEFINITION_KEY_URL);
+  }
+
+  @Test
   public void testGetStartFormData() {
     given().pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
     .then().expect()
@@ -306,6 +377,21 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   }
 
   @Test
+  public void testGetStartFormThrowsAuthorizationException() {
+    String message = "expected exception";
+    when(formServiceMock.getStartFormData(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(START_FORM_URL);
+  }
+
+  @Test
   public void testGetRenderedStartForm() {
     String expectedResult = "<formField>anyContent</formField>";
 
@@ -327,8 +413,6 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
 
   @Test
   public void testGetRenderedStartFormReturnsNotFound() {
-    when(formServiceMock.getRenderedStartForm(anyString(), anyString())).thenReturn(null);
-
     given()
       .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
       .then()
@@ -338,6 +422,21 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
           .body("message", equalTo("No matching rendered start form for process definition with the id " + MockProvider.EXAMPLE_PROCESS_DEFINITION_ID + " found."))
       .when()
         .get(RENDERED_FORM_URL);
+  }
+
+  @Test
+  public void testGetRenderedStartFormThrowsAuthorizationException() {
+    String message = "expected exception";
+    when(formServiceMock.getRenderedStartForm(anyString())).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(RENDERED_FORM_URL);
   }
 
   @Test
@@ -418,6 +517,33 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
                                                 .serializedValue(jsonValue)
                                                 .serializationFormat("aFormat")
                                                 .objectTypeName("aRootType"))));
+  }
+
+  @Test
+  public void testSubmitStartFormWithBase64EncodedBytes() {
+
+    Map<String, Object> variables = VariablesBuilder.create()
+        .variable("aVariable", Base64.encodeBase64String("someBytes".getBytes()), ValueType.BYTES.getName())
+        .getVariables();
+
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("variables", variables);
+
+    given().pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+      .contentType(POST_JSON_CONTENT_TYPE).body(json)
+      .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .body("id", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID))
+        .body("definitionId", equalTo(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))
+        .body("businessKey", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_BUSINESS_KEY))
+        .body("ended", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_IS_ENDED))
+        .body("suspended", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_IS_SUSPENDED))
+      .when().post(SUBMIT_FORM_URL);
+
+    verify(formServiceMock).submitStartForm(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID),
+        argThat(
+            new EqualsVariableMap()
+              .matcher("aVariable", EqualsPrimitiveValue.bytesValue("someBytes".getBytes()))));
   }
 
   @Test
@@ -609,6 +735,23 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   }
 
   @Test
+  public void testSubmitFormByIdThrowsAuthorizationException() {
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(formServiceMock).submitStartForm(any(String.class), Matchers.<Map<String, Object>>any());
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(EMPTY_JSON_OBJECT)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .post(SUBMIT_FORM_URL);
+  }
+
+  @Test
   public void testGetStartFormVariables() {
 
     given().pathParam("id", EXAMPLE_PROCESS_DEFINITION_ID)
@@ -666,6 +809,21 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
     .when().get(START_FORM_VARIABLES_URL);
 
     verify(formServiceMock, times(1)).getStartFormVariables(EXAMPLE_PROCESS_DEFINITION_ID, Arrays.asList(new String[]{"a","b","c"}), false);
+  }
+
+  @Test
+  public void testGetStartFormVariablesThrowsAuthorizationException() {
+    String message = "expected exception";
+    when(formServiceMock.getStartFormVariables(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, null, true)).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(START_FORM_VARIABLES_URL);
   }
 
   @Test
@@ -748,6 +906,271 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
 
   }
 
+  @Test
+  public void testProcessInstantiationAtActivitiesById() {
+    ProcessInstantiationBuilder mockInstantiationBuilder = setUpMockInstantiationBuilder();
+    when(runtimeServiceMock.createProcessInstanceById(anyString())).thenReturn(mockInstantiationBuilder);
+
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("variables", VariablesBuilder.create()
+        .variable("processVariable", "aString", "String").getVariables());
+    json.put("businessKey", "aBusinessKey");
+    json.put("caseInstanceId", "aCaseInstanceId");
+
+    List<Map<String, Object>> startInstructions = new ArrayList<Map<String, Object>>();
+
+    startInstructions.add(
+        ModificationInstructionBuilder.startBefore()
+          .activityId("activityId")
+          .variables(VariablesBuilder.create()
+              .variable("var", "value", "String", false)
+              .variable("varLocal", "valueLocal", "String", true)
+              .getVariables())
+          .getJson());
+    startInstructions.add(
+        ModificationInstructionBuilder.startAfter()
+          .activityId("activityId")
+          .variables(VariablesBuilder.create()
+              .variable("var", 52, "Integer", false)
+              .variable("varLocal", 74, "Integer", true)
+              .getVariables())
+          .getJson());
+    startInstructions.add(
+        ModificationInstructionBuilder.startTransition()
+          .transitionId("transitionId")
+          .variables(VariablesBuilder.create()
+              .variable("var", 53, "Integer", false)
+              .variable("varLocal", 75, "Integer", true)
+              .getVariables())
+          .getJson());
+
+
+    json.put("startInstructions", startInstructions);
+
+    given().pathParam("id", EXAMPLE_PROCESS_DEFINITION_ID)
+      .contentType(POST_JSON_CONTENT_TYPE).body(json)
+      .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .body("id", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID))
+      .when().post(START_PROCESS_INSTANCE_URL);
+
+    verify(runtimeServiceMock).createProcessInstanceById(eq(EXAMPLE_PROCESS_DEFINITION_ID));
+
+    InOrder inOrder = inOrder(mockInstantiationBuilder);
+
+    inOrder.verify(mockInstantiationBuilder).businessKey("aBusinessKey");
+    inOrder.verify(mockInstantiationBuilder).caseInstanceId("aCaseInstanceId");
+    inOrder.verify(mockInstantiationBuilder).setVariables(argThat(EqualsVariableMap.matches()
+        .matcher("processVariable", EqualsPrimitiveValue.stringValue("aString"))));
+
+    inOrder.verify(mockInstantiationBuilder).startBeforeActivity("activityId");
+
+    verify(mockInstantiationBuilder).setVariableLocal(eq("varLocal"), argThat(EqualsPrimitiveValue.stringValue("valueLocal")));
+    verify(mockInstantiationBuilder).setVariable(eq("var"), argThat(EqualsPrimitiveValue.stringValue("value")));
+
+    inOrder.verify(mockInstantiationBuilder).startAfterActivity("activityId");
+
+    verify(mockInstantiationBuilder).setVariable(eq("var"), argThat(EqualsPrimitiveValue.integerValue(52)));
+    verify(mockInstantiationBuilder).setVariableLocal(eq("varLocal"), argThat(EqualsPrimitiveValue.integerValue(74)));
+
+    inOrder.verify(mockInstantiationBuilder).startTransition("transitionId");
+
+    verify(mockInstantiationBuilder).setVariable(eq("var"), argThat(EqualsPrimitiveValue.integerValue(53)));
+    verify(mockInstantiationBuilder).setVariableLocal(eq("varLocal"), argThat(EqualsPrimitiveValue.integerValue(75)));
+
+    inOrder.verify(mockInstantiationBuilder).execute(false, false);
+
+    inOrder.verifyNoMoreInteractions();
+  }
+
+  @Test
+  public void testProcessInstantiationAtActivitiesByKey() {
+    ProcessInstantiationBuilder mockInstantiationBuilder = setUpMockInstantiationBuilder();
+    when(runtimeServiceMock.createProcessInstanceById(anyString())).thenReturn(mockInstantiationBuilder);
+
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("variables", VariablesBuilder.create()
+        .variable("processVariable", "aString", "String").getVariables());
+    json.put("businessKey", "aBusinessKey");
+    json.put("caseInstanceId", "aCaseInstanceId");
+
+    List<Map<String, Object>> startInstructions = new ArrayList<Map<String, Object>>();
+
+    startInstructions.add(
+        ModificationInstructionBuilder.startBefore()
+          .activityId("activityId")
+          .variables(VariablesBuilder.create()
+              .variable("var", "value", "String", false)
+              .variable("varLocal", "valueLocal", "String", true)
+              .getVariables())
+          .getJson());
+    startInstructions.add(
+        ModificationInstructionBuilder.startAfter()
+          .activityId("activityId")
+          .variables(VariablesBuilder.create()
+              .variable("var", 52, "Integer", false)
+              .variable("varLocal", 74, "Integer", true)
+              .getVariables())
+          .getJson());
+    startInstructions.add(
+        ModificationInstructionBuilder.startTransition()
+          .transitionId("transitionId")
+          .variables(VariablesBuilder.create()
+              .variable("var", 53, "Integer", false)
+              .variable("varLocal", 75, "Integer", true)
+              .getVariables())
+          .getJson());
+
+
+    json.put("startInstructions", startInstructions);
+
+    given().pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .contentType(POST_JSON_CONTENT_TYPE).body(json)
+      .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .body("id", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID))
+      .when().post(START_PROCESS_INSTANCE_BY_KEY_URL);
+
+    verify(runtimeServiceMock).createProcessInstanceById(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID));
+
+    InOrder inOrder = inOrder(mockInstantiationBuilder);
+
+    inOrder.verify(mockInstantiationBuilder).businessKey("aBusinessKey");
+    inOrder.verify(mockInstantiationBuilder).caseInstanceId("aCaseInstanceId");
+    inOrder.verify(mockInstantiationBuilder).setVariables(argThat(EqualsVariableMap.matches()
+        .matcher("processVariable", EqualsPrimitiveValue.stringValue("aString"))));
+
+    inOrder.verify(mockInstantiationBuilder).startBeforeActivity("activityId");
+
+    verify(mockInstantiationBuilder).setVariableLocal(eq("varLocal"), argThat(EqualsPrimitiveValue.stringValue("valueLocal")));
+    verify(mockInstantiationBuilder).setVariable(eq("var"), argThat(EqualsPrimitiveValue.stringValue("value")));
+
+    inOrder.verify(mockInstantiationBuilder).startAfterActivity("activityId");
+
+    verify(mockInstantiationBuilder).setVariable(eq("var"), argThat(EqualsPrimitiveValue.integerValue(52)));
+    verify(mockInstantiationBuilder).setVariableLocal(eq("varLocal"), argThat(EqualsPrimitiveValue.integerValue(74)));
+
+    inOrder.verify(mockInstantiationBuilder).startTransition("transitionId");
+
+    verify(mockInstantiationBuilder).setVariable(eq("var"), argThat(EqualsPrimitiveValue.integerValue(53)));
+    verify(mockInstantiationBuilder).setVariableLocal(eq("varLocal"), argThat(EqualsPrimitiveValue.integerValue(75)));
+
+    inOrder.verify(mockInstantiationBuilder).execute(false, false);
+
+    inOrder.verifyNoMoreInteractions();
+  }
+
+  @Test
+  public void testProcessInstantiationAtActivitiesSkipIoMappingsAndListeners() {
+    ProcessInstantiationBuilder mockInstantiationBuilder = setUpMockInstantiationBuilder();
+    when(runtimeServiceMock.createProcessInstanceById(anyString())).thenReturn(mockInstantiationBuilder);
+
+    Map<String, Object> json = new HashMap<String, Object>();
+
+    List<Map<String, Object>> startInstructions = new ArrayList<Map<String, Object>>();
+
+    startInstructions.add(
+        ModificationInstructionBuilder.startBefore()
+          .activityId("activityId")
+          .getJson());
+
+    json.put("startInstructions", startInstructions);
+    json.put("skipIoMappings", true);
+    json.put("skipCustomListeners", true);
+
+    given().pathParam("id", EXAMPLE_PROCESS_DEFINITION_ID)
+      .contentType(POST_JSON_CONTENT_TYPE).body(json)
+      .then().expect()
+        .statusCode(Status.OK.getStatusCode())
+        .body("id", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID))
+      .when().post(START_PROCESS_INSTANCE_URL);
+
+    verify(runtimeServiceMock).createProcessInstanceById(eq(EXAMPLE_PROCESS_DEFINITION_ID));
+
+    InOrder inOrder = inOrder(mockInstantiationBuilder);
+
+    inOrder.verify(mockInstantiationBuilder).startBeforeActivity("activityId");
+    inOrder.verify(mockInstantiationBuilder).execute(true, true);
+
+    inOrder.verifyNoMoreInteractions();
+  }
+
+  @Test
+  public void testInvalidInstantiationAtActivities() {
+    ProcessInstantiationBuilder mockInstantiationBuilder = setUpMockInstantiationBuilder();
+    when(runtimeServiceMock.createProcessInstanceById(anyString())).thenReturn(mockInstantiationBuilder);
+
+    Map<String, Object> json = new HashMap<String, Object>();
+
+    // start before: missing activity id
+    List<Map<String, Object>> instructions = new ArrayList<Map<String, Object>>();
+    instructions.add(ModificationInstructionBuilder.startBefore().getJson());
+    json.put("startInstructions", instructions);
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_DEFINITION_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+    .expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .body("type", is(InvalidRequestException.class.getSimpleName()))
+      .body("message", containsString("'activityId' must be set"))
+    .when()
+      .post(START_PROCESS_INSTANCE_URL);
+
+    // start after: missing ancestor activity instance id
+    instructions = new ArrayList<Map<String, Object>>();
+    instructions.add(ModificationInstructionBuilder.startAfter().getJson());
+    json.put("startInstructions", instructions);
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_DEFINITION_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+    .expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .body("type", is(InvalidRequestException.class.getSimpleName()))
+      .body("message", containsString("'activityId' must be set"))
+    .when()
+      .post(START_PROCESS_INSTANCE_URL);
+
+    // start transition: missing ancestor activity instance id
+    instructions = new ArrayList<Map<String, Object>>();
+    instructions.add(ModificationInstructionBuilder.startTransition().getJson());
+    json.put("startInstructions", instructions);
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_DEFINITION_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+    .expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .body("type", is(InvalidRequestException.class.getSimpleName()))
+      .body("message", containsString("'transitionId' must be set"))
+    .when()
+      .post(START_PROCESS_INSTANCE_URL);
+  }
+
+  @SuppressWarnings("unchecked")
+  protected ProcessInstantiationBuilder setUpMockInstantiationBuilder() {
+    ProcessInstance resultInstance = MockProvider.createMockInstance();
+    ProcessInstantiationBuilder mockInstantiationBuilder = mock(ProcessInstantiationBuilder.class);
+
+    when(mockInstantiationBuilder.startAfterActivity(anyString())).thenReturn(mockInstantiationBuilder);
+    when(mockInstantiationBuilder.startBeforeActivity(anyString())).thenReturn(mockInstantiationBuilder);
+    when(mockInstantiationBuilder.startTransition(anyString())).thenReturn(mockInstantiationBuilder);
+    when(mockInstantiationBuilder.setVariables(any(Map.class))).thenReturn(mockInstantiationBuilder);
+    when(mockInstantiationBuilder.setVariablesLocal(any(Map.class))).thenReturn(mockInstantiationBuilder);
+    when(mockInstantiationBuilder.businessKey(anyString())).thenReturn(mockInstantiationBuilder);
+    when(mockInstantiationBuilder.caseInstanceId(anyString())).thenReturn(mockInstantiationBuilder);
+    when(mockInstantiationBuilder.execute(anyBoolean(), anyBoolean())).thenReturn(resultInstance);
+
+    return mockInstantiationBuilder;
+  }
+
   /**
    * {@link RuntimeService#startProcessInstanceById(String, Map)} throws an {@link ProcessEngineException}, if a definition with the given id does not exist.
    */
@@ -763,6 +1186,24 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
         .body("type", equalTo(RestException.class.getSimpleName()))
         .body("message", containsString("Cannot instantiate process definition"))
       .when().post(START_PROCESS_INSTANCE_URL);
+  }
+
+  @Test
+  public void testStartProcessInstanceByIdThrowsAuthorizationException() {
+    String message = "expected exception";
+    when(runtimeServiceMock.startProcessInstanceById(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID), anyString(), anyString(), Matchers.<Map<String, Object>>any()))
+      .thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(EMPTY_JSON_OBJECT)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .post(START_PROCESS_INSTANCE_URL);
   }
 
   @Test
@@ -809,6 +1250,21 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
       .body("type", equalTo(InvalidRequestException.class.getSimpleName()))
       .body("message", equalTo("No matching definition with id " + nonExistingId))
     .when().get(XML_DEFINITION_URL);
+  }
+
+  @Test
+  public void testGetProcessDefinitionBpmn20XmlThrowsAuthorizationException() {
+    String message = "expected exception";
+    when(repositoryServiceMock.getProcessModel(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(XML_DEFINITION_URL);
   }
 
   @Test
@@ -1079,6 +1535,27 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   }
 
   @Test
+  public void testActivateProcessDefinitionThrowsAuthorizationException() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("suspended", false);
+
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(repositoryServiceMock).activateProcessDefinitionById(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, null);
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+      .contentType(ContentType.JSON)
+      .body(params)
+    .then()
+      .expect()
+        .statusCode(Status.FORBIDDEN.getStatusCode())
+        .body("type", is(AuthorizationException.class.getSimpleName()))
+        .body("message", is(message))
+      .when()
+        .put(SINGLE_PROCESS_DEFINITION_SUSPENDED_URL);
+  }
+
+  @Test
   public void testSuspendProcessDefinitionExcludingInstances() {
     Map<String, Object> params = new HashMap<String, Object>();
     params.put("suspended", true);
@@ -1230,6 +1707,27 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   }
 
   @Test
+  public void testSuspendProcessDefinitionThrowsAuthorizationException() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("suspended", true);
+
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(repositoryServiceMock).suspendProcessDefinitionById(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, null);
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)
+      .contentType(ContentType.JSON)
+      .body(params)
+    .then()
+      .expect()
+        .statusCode(Status.FORBIDDEN.getStatusCode())
+        .body("type", is(AuthorizationException.class.getSimpleName()))
+        .body("message", is(message))
+      .when()
+        .put(SINGLE_PROCESS_DEFINITION_SUSPENDED_URL);
+  }
+
+  @Test
   public void testActivateProcessDefinitionByKey() {
     Map<String, Object> params = new HashMap<String, Object>();
     params.put("suspended", false);
@@ -1349,6 +1847,27 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
         .statusCode(Status.INTERNAL_SERVER_ERROR.getStatusCode())
         .body("type", is(ProcessEngineException.class.getSimpleName()))
         .body("message", is(expectedException))
+      .when()
+        .put(PROCESS_DEFINITION_SUSPENDED_URL);
+  }
+
+  @Test
+  public void testActivateProcessDefinitionByKeyThrowsAuthorizationException() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("suspended", false);
+    params.put("processDefinitionKey", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY);
+
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(repositoryServiceMock).activateProcessDefinitionByKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY, false, null);
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(params)
+    .then()
+      .expect()
+        .statusCode(Status.FORBIDDEN.getStatusCode())
+        .body("type", is(AuthorizationException.class.getSimpleName()))
+        .body("message", is(message))
       .when()
         .put(PROCESS_DEFINITION_SUSPENDED_URL);
   }
@@ -1478,6 +1997,27 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   }
 
   @Test
+  public void testSuspendProcessDefinitionByKeyThrowsAuthorizationException() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("suspended", true);
+    params.put("processDefinitionKey", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY);
+
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(repositoryServiceMock).suspendProcessDefinitionByKey(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY, false, null);
+
+    given().log().all(true)
+      .contentType(ContentType.JSON)
+      .body(params)
+    .then()
+      .expect().log().all(true)
+        .statusCode(Status.FORBIDDEN.getStatusCode())
+        .body("type", is(AuthorizationException.class.getSimpleName()))
+        .body("message", is(message))
+      .when().log().all(true)
+        .put(PROCESS_DEFINITION_SUSPENDED_URL);
+  }
+
+  @Test
   public void testActivateProcessDefinitionByIdShouldThrowException() {
     Map<String, Object> params = new HashMap<String, Object>();
     params.put("suspended", false);
@@ -1555,6 +2095,25 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
         .put(PROCESS_DEFINITION_SUSPENDED_URL);
   }
 
+  @Test
+  public void testSuspendProcessDefinitionThrowsAuthorizationExcpetion() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("suspended", true);
+
+    String message = "Either processDefinitionId or processDefinitionKey should be set to update the suspension state.";
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(params)
+    .then()
+      .expect()
+        .statusCode(Status.BAD_REQUEST.getStatusCode())
+        .body("type", is(InvalidRequestException.class.getSimpleName()))
+        .body("message", is(message))
+      .when()
+        .put(PROCESS_DEFINITION_SUSPENDED_URL);
+  }
+
   /**
    *
    ********************************* test cases for operations of the latest process definition ********************************
@@ -1605,12 +2164,42 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   }
 
   @Test
+  public void testGetProcessDefinitionBpmn20XmlThrowsAuthorizationException_ByKey() {
+    String message = "expected exception";
+    when(repositoryServiceMock.getProcessModel(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(XML_DEFINITION_BY_KEY_URL);
+  }
+
+  @Test
   public void testGetStartFormData_ByKey() {
     given().pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
     .then().expect()
       .statusCode(Status.OK.getStatusCode())
       .body("key", equalTo(MockProvider.EXAMPLE_FORM_KEY))
     .when().get(START_FORM_BY_KEY_URL);
+  }
+
+  @Test
+  public void testGetStartFormThrowsAuthorizationException_ByKey() {
+    String message = "expected exception";
+    when(formServiceMock.getStartFormData(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID)).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(START_FORM_BY_KEY_URL);
   }
 
   @Test
@@ -1658,6 +2247,21 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
           .body("message", equalTo("No matching rendered start form for process definition with the id " + MockProvider.EXAMPLE_PROCESS_DEFINITION_ID + " found."))
       .when()
         .get(RENDERED_FORM_BY_KEY_URL);
+  }
+
+  @Test
+  public void testGetRenderedStartFormThrowsAuthorizationException_ByKey() {
+    String message = "expected exception";
+    when(formServiceMock.getRenderedStartForm(anyString())).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(RENDERED_FORM_BY_KEY_URL);
   }
 
   @Test
@@ -1894,6 +2498,23 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   }
 
   @Test
+  public void testSubmitFormByKeyThrowsAuthorizationException() {
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(formServiceMock).submitStartForm(any(String.class), Matchers.<Map<String, Object>>any());
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(EMPTY_JSON_OBJECT)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .post(SUBMIT_FORM_BY_KEY_URL);
+  }
+
+  @Test
   public void testSimpleProcessInstantiation_ByKey() {
     given().pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
       .contentType(POST_JSON_CONTENT_TYPE).body(EMPTY_JSON_OBJECT)
@@ -1988,6 +2609,24 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
         .body("type", equalTo(RestException.class.getSimpleName()))
         .body("message", containsString("Cannot instantiate process definition"))
       .when().post(START_PROCESS_INSTANCE_BY_KEY_URL);
+  }
+
+  @Test
+  public void testStartProcessInstanceByKeyThrowsAuthorizationException() {
+    String message = "expected exception";
+    when(runtimeServiceMock.startProcessInstanceById(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID), anyString(), anyString(), Matchers.<Map<String, Object>>any()))
+      .thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(EMPTY_JSON_OBJECT)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .post(START_PROCESS_INSTANCE_BY_KEY_URL);
   }
 
   @Test
@@ -2282,6 +2921,27 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   }
 
   @Test
+  public void testActivateProcessDefinitionThrowsAuthorizationException_ByKey() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("suspended", false);
+
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(repositoryServiceMock).activateProcessDefinitionById(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, null);
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .contentType(ContentType.JSON)
+      .body(params)
+    .then()
+      .expect()
+        .statusCode(Status.FORBIDDEN.getStatusCode())
+        .body("type", is(AuthorizationException.class.getSimpleName()))
+        .body("message", is(message))
+      .when()
+        .put(SINGLE_PROCESS_DEFINITION_BY_KEY_SUSPENDED_URL);
+  }
+
+  @Test
   public void testSuspendProcessDefinitionExcludingInstances_ByKey() {
     Map<String, Object> params = new HashMap<String, Object>();
     params.put("suspended", true);
@@ -2414,6 +3074,27 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
   }
 
   @Test
+  public void testSuspendProcessDefinitionThrowsAuthorizationException_ByKey() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("suspended", true);
+
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(repositoryServiceMock).suspendProcessDefinitionById(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, false, null);
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+      .contentType(ContentType.JSON)
+      .body(params)
+    .then()
+      .expect()
+        .statusCode(Status.FORBIDDEN.getStatusCode())
+        .body("type", is(AuthorizationException.class.getSimpleName()))
+        .body("message", is(message))
+      .when()
+        .put(SINGLE_PROCESS_DEFINITION_BY_KEY_SUSPENDED_URL);
+  }
+
+  @Test
   public void testProcessInstantiationWithCaseInstanceId() throws IOException {
     Map<String, Object> json = new HashMap<String, Object>();
     json.put("caseInstanceId", "myCaseInstanceId");
@@ -2473,6 +3154,21 @@ public abstract class AbstractProcessDefinitionRestServiceInteractionTest extend
 
     verify(runtimeServiceMock).startProcessInstanceById(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID), eq("myBusinessKey"), eq("myCaseInstanceId"), argThat(new EqualsMap(expectedParameters)));
 
+  }
+
+  @Test
+  public void testGetStartFormVariablesThrowsAuthorizationException_ByKey() {
+    String message = "expected exception";
+    when(formServiceMock.getStartFormVariables(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, null, true)).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("key", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode()).contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(START_FORM_VARIABLES_BY_KEY_URL);
   }
 
 }

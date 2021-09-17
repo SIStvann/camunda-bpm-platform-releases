@@ -22,6 +22,7 @@ import junit.framework.Assert;
 
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricIncident;
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.ProcessEngineImpl;
 import org.camunda.bpm.engine.impl.cmd.AcquireJobsCmd;
 import org.camunda.bpm.engine.impl.incident.FailedJobIncidentHandler;
@@ -34,6 +35,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.JobManager;
 import org.camunda.bpm.engine.impl.persistence.entity.MessageEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
+import org.camunda.bpm.engine.impl.test.TestHelper;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.management.JobDefinition;
 import org.camunda.bpm.engine.management.TableMetaData;
@@ -322,6 +324,8 @@ public class ManagementServiceTest extends PluggableProcessEngineTestCase {
     assertEquals(3, job.getRetries());
 
     deleteJobAndIncidents(job);
+
+    TestHelper.clearOpLog(processEngineConfiguration);
   }
 
   protected void createJob(final int retries, final String owner, final Date lockExpirationTime) {
@@ -391,6 +395,8 @@ public class ManagementServiceTest extends PluggableProcessEngineTestCase {
           HistoricIncidentEntity incidentEntity = (HistoricIncidentEntity) incident;
           historicIncidentManager.delete(incidentEntity);
         }
+
+        commandContext.getHistoricJobLogManager().deleteHistoricJobLogByJobId(job.getId());
         return null;
       }
     });
@@ -578,4 +584,8 @@ public class ManagementServiceTest extends PluggableProcessEngineTestCase {
     assertEquals(processEngineConfiguration.getHistoryLevel().getId(), historyLevel);
   }
 
+  protected void cleanOpLog(String jobId) {
+    UserOperationLogEntry entry = historyService.createUserOperationLogQuery().jobId(jobId).singleResult();
+    historyService.deleteUserOperationLogEntry(entry.getId());
+  }
 }

@@ -12,13 +12,14 @@
  */
 package org.camunda.bpm.engine.rest.dto.history;
 
-import static javax.ws.rs.core.Response.Status;
-
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
 import javax.ws.rs.core.MultivaluedMap;
+import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.history.HistoricCaseInstanceQuery;
@@ -31,7 +32,8 @@ import org.camunda.bpm.engine.rest.dto.converter.StringListConverter;
 import org.camunda.bpm.engine.rest.dto.converter.StringSetConverter;
 import org.camunda.bpm.engine.rest.dto.converter.VariableListConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class HistoricCaseInstanceQueryDto extends AbstractQueryDto<HistoricCaseInstanceQuery> {
 
@@ -64,6 +66,8 @@ public class HistoricCaseInstanceQueryDto extends AbstractQueryDto<HistoricCaseI
   public String caseInstanceBusinessKeyLike;
   public String superCaseInstanceId;
   public String subCaseInstanceId;
+  private String superProcessInstanceId;
+  private String subProcessInstanceId;
   public String createdBy;
 
   public Date createdBefore;
@@ -138,6 +142,16 @@ public class HistoricCaseInstanceQueryDto extends AbstractQueryDto<HistoricCaseI
   @CamundaQueryParam("subCaseInstanceId")
   public void setSubCaseInstanceId(String subCaseInstanceId) {
     this.subCaseInstanceId = subCaseInstanceId;
+  }
+
+  @CamundaQueryParam("superProcessInstanceId")
+  public void setSuperProcessInstanceId(String superProcessInstanceId) {
+    this.superProcessInstanceId = superProcessInstanceId;
+  }
+
+  @CamundaQueryParam("subProcessInstanceId")
+  public void setSubProcessInstanceId(String subProcessInstanceId) {
+    this.subProcessInstanceId = subProcessInstanceId;
   }
 
   @CamundaQueryParam("createdBy")
@@ -241,6 +255,12 @@ public class HistoricCaseInstanceQueryDto extends AbstractQueryDto<HistoricCaseI
     if (subCaseInstanceId != null) {
       query.subCaseInstanceId(subCaseInstanceId);
     }
+    if (superProcessInstanceId != null) {
+      query.superProcessInstanceId(superProcessInstanceId);
+    }
+    if (subProcessInstanceId != null) {
+      query.subProcessInstanceId(subProcessInstanceId);
+    }
     if (createdBy != null) {
       query.createdBy(createdBy);
     }
@@ -299,29 +319,19 @@ public class HistoricCaseInstanceQueryDto extends AbstractQueryDto<HistoricCaseI
   }
 
   @Override
-  protected void applySortingOptions(HistoricCaseInstanceQuery query) {
-    if (sortBy != null) {
-      if (sortBy.equals(SORT_BY_CASE_INSTANCE_ID_VALUE)) {
-        query.orderByCaseInstanceId();
-      } else if (sortBy.equals(SORT_BY_CASE_DEFINITION_ID_VALUE)) {
-        query.orderByCaseDefinitionId();
-      } else if (sortBy.equals(SORT_BY_CASE_INSTANCE_BUSINESS_KEY_VALUE)) {
-        query.orderByCaseInstanceBusinessKey();
-      } else if (sortBy.equals(SORT_BY_CASE_INSTANCE_CREATE_TIME_VALUE)) {
-        query.orderByCaseInstanceCreateTime();
-      } else if (sortBy.equals(SORT_BY_CASE_INSTANCE_CLOSE_TIME_VALUE)) {
-        query.orderByCaseInstanceCloseTime();
-      } else if (sortBy.equals(SORT_BY_CASE_INSTANCE_DURATION_VALUE)) {
-        query.orderByCaseInstanceDuration();
-      }
-    }
-
-    if (sortOrder != null) {
-      if (sortOrder.equals(SORT_ORDER_ASC_VALUE)) {
-        query.asc();
-      } else if (sortOrder.equals(SORT_ORDER_DESC_VALUE)) {
-        query.desc();
-      }
+  protected void applySortBy(HistoricCaseInstanceQuery query, String sortBy, Map<String, Object> parameters, ProcessEngine engine) {
+    if (sortBy.equals(SORT_BY_CASE_INSTANCE_ID_VALUE)) {
+      query.orderByCaseInstanceId();
+    } else if (sortBy.equals(SORT_BY_CASE_DEFINITION_ID_VALUE)) {
+      query.orderByCaseDefinitionId();
+    } else if (sortBy.equals(SORT_BY_CASE_INSTANCE_BUSINESS_KEY_VALUE)) {
+      query.orderByCaseInstanceBusinessKey();
+    } else if (sortBy.equals(SORT_BY_CASE_INSTANCE_CREATE_TIME_VALUE)) {
+      query.orderByCaseInstanceCreateTime();
+    } else if (sortBy.equals(SORT_BY_CASE_INSTANCE_CLOSE_TIME_VALUE)) {
+      query.orderByCaseInstanceCloseTime();
+    } else if (sortBy.equals(SORT_BY_CASE_INSTANCE_DURATION_VALUE)) {
+      query.orderByCaseInstanceDuration();
     }
   }
 

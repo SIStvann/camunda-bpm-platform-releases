@@ -23,6 +23,7 @@
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/HistoricStatistics.xml" />
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/HistoricVariableInstance.xml" />
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/HistoricTaskInstance.xml" />
+    <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/HistoricJobLog.xml" />
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/UserOperationLogEntry.xml" />
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/IdentityInfo.xml" />
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/IdentityLink.xml" />
@@ -41,6 +42,7 @@
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/Statistics.xml" />
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/Authorization.xml" />
     <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/Filter.xml" />
+    <mapper resource="org/camunda/bpm/engine/impl/mapping/entity/Metrics.xml" />
 
     <!-- CMMN -->
 

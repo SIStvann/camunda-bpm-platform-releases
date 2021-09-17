@@ -25,6 +25,7 @@
       CASE_INST_ID_,
       SUSPENSION_STATE_,
       CACHED_ENT_STATE_,
+      SEQUENCE_COUNTER_,
       REV_
     )
     values
@@ -45,6 +46,7 @@
       #{caseInstanceId, jdbcType=VARCHAR},
       #{suspensionState, jdbcType=INTEGER},
       #{cachedEntityState, jdbcType=INTEGER},
+      #{sequenceCounter, jdbcType=BIGINT},
       1
     )
   </insert>
@@ -64,7 +66,8 @@
       PARENT_ID_ = #{parentId, jdbcType=VARCHAR},
       SUPER_EXEC_ = #{superExecutionId, jdbcType=VARCHAR},
       SUSPENSION_STATE_ = #{suspensionState, jdbcType=INTEGER},
-      CACHED_ENT_STATE_ = #{cachedEntityState, jdbcType=INTEGER}
+      CACHED_ENT_STATE_ = #{cachedEntityState, jdbcType=INTEGER},
+      SEQUENCE_COUNTER_ = #{sequenceCounter, jdbcType=BIGINT}
     where ID_ = #{id, jdbcType=VARCHAR}
       and REV_ = #{revision, jdbcType=INTEGER}
   </update>
@@ -112,6 +115,7 @@
     <result property="caseInstanceId" column="CASE_INST_ID_" jdbcType="VARCHAR" />
     <result property="suspensionState" column="SUSPENSION_STATE_" jdbcType="INTEGER"/>
     <result property="cachedEntityState" column="CACHED_ENT_STATE_" jdbcType="INTEGER"/>
+    <result property="sequenceCounter" column="SEQUENCE_COUNTER_" jdbcType="BIGINT"/>
   </resultMap>
   
   <!-- EXECUTION SELECT -->
@@ -137,8 +141,11 @@
   </select>
   
   <select id="selectExecutionsByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.ExecutionQueryImpl" resultMap="executionResultMap">
-  	${limitBefore}
-    select RES.* ${limitBetween}, P.KEY_
+  	<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
+    ${limitBefore}
+    select RES.* 
+    ${limitBetween}
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.orderBySelection"/>
     <include refid="selectExecutionsByQueryCriteriaSql"/>
     ${orderBy}
     ${limitAfter}
@@ -151,8 +158,11 @@
   
   <!--  same as selectExecutionByQueryCriteria, but with different parameterType -->
   <select id="selectProcessInstanceByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.ProcessInstanceQueryImpl" resultMap="executionResultMap">
-  	${limitBefore}
-    select RES.* ${limitBetween}, P.KEY_
+  	<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
+    ${limitBefore}
+    select RES.*
+    ${limitBetween}
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.orderBySelection"/>
     <include refid="selectExecutionsByQueryCriteriaSql"/>
     ${orderBy}
     ${limitAfter}
@@ -221,6 +231,12 @@
       <if test="caseInstanceId != null">
         and RES.CASE_INST_ID_ = #{caseInstanceId}
       </if>
+      <if test="superCaseInstanceId != null">
+        and RES.SUPER_CASE_EXEC_ IN (select ID_ from ${prefix}ACT_RU_CASE_EXECUTION where CASE_INST_ID_ = #{superCaseInstanceId})
+      </if>
+      <if test="subCaseInstanceId != null">
+        and RES.ID_ = (select PROC_INST_ID_ from ${prefix}ACT_RU_EXECUTION where ID_ = (select SUPER_EXEC_ from ${prefix}ACT_RU_CASE_EXECUTION where ID_ = #{subCaseInstanceId}))
+      </if>
       <!-- PLEASE NOTE: If you change anything have a look into the HistoricVariableInstance & HistoricProcessInstance, the same query object is used there! -->
       <foreach collection="queryVariableValues" index="index" item="queryVariableValue">
         and EXISTS (
@@ -273,6 +289,9 @@
       <if test="incidentMessageLike != null">
         and INC.INCIDENT_MSG_ like #{incidentMessageLike}
       </if>
+
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheck" />
+
     </where>
   </sql>
 

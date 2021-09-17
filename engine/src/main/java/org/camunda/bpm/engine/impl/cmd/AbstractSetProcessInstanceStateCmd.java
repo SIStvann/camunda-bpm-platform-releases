@@ -13,45 +13,55 @@
 package org.camunda.bpm.engine.impl.cmd;
 
 import org.camunda.bpm.engine.ProcessEngineException;
-import org.camunda.bpm.engine.history.UserOperationLogEntry;
-import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskManager;
-import org.camunda.bpm.engine.runtime.Job;
 
 /**
  * @author Daniel Meyer
  * @author Joram Barrez
  * @author roman.smirnov
  */
-public abstract class AbstractSetProcessInstanceStateCmd implements Command<Void> {
-
-  protected static final String SUSPENSION_STATE_PROPERTY = "suspensionState";
+public abstract class AbstractSetProcessInstanceStateCmd extends AbstractSetStateCmd {
 
   protected final String processInstanceId;
   protected String processDefinitionId;
   protected String processDefinitionKey;
 
-
   public AbstractSetProcessInstanceStateCmd(String processInstanceId, String processDefinitionId, String processDefinitionKey) {
+    super(true, null);
     this.processInstanceId = processInstanceId;
     this.processDefinitionId = processDefinitionId;
     this.processDefinitionKey = processDefinitionKey;
   }
 
-  public Void execute(CommandContext commandContext) {
-
+  protected void checkParameters(CommandContext commandContext) {
     if(processInstanceId == null && processDefinitionId == null && processDefinitionKey == null) {
       throw new ProcessEngineException("ProcessInstanceId, ProcessDefinitionId nor ProcessDefinitionKey cannot be null.");
     }
+  }
 
+  protected void checkAuthorization(CommandContext commandContext) {
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    if (processInstanceId != null) {
+      authorizationManager.checkUpdateProcessInstanceById(processInstanceId);
+    } else
+
+    if (processDefinitionId != null) {
+      authorizationManager.checkUpdateProcessInstanceByProcessDefinitionId(processDefinitionId);
+    } else
+
+    if (processDefinitionKey != null) {
+      authorizationManager.checkUpdateProcessInstanceByProcessDefinitionKey(processDefinitionKey);
+    }
+  }
+
+  protected void updateSuspensionState(CommandContext commandContext, SuspensionState suspensionState) {
     ExecutionManager executionManager = commandContext.getExecutionManager();
     TaskManager taskManager = commandContext.getTaskManager();
-
-    SuspensionState suspensionState = getNewSuspensionState();
 
     if (processInstanceId != null) {
       executionManager.updateExecutionSuspensionStateByProcessInstanceId(processInstanceId, suspensionState);
@@ -67,28 +77,15 @@ public abstract class AbstractSetProcessInstanceStateCmd implements Command<Void
       executionManager.updateExecutionSuspensionStateByProcessDefinitionKey(processDefinitionKey, suspensionState);
       taskManager.updateTaskSuspensionStateByProcessDefinitionKey(processDefinitionKey, suspensionState);
     }
-
-    getSetJobStateCmd().execute(commandContext);
-
-    PropertyChange propertyChange = new PropertyChange(SUSPENSION_STATE_PROPERTY, null, suspensionState.getName());
-    commandContext.getOperationLogManager()
-      .logProcessInstanceOperation(getLogEntryOperation(), processInstanceId, processDefinitionId,
-          processDefinitionKey, propertyChange);
-
-    return null;
   }
 
-  /**
-   * Subclasses should return the wanted {@link SuspensionState} here.
-   */
-  protected abstract SuspensionState getNewSuspensionState();
+  protected void logUserOperation(CommandContext commandContext) {
+    PropertyChange propertyChange = new PropertyChange(SUSPENSION_STATE_PROPERTY, null, getNewSuspensionState().getName());
+    commandContext.getOperationLogManager()
+      .logProcessInstanceOperation(getLogEntryOperation(), processInstanceId, processDefinitionId,
+        processDefinitionKey, propertyChange);
+  }
 
-  /**
-   * Subclasses should return the type of the {@link AbstractSetJobStateCmd} here.
-   * It will be used to suspend or activate the {@link Job}s.
-   */
-  protected abstract AbstractSetJobStateCmd getSetJobStateCmd();
-
-  protected abstract String getLogEntryOperation();
+  protected abstract AbstractSetJobStateCmd getNextCommand();
 
 }

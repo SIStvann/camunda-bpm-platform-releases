@@ -12,6 +12,9 @@
  */
 package org.camunda.spin.plugin.impl;
 
+import static org.camunda.spin.plugin.variable.type.SpinValueType.JSON;
+import static org.camunda.spin.plugin.variable.type.SpinValueType.XML;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -22,6 +25,7 @@ import org.camunda.bpm.engine.impl.util.ClassLoaderUtil;
 import org.camunda.bpm.engine.impl.variable.serializer.JavaObjectSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.TypedValueSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.VariableSerializers;
+import org.camunda.bpm.engine.variable.type.ValueTypeResolver;
 import org.camunda.spin.DataFormats;
 import org.camunda.spin.spi.DataFormat;
 
@@ -43,6 +47,7 @@ public class SpinProcessEnginePlugin extends AbstractProcessEnginePlugin {
     registerFunctionMapper(processEngineConfiguration);
     registerScriptResolver(processEngineConfiguration);
     registerSerializers(processEngineConfiguration);
+    registerValueTypes(processEngineConfiguration);
   }
 
   protected void registerSerializers(ProcessEngineConfigurationImpl processEngineConfiguration) {
@@ -66,6 +71,12 @@ public class SpinProcessEnginePlugin extends AbstractProcessEnginePlugin {
     for (DataFormat<?> dataFormat : availableDataFormats) {
       serializers.add(new SpinObjectValueSerializer("spin://"+dataFormat.getName(), dataFormat));
     }
+    if(DataFormats.json() != null) {
+      serializers.add(new JsonValueSerializer());
+    }
+    if(DataFormats.xml() != null){
+      serializers.add(new XmlValueSerializer());
+    }
 
     return serializers;
   }
@@ -78,5 +89,10 @@ public class SpinProcessEnginePlugin extends AbstractProcessEnginePlugin {
     processEngineConfiguration.getExpressionManager().addFunctionMapper(new SpinFunctionMapper());
   }
 
+  protected void registerValueTypes(ProcessEngineConfigurationImpl processEngineConfiguration){
+    ValueTypeResolver resolver = processEngineConfiguration.getValueTypeResolver();
+    resolver.addType(JSON);
+    resolver.addType(XML);
+  }
 
 }

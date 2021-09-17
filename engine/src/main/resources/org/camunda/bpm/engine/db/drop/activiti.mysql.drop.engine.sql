@@ -7,6 +7,8 @@ drop index ACT_IDX_VARIABLE_TASK_ID on ACT_RU_VARIABLE;
 drop index ACT_IDX_INC_CONFIGURATION on ACT_RU_INCIDENT;
 drop index ACT_IDX_JOB_PROCINST on ACT_RU_JOB;
 
+drop index ACT_IDX_METER_LOG on ACT_RU_METER_LOG;
+
 alter table ACT_GE_BYTEARRAY 
     drop FOREIGN KEY ACT_FK_BYTEARR_DEPL;
 
@@ -85,9 +87,10 @@ drop table if exists ACT_RU_IDENTITYLINK;
 drop table if exists ACT_RU_TASK;
 drop table if exists ACT_RE_PROCDEF;
 drop table if exists ACT_RU_EXECUTION;
-drop table if exists ACT_RU_JOB; 
+drop table if exists ACT_RU_JOB;
 drop table if exists ACT_RU_JOBDEF;
 drop table if exists ACT_RU_EVENT_SUBSCR;
 drop table if exists ACT_RU_INCIDENT;
 drop table if exists ACT_RU_AUTHORIZATION;
 drop table if exists ACT_RU_FILTER;
+drop table if exists ACT_RU_METER_LOG;

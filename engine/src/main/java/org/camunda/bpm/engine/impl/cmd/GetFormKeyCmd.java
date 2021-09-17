@@ -15,11 +15,15 @@ package org.camunda.bpm.engine.impl.cmd;
 
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.delegate.Expression;
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.form.handler.DefaultStartFormHandler;
+import org.camunda.bpm.engine.impl.form.handler.DelegateStartFormHandler;
 import org.camunda.bpm.engine.impl.form.handler.FormHandler;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.task.TaskDefinition;
 
@@ -60,16 +64,24 @@ public class GetFormKeyCmd implements Command<String> {
   }
 
   public String execute(CommandContext commandContext) {
-    ProcessDefinitionEntity processDefinition = Context
-            .getProcessEngineConfiguration()
-            .getDeploymentCache()
-            .findDeployedProcessDefinitionById(processDefinitionId);
+    ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
+    DeploymentCache deploymentCache = processEngineConfiguration.getDeploymentCache();
+    ProcessDefinitionEntity processDefinition = deploymentCache.findDeployedProcessDefinitionById(processDefinitionId);
+
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    authorizationManager.checkReadProcessDefinition(processDefinition);
 
     Expression formKeyExpression = null;
 
     if (taskDefinitionKey == null) {
+
       // TODO: Maybe add getFormKey() to FormHandler interface to avoid the following cast
       FormHandler formHandler = processDefinition.getStartFormHandler();
+
+      if (formHandler instanceof DelegateStartFormHandler) {
+        DelegateStartFormHandler delegateFormHandler = (DelegateStartFormHandler) formHandler;
+        formHandler = delegateFormHandler.getFormHandler();
+      }
 
       // Sorry!!! In case of a custom start form handler (which does not extend
       // the DefaultFormHandler) a formKey would never be returned. So a custom

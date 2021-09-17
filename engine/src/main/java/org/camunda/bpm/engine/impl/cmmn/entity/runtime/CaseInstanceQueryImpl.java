@@ -18,6 +18,7 @@ import java.util.List;
 
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.impl.AbstractVariableQueryImpl;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.Page;
 import org.camunda.bpm.engine.impl.cmmn.execution.CaseExecutionState;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
@@ -38,6 +39,13 @@ public class CaseInstanceQueryImpl extends AbstractVariableQueryImpl<CaseInstanc
   protected String caseDefinitionId;
   protected String caseDefinitionKey;
   protected CaseExecutionState state;
+  protected String superProcessInstanceId;
+  protected String subProcessInstanceId;
+  protected String superCaseInstanceId;
+  protected String subCaseInstanceId;
+
+  // Not used by end-users, but needed for dynamic ibatis query
+  protected Boolean required;
 
   public CaseInstanceQueryImpl() {
   }
@@ -74,6 +82,30 @@ public class CaseInstanceQueryImpl extends AbstractVariableQueryImpl<CaseInstanc
     return this;
   }
 
+  public CaseInstanceQuery superProcessInstanceId(String superProcessInstanceId) {
+    ensureNotNull(NotValidException.class, "superProcessInstanceId", superProcessInstanceId);
+    this.superProcessInstanceId = superProcessInstanceId;
+    return this;
+  }
+
+  public CaseInstanceQuery subProcessInstanceId(String subProcessInstanceId) {
+    ensureNotNull(NotValidException.class, "subProcessInstanceId", subProcessInstanceId);
+    this.subProcessInstanceId = subProcessInstanceId;
+    return this;
+  }
+
+  public CaseInstanceQuery superCaseInstanceId(String superCaseInstanceId) {
+    ensureNotNull(NotValidException.class, "superCaseInstanceId", superCaseInstanceId);
+    this.superCaseInstanceId = superCaseInstanceId;
+    return this;
+  }
+
+  public CaseInstanceQuery subCaseInstanceId(String subCaseInstanceId) {
+    ensureNotNull(NotValidException.class, "subCaseInstanceId", subCaseInstanceId);
+    this.subCaseInstanceId = subCaseInstanceId;
+    return this;
+  }
+
   public CaseInstanceQuery active() {
     state = CaseExecutionState.ACTIVE;
     return this;
@@ -97,7 +129,8 @@ public class CaseInstanceQueryImpl extends AbstractVariableQueryImpl<CaseInstanc
   }
 
   public CaseInstanceQuery orderByCaseDefinitionKey() {
-    orderBy(CaseInstanceQueryProperty.CASE_DEFINITION_KEY);
+    orderBy(new QueryOrderingProperty(QueryOrderingProperty.RELATION_CASE_DEFINITION,
+        CaseInstanceQueryProperty.CASE_DEFINITION_KEY));
     return this;
   }
 
@@ -156,6 +189,26 @@ public class CaseInstanceQueryImpl extends AbstractVariableQueryImpl<CaseInstanc
 
   public boolean isCaseInstancesOnly() {
     return true;
+  }
+
+  public String getSuperProcessInstanceId() {
+    return superProcessInstanceId;
+  }
+
+  public String getSubProcessInstanceId() {
+    return subProcessInstanceId;
+  }
+
+  public String getSuperCaseInstanceId() {
+    return superCaseInstanceId;
+  }
+
+  public String getSubCaseInstanceId() {
+    return subCaseInstanceId;
+  }
+
+  public Boolean isRequired() {
+    return required;
   }
 
 }

@@ -19,6 +19,7 @@ import java.util.List;
 import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.query.Query;
+import org.camunda.bpm.engine.variable.type.ValueType;
 
 /**
  * Allows programmatic querying of {@link Task}s;
@@ -87,10 +88,36 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
   /** Only select tasks with the given {@link DelegationState}. */
   TaskQuery taskDelegationState(DelegationState delegationState);
 
-  /** Only select tasks for which the given user is a candidate. */
+  /**
+   * Only select tasks for which the given user is a candidate.
+   *
+   * <p>
+   * Per default it only selects tasks which are not already assigned
+   * to a user. To also include assigned task in the result specify
+   * {@link #includeAssignedTasks()} in your query.
+   * </p>
+   *
+   * @throws ProcessEngineException
+   *   When query is executed and {@link #taskCandidateGroup(String)} or
+   *     {@link #taskCandidateGroupIn(List)} has been executed on the query instance.
+   *   When passed user is <code>null</code>.
+   */
   TaskQuery taskCandidateUser(String candidateUser);
 
-  /** Only select tasks for which the described user by the given expression is a candidate. */
+  /**
+   * Only select tasks for which the described user by the given expression is a candidate.
+   *
+   * <p>
+   * Per default it only selects tasks which are not already assigned
+   * to a user. To also include assigned task in the result specify
+   * {@link #includeAssignedTasks()} in your query.
+   * </p>
+   *
+   * @throws ProcessEngineException
+   *   When query is executed and {@link #taskCandidateGroup(String)} or
+   *     {@link #taskCandidateGroupIn(List)} has been executed on the query instance.
+   *   When passed user is <code>null</code>.
+   */
   TaskQuery taskCandidateUserExpression(String candidateUserExpression);
 
   /** Only select tasks for which there exist an {@link IdentityLink} with the given user */
@@ -99,14 +126,46 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
   /** Only select tasks for which there exist an {@link IdentityLink} with the described user by the given expression */
   TaskQuery taskInvolvedUserExpression(String involvedUserExpression);
 
-  /** Only select tasks for which users in the given group are candidates. */
+  /**
+   *  Only select tasks for which users in the given group are candidates.
+   *
+   * <p>
+   * Per default it only selects tasks which are not already assigned
+   * to a user. To also include assigned task in the result specify
+   * {@link #includeAssignedTasks()} in your query.
+   * </p>
+   *
+   * @throws ProcessEngineException
+   *   When query is executed and {@link #taskCandidateUser(String)} or
+   *     {@link #taskCandidateGroupIn(List)} has been executed on the query instance.
+   *   When passed group is <code>null</code>.
+   */
   TaskQuery taskCandidateGroup(String candidateGroup);
 
-  /** Only select tasks for which users in the described group by the given expression are candidates. */
+  /**
+   * Only select tasks for which users in the described group by the given expression are candidates.
+   *
+   * <p>
+   * Per default it only selects tasks which are not already assigned
+   * to a user. To also include assigned task in the result specify
+   * {@link #includeAssignedTasks()} in your query.
+   * </p>
+   *
+   * @throws ProcessEngineException
+   *   When query is executed and {@link #taskCandidateUser(String)} or
+   *     {@link #taskCandidateGroupIn(List)} has been executed on the query instance.
+   *   When passed group is <code>null</code>.
+   */
   TaskQuery taskCandidateGroupExpression(String candidateGroupExpression);
 
   /**
    * Only select tasks for which the 'candidateGroup' is one of the given groups.
+   *
+   * <p>
+   * Per default it only selects tasks which are not already assigned
+   * to a user. To also include assigned task in the result specify
+   * {@link #includeAssignedTasks()} in your query.
+   * </p>
    *
    * @throws ProcessEngineException
    *   When query is executed and {@link #taskCandidateGroup(String)} or
@@ -118,6 +177,12 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
   /**
    * Only select tasks for which the 'candidateGroup' is one of the described groups of the given expression.
    *
+   * <p>
+   * Per default it only selects tasks which are not already assigned
+   * to a user. To also include assigned task in the result specify
+   * {@link #includeAssignedTasks()} in your query.
+   * </p>
+   *
    * @throws ProcessEngineException
    *   When query is executed and {@link #taskCandidateGroup(String)} or
    *     {@link #taskCandidateUser(String)} has been executed on the query instance.
@@ -125,11 +190,28 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
    */
   TaskQuery taskCandidateGroupInExpression(String candidateGroupsExpression);
 
+  /**
+   * Select both assigned and not assigned tasks for candidate user or group queries.
+   * <p>
+   * By default {@link #taskCandidateUser(String)}, {@link #taskCandidateGroup(String)}
+   * and {@link #taskCandidateGroupIn(List)} queries only select not assigned tasks.
+   * </p>
+   *
+   * @throws ProcessEngineException
+   *    When no candidate user or group(s) are specified beforehand
+   */
+  TaskQuery includeAssignedTasks();
+
   /** Only select tasks for the given process instance id. */
   TaskQuery processInstanceId(String processInstanceId);
 
   /** Only select tasks for the given process instance business key */
   TaskQuery processInstanceBusinessKey(String processInstanceBusinessKey);
+
+  /**
+   * Only select tasks for any of the given the given process instance business keys.
+   */
+  TaskQuery processInstanceBusinessKeyIn(String... processInstanceBusinessKeys);
 
   /** Only select tasks matching the given process instance business key.
    *  The syntax is that of SQL: for example usage: nameLike(%activiti%)*/
@@ -176,6 +258,14 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
    * &lt;userTask id="xxx" .../&gt;
    **/
   TaskQuery taskDefinitionKeyLike(String keyLike);
+
+  /** Only select tasks which have one of the taskDefinitionKeys. **/
+  TaskQuery taskDefinitionKeyIn(String... taskDefinitionKeys);
+
+  /**
+   * Select the tasks which are sub tasks of the given parent task.
+   */
+  TaskQuery taskParentTaskId(String parentTaskId);
 
   /** Only select tasks for the given case instance id. */
   TaskQuery caseInstanceId(String caseInstanceId);
@@ -394,6 +484,12 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
   TaskQuery processDefinitionKey(String processDefinitionKey);
 
   /**
+   * Only select tasks which are part of a process instance which has one of the
+   * given process definition keys.
+   */
+  TaskQuery processDefinitionKeyIn(String... processDefinitionKeys);
+
+  /**
    * Only select tasks which are part of a process instance which has the given
    * process definition id.
    */
@@ -460,7 +556,7 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
    * Only select tasks which have a follow-up date before the described date by the given expression.
    */
   TaskQuery followUpBeforeExpression(String followUpDateExpression);
-  
+
   /**
    * Only select tasks which have no follow-up date or a follow-up date before the given date.
    * Serves the typical use case "give me all tasks without follow-up or follow-up date which is already due"
@@ -472,7 +568,7 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
    * Serves the typical use case "give me all tasks without follow-up or follow-up date which is already due"
    */
   TaskQuery followUpBeforeOrNotExistentExpression(String followUpDateExpression);
-  
+
   /**
    * Only select tasks which have a follow-up date after the given date.
    */
@@ -541,5 +637,40 @@ public interface TaskQuery extends Query<TaskQuery, Task>{
 
   /** Order by follow-up date (needs to be followed by {@link #asc()} or {@link #desc()}). */
   TaskQuery orderByFollowUpDate();
+
+  /**
+   * Order by a process instance variable value of a certain type. Calling this method multiple times
+   * specifies secondary, tertiary orderings, etc. The ordering of variables with <code>null</code>
+   * values is database-specific.
+   */
+  TaskQuery orderByProcessVariable(String variableName, ValueType valueType);
+
+  /**
+   * Order by an execution variable value of a certain type. Calling this method multiple times
+   * specifies secondary, tertiary orderings, etc. The ordering of variables with <code>null</code>
+   * values is database-specific.
+   */
+  TaskQuery orderByExecutionVariable(String variableName, ValueType valueType);
+
+  /**
+   * Order by a task variable value of a certain type. Calling this method multiple times
+   * specifies secondary, tertiary orderings, etc. The ordering of variables with <code>null</code>
+   * values is database-specific.
+   */
+  TaskQuery orderByTaskVariable(String variableName, ValueType valueType);
+
+  /**
+   * Order by a task variable value of a certain type. Calling this method multiple times
+   * specifies secondary, tertiary orderings, etc. The ordering of variables with <code>null</code>
+   * values is database-specific.
+   */
+  TaskQuery orderByCaseExecutionVariable(String variableName, ValueType valueType);
+
+  /**
+   * Order by a task variable value of a certain type. Calling this method multiple times
+   * specifies secondary, tertiary orderings, etc. The ordering of variables with <code>null</code>
+   * values is database-specific.
+   */
+  TaskQuery orderByCaseInstanceVariable(String variableName, ValueType valueType);
 
 }

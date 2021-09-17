@@ -1,47 +1,44 @@
 package org.camunda.bpm.engine.impl.cmd;
 
-import java.io.Serializable;
-import java.util.Collection;
-import org.camunda.bpm.engine.impl.interceptor.Command;
-import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
-
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
+import java.util.Collection;
+
+import org.camunda.bpm.engine.impl.core.variable.scope.AbstractVariableScope;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
+import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 
 /**
  * @author roman.smirnov
  * @author Joram Barrez
  */
-public class RemoveExecutionVariablesCmd implements Command<Void>, Serializable {
+public class RemoveExecutionVariablesCmd extends AbstractRemoveVariableCmd {
 
   private static final long serialVersionUID = 1L;
 
-  private String executionId;
-  private Collection<String> variableNames;
-  private boolean isLocal;
-  
   public RemoveExecutionVariablesCmd(String executionId, Collection<String> variableNames, boolean isLocal) {
-    this.executionId = executionId;
-    this.variableNames = variableNames;
-    this.isLocal = isLocal;
+    super(executionId, variableNames, isLocal);
   }
-  
-  @Override
-  public Void execute(CommandContext commandContext) {
-    ensureNotNull("executionId", executionId);
+
+  protected ExecutionEntity getEntity() {
+    ensureNotNull("executionId", entityId);
 
     ExecutionEntity execution = commandContext
       .getExecutionManager()
-      .findExecutionById(executionId);
+      .findExecutionById(entityId);
 
-    ensureNotNull("execution " + executionId + " doesn't exist", "execution", execution);
+    ensureNotNull("execution " + entityId + " doesn't exist", "execution", execution);
 
-    if (isLocal) {
-      execution.removeVariablesLocal(variableNames);
-    } else {
-      execution.removeVariables(variableNames);
-    }
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    authorizationManager.checkUpdateProcessInstance(execution);
 
-    return null;
+    return execution;
+  }
+
+  protected void logVariableOperation(AbstractVariableScope scope) {
+    ExecutionEntity execution = (ExecutionEntity) scope;
+    commandContext.getOperationLogManager().logVariableOperation(getLogEntryOperation(), execution,
+      PropertyChange.EMPTY_CHANGE);
   }
 }

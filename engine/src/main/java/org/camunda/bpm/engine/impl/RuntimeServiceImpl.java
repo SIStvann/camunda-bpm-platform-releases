@@ -37,6 +37,7 @@ import org.camunda.bpm.engine.impl.cmd.RemoveExecutionVariablesCmd;
 import org.camunda.bpm.engine.impl.cmd.SetExecutionVariablesCmd;
 import org.camunda.bpm.engine.impl.cmd.SignalCmd;
 import org.camunda.bpm.engine.impl.cmd.SignalEventReceivedCmd;
+import org.camunda.bpm.engine.impl.cmd.StartProcessInstanceByMessageAndProcessDefinitionIdCmd;
 import org.camunda.bpm.engine.impl.cmd.StartProcessInstanceByMessageCmd;
 import org.camunda.bpm.engine.impl.cmd.StartProcessInstanceCmd;
 import org.camunda.bpm.engine.impl.cmd.SuspendProcessInstanceCmd;
@@ -48,7 +49,9 @@ import org.camunda.bpm.engine.runtime.MessageCorrelationBuilder;
 import org.camunda.bpm.engine.runtime.NativeExecutionQuery;
 import org.camunda.bpm.engine.runtime.NativeProcessInstanceQuery;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.engine.runtime.ProcessInstanceModificationBuilder;
 import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
+import org.camunda.bpm.engine.runtime.ProcessInstantiationBuilder;
 import org.camunda.bpm.engine.runtime.VariableInstanceQuery;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.value.TypedValue;
@@ -323,6 +326,22 @@ public class RuntimeServiceImpl extends ServiceImpl implements RuntimeService {
     return commandExecutor.execute(new StartProcessInstanceByMessageCmd(messageName, businessKey, processVariables));
   }
 
+  public ProcessInstance startProcessInstanceByMessageAndProcessDefinitionId(String messageName, String processDefinitionId) {
+	return commandExecutor.execute(new StartProcessInstanceByMessageAndProcessDefinitionIdCmd(messageName,processDefinitionId, null, null));
+  }
+
+  public ProcessInstance startProcessInstanceByMessageAndProcessDefinitionId(String messageName, String processDefinitionId, String businessKey) {
+	return commandExecutor.execute(new StartProcessInstanceByMessageAndProcessDefinitionIdCmd(messageName,processDefinitionId, businessKey, null));
+  }
+
+  public ProcessInstance startProcessInstanceByMessageAndProcessDefinitionId(String messageName, String processDefinitionId, Map<String, Object> processVariables) {
+	return commandExecutor.execute(new StartProcessInstanceByMessageAndProcessDefinitionIdCmd(messageName,processDefinitionId, null, processVariables));
+  }
+
+  public ProcessInstance startProcessInstanceByMessageAndProcessDefinitionId(String messageName, String processDefinitionId, String businessKey, Map<String, Object> processVariables) {
+	return commandExecutor.execute(new StartProcessInstanceByMessageAndProcessDefinitionIdCmd(messageName,processDefinitionId, businessKey, processVariables));
+  }
+
   public void signalEventReceived(String signalName) {
     commandExecutor.execute(new SignalEventReceivedCmd(signalName, null, null));
   }
@@ -378,6 +397,18 @@ public class RuntimeServiceImpl extends ServiceImpl implements RuntimeService {
   public void correlateMessage(String messageName, String businessKey,
       Map<String, Object> processVariables) {
     commandExecutor.execute(new CorrelateMessageCmd(messageName, businessKey, null, processVariables));
+  }
+
+  public ProcessInstanceModificationBuilder createProcessInstanceModification(String processInstanceId) {
+    return new ProcessInstanceModificationBuilderImpl(commandExecutor, processInstanceId);
+  }
+
+  public ProcessInstantiationBuilder createProcessInstanceById(String processDefinitionId) {
+    return new ProcessInstantiationBuilderImpl(commandExecutor, processDefinitionId, null);
+  }
+
+  public ProcessInstantiationBuilder createProcessInstanceByKey(String processDefinitionKey) {
+    return new ProcessInstantiationBuilderImpl(commandExecutor, null, processDefinitionKey);
   }
 
 }

@@ -48,9 +48,11 @@ public abstract class CoreExecution extends AbstractVariableScope implements Bas
   protected CoreModelElement eventSource;
   protected int listenerIndex = 0;
   protected boolean skipCustomListeners;
+  protected boolean skipIoMapping;
 
   // atomic operations ////////////////////////////////////////////////////////
 
+  @SuppressWarnings("unchecked")
   public <T extends CoreExecution> void performOperation(CoreAtomicOperation<T> operation) {
     if (log.isLoggable(Level.FINEST)) {
       log.finest("AtomicOperation: " + operation + " on " + this);
@@ -121,6 +123,14 @@ public abstract class CoreExecution extends AbstractVariableScope implements Bas
 
   public void setSkipCustomListeners(boolean skipCustomListeners) {
     this.skipCustomListeners = skipCustomListeners;
+  }
+
+  public boolean isSkipIoMappings() {
+    return skipIoMapping;
+  }
+
+  public void setSkipIoMappings(boolean skipIoMappings) {
+    this.skipIoMapping = skipIoMappings;
   }
 
 }

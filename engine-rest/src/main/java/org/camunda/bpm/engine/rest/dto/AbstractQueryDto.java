@@ -20,18 +20,22 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.ProcessEngine;
+import org.camunda.bpm.engine.impl.Direction;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
+import org.camunda.bpm.engine.impl.VariableOrderProperty;
 import org.camunda.bpm.engine.query.Query;
+import org.camunda.bpm.engine.query.QueryProperty;
 import org.camunda.bpm.engine.rest.dto.converter.JacksonAwareStringToTypeConverter;
 import org.camunda.bpm.engine.rest.dto.converter.StringToTypeConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
-import org.codehaus.jackson.annotate.JsonIgnore;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Defines common query operations, such as sorting options and validation.
@@ -43,10 +47,10 @@ import org.codehaus.jackson.map.ObjectMapper;
  */
 public abstract class AbstractQueryDto<T extends Query<?, ?>> {
 
-  protected static final String SORT_ORDER_ASC_VALUE = "asc";
-  protected static final String SORT_ORDER_DESC_VALUE = "desc";
+  public static final String SORT_ORDER_ASC_VALUE = "asc";
+  public static final String SORT_ORDER_DESC_VALUE = "desc";
 
-  private static final List<String> VALID_SORT_ORDER_VALUES;
+  public static final List<String> VALID_SORT_ORDER_VALUES;
   static {
     VALID_SORT_ORDER_VALUES = new ArrayList<String>();
     VALID_SORT_ORDER_VALUES.add(SORT_ORDER_ASC_VALUE);
@@ -57,6 +61,8 @@ public abstract class AbstractQueryDto<T extends Query<?, ?>> {
 
   protected String sortBy;
   protected String sortOrder;
+
+  protected List<SortingDto> sortings;
 
   protected Map<String, String> expressions = new HashMap<String, String>();
 
@@ -96,6 +102,14 @@ public abstract class AbstractQueryDto<T extends Query<?, ?>> {
       throw new InvalidRequestException(Status.BAD_REQUEST, "sortOrder parameter has invalid value: " + sortOrder);
     }
     this.sortOrder = sortOrder;
+  }
+
+  public void setSorting(List<SortingDto> sorting) {
+    this.sortings = sorting;
+  }
+
+  public List<SortingDto> getSorting() {
+    return sortings;
   }
 
   protected abstract boolean isValidSortByValue(String value);
@@ -178,7 +192,7 @@ public abstract class AbstractQueryDto<T extends Query<?, ?>> {
       throw new InvalidRequestException(Status.BAD_REQUEST, "Only a single sorting parameter specified. sortBy and sortOrder required");
     }
 
-    applySortingOptions(query);
+    applySortingOptions(query, engine);
 
     return query;
   }
@@ -187,5 +201,51 @@ public abstract class AbstractQueryDto<T extends Query<?, ?>> {
 
   protected abstract void applyFilters(T query);
 
-  protected abstract void applySortingOptions(T query);
+  protected void applySortingOptions(T query, ProcessEngine engine) {
+    if (sortBy != null) {
+      applySortBy(query, sortBy, null, engine);
+    }
+    if (sortOrder != null) {
+      applySortOrder(query, sortOrder);
+    }
+
+    if (sortings != null) {
+      for (SortingDto sorting : sortings) {
+        String sortingOrder = sorting.getSortOrder();
+        String sortingBy = sorting.getSortBy();
+
+        if (sortingBy != null) {
+          applySortBy(query, sortingBy, sorting.getParameters(), engine);
+        }
+        if (sortingOrder != null) {
+          applySortOrder(query, sortingOrder);
+        }
+      }
+    }
+  }
+
+  protected abstract void applySortBy(T query, String sortBy, Map<String, Object> parameters, ProcessEngine engine);
+
+  protected void applySortOrder(T query, String sortOrder) {
+    if (sortOrder != null) {
+      if (sortOrder.equals(SORT_ORDER_ASC_VALUE)) {
+        query.asc();
+      } else if (sortOrder.equals(SORT_ORDER_DESC_VALUE)) {
+        query.desc();
+      }
+    }
+  }
+
+  public static String sortOrderValueForDirection(Direction direction) {
+    if (Direction.ASCENDING.equals(direction)) {
+      return SORT_ORDER_ASC_VALUE;
+    }
+    else if (Direction.DESCENDING.equals(direction)) {
+      return SORT_ORDER_DESC_VALUE;
+    }
+    else {
+      throw new RestException("Unknown query sorting direction " + direction);
+    }
+  }
+
 }

@@ -13,6 +13,8 @@
 
 package org.camunda.bpm.engine.impl.pvm.runtime;
 
+import java.util.Map;
+
 import org.camunda.bpm.engine.impl.core.instance.CoreExecution;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 
@@ -21,8 +23,56 @@ import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
  */
 public class ExecutionStartContext {
 
-  public void executionStarted(CoreExecution execution) {
-    ExecutionEntity executionEntity = (ExecutionEntity) execution;
-    executionEntity.fireHistoricVariableInstanceCreateEvents();
+  protected boolean delayFireHistoricVariableEvents;
+
+  protected InstantiationStack instantiationStack;
+  protected Map<String, Object> variables;
+  protected Map<String, Object> variablesLocal;
+
+  public ExecutionStartContext() {
+    this(true);
+  }
+
+  public ExecutionStartContext(boolean delayFireHistoricVariableEvents) {
+    this.delayFireHistoricVariableEvents = delayFireHistoricVariableEvents;
+  }
+
+  public void executionStarted(PvmExecutionImpl execution) {
+
+    if (execution instanceof ExecutionEntity && delayFireHistoricVariableEvents) {
+      ExecutionEntity executionEntity = (ExecutionEntity) execution;
+      executionEntity.fireHistoricVariableInstanceCreateEvents();
+    }
+
+    PvmExecutionImpl parent = execution;
+    while (parent != null && parent.getExecutionStartContext() != null) {
+      parent.disposeExecutionStartContext();
+      parent = parent.getParent();
+    }
+  }
+
+  public void applyVariables(CoreExecution execution) {
+    execution.setVariables(variables);
+    execution.setVariablesLocal(variablesLocal);
+  }
+
+  public boolean isDelayFireHistoricVariableEvents() {
+    return delayFireHistoricVariableEvents;
+  }
+
+  public InstantiationStack getInstantiationStack() {
+    return instantiationStack;
+  }
+
+  public void setInstantiationStack(InstantiationStack instantiationStack) {
+    this.instantiationStack = instantiationStack;
+  }
+
+  public void setVariables(Map<String, Object> variables) {
+    this.variables = variables;
+  }
+
+  public void setVariablesLocal(Map<String, Object> variablesLocal) {
+    this.variablesLocal = variablesLocal;
   }
 }

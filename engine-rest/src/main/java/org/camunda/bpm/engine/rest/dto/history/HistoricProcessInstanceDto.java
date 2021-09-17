@@ -21,6 +21,7 @@ public class HistoricProcessInstanceDto {
   private String id;
   private String businessKey;
   private String processDefinitionId;
+  private String processDefinitionKey;
   private Date startTime;
   private Date endTime;
   private Long durationInMillis;
@@ -28,6 +29,7 @@ public class HistoricProcessInstanceDto {
   private String startActivityId;
   private String deleteReason;
   private String superProcessInstanceId;
+  private String superCaseInstanceId;
   private String caseInstanceId;
 
   public String getId() {
@@ -40,6 +42,10 @@ public class HistoricProcessInstanceDto {
 
   public String getProcessDefinitionId() {
     return processDefinitionId;
+  }
+
+  public String getProcessDefinitionKey() {
+    return processDefinitionKey;
   }
 
   public Date getStartTime() {
@@ -70,6 +76,10 @@ public class HistoricProcessInstanceDto {
     return superProcessInstanceId;
   }
 
+  public String getSuperCaseInstanceId() {
+    return superCaseInstanceId;
+  }
+
   public String getCaseInstanceId() {
     return caseInstanceId;
   }
@@ -81,6 +91,7 @@ public class HistoricProcessInstanceDto {
     dto.id = historicProcessInstance.getId();
     dto.businessKey = historicProcessInstance.getBusinessKey();
     dto.processDefinitionId = historicProcessInstance.getProcessDefinitionId();
+    dto.processDefinitionKey = historicProcessInstance.getProcessDefinitionKey();
     dto.startTime = historicProcessInstance.getStartTime();
     dto.endTime = historicProcessInstance.getEndTime();
     dto.durationInMillis = historicProcessInstance.getDurationInMillis();
@@ -88,6 +99,7 @@ public class HistoricProcessInstanceDto {
     dto.startActivityId = historicProcessInstance.getStartActivityId();
     dto.deleteReason = historicProcessInstance.getDeleteReason();
     dto.superProcessInstanceId = historicProcessInstance.getSuperProcessInstanceId();
+    dto.superCaseInstanceId = historicProcessInstance.getSuperCaseInstanceId();
     dto.caseInstanceId = historicProcessInstance.getCaseInstanceId();
 
     return dto;

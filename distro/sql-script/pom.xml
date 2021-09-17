@@ -3,9 +3,9 @@
 
   <parent>
     <groupId>org.camunda.bpm</groupId>
-    <artifactId>camunda-parent</artifactId>
-    <relativePath>../../parent</relativePath>
-    <version>7.2.0</version>
+    <artifactId>camunda-database-settings</artifactId>
+    <relativePath>../../database</relativePath>
+    <version>7.3.0</version>
   </parent>
 
   <groupId>org.camunda.bpm.distro</groupId>
@@ -14,41 +14,73 @@
 
   <name>camunda BPM - SQL scripts</name>
 
-  <properties>
-    <project.version.major>7.2</project.version.major>
-    <project.old.version.major>7.1</project.old.version.major>
-  </properties>
-
   <build>
-  <resources>
-  	<resource>
-  	  <targetPath>sql/upgrade</targetPath>
-  		<directory>target/sql/upgrade</directory>
-  		<includes>
-  			<include>*.sql</include>
-  		</includes>
-  	</resource>
-  	<resource>
-  		<targetPath>sql/create</targetPath>
-  		<directory>target/sql/create</directory>
-  		<includes>
-  			<include>*.sql</include>
-  		</includes>
-  	</resource>
-  	<resource>
-  		<targetPath>sql/drop</targetPath>
-  		<directory>target/sql/drop</directory>
-  		<includes>
-  			<include>*.sql</include>
-  		</includes>
-  	</resource>
-  </resources>
+    <resources>
+      <resource>
+        <targetPath>sql/upgrade</targetPath>
+        <directory>target/sql/upgrade</directory>
+        <includes>
+          <include>*.sql</include>
+        </includes>
+      </resource>
+      <resource>
+        <targetPath>sql/create</targetPath>
+        <directory>target/sql/create</directory>
+        <includes>
+          <include>*.sql</include>
+        </includes>
+      </resource>
+      <resource>
+        <targetPath>sql/drop</targetPath>
+        <directory>target/sql/drop</directory>
+        <includes>
+          <include>*.sql</include>
+        </includes>
+      </resource>
+    </resources>
 
-  	<plugins>
+    <testResources>
+      <testResource>
+        <targetPath>sql/upgrade</targetPath>
+        <directory>target/upgrade-test/sql/upgrade</directory>
+        <includes>
+          <include>*.sql</include>
+        </includes>
+      </testResource>
+    </testResources>
+
+    <plugins>
+      <!-- parse version properties from qa/pom.xml -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>parse-current-version</id>
+            <goals>
+              <goal>parse-version</goal>
+            </goals>
+            <configuration>
+              <propertyPrefix>camunda.current</propertyPrefix>
+            </configuration>
+          </execution>
+          <execution>
+            <id>parse-old-version</id>
+            <goals>
+              <goal>parse-version</goal>
+            </goals>
+            <configuration>
+              <propertyPrefix>camunda.old</propertyPrefix>
+              <versionString>${camunda.version.old}</versionString>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
-        <executions>
+        <executions>  
           <execution>
             <id>unpack</id>
             <phase>generate-resources</phase>
@@ -58,8 +90,8 @@
             <configuration>
               <artifactItems>
                 <artifactItem>
-        	      <groupId>org.camunda.bpm</groupId>
-        		  <artifactId>camunda-engine</artifactId>
+                  <groupId>org.camunda.bpm</groupId>
+                  <artifactId>camunda-engine</artifactId>
                   <version>${project.version}</version>
                   <type>jar</type>
                   <overWrite>true</overWrite>
@@ -71,6 +103,7 @@
           </execution>
         </executions>
       </plugin>
+
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-antrun-plugin</artifactId>
@@ -84,7 +117,7 @@
             <configuration>
               <target>
 
-              	<!-- create -->
+                <!-- create -->
 
                 <mkdir dir="target/sql/create" />
 
@@ -112,6 +145,7 @@
                   <filelist dir="target/camunda-engine-${project.version}/org/camunda/bpm/engine/db/create" files="activiti.postgres.create.engine.sql activiti.postgres.create.case.engine.sql activiti.postgres.create.history.sql activiti.postgres.create.case.history.sql" />
                 </concat>
 
+                <!-- add identity create files -->
                 <copy todir="target/sql/create" flatten="false">
                   <fileset dir="target/camunda-engine-${project.version}/org/camunda/bpm/engine/db/create" />
                   <mapper>
@@ -149,6 +183,7 @@
                   <filelist dir="target/camunda-engine-${project.version}/org/camunda/bpm/engine/db/drop" files="activiti.postgres.drop.case.engine.sql activiti.postgres.drop.engine.sql activiti.postgres.drop.case.history.sql activiti.postgres.drop.history.sql" />
                 </concat>
 
+                <!-- add identity drop files -->
                 <copy todir="target/sql/drop" flatten="false">
                   <fileset dir="target/camunda-engine-${project.version}/org/camunda/bpm/engine/db/drop" />
                   <mapper>
@@ -159,120 +194,188 @@
                 </copy>
 
                 <!-- upgrade -->
-
                 <mkdir dir="target/sql/upgrade" />
-
-                <!-- db2 patches -->
-                <concat destfile="target/sql/upgrade/db2_engine_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="db2_engine_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/db2_identity_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="db2_identity_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/db2_engine_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="db2_engine_${project.old.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/db2_identity_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="db2_identity_${project.old.version.major}_patch*.sql" />
-                </concat>
-
-                <!-- h2 patches -->
-                <concat destfile="target/sql/upgrade/h2_engine_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="h2_engine_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/h2_identity_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="h2_identity_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/h2_engine_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="h2_engine_${project.old.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/h2_identity_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="h2_identity_${project.old.version.major}_patch*.sql" />
-                </concat>
-
-                <!-- mssql patches -->
-                <concat destfile="target/sql/upgrade/mssql_engine_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="mssql_engine_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/mssql_identity_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="mssql_identity_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/mssql_engine_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="mssql_engine_${project.old.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/mssql_identity_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="mssql_identity_${project.old.version.major}_patch*.sql" />
-                </concat>
-
-                <!-- mysql patches -->
-                <concat destfile="target/sql/upgrade/mysql_engine_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="mysql_engine_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/mysql_identity_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="mysql_identity_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/mysql_engine_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="mysql_engine_${project.old.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/mysql_identity_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="mysql_identity_${project.old.version.major}_patch*.sql" />
-                </concat>
-
-                <!-- oracle patches -->
-                <concat destfile="target/sql/upgrade/oracle_engine_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="oracle_engine_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/oracle_identity_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="oracle_identity_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/oracle_engine_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="oracle_engine_${project.old.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/oracle_identity_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="oracle_identity_${project.old.version.major}_patch*.sql" />
-                </concat>
-
-                <!-- postgres patches -->
-                <concat destfile="target/sql/upgrade/postgres_engine_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="postgres_engine_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/postgres_identity_${project.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="postgres_identity_${project.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/postgres_engine_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="postgres_engine_${project.old.version.major}_patch*.sql" />
-                </concat>
-
-                <concat destfile="target/sql/upgrade/postgres_identity_${project.old.version.major}_patch.sql" fixlastline="yes">
-                  <fileset dir="upgrade" includes="postgres_identity_${project.old.version.major}_patch*.sql" />
-                </concat>
 
                 <copy todir="target/sql/upgrade">
                   <fileset dir="upgrade">
                     <include name="*.sql" />
-                    <exclude name="*patch*.sql" />
                   </fileset>
                 </copy>
 
               </target>
             </configuration>
+          </execution>
+
+          <execution>
+            <id>generate-test-patch-files</id>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <phase>package</phase>
+            <configuration>
+              <target>
+                <!-- create concatenated patch scripts for easier testing -->
+                <!-- db2 patches -->
+                <concat destfile="target/upgrade-test/sql/upgrade/db2_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="db2_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/db2_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="db2_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/db2_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="db2_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/db2_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="db2_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <!-- h2 patches -->
+                <concat destfile="target/upgrade-test/sql/upgrade/h2_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="h2_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/h2_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="h2_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/h2_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="h2_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/h2_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="h2_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <!-- mssql patches -->
+                <concat destfile="target/upgrade-test/sql/upgrade/mssql_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="mssql_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/mssql_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="mssql_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/mssql_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="mssql_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/mssql_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="mssql_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <!-- mysql patches -->
+                <concat destfile="target/upgrade-test/sql/upgrade/mysql_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="mysql_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/mysql_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="mysql_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/mysql_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="mysql_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/mysql_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="mysql_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <!-- oracle patches -->
+                <concat destfile="target/upgrade-test/sql/upgrade/oracle_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="oracle_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/oracle_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="oracle_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/oracle_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="oracle_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/oracle_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="oracle_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <!-- postgres patches -->
+                <concat destfile="target/upgrade-test/sql/upgrade/postgres_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="postgres_engine_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/postgres_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="postgres_identity_${camunda.current.majorVersion}.${camunda.current.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/postgres_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="postgres_engine_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <concat destfile="target/upgrade-test/sql/upgrade/postgres_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch.sql" fixlastline="yes">
+                  <fileset dir="upgrade" includes="postgres_identity_${camunda.old.majorVersion}.${camunda.old.minorVersion}_patch*.sql" />
+                </concat>
+
+                <copy todir="target/upgrade-test/sql/upgrade">
+                  <fileset dir="upgrade">
+                    <include name="*.sql" />
+                  </fileset>
+                </copy>
+
+                <copy todir="target/upgrade-test/sql/create">
+                  <fileset dir="target/sql/create">
+                    <include name="*.sql" />
+                  </fileset>
+                </copy>
+                <copy todir="target/upgrade-test/sql/drop">
+                  <fileset dir="target/sql/drop">
+                    <include name="*.sql" />
+                  </fileset>
+                </copy>
+
+              </target>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- create test jar with concatenated patch scripts for easier test execution -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <goals>
+              <goal>test-jar</goal>
+            </goals>
+            <configuration>
+              <forceCreation>true</forceCreation>
+              <testClassesDirectory>target/upgrade-test</testClassesDirectory>
+              <includes>
+                <include>**/*</include>
+              </includes>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>2.5.4</version>
+        <configuration>
+          <descriptors>
+            <descriptor>assembly.xml</descriptor>
+          </descriptors>
+          <appendAssemblyId>false</appendAssemblyId>
+        </configuration>
+        <executions>
+          <execution>
+            <id>make-assembly</id> <!-- this is used for inheritance merges -->
+            <phase>package</phase> <!-- append to the packaging phase. -->
+            <goals>
+              <goal>single</goal> <!-- goals == mojos -->
+            </goals>
           </execution>
         </executions>
       </plugin>
@@ -283,28 +386,11 @@
     <profile>
       <id>check-sql</id>
 
-      <properties>
-        <h2.server.port>18080</h2.server.port>
-      </properties>
-
       <build>
         <plugins>
           <plugin>
             <groupId>org.codehaus.mojo</groupId>
             <artifactId>sql-maven-plugin</artifactId>
-            <dependencies>
-              <dependency>
-                <groupId>com.h2database</groupId>
-                <artifactId>h2</artifactId>
-                <version>${version.h2}</version>
-              </dependency>
-            </dependencies>
-            <configuration>
-              <driver>org.h2.Driver</driver>
-              <url>jdbc:h2:${project.basedir}/target/h2/process-engine;MVCC=TRUE;AUTO_SERVER=TRUE;AUTO_SERVER_PORT=${h2.server.port}</url>
-              <username>sa</username>
-              <password>sa</password>
-            </configuration>
             <executions>
               <execution>
                 <id>create-engine</id>
@@ -314,7 +400,7 @@
                 </goals>
                 <configuration>
                   <srcFiles>
-                    <srcFile>${project.build.directory}/sql/create/h2_engine_${project.version}.sql</srcFile>
+                    <srcFile>${project.build.directory}/sql/create/${database.type}_engine_${project.version}.sql</srcFile>
                   </srcFiles>
                   <autocommit>true</autocommit>
                 </configuration>
@@ -327,7 +413,7 @@
                 </goals>
                 <configuration>
                   <srcFiles>
-                    <srcFile>${project.build.directory}/sql/create/h2_identity_${project.version}.sql</srcFile>
+                    <srcFile>${project.build.directory}/sql/create/${database.type}_identity_${project.version}.sql</srcFile>
                   </srcFiles>
                   <autocommit>true</autocommit>
                 </configuration>
@@ -340,7 +426,7 @@
                 </goals>
                 <configuration>
                   <srcFiles>
-                    <srcFile>${project.build.directory}/sql/drop/h2_engine_${project.version}.sql</srcFile>
+                    <srcFile>${project.build.directory}/sql/drop/${database.type}_engine_${project.version}.sql</srcFile>
                   </srcFiles>
                   <autocommit>true</autocommit>
                 </configuration>
@@ -353,7 +439,7 @@
                 </goals>
                 <configuration>
                   <srcFiles>
-                    <srcFile>${project.build.directory}/sql/drop/h2_identity_${project.version}.sql</srcFile>
+                    <srcFile>${project.build.directory}/sql/drop/${database.type}_identity_${project.version}.sql</srcFile>
                   </srcFiles>
                   <autocommit>true</autocommit>
                 </configuration>

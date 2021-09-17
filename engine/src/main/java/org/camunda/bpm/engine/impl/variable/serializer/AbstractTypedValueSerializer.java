@@ -37,7 +37,7 @@ public abstract class AbstractTypedValueSerializer<T extends TypedValue> impleme
   }
 
   public boolean canHandle(TypedValue value) {
-    if(value.getType() != null && !valueType.equals(value.getType())) {
+    if(value.getType() != null && !valueType.getClass().isAssignableFrom(value.getType().getClass())) {
       return false;
     }
     else {
@@ -46,5 +46,10 @@ public abstract class AbstractTypedValueSerializer<T extends TypedValue> impleme
   }
 
   protected abstract boolean canWriteValue(TypedValue value);
+
+  public boolean isMutableValue(T typedValue) {
+    // default
+    return false;
+  }
 
 }

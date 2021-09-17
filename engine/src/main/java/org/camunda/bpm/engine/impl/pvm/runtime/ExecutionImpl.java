@@ -24,13 +24,11 @@ import org.camunda.bpm.engine.delegate.BpmnModelExecutionContext;
 import org.camunda.bpm.engine.delegate.ProcessEngineServicesAware;
 import org.camunda.bpm.engine.impl.cmmn.execution.CaseExecutionImpl;
 import org.camunda.bpm.engine.impl.cmmn.execution.CmmnExecution;
+import org.camunda.bpm.engine.impl.cmmn.model.CmmnCaseDefinition;
 import org.camunda.bpm.engine.impl.core.variable.scope.CoreVariableStore;
 import org.camunda.bpm.engine.impl.core.variable.scope.SimpleVariableStore;
-import org.camunda.bpm.engine.impl.pvm.PvmProcessDefinition;
 import org.camunda.bpm.engine.impl.pvm.PvmProcessInstance;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityExecution;
-import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
-import org.camunda.bpm.engine.impl.pvm.process.ProcessDefinitionImpl;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.bpm.model.bpmn.instance.FlowElement;
 
@@ -73,6 +71,9 @@ public class ExecutionImpl extends PvmExecutionImpl implements
   /** super case execution, not-null if this execution is part of a case execution */
   protected CaseExecutionImpl superCaseExecution;
 
+  /** reference to a subcaseinstance, not-null if currently subcase is started from this execution */
+  protected CaseExecutionImpl subCaseInstance;
+
   protected ExecutionImpl replacedBy;
 
   // variables/////////////////////////////////////////////////////////////////
@@ -84,14 +85,13 @@ public class ExecutionImpl extends PvmExecutionImpl implements
   public ExecutionImpl() {
   }
 
-  public ExecutionImpl(ActivityImpl startActivity) {
-    super(startActivity);
-  }
-
   /** creates a new execution. properties processDefinition, processInstance and activity will be initialized. */
   public ExecutionImpl createExecution(boolean initializeExecutionStartContext) {
     // create the new child execution
     ExecutionImpl createdExecution = newExecution();
+
+    // initialize sequence counter
+    createdExecution.setSequenceCounter(getSequenceCounter());
 
     // manage the bidirectional parent-child relation
     getExecutions().add(createdExecution);
@@ -107,7 +107,12 @@ public class ExecutionImpl extends PvmExecutionImpl implements
 
     if (initializeExecutionStartContext) {
       createdExecution.setStartContext(new ExecutionStartContext());
+    } else if (startContext != null) {
+      createdExecution.setStartContext(startContext);
     }
+
+    createdExecution.skipCustomListeners = this.skipCustomListeners;
+    createdExecution.skipIoMapping = this.skipIoMapping;
 
     return createdExecution;
   }
@@ -117,39 +122,12 @@ public class ExecutionImpl extends PvmExecutionImpl implements
     return new ExecutionImpl();
   }
 
-  public PvmExecutionImpl createSubProcessInstance(PvmProcessDefinition processDefinition, String businessKey) {
-    ExecutionImpl processInstance = getProcessInstance();
-    String caseInstanceId = processInstance.getCaseInstanceId();
-
-    return createSubProcessInstance(processDefinition, businessKey, caseInstanceId);
-  }
-
-  public PvmExecutionImpl createSubProcessInstance(PvmProcessDefinition processDefinition, String businessKey, String caseInstanceId) {
-    ExecutionImpl subProcessInstance = newExecution();
-
-    // manage bidirectional super-subprocess relation
-    subProcessInstance.setSuperExecution(this);
-    this.setSubProcessInstance(subProcessInstance);
-
-    // Initialize the new execution
-    subProcessInstance.setProcessDefinition((ProcessDefinitionImpl) processDefinition);
-    subProcessInstance.setProcessInstance(subProcessInstance);
-
-    if(businessKey != null) {
-      subProcessInstance.setBusinessKey(businessKey);
-    }
-
-    if(caseInstanceId != null) {
-      subProcessInstance.setCaseInstanceId(caseInstanceId);
-    }
-
-    return subProcessInstance;
-  }
-
   public void initialize() {
+    return;
   }
 
-  public void interruptScope(String reason) {
+  public void initializeTimerDeclarations() {
+    return;
   }
 
   // parent ///////////////////////////////////////////////////////////////////
@@ -203,6 +181,30 @@ public class ExecutionImpl extends PvmExecutionImpl implements
     this.superCaseExecution = (CaseExecutionImpl) superCaseExecution;
   }
 
+  // sub case execution ////////////////////////////////////////////////////////
+
+  public CaseExecutionImpl getSubCaseInstance() {
+    return subCaseInstance;
+  }
+
+  public void setSubCaseInstance(CmmnExecution subCaseInstance) {
+    this.subCaseInstance = (CaseExecutionImpl) subCaseInstance;
+  }
+
+  public CaseExecutionImpl createSubCaseInstance(CmmnCaseDefinition caseDefinition) {
+    return createSubCaseInstance(caseDefinition, null);
+  }
+
+  public CaseExecutionImpl createSubCaseInstance(CmmnCaseDefinition caseDefinition, String businessKey) {
+    CaseExecutionImpl caseInstance = (CaseExecutionImpl) caseDefinition.createCaseInstance(businessKey);
+
+    // manage bidirectional super-process-sub-case-instances relation
+    subCaseInstance.setSuperExecution(this);
+    setSubCaseInstance(subCaseInstance);
+
+    return caseInstance;
+  }
+
   // process definition ///////////////////////////////////////////////////////
 
   public String getProcessDefinitionId() {
@@ -213,8 +215,8 @@ public class ExecutionImpl extends PvmExecutionImpl implements
 
   public void start(Map<String, Object> variables) {
     if (isProcessInstanceExecution()) {
-      if (processInstanceStartContext == null) {
-        processInstanceStartContext = new ProcessInstanceStartContext(processDefinition.getInitial());
+      if (startContext == null) {
+        startContext = new ProcessInstanceStartContext(processDefinition.getInitial());
       }
     }
 
@@ -321,6 +323,14 @@ public class ExecutionImpl extends PvmExecutionImpl implements
 
   public ProcessEngineServices getProcessEngineServices() {
     throw new UnsupportedOperationException(ProcessEngineServicesAware.class.getName() +" is unsupported in transient ExecutionImpl");
+  }
+
+  public void forceUpdate() {
+    // nothing to do
+  }
+
+  public void fireHistoricProcessStartEvent() {
+    // do nothing
   }
 
 }

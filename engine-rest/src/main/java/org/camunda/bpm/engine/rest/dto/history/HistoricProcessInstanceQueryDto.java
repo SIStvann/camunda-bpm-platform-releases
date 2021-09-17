@@ -15,7 +15,9 @@ package org.camunda.bpm.engine.rest.dto.history;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response.Status;
 
@@ -30,7 +32,8 @@ import org.camunda.bpm.engine.rest.dto.converter.StringListConverter;
 import org.camunda.bpm.engine.rest.dto.converter.StringSetConverter;
 import org.camunda.bpm.engine.rest.dto.converter.VariableListConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricProcessInstanceQuery> {
 
@@ -70,6 +73,8 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   private String startedBy;
   private String superProcessInstanceId;
   private String subProcessInstanceId;
+  private String superCaseInstanceId;
+  private String subCaseInstanceId;
   private String caseInstanceId;
 
   private List<VariableQueryParameterDto> variables;
@@ -170,6 +175,16 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     this.subProcessInstanceId = subProcessInstanceId;
   }
 
+  @CamundaQueryParam("superCaseInstanceId")
+  public void setSuperCaseInstanceId(String superCaseInstanceId) {
+    this.superCaseInstanceId = superCaseInstanceId;
+  }
+
+  @CamundaQueryParam("subCaseInstanceId")
+  public void setSubCaseInstanceId(String subCaseInstanceId) {
+    this.subCaseInstanceId = subCaseInstanceId;
+  }
+
   @CamundaQueryParam("caseInstanceId")
   public void setCaseInstanceId(String caseInstanceId) {
     this.caseInstanceId = caseInstanceId;
@@ -247,6 +262,12 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
     if (subProcessInstanceId != null) {
       query.subProcessInstanceId(subProcessInstanceId);
     }
+    if (superCaseInstanceId != null) {
+      query.superCaseInstanceId(superCaseInstanceId);
+    }
+    if (subCaseInstanceId != null) {
+      query.subCaseInstanceId(subCaseInstanceId);
+    }
     if (caseInstanceId != null) {
       query.caseInstanceId(caseInstanceId);
     }
@@ -279,29 +300,19 @@ public class HistoricProcessInstanceQueryDto extends AbstractQueryDto<HistoricPr
   }
 
   @Override
-  protected void applySortingOptions(HistoricProcessInstanceQuery query) {
-    if (sortBy != null) {
-      if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_ID_VALUE)) {
-        query.orderByProcessInstanceId();
-      } else if (sortBy.equals(SORT_BY_PROCESS_DEFINITION_ID_VALUE)) {
-        query.orderByProcessDefinitionId();
-      } else if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_BUSINESS_KEY_VALUE)) {
-        query.orderByProcessInstanceBusinessKey();
-      } else if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_START_TIME_VALUE)) {
-        query.orderByProcessInstanceStartTime();
-      } else if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_END_TIME_VALUE)) {
-        query.orderByProcessInstanceEndTime();
-      } else if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_DURATION_VALUE)) {
-        query.orderByProcessInstanceDuration();
-      }
-    }
-
-    if (sortOrder != null) {
-      if (sortOrder.equals(SORT_ORDER_ASC_VALUE)) {
-        query.asc();
-      } else if (sortOrder.equals(SORT_ORDER_DESC_VALUE)) {
-        query.desc();
-      }
+  protected void applySortBy(HistoricProcessInstanceQuery query, String sortBy, Map<String, Object> parameters, ProcessEngine engine) {
+    if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_ID_VALUE)) {
+      query.orderByProcessInstanceId();
+    } else if (sortBy.equals(SORT_BY_PROCESS_DEFINITION_ID_VALUE)) {
+      query.orderByProcessDefinitionId();
+    } else if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_BUSINESS_KEY_VALUE)) {
+      query.orderByProcessInstanceBusinessKey();
+    } else if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_START_TIME_VALUE)) {
+      query.orderByProcessInstanceStartTime();
+    } else if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_END_TIME_VALUE)) {
+      query.orderByProcessInstanceEndTime();
+    } else if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_DURATION_VALUE)) {
+      query.orderByProcessInstanceDuration();
     }
   }
 

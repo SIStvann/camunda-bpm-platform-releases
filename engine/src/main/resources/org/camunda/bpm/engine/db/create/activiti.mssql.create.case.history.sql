@@ -9,6 +9,7 @@ create table ACT_HI_CASEINST (
     STATE_ tinyint,
     CREATE_USER_ID_ nvarchar(255),
     SUPER_CASE_INSTANCE_ID_ nvarchar(64),
+    SUPER_PROCESS_INSTANCE_ID_ nvarchar(64),
     primary key (ID_),
     unique (CASE_INST_ID_)
 );
@@ -28,6 +29,7 @@ create table ACT_HI_CASEACTINST (
     END_TIME_ datetime2,
     DURATION_ numeric(19,0),
     STATE_ tinyint,
+    REQUIRED_ tinyint,
     primary key (ID_)
 );
 

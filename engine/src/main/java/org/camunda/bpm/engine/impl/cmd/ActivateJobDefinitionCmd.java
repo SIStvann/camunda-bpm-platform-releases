@@ -13,6 +13,7 @@
 
 import java.util.Date;
 
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerActivateJobDefinitionHandler;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
 
@@ -25,7 +26,7 @@ public class ActivateJobDefinitionCmd extends AbstractSetJobDefinitionStateCmd {
     super(jobDefinitionId, processDefinitionId, processDefinitionKey, includeJobs, executionDate);
   }
 
-  protected SuspensionState getSuspensionState() {
+  protected SuspensionState getNewSuspensionState() {
     return SuspensionState.ACTIVE;
   }
 
@@ -33,8 +34,12 @@ public class ActivateJobDefinitionCmd extends AbstractSetJobDefinitionStateCmd {
     return TimerActivateJobDefinitionHandler.TYPE;
   }
 
-  protected AbstractSetJobStateCmd getSetJobStateCmd() {
+  protected ActivateJobCmd getNextCommand() {
     return new ActivateJobCmd(null, jobDefinitionId, null, processDefinitionId, processDefinitionKey);
+  }
+
+  protected String getLogEntryOperation() {
+    return UserOperationLogEntry.OPERATION_TYPE_ACTIVATE_JOB_DEFINITION;
   }
 
 }

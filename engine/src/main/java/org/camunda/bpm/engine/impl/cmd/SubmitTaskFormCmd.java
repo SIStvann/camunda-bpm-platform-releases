@@ -19,11 +19,12 @@ import java.io.Serializable;
 import java.util.Map;
 
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
-import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.form.handler.TaskFormHandler;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.TaskManager;
 import org.camunda.bpm.engine.impl.task.TaskDefinition;
 import org.camunda.bpm.engine.task.DelegationState;
 import org.camunda.bpm.engine.variable.VariableMap;
@@ -48,13 +49,12 @@ public class SubmitTaskFormCmd implements Command<Object>, Serializable {
 
   public Object execute(CommandContext commandContext) {
     ensureNotNull("taskId", taskId);
-
-    TaskEntity task = Context
-      .getCommandContext()
-      .getTaskManager()
-      .findTaskById(taskId);
-
+    TaskManager taskManager = commandContext.getTaskManager();
+    TaskEntity task = taskManager.findTaskById(taskId);
     ensureNotNull("Cannot find task with id " + taskId, "task", task);
+
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    authorizationManager.checkUpdateTask(task);
 
     TaskDefinition taskDefinition = task.getTaskDefinition();
     if(taskDefinition != null) {

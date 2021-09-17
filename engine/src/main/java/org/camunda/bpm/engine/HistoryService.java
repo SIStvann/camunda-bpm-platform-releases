@@ -14,6 +14,8 @@
 
 package org.camunda.bpm.engine;
 
+import org.camunda.bpm.engine.authorization.Permissions;
+import org.camunda.bpm.engine.authorization.Resources;
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
 import org.camunda.bpm.engine.history.HistoricActivityInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricActivityStatisticsQuery;
@@ -25,6 +27,8 @@ import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricDetailQuery;
 import org.camunda.bpm.engine.history.HistoricIncident;
 import org.camunda.bpm.engine.history.HistoricIncidentQuery;
+import org.camunda.bpm.engine.history.HistoricJobLog;
+import org.camunda.bpm.engine.history.HistoricJobLogQuery;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricTaskInstance;
@@ -84,20 +88,31 @@ public interface HistoryService {
   /** Creates a new programmatic query to search for {@link HistoricCaseActivityInstance}s. */
   HistoricCaseActivityInstanceQuery createHistoricCaseActivityInstanceQuery();
 
-  /** Deletes historic task instance.  This might be useful for tasks that are
+  /**
+   * Deletes historic task instance.  This might be useful for tasks that are
    * {@link TaskService#newTask() dynamically created} and then {@link TaskService#complete(String) completed}.
    * If the historic task instance doesn't exist, no exception is thrown and the
-   * method returns normal.*/
+   * method returns normal.
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}.
+   */
   void deleteHistoricTaskInstance(String taskId);
 
   /**
    * Deletes historic process instance. All historic activities, historic task and
    * historic details (variable updates, form properties) are deleted as well.
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void deleteHistoricProcessInstance(String processInstanceId);
 
   /**
    * Deletes a user operation log entry. Does not cascade to any related entities.
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void deleteUserOperationLogEntry(String entryId);
 
@@ -131,5 +146,27 @@ public interface HistoryService {
    * creates a native query to search for {@link HistoricCaseActivityInstance}s via SQL
    */
   NativeHistoricCaseActivityInstanceQuery createNativeHistoricCaseActivityInstanceQuery();
+
+  /**
+   * Creates a new programmatic query to search for {@link HistoricJobLog historic job logs}.
+   *
+   * @since 7.3
+   */
+  HistoricJobLogQuery createHistoricJobLogQuery();
+
+  /**
+   * Returns the full stacktrace of the exception that occurs when the
+   * historic job log with the given id was last executed. Returns null
+   * when the historic job log has no exception stacktrace.
+   *
+   * @param historicJobLogId id of the historic job log, cannot be null.
+   * @throws ProcessEngineException when no historic job log exists with the given id.
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#READ_HISTORY} permission on {@link Resources#PROCESS_DEFINITION}.
+   *
+   * @since 7.3
+   */
+  String getHistoricJobLogExceptionStacktrace(String historicJobLogId);
 
 }

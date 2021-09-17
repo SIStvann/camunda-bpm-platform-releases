@@ -30,19 +30,19 @@ import org.camunda.bpm.engine.impl.util.ClassNameUtil;
  */
 public class DbSqlSessionFactory implements SessionFactory {
 
-  public static final int ACT_RU_VARIABLE_TEXT_LENGTH = 4000;
-
-  private static final String MSSQL = "mssql";
-  private static final String DB2 = "db2";
-  private static final String ORACLE = "oracle";
-  private static final String H2 = "h2";
-  private static final String MYSQL = "mysql";
-  private static final String POSTGRES = "postgres";
+  public static final String MSSQL = "mssql";
+  public static final String DB2 = "db2";
+  public static final String ORACLE = "oracle";
+  public static final String H2 = "h2";
+  public static final String MYSQL = "mysql";
+  public static final String POSTGRES = "postgres";
 
   protected static final Map<String, Map<String, String>> databaseSpecificStatements = new HashMap<String, Map<String,String>>();
 
   public static final Map<String, String> databaseSpecificLimitBeforeStatements = new HashMap<String, String>();
   public static final Map<String, String> databaseSpecificLimitAfterStatements = new HashMap<String, String>();
+  // limitAfter statements that can be used with subqueries
+  public static final Map<String, String> databaseSpecificInnerLimitAfterStatements = new HashMap<String, String>();
   public static final Map<String, String> databaseSpecificLimitBetweenStatements = new HashMap<String, String>();
   // DB2 restricts 'select distinct' queries to not contain CLOB columns
   public static final Map<String, String> databaseSpecificLimitBetweenClobStatements = new HashMap<String, String>();
@@ -67,10 +67,12 @@ public class DbSqlSessionFactory implements SessionFactory {
     // h2
     databaseSpecificLimitBeforeStatements.put(H2, "");
     databaseSpecificLimitAfterStatements.put(H2, "LIMIT #{maxResults} OFFSET #{firstResult}");
+    databaseSpecificInnerLimitAfterStatements.put(H2, databaseSpecificLimitAfterStatements.get(H2));
     databaseSpecificLimitBetweenStatements.put(H2, "");
     databaseSpecificLimitBetweenClobStatements.put(H2, databaseSpecificLimitBetweenStatements.get(H2));
     databaseSpecificOrderByStatements.put(H2, defaultOrderBy);
     databaseSpecificLimitBeforeNativeQueryStatements.put(H2, "");
+
     databaseSpecificBitAnd1.put(H2, "BITAND(");
     databaseSpecificBitAnd2.put(H2, ",");
     databaseSpecificBitAnd3.put(H2, ")");
@@ -87,18 +89,18 @@ public class DbSqlSessionFactory implements SessionFactory {
 	  //mysql specific
     databaseSpecificLimitBeforeStatements.put(MYSQL, "");
     databaseSpecificLimitAfterStatements.put(MYSQL, "LIMIT #{maxResults} OFFSET #{firstResult}");
+    databaseSpecificInnerLimitAfterStatements.put(MYSQL, databaseSpecificLimitAfterStatements.get(MYSQL));
     databaseSpecificLimitBetweenStatements.put(MYSQL, "");
     databaseSpecificLimitBetweenClobStatements.put(MYSQL, databaseSpecificLimitBetweenStatements.get(MYSQL));
     databaseSpecificOrderByStatements.put(MYSQL, defaultOrderBy);
     databaseSpecificLimitBeforeNativeQueryStatements.put(MYSQL, "");
+
     databaseSpecificBitAnd1.put(MYSQL, "");
     databaseSpecificBitAnd2.put(MYSQL, " & ");
     databaseSpecificBitAnd3.put(MYSQL, "");
     databaseSpecificDummyTable.put(MYSQL, "");
     databaseSpecificTrueConstant.put(MYSQL, "1");
     databaseSpecificFalseConstant.put(MYSQL, "0");
-    addDatabaseSpecificStatement(MYSQL, "selectNextJobsToExecute", "selectNextJobsToExecute_mysql");
-    addDatabaseSpecificStatement(MYSQL, "selectExclusiveJobsToExecute", "selectExclusiveJobsToExecute_mysql");
     addDatabaseSpecificStatement(MYSQL, "selectProcessDefinitionsByQueryCriteria", "selectProcessDefinitionsByQueryCriteria_mysql");
     addDatabaseSpecificStatement(MYSQL, "selectProcessDefinitionCountByQueryCriteria", "selectProcessDefinitionCountByQueryCriteria_mysql");
     addDatabaseSpecificStatement(MYSQL, "selectDeploymentsByQueryCriteria", "selectDeploymentsByQueryCriteria_mysql");
@@ -113,10 +115,12 @@ public class DbSqlSessionFactory implements SessionFactory {
     //postgres specific
     databaseSpecificLimitBeforeStatements.put(POSTGRES, "");
     databaseSpecificLimitAfterStatements.put(POSTGRES, "LIMIT #{maxResults} OFFSET #{firstResult}");
+    databaseSpecificInnerLimitAfterStatements.put(POSTGRES, databaseSpecificLimitAfterStatements.get(POSTGRES));
     databaseSpecificLimitBetweenStatements.put(POSTGRES, "");
     databaseSpecificLimitBetweenClobStatements.put(POSTGRES, databaseSpecificLimitBetweenStatements.get(POSTGRES));
     databaseSpecificOrderByStatements.put(POSTGRES, defaultOrderBy);
     databaseSpecificLimitBeforeNativeQueryStatements.put(POSTGRES, "");
+
     databaseSpecificBitAnd1.put(POSTGRES, "");
     databaseSpecificBitAnd2.put(POSTGRES, " & ");
     databaseSpecificBitAnd3.put(POSTGRES, "");
@@ -130,7 +134,6 @@ public class DbSqlSessionFactory implements SessionFactory {
     addDatabaseSpecificStatement(POSTGRES, "selectResourceByDeploymentIdAndResourceId", "selectResourceByDeploymentIdAndResourceId_postgres");
     addDatabaseSpecificStatement(POSTGRES, "selectResourcesByDeploymentId", "selectResourcesByDeploymentId_postgres");
     addDatabaseSpecificStatement(POSTGRES, "selectLatestResourcesByDeploymentName", "selectLatestResourcesByDeploymentName_postgres");
-    addDatabaseSpecificStatement(POSTGRES, "selectHistoricDetailsByQueryCriteria", "selectHistoricDetailsByQueryCriteria_postgres");
     addDatabaseSpecificStatement(POSTGRES, "insertIdentityInfo", "insertIdentityInfo_postgres");
     addDatabaseSpecificStatement(POSTGRES, "updateIdentityInfo", "updateIdentityInfo_postgres");
     addDatabaseSpecificStatement(POSTGRES, "selectIdentityInfoById", "selectIdentityInfoById_postgres");
@@ -155,10 +158,12 @@ public class DbSqlSessionFactory implements SessionFactory {
     // oracle
     databaseSpecificLimitBeforeStatements.put(ORACLE, "select * from ( select a.*, ROWNUM rnum from (");
     databaseSpecificLimitAfterStatements.put(ORACLE, "  ) a where ROWNUM < #{lastRow}) where rnum  >= #{firstRow}");
+    databaseSpecificInnerLimitAfterStatements.put(ORACLE, databaseSpecificLimitAfterStatements.get(ORACLE));
     databaseSpecificLimitBetweenStatements.put(ORACLE, "");
     databaseSpecificLimitBetweenClobStatements.put(ORACLE, databaseSpecificLimitBetweenStatements.get(ORACLE));
     databaseSpecificOrderByStatements.put(ORACLE, defaultOrderBy);
     databaseSpecificLimitBeforeNativeQueryStatements.put(ORACLE, "");
+
     databaseSpecificDummyTable.put(ORACLE, "FROM DUAL");
     databaseSpecificBitAnd1.put(ORACLE, "BITAND(");
     databaseSpecificBitAnd2.put(ORACLE, ",");
@@ -174,11 +179,13 @@ public class DbSqlSessionFactory implements SessionFactory {
 
     // db2
     databaseSpecificLimitBeforeStatements.put(DB2, "SELECT SUB.* FROM (");
-    databaseSpecificLimitAfterStatements.put(DB2, ")RES ) SUB WHERE SUB.rnk >= #{firstRow} AND SUB.rnk < #{lastRow}");
+    databaseSpecificInnerLimitAfterStatements.put(DB2, ")RES ) SUB WHERE SUB.rnk >= #{firstRow} AND SUB.rnk < #{lastRow}");
+    databaseSpecificLimitAfterStatements.put(DB2, databaseSpecificInnerLimitAfterStatements.get(DB2) + " ORDER BY SUB.rnk");
     databaseSpecificLimitBetweenStatements.put(DB2, ", row_number() over (ORDER BY ${orderBy}) rnk FROM ( select distinct RES.* ");
     databaseSpecificLimitBetweenClobStatements.put(DB2, ", row_number() over (ORDER BY ${orderBy}) rnk FROM ( select RES.* ");
     databaseSpecificOrderByStatements.put(DB2, "");
     databaseSpecificLimitBeforeNativeQueryStatements.put(DB2, "SELECT SUB.* FROM ( select RES.* , row_number() over (ORDER BY ${orderBy}) rnk FROM (");
+
     databaseSpecificBitAnd1.put(DB2, "BITAND(");
     databaseSpecificBitAnd2.put(DB2, ",");
     databaseSpecificBitAnd3.put(DB2, ")");
@@ -200,12 +207,15 @@ public class DbSqlSessionFactory implements SessionFactory {
     dbSpecificConstants.put(DB2, constants);
 
     // mssql
+
     databaseSpecificLimitBeforeStatements.put(MSSQL, "SELECT SUB.* FROM (");
-    databaseSpecificLimitAfterStatements.put(MSSQL, ")RES ) SUB WHERE SUB.rnk >= #{firstRow} AND SUB.rnk < #{lastRow}");
+    databaseSpecificInnerLimitAfterStatements.put(MSSQL, ")RES ) SUB WHERE SUB.rnk >= #{firstRow} AND SUB.rnk < #{lastRow}");
+    databaseSpecificLimitAfterStatements.put(MSSQL, databaseSpecificInnerLimitAfterStatements.get(MSSQL) + " ORDER BY SUB.rnk");
     databaseSpecificLimitBetweenStatements.put(MSSQL, ", row_number() over (ORDER BY ${orderBy}) rnk FROM ( select distinct RES.* ");
     databaseSpecificLimitBetweenClobStatements.put(MSSQL, databaseSpecificLimitBetweenStatements.get(MSSQL));
     databaseSpecificOrderByStatements.put(MSSQL, "");
     databaseSpecificLimitBeforeNativeQueryStatements.put(MSSQL, "SELECT SUB.* FROM ( select RES.* , row_number() over (ORDER BY ${orderBy}) rnk FROM (");
+
     databaseSpecificBitAnd1.put(MSSQL, "");
     databaseSpecificBitAnd2.put(MSSQL, " &");
     databaseSpecificBitAnd3.put(MSSQL, "");
@@ -220,6 +230,8 @@ public class DbSqlSessionFactory implements SessionFactory {
     addDatabaseSpecificStatement(MSSQL, "selectHistoricTaskInstanceByNativeQuery", "selectHistoricTaskInstanceByNativeQuery_mssql_or_db2");
     addDatabaseSpecificStatement(MSSQL, "selectTaskByNativeQuery", "selectTaskByNativeQuery_mssql_or_db2");
     addDatabaseSpecificStatement(MSSQL, "lockDeploymentLockProperty", "lockDeploymentLockProperty_mssql");
+    addDatabaseSpecificStatement(MSSQL, "selectEventSubscriptionsByNameAndExecution", "selectEventSubscriptionsByNameAndExecution_mssql");
+    addDatabaseSpecificStatement(MSSQL, "selectEventSubscriptionsByExecutionAndType", "selectEventSubscriptionsByExecutionAndType_mssql");
 
     constants = new HashMap<String, String>();
     constants.put("constant.event", "'event'");

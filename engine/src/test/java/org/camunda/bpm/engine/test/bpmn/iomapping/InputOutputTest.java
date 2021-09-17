@@ -12,6 +12,10 @@
  */
 package org.camunda.bpm.engine.test.bpmn.iomapping;
 
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -20,7 +24,9 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.delegate.BpmnError;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
+import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.runtime.Execution;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
@@ -780,13 +786,13 @@ public class InputOutputTest extends PluggableProcessEngineTestCase {
     variables.put("nrOfLoops", 2);
     ProcessInstance instance = runtimeService.startProcessInstanceByKey("miParallelSubprocess", variables);
 
-    // first sequential mi execution
+    // first parallel mi execution
     Execution miScopeExecution1 = runtimeService.createExecutionQuery().activityId("task")
         .variableValueEquals("loopCounter", 0).singleResult();
     assertNotNull(miScopeExecution1);
     assertEquals(1, runtimeService.getVariableLocal(miScopeExecution1.getId(), "miCounterValue"));
 
-    // second sequential mi execution
+    // second parallel mi execution
     Execution miScopeExecution2 = runtimeService.createExecutionQuery().activityId("task")
         .variableValueEquals("loopCounter", 1).singleResult();
     assertNotNull(miScopeExecution2);
@@ -813,6 +819,54 @@ public class InputOutputTest extends PluggableProcessEngineTestCase {
       assertTextPresent("camunda:outputParameter not allowed for multi-instance constructs", e.getMessage());
     }
 
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/iomapping/InputOutputTest.testThrowErrorInScriptInputOutputMapping.bpmn")
+  public void FAILING_testBpmnErrorInScriptInputMapping() {
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "in");
+    variables.put("exception", new BpmnError("error"));
+    runtimeService.startProcessInstanceByKey("testProcess", variables);
+    //we will only reach the user task if the BPMNError from the script was handled by the boundary event
+    Task task = taskService.createTaskQuery().singleResult();
+    assertThat(task.getName(), is("User Task"));
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/iomapping/InputOutputTest.testThrowErrorInScriptInputOutputMapping.bpmn")
+  public void testExceptionInScriptInputMapping() {
+    String exceptionMessage = "myException";
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "in");
+    variables.put("exception", new RuntimeException(exceptionMessage));
+    try {
+      runtimeService.startProcessInstanceByKey("testProcess", variables);
+    } catch(RuntimeException re){
+      assertThat(re.getMessage(), containsString(exceptionMessage));
+    }
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/iomapping/InputOutputTest.testThrowErrorInScriptInputOutputMapping.bpmn")
+  public void FAILING_testBpmnErrorInScriptOutputMapping() {
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "out");
+    variables.put("exception", new BpmnError("error"));
+    runtimeService.startProcessInstanceByKey("testProcess", variables);
+    //we will only reach the user task if the BPMNError from the script was handled by the boundary event
+    Task task = taskService.createTaskQuery().singleResult();
+    assertThat(task.getName(), is("User Task"));
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/bpmn/iomapping/InputOutputTest.testThrowErrorInScriptInputOutputMapping.bpmn")
+  public void testExceptionInScriptOutputMapping() {
+    String exceptionMessage = "myException";
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "out");
+    variables.put("exception", new RuntimeException(exceptionMessage));
+    try {
+      runtimeService.startProcessInstanceByKey("testProcess", variables);
+    } catch(RuntimeException re){
+      assertThat(re.getMessage(), containsString(exceptionMessage));
+    }
   }
 
   @Deployment
@@ -946,6 +1000,23 @@ public class InputOutputTest extends PluggableProcessEngineTestCase {
     taskService.complete(task.getId());
 
     assertEquals(0, runtimeService.createProcessInstanceQuery().count());
+  }
+
+  @Deployment
+  public void testScopeActivityInstanceId() {
+    // given
+    String processInstanceId = runtimeService.startProcessInstanceByKey("process").getId();
+
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstanceId);
+    ActivityInstance theTaskInstance = tree.getActivityInstances("theTask")[0];
+
+    // when
+    VariableInstance variableInstance = runtimeService
+      .createVariableInstanceQuery()
+      .singleResult();
+
+    // then
+    assertEquals(theTaskInstance.getId(), variableInstance.getActivityInstanceId());
   }
 
 }

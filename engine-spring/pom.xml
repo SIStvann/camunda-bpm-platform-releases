@@ -6,9 +6,9 @@
 
   <parent>
     <groupId>org.camunda.bpm</groupId>
-    <artifactId>camunda-parent</artifactId>
-    <relativePath>../parent</relativePath>
-    <version>7.2.0</version>
+    <artifactId>camunda-database-settings</artifactId>
+    <relativePath>../database</relativePath>
+    <version>7.3.0</version>
   </parent>
 
   <dependencies>
@@ -108,12 +108,6 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
           <redirectTestOutputToFile>true</redirectTestOutputToFile>
-          <systemProperties>
-            <property>
-              <name>process.engine.initializer</name>
-              <value>org.camunda.bpm.engine.spring.SpringProcessEngineInitializer</value>
-            </property>
-          </systemProperties>
         </configuration>
       </plugin>
     </plugins>

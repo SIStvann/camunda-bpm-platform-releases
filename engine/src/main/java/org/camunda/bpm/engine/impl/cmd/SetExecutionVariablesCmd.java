@@ -1,9 +1,9 @@
 /* Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -12,52 +12,47 @@
  */
 package org.camunda.bpm.engine.impl.cmd;
 
-import java.io.Serializable;
-import java.util.Map;
-import org.camunda.bpm.engine.impl.interceptor.Command;
-import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
-
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
+import java.util.Map;
+
+import org.camunda.bpm.engine.impl.core.variable.scope.AbstractVariableScope;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
+import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 
 
 /**
  * @author Tom Baeyens
  * @author Joram Barrez
  */
-public class SetExecutionVariablesCmd implements Command<Object>, Serializable {
+public class SetExecutionVariablesCmd extends AbstractSetVariableCmd {
 
   private static final long serialVersionUID = 1L;
-  
-  private String executionId;
-  protected Map<String, ? extends Object> variables;
-  protected boolean isLocal;
-  
+
   public SetExecutionVariablesCmd(String executionId, Map<String, ? extends Object> variables, boolean isLocal) {
-    this.executionId = executionId;
-    this.variables = variables;
-    this.isLocal = isLocal;
+    super(executionId, variables, isLocal);
   }
-  
-  @Override
-  public Object execute(CommandContext commandContext) {
-    ensureNotNull("executionId", executionId);
+
+  protected ExecutionEntity getEntity() {
+    ensureNotNull("executionId", entityId);
 
     ExecutionEntity execution = commandContext
       .getExecutionManager()
-      .findExecutionById(executionId);
+      .findExecutionById(entityId);
 
-    ensureNotNull("execution " + executionId + " doesn't exist", "execution", execution);
+    ensureNotNull("execution " + entityId + " doesn't exist", "execution", execution);
 
-    if (isLocal) {
-      execution.setVariablesLocal(variables);
-    } else {
-      execution.setVariables(variables);
-    }
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    authorizationManager.checkUpdateProcessInstance(execution);
 
-    return null;
+    return execution;
   }
-  
-  
+
+  protected void logVariableOperation(AbstractVariableScope scope) {
+    ExecutionEntity execution = (ExecutionEntity) scope;
+    commandContext.getOperationLogManager().logVariableOperation(getLogEntryOperation(), execution,
+      PropertyChange.EMPTY_CHANGE);
+  }
 }
 

@@ -29,10 +29,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsPrimitiveValue;
+import org.camunda.bpm.engine.rest.util.OrderingBuilder;
 import org.camunda.bpm.engine.runtime.CaseExecution;
 import org.camunda.bpm.engine.runtime.CaseExecutionQuery;
 import org.junit.Before;
@@ -204,6 +206,25 @@ public abstract class AbstractCaseExecutionRestServiceQueryTest extends Abstract
   }
 
   @Test
+  public void testSecondarySortingAsPost() {
+    InOrder inOrder = Mockito.inOrder(mockedQuery);
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("sorting", OrderingBuilder.create()
+      .orderBy("caseExecutionId").desc()
+      .orderBy("caseDefinitionId").asc()
+      .getJson());
+    given().contentType(POST_JSON_CONTENT_TYPE).body(json)
+      .header("accept", MediaType.APPLICATION_JSON)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().post(CASE_EXECUTION_QUERY_URL);
+
+    inOrder.verify(mockedQuery).orderByCaseExecutionId();
+    inOrder.verify(mockedQuery).desc();
+    inOrder.verify(mockedQuery).orderByCaseDefinitionId();
+    inOrder.verify(mockedQuery).asc();
+  }
+
+  @Test
   public void testSuccessfulPagination() {
     int firstResult = 0;
     int maxResults = 10;
@@ -287,6 +308,7 @@ public abstract class AbstractCaseExecutionRestServiceQueryTest extends Abstract
     String returnedActivityName = from(content).getString("[0].activityName");
     String returnedActivityType = from(content).getString("[0].activityType");
     String returnedActivityDescription = from(content).getString("[0].activityDescription");
+    boolean returnedRequired = from(content).getBoolean("[0].required");
     boolean returnedActiveState = from(content).getBoolean("[0].active");
     boolean returnedEnabledState = from(content).getBoolean("[0].enabled");
     boolean returnedDisabledState = from(content).getBoolean("[0].disabled");
@@ -299,6 +321,7 @@ public abstract class AbstractCaseExecutionRestServiceQueryTest extends Abstract
     assertThat(returnedActivityName).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_ACTIVITY_NAME);
     assertThat(returnedActivityType).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_ACTIVITY_TYPE);
     assertThat(returnedActivityDescription).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_ACTIVITY_DESCRIPTION);
+    assertThat(returnedRequired).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_IS_REQUIRED);
     assertThat(returnedEnabledState).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_IS_ENABLED);
     assertThat(returnedActiveState).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_IS_ACTIVE);
     assertThat(returnedDisabledState).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_IS_DISABLED);
@@ -339,6 +362,7 @@ public abstract class AbstractCaseExecutionRestServiceQueryTest extends Abstract
     String returnedActivityName = from(content).getString("[0].activityName");
     String returnedActivityType = from(content).getString("[0].activityType");
     String returnedActivityDescription = from(content).getString("[0].activityDescription");
+    boolean returnedRequired = from(content).getBoolean("[0].required");
     boolean returnedActiveState = from(content).getBoolean("[0].active");
     boolean returnedEnabledState = from(content).getBoolean("[0].enabled");
     boolean returnedDisabledState = from(content).getBoolean("[0].disabled");
@@ -351,6 +375,7 @@ public abstract class AbstractCaseExecutionRestServiceQueryTest extends Abstract
     assertThat(returnedActivityName).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_ACTIVITY_NAME);
     assertThat(returnedActivityType).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_ACTIVITY_TYPE);
     assertThat(returnedActivityDescription).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_ACTIVITY_DESCRIPTION);
+    assertThat(returnedRequired).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_IS_REQUIRED);
     assertThat(returnedEnabledState).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_IS_ENABLED);
     assertThat(returnedActiveState).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_IS_ACTIVE);
     assertThat(returnedDisabledState).isEqualTo(MockProvider.EXAMPLE_CASE_EXECUTION_IS_DISABLED);
@@ -366,6 +391,7 @@ public abstract class AbstractCaseExecutionRestServiceQueryTest extends Abstract
     queryParameters.put("caseInstanceId", "aCaseInstanceId");
     queryParameters.put("businessKey", "aBusinessKey");
     queryParameters.put("activityId", "anActivityId");
+    queryParameters.put("required", "true");
     queryParameters.put("active", "true");
     queryParameters.put("enabled", "true");
     queryParameters.put("disabled", "true");
@@ -384,6 +410,7 @@ public abstract class AbstractCaseExecutionRestServiceQueryTest extends Abstract
     verify(mockedQuery).caseInstanceId(queryParameters.get("caseInstanceId"));
     verify(mockedQuery).caseInstanceBusinessKey(queryParameters.get("businessKey"));
     verify(mockedQuery).activityId(queryParameters.get("activityId"));
+    verify(mockedQuery).required();
     verify(mockedQuery).active();
     verify(mockedQuery).enabled();
     verify(mockedQuery).disabled();
@@ -407,6 +434,7 @@ public abstract class AbstractCaseExecutionRestServiceQueryTest extends Abstract
     queryParameters.put("caseInstanceId", aCaseInstanceId);
     queryParameters.put("businessKey", aBusinessKey);
     queryParameters.put("activityId", anActivityId);
+    queryParameters.put("required", "true");
     queryParameters.put("active", "true");
     queryParameters.put("enabled", "true");
     queryParameters.put("disabled", "true");
@@ -426,6 +454,7 @@ public abstract class AbstractCaseExecutionRestServiceQueryTest extends Abstract
     verify(mockedQuery).caseInstanceId(aCaseInstanceId);
     verify(mockedQuery).caseInstanceBusinessKey(aBusinessKey);
     verify(mockedQuery).activityId(anActivityId);
+    verify(mockedQuery).required();
     verify(mockedQuery).active();
     verify(mockedQuery).enabled();
     verify(mockedQuery).disabled();

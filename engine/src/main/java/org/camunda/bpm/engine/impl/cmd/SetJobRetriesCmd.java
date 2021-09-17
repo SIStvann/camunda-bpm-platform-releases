@@ -16,9 +16,14 @@ package org.camunda.bpm.engine.impl.cmd;
 import java.io.Serializable;
 
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
+import org.camunda.bpm.engine.impl.persistence.entity.JobDefinitionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.JobDefinitionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 
 
 /**
@@ -27,6 +32,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 public class SetJobRetriesCmd implements Command<Void>, Serializable {
 
   private static final long serialVersionUID = 1L;
+  protected static final String RETRIES = "retries";
 
   protected final String jobId;
   protected final String jobDefinitionId;
@@ -62,19 +68,45 @@ public class SetJobRetriesCmd implements Command<Void>, Serializable {
         .getJobManager()
         .findJobById(jobId);
     if (job != null) {
+
+      AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+      authorizationManager.checkUpdateProcessInstance(job);
+
       if (job.isInInconsistentLockState()) {
         job.resetLock();
       }
-
+      int oldRetries = job.getRetries();
       job.setRetries(retries);
+
+      PropertyChange propertyChange = new PropertyChange(RETRIES, oldRetries, job.getRetries());
+      commandContext.getOperationLogManager().logJobOperation(getLogEntryOperation(), job.getId(),
+        job.getJobDefinitionId(), job.getProcessInstanceId(), job.getProcessDefinitionId(),
+        job.getProcessDefinitionKey(), propertyChange);
     } else {
       throw new ProcessEngineException("No job found with id '" + jobId + "'.");
     }
   }
 
   protected void setJobRetriesByJobDefinitionId(CommandContext commandContext) {
+    JobDefinitionManager jobDefinitionManager = commandContext.getJobDefinitionManager();
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    JobDefinitionEntity jobDefinition = jobDefinitionManager.findById(jobDefinitionId);
+
+    if (jobDefinition != null) {
+      String processDefinitionKey = jobDefinition.getProcessDefinitionKey();
+      authorizationManager.checkUpdateProcessInstanceByProcessDefinitionKey(processDefinitionKey);
+    }
+
     commandContext
         .getJobManager()
         .updateFailedJobRetriesByJobDefinitionId(jobDefinitionId, retries);
+
+    PropertyChange propertyChange = new PropertyChange(RETRIES, null, retries);
+    commandContext.getOperationLogManager().logJobOperation(getLogEntryOperation(), null, jobDefinitionId, null,
+      null, null, propertyChange);
+  }
+
+  protected String getLogEntryOperation() {
+    return UserOperationLogEntry.OPERATION_TYPE_SET_JOB_RETRIES;
   }
 }

@@ -52,6 +52,7 @@ create table ACT_RU_EXECUTION (
     IS_EVENT_SCOPE_ TINYINT,
     SUSPENSION_STATE_ integer,
     CACHED_ENT_STATE_ integer,
+    SEQUENCE_COUNTER_ bigint,
     primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
 
@@ -76,6 +77,7 @@ create table ACT_RU_JOB (
     DEPLOYMENT_ID_ varchar(64),
     SUSPENSION_STATE_ integer,
     JOB_DEF_ID_ varchar(64),
+    SEQUENCE_COUNTER_ bigint,
     primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
 
@@ -137,7 +139,7 @@ create table ACT_RU_IDENTITYLINK (
     TYPE_ varchar(255),
     USER_ID_ varchar(255),
     TASK_ID_ varchar(64),
-    PROC_DEF_ID_ varchar(64),    
+    PROC_DEF_ID_ varchar(64),
     primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
 
@@ -157,6 +159,8 @@ create table ACT_RU_VARIABLE (
     TEXT_ varchar(4000),
     TEXT2_ varchar(4000),
     VAR_SCOPE_ varchar(64) not null,
+    SEQUENCE_COUNTER_ bigint,
+    IS_CONCURRENT_LOCAL_ TINYINT,
     primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
 
@@ -212,6 +216,14 @@ create table ACT_RU_FILTER (
   primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
 
+create table ACT_RU_METER_LOG (
+  ID_ varchar(64) not null,
+  NAME_ varchar(64) not null,
+  VALUE_ bigint,
+  TIMESTAMP_ timestamp not null,
+  primary key (ID_)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
+
 create index ACT_IDX_EXEC_BUSKEY on ACT_RU_EXECUTION(BUSINESS_KEY_);
 create index ACT_IDX_TASK_CREATE on ACT_RU_TASK(CREATE_TIME_);
 create index ACT_IDX_TASK_ASSIGNEE on ACT_RU_TASK(ASSIGNEE_);
@@ -222,6 +234,7 @@ create index ACT_IDX_VARIABLE_TASK_ID on ACT_RU_VARIABLE(TASK_ID_);
 create index ACT_IDX_ATHRZ_PROCEDEF on ACT_RU_IDENTITYLINK(PROC_DEF_ID_);
 create index ACT_IDX_INC_CONFIGURATION on ACT_RU_INCIDENT(CONFIGURATION_);
 create index ACT_IDX_JOB_PROCINST on ACT_RU_JOB(PROCESS_INSTANCE_ID_);
+create index ACT_IDX_METER_LOG on ACT_RU_METER_LOG(NAME_,TIMESTAMP_);
 
 alter table ACT_GE_BYTEARRAY
     add constraint ACT_FK_BYTEARR_DEPL
@@ -243,8 +256,8 @@ alter table ACT_RU_EXECUTION
     references ACT_RU_EXECUTION (ID_);
 
 alter table ACT_RU_EXECUTION
-    add constraint ACT_FK_EXE_SUPER 
-    foreign key (SUPER_EXEC_) 
+    add constraint ACT_FK_EXE_SUPER
+    foreign key (SUPER_EXEC_)
     references ACT_RU_EXECUTION (ID_);
 
 alter table ACT_RU_EXECUTION
@@ -292,7 +305,7 @@ alter table ACT_RU_VARIABLE
     foreign key (BYTEARRAY_ID_)
     references ACT_GE_BYTEARRAY (ID_);
 
-alter table ACT_RU_JOB 
+alter table ACT_RU_JOB
     add constraint ACT_FK_JOB_EXCEPTION
     foreign key (EXCEPTION_STACK_ID_)
     references ACT_GE_BYTEARRAY (ID_);
@@ -314,17 +327,17 @@ alter table ACT_RU_INCIDENT
 
 alter table ACT_RU_INCIDENT
     add constraint ACT_FK_INC_PROCDEF
-    foreign key (PROC_DEF_ID_) 
+    foreign key (PROC_DEF_ID_)
     references ACT_RE_PROCDEF (ID_);
 
 alter table ACT_RU_INCIDENT
-    add constraint ACT_FK_INC_CAUSE 
-    foreign key (CAUSE_INCIDENT_ID_) 
+    add constraint ACT_FK_INC_CAUSE
+    foreign key (CAUSE_INCIDENT_ID_)
     references ACT_RU_INCIDENT (ID_) on delete cascade on update cascade;
 
 alter table ACT_RU_INCIDENT
-    add constraint ACT_FK_INC_RCAUSE 
-    foreign key (ROOT_CAUSE_INCIDENT_ID_) 
+    add constraint ACT_FK_INC_RCAUSE
+    foreign key (ROOT_CAUSE_INCIDENT_ID_)
     references ACT_RU_INCIDENT (ID_) on delete cascade on update cascade;
 
 alter table ACT_RU_AUTHORIZATION

@@ -18,21 +18,46 @@ import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricFormField;
 import org.camunda.bpm.engine.history.HistoricVariableUpdate;
 
+import com.fasterxml.jackson.annotation.JsonSubTypes;
+import com.fasterxml.jackson.annotation.JsonSubTypes.Type;
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+
 /**
  * @author Roman Smirnov
  *
  */
+@JsonTypeInfo(
+    use = JsonTypeInfo.Id.NAME, include=JsonTypeInfo.As.PROPERTY, property="type"
+)
+@JsonSubTypes({
+    @Type(value = HistoricFormFieldDto.class),
+    @Type(value = HistoricVariableUpdateDto.class)
+})
 public abstract class HistoricDetailDto {
 
   protected String id;
+  protected String processDefinitionKey;
+  protected String processDefinitionId;
   protected String processInstanceId;
   protected String activityInstanceId;
   protected String executionId;
+  protected String caseDefinitionKey;
+  protected String caseDefinitionId;
+  protected String caseInstanceId;
+  protected String caseExecutionId;
   protected String taskId;
   protected Date time;
 
   public String getId() {
     return id;
+  }
+
+  public String getProcessDefinitionKey() {
+    return processDefinitionKey;
+  }
+
+  public String getProcessDefinitionId() {
+    return processDefinitionId;
   }
 
   public String getProcessInstanceId() {
@@ -45,6 +70,22 @@ public abstract class HistoricDetailDto {
 
   public String getExecutionId() {
     return executionId;
+  }
+
+  public String getCaseDefinitionKey() {
+    return caseDefinitionKey;
+  }
+
+  public String getCaseDefinitionId() {
+    return caseDefinitionId;
+  }
+
+  public String getCaseInstanceId() {
+    return caseInstanceId;
+  }
+
+  public String getCaseExecutionId() {
+    return caseExecutionId;
   }
 
   public String getTaskId() {
@@ -69,10 +110,16 @@ public abstract class HistoricDetailDto {
     }
 
     dto.id = historicDetail.getId();
+    dto.processDefinitionKey = historicDetail.getProcessDefinitionKey();
+    dto.processDefinitionId = historicDetail.getProcessDefinitionId();
     dto.processInstanceId = historicDetail.getProcessInstanceId();
     dto.activityInstanceId = historicDetail.getActivityInstanceId();
     dto.executionId = historicDetail.getExecutionId();
     dto.taskId = historicDetail.getTaskId();
+    dto.caseDefinitionKey = historicDetail.getCaseDefinitionKey();
+    dto.caseDefinitionId = historicDetail.getCaseDefinitionId();
+    dto.caseInstanceId = historicDetail.getCaseInstanceId();
+    dto.caseExecutionId = historicDetail.getCaseExecutionId();
     dto.time = historicDetail.getTime();
 
     return dto;

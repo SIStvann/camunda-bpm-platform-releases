@@ -11,6 +11,8 @@ drop index ACT_IDX_HI_DETAIL_TASK_ID;
 drop index ACT_IDX_HI_PROCVAR_PROC_INST;
 drop index ACT_IDX_HI_PROCVAR_NAME_TYPE;
 drop index ACT_IDX_HI_ACT_INST_PROCINST;
+drop index ACT_IDX_HI_JOB_LOG_PROCINST;
+drop index ACT_IDX_HI_JOB_LOG_PROCDEF;
 
 drop table ACT_HI_PROCINST;
 drop table ACT_HI_ACTINST;
@@ -21,3 +23,4 @@ drop table ACT_HI_COMMENT;
 drop table ACT_HI_ATTACHMENT;
 drop table ACT_HI_OP_LOG;
 drop table ACT_HI_INCIDENT;
+drop table ACT_HI_JOB_LOG;

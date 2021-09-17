@@ -29,10 +29,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsPrimitiveValue;
+import org.camunda.bpm.engine.rest.util.OrderingBuilder;
 import org.camunda.bpm.engine.runtime.CaseInstance;
 import org.camunda.bpm.engine.runtime.CaseInstanceQuery;
 import org.junit.Before;
@@ -202,6 +204,25 @@ public abstract class AbstractCaseInstanceRestServiceQueryTest extends AbstractR
   }
 
   @Test
+  public void testSecondarySortingAsPost() {
+    InOrder inOrder = Mockito.inOrder(mockedQuery);
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("sorting", OrderingBuilder.create()
+      .orderBy("caseInstanceId").desc()
+      .orderBy("caseDefinitionId").asc()
+      .getJson());
+    given().contentType(POST_JSON_CONTENT_TYPE).body(json)
+      .header("accept", MediaType.APPLICATION_JSON)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().post(CASE_INSTANCE_QUERY_URL);
+
+    inOrder.verify(mockedQuery).orderByCaseInstanceId();
+    inOrder.verify(mockedQuery).desc();
+    inOrder.verify(mockedQuery).orderByCaseDefinitionId();
+    inOrder.verify(mockedQuery).asc();
+  }
+
+  @Test
   public void testSuccessfulPagination() {
     int firstResult = 0;
     int maxResults = 10;
@@ -342,6 +363,10 @@ public abstract class AbstractCaseInstanceRestServiceQueryTest extends AbstractR
     queryParameters.put("caseDefinitionId", "aCaseDefId");
     queryParameters.put("caseDefinitionKey", "aCaseDefKey");
     queryParameters.put("businessKey", "aBusinessKey");
+    queryParameters.put("superProcessInstance", "aSuperProcInstId");
+    queryParameters.put("subProcessInstance", "aSubProcInstId");
+    queryParameters.put("superCaseInstance", "aSuperCaseInstId");
+    queryParameters.put("subCaseInstance", "aSubCaseInstId");
     queryParameters.put("active", "true");
     queryParameters.put("completed", "true");
     queryParameters.put("terminated", "true");
@@ -358,6 +383,10 @@ public abstract class AbstractCaseInstanceRestServiceQueryTest extends AbstractR
     verify(mockedQuery).caseDefinitionId(queryParameters.get("caseDefinitionId"));
     verify(mockedQuery).caseDefinitionKey(queryParameters.get("caseDefinitionKey"));
     verify(mockedQuery).caseInstanceBusinessKey(queryParameters.get("businessKey"));
+    verify(mockedQuery).superProcessInstanceId(queryParameters.get("superProcessInstance"));
+    verify(mockedQuery).subProcessInstanceId(queryParameters.get("subProcessInstance"));
+    verify(mockedQuery).superCaseInstanceId(queryParameters.get("superCaseInstance"));
+    verify(mockedQuery).subCaseInstanceId(queryParameters.get("subCaseInstance"));
     verify(mockedQuery).active();
     verify(mockedQuery).completed();
     verify(mockedQuery).terminated();
@@ -370,6 +399,10 @@ public abstract class AbstractCaseInstanceRestServiceQueryTest extends AbstractR
     String aCaseDefId = "aCaseDefId";
     String aCaseDefKey = "aCaseDefKey";
     String aBusinessKey = "aBusinessKey";
+    String aSuperProcInstId = "aSuperProcInstId";
+    String aSubProcInstId = "aSubProcInstId";
+    String aSuperCaseInstId = "aSuperCaseInstId";
+    String aSubCaseInstId = "aSubCaseInstId";
 
     Map<String, Object> queryParameters = new HashMap<String, Object>();
 
@@ -377,6 +410,10 @@ public abstract class AbstractCaseInstanceRestServiceQueryTest extends AbstractR
     queryParameters.put("caseDefinitionId", aCaseDefId);
     queryParameters.put("caseDefinitionKey", aCaseDefKey);
     queryParameters.put("businessKey", aBusinessKey);
+    queryParameters.put("superProcessInstance", aSuperProcInstId);
+    queryParameters.put("subProcessInstance", aSubProcInstId);
+    queryParameters.put("superCaseInstance", aSuperCaseInstId);
+    queryParameters.put("subCaseInstance", aSubCaseInstId);
     queryParameters.put("active", "true");
     queryParameters.put("completed", "true");
     queryParameters.put("terminated", "true");
@@ -394,6 +431,10 @@ public abstract class AbstractCaseInstanceRestServiceQueryTest extends AbstractR
     verify(mockedQuery).caseDefinitionId(aCaseDefId);
     verify(mockedQuery).caseDefinitionKey(aCaseDefKey);
     verify(mockedQuery).caseInstanceBusinessKey(aBusinessKey);
+    verify(mockedQuery).superProcessInstanceId(aSuperProcInstId);
+    verify(mockedQuery).subProcessInstanceId(aSubProcInstId);
+    verify(mockedQuery).superCaseInstanceId(aSuperCaseInstId);
+    verify(mockedQuery).subCaseInstanceId(aSubCaseInstId);
     verify(mockedQuery).active();
     verify(mockedQuery).completed();
     verify(mockedQuery).terminated();

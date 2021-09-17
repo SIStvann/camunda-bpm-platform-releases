@@ -101,13 +101,13 @@ public class DbSqlSession extends AbstractPersistenceSession {
 
   // lock ////////////////////////////////////////////
 
-  public void lock(String statement) {
+  public void lock(String statement, Object parameter) {
     // do not perform locking if H2 database is used. H2 uses table level locks
     // by default which may cause deadlocks if the deploy command needs to get a new
     // Id using the DbIdGenerator while performing a deployment.
-    if (!"h2".equals(dbSqlSessionFactory.getDatabaseType())) {
+    if (!DbSqlSessionFactory.H2.equals(dbSqlSessionFactory.getDatabaseType())) {
       String mappedStatement = dbSqlSessionFactory.mapStatement(statement);
-      sqlSession.update(mappedStatement);
+      sqlSession.update(mappedStatement, parameter);
     }
   }
 
@@ -316,7 +316,7 @@ public class DbSqlSession extends AbstractPersistenceSession {
       }
     }
 
-    log.fine("activiti db schema check successful");
+    log.fine("database schema check successful");
   }
 
   protected String addMissingComponent(String missingComponents, String component) {
@@ -411,7 +411,7 @@ public class DbSqlSession extends AbstractPersistenceSession {
 
       String databaseType = dbSqlSessionFactory.getDatabaseType();
 
-      if ("postgres".equals(databaseType)) {
+      if (DbSqlSessionFactory.POSTGRES.equals(databaseType)) {
         tableName = tableName.toLowerCase();
       }
 
@@ -428,7 +428,20 @@ public class DbSqlSession extends AbstractPersistenceSession {
   }
 
   protected String prependDatabaseTablePrefix(String tableName) {
-    return dbSqlSessionFactory.getDatabaseTablePrefix() + tableName;
+    String prefixWithoutSchema = dbSqlSessionFactory.getDatabaseTablePrefix();
+    String schema = dbSqlSessionFactory.getDatabaseSchema();
+    if (prefixWithoutSchema == null) {
+      return tableName;
+    }
+    if (schema == null) {
+      return prefixWithoutSchema + tableName;
+    }
+
+    if (prefixWithoutSchema.startsWith(schema + ".")) {
+      prefixWithoutSchema = prefixWithoutSchema.substring(schema.length() + 1);
+    }
+
+    return prefixWithoutSchema + tableName;
   }
 
   public String getResourceForDbOperation(String directory, String operation, String component) {
@@ -516,7 +529,7 @@ public class DbSqlSession extends AbstractPersistenceSession {
         throw exception;
       }
 
-      log.fine("activiti db schema " + operation + " for component "+component+" successful");
+      log.fine("database schema " + operation + " for component "+component+" successful");
 
     } catch (Exception e) {
       throw new ProcessEngineException("couldn't "+operation+" db schema: "+exceptionSqlStatement, e);

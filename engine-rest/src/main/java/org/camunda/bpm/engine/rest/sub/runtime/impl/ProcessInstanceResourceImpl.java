@@ -14,18 +14,22 @@ package org.camunda.bpm.engine.rest.sub.runtime.impl;
 
 import javax.ws.rs.core.Response.Status;
 
+import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.RuntimeService;
 import org.camunda.bpm.engine.rest.dto.runtime.ActivityInstanceDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceSuspensionStateDto;
+import org.camunda.bpm.engine.rest.dto.runtime.modification.ProcessInstanceModificationDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.sub.VariableResource;
 import org.camunda.bpm.engine.rest.sub.runtime.ProcessInstanceResource;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
-import org.codehaus.jackson.map.ObjectMapper;
+import org.camunda.bpm.engine.runtime.ProcessInstanceModificationBuilder;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class ProcessInstanceResourceImpl implements ProcessInstanceResource {
 
@@ -57,6 +61,8 @@ public class ProcessInstanceResourceImpl implements ProcessInstanceResource {
     RuntimeService runtimeService = engine.getRuntimeService();
     try {
       runtimeService.deleteProcessInstance(processInstanceId, null);
+    } catch (AuthorizationException e) {
+      throw e;
     } catch (ProcessEngineException e) {
       throw new InvalidRequestException(Status.NOT_FOUND, e, "Process instance with id " + processInstanceId + " does not exist");
     }
@@ -76,6 +82,8 @@ public class ProcessInstanceResourceImpl implements ProcessInstanceResource {
 
     try {
       activityInstance = runtimeService.getActivityInstance(processInstanceId);
+    } catch (AuthorizationException e) {
+      throw e;
     } catch (ProcessEngineException e) {
       throw new InvalidRequestException(Status.INTERNAL_SERVER_ERROR, e, e.getMessage());
     }
@@ -91,5 +99,17 @@ public class ProcessInstanceResourceImpl implements ProcessInstanceResource {
   public void updateSuspensionState(ProcessInstanceSuspensionStateDto dto) {
     dto.setProcessInstanceId(processInstanceId);
     dto.updateSuspensionState(engine);
+  }
+
+  @Override
+  public void modifyProcessInstance(ProcessInstanceModificationDto dto) {
+    if (dto.getInstructions() != null && !dto.getInstructions().isEmpty()) {
+      ProcessInstanceModificationBuilder modificationBuilder =
+          engine.getRuntimeService().createProcessInstanceModification(processInstanceId);
+
+      dto.applyTo(modificationBuilder, engine, objectMapper);
+
+      modificationBuilder.execute(dto.isSkipCustomListeners(), dto.isSkipIoMappings());
+    }
   }
 }

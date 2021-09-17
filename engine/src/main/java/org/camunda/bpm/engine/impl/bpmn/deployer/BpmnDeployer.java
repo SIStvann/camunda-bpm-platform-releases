@@ -31,7 +31,6 @@ import org.camunda.bpm.engine.impl.bpmn.parser.EventSubscriptionDeclaration;
 import org.camunda.bpm.engine.impl.cfg.IdGenerator;
 import org.camunda.bpm.engine.impl.cmd.DeleteJobsCmd;
 import org.camunda.bpm.engine.impl.context.Context;
-import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.el.ExpressionManager;
 import org.camunda.bpm.engine.impl.event.MessageEventHandler;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
@@ -49,7 +48,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.MessageEventSubscriptionEn
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ResourceEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.TimerEntity;
+import org.camunda.bpm.engine.impl.pvm.runtime.LegacyBehavior;
 import org.camunda.bpm.engine.impl.util.IoUtil;
 import org.camunda.bpm.engine.management.JobDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
@@ -146,7 +145,6 @@ public class BpmnDeployer implements Deployer {
     CommandContext commandContext = Context.getCommandContext();
     ProcessDefinitionManager processDefinitionManager = commandContext.getProcessDefinitionManager();
     DeploymentCache deploymentCache = Context.getProcessEngineConfiguration().getDeploymentCache();
-    DbEntityManager dbEntityManager = commandContext.getDbEntityManager();
     for (ProcessDefinitionEntity processDefinition : processDefinitions) {
 
       if (deployment.isNew()) {
@@ -160,9 +158,7 @@ public class BpmnDeployer implements Deployer {
         updateJobDeclarations(declarations, processDefinition, deployment.isNew());
         adjustStartEventSubscriptions(processDefinition, latestProcessDefinition);
 
-        dbEntityManager.insert(processDefinition);
-        deploymentCache.addProcessDefinition(processDefinition);
-        addAuthorizations(processDefinition);
+        processDefinitionManager.insertProcessDefinition(processDefinition);
 
       } else {
 
@@ -175,24 +171,19 @@ public class BpmnDeployer implements Deployer {
 
         List<JobDeclaration<?>> declarations = jobDeclarations.get(processDefinition.getKey());
         updateJobDeclarations(declarations, processDefinition, deployment.isNew());
-
-        deploymentCache.addProcessDefinition(processDefinition);
-        addAuthorizations(processDefinition);
-
       }
 
       // Add to cache
-      Context
-        .getProcessEngineConfiguration()
-        .getDeploymentCache()
-        .addProcessDefinition(processDefinition);
+      deploymentCache.addProcessDefinition(processDefinition);
+      // add "authorizations"
+      addAuthorizations(processDefinition);
 
       // Add to deployment for further usage
       deployment.addDeployedArtifact(processDefinition);
     }
   }
 
-  protected void updateJobDeclarations(List<JobDeclaration<?>> jobDeclarations, ProcessDefinition processDefinition, boolean isNewDeployment) {
+  protected void updateJobDeclarations(List<JobDeclaration<?>> jobDeclarations, ProcessDefinitionEntity processDefinition, boolean isNewDeployment) {
 
     if(jobDeclarations == null || jobDeclarations.isEmpty()) {
       return;
@@ -209,6 +200,9 @@ public class BpmnDeployer implements Deployer {
     } else {
       // query all job definitions and update the declarations with their Ids
       List<JobDefinitionEntity> existingDefinitions = jobDefinitionManager.findByProcessDefinitionId(processDefinition.getId());
+
+      LegacyBehavior.migrateMultiInstanceJobDefinitions(processDefinition, existingDefinitions);
+
       for (JobDeclaration<?> jobDeclaration : jobDeclarations) {
         boolean jobDefinitionExists = false;
         for (JobDefinition jobDefinitionEntity : existingDefinitions) {
@@ -292,8 +286,8 @@ public class BpmnDeployer implements Deployer {
     List<TimerDeclarationImpl> timerDeclarations = (List<TimerDeclarationImpl>) processDefinition.getProperty(BpmnParse.PROPERTYNAME_START_TIMER);
     if (timerDeclarations!=null) {
       for (TimerDeclarationImpl timerDeclaration : timerDeclarations) {
-        TimerEntity timer = timerDeclaration.createTimerInstance(null);
-        timer.setDeploymentId(processDefinition.getDeploymentId());
+        String deploymentId = processDefinition.getDeploymentId();
+        timerDeclaration.createStartTimerInstance(deploymentId);
       }
     }
   }

@@ -13,13 +13,20 @@
 
 package org.camunda.connect.plugin;
 
+import static org.hamcrest.CoreMatchers.is;
+import static org.junit.Assert.assertThat;
+import static org.hamcrest.CoreMatchers.containsString;
+
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.camunda.bpm.engine.BpmnParseException;
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.delegate.BpmnError;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.VariableInstance;
+import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.connect.ConnectorException;
 import org.camunda.connect.Connectors;
@@ -38,11 +45,11 @@ public class ConnectProcessEnginePluginTest extends PluggableProcessEngineTestCa
   }
 
   public void testConnectorsRegistered() {
-    Connector http = Connectors.getConnector(HttpConnector.ID);
+    Connector<?> http = Connectors.getConnector(HttpConnector.ID);
     assertNotNull(http);
-    Connector soap = Connectors.getConnector(SoapHttpConnector.ID);
+    Connector<?> soap = Connectors.getConnector(SoapHttpConnector.ID);
     assertNotNull(soap);
-    Connector test = Connectors.getConnector(TestConnector.ID);
+    Connector<?> test = Connectors.getConnector(TestConnector.ID);
     assertNotNull(test);
   }
 
@@ -107,5 +114,99 @@ public class ConnectProcessEnginePluginTest extends PluggableProcessEngineTestCa
     assertEquals(3 * x, out.getValue());
   }
 
-}
+  @Deployment(resources="org/camunda/connect/plugin/ConnectProcessEnginePluginTest.testConnectorWithThrownExceptionInScriptInputOutputMapping.bpmn")
+  public void testConnectorBpmnErrorThrownInScriptInputMappingIsHandledByBoundaryEvent() {
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "in");
+    variables.put("exception", new BpmnError("error"));
+    runtimeService.startProcessInstanceByKey("testProcess", variables);
+    //we will only reach the user task if the BPMNError from the script was handled by the boundary event
+    Task task = taskService.createTaskQuery().singleResult();
+    assertThat(task.getName(), is("User Task"));
+  }
 
+  @Deployment(resources="org/camunda/connect/plugin/ConnectProcessEnginePluginTest.testConnectorWithThrownExceptionInScriptInputOutputMapping.bpmn")
+  public void testConnectorRuntimeExceptionThrownInScriptInputMappingIsNotHandledByBoundaryEvent() {
+    String exceptionMessage = "myException";
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "in");
+    variables.put("exception", new RuntimeException(exceptionMessage));
+    try {
+      runtimeService.startProcessInstanceByKey("testProcess", variables);
+    } catch(RuntimeException re){
+      assertThat(re.getMessage(), containsString(exceptionMessage));
+    }
+  }
+
+  @Deployment(resources="org/camunda/connect/plugin/ConnectProcessEnginePluginTest.testConnectorWithThrownExceptionInScriptInputOutputMapping.bpmn")
+  public void testConnectorBpmnErrorThrownInScriptOutputMappingIsHandledByBoundaryEvent() {
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "out");
+    variables.put("exception", new BpmnError("error"));
+    runtimeService.startProcessInstanceByKey("testProcess", variables);
+    //we will only reach the user task if the BPMNError from the script was handled by the boundary event
+    Task task = taskService.createTaskQuery().singleResult();
+    assertThat(task.getName(), is("User Task"));
+  }
+
+  @Deployment(resources="org/camunda/connect/plugin/ConnectProcessEnginePluginTest.testConnectorWithThrownExceptionInScriptInputOutputMapping.bpmn")
+  public void testConnectorRuntimeExceptionThrownInScriptOutputMappingIsNotHandledByBoundaryEvent() {
+    String exceptionMessage = "myException";
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "out");
+    variables.put("exception", new RuntimeException(exceptionMessage));
+    try {
+      runtimeService.startProcessInstanceByKey("testProcess", variables);
+    } catch(RuntimeException re){
+      assertThat(re.getMessage(), containsString(exceptionMessage));
+    }
+  }
+
+  @Deployment(resources="org/camunda/connect/plugin/ConnectProcessEnginePluginTest.testConnectorWithThrownExceptionInScriptResourceInputOutputMapping.bpmn")
+  public void testConnectorBpmnErrorThrownInScriptResourceInputMappingIsHandledByBoundaryEvent() {
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "in");
+    variables.put("exception", new BpmnError("error"));
+    runtimeService.startProcessInstanceByKey("testProcess", variables);
+    //we will only reach the user task if the BPMNError from the script was handled by the boundary event
+    Task task = taskService.createTaskQuery().singleResult();
+    assertThat(task.getName(), is("User Task"));
+  }
+
+  @Deployment(resources="org/camunda/connect/plugin/ConnectProcessEnginePluginTest.testConnectorWithThrownExceptionInScriptResourceInputOutputMapping.bpmn")
+  public void testConnectorRuntimeExceptionThrownInScriptResourceInputMappingIsNotHandledByBoundaryEvent() {
+    String exceptionMessage = "myException";
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "in");
+    variables.put("exception", new RuntimeException(exceptionMessage));
+    try {
+      runtimeService.startProcessInstanceByKey("testProcess", variables);
+    } catch(RuntimeException re){
+      assertThat(re.getMessage(), containsString(exceptionMessage));
+    }
+  }
+
+  @Deployment(resources="org/camunda/connect/plugin/ConnectProcessEnginePluginTest.testConnectorWithThrownExceptionInScriptResourceInputOutputMapping.bpmn")
+  public void testConnectorBpmnErrorThrownInScriptResourceOutputMappingIsHandledByBoundaryEvent() {
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "out");
+    variables.put("exception", new BpmnError("error"));
+    runtimeService.startProcessInstanceByKey("testProcess", variables);
+    //we will only reach the user task if the BPMNError from the script was handled by the boundary event
+    Task task = taskService.createTaskQuery().singleResult();
+    assertThat(task.getName(), is("User Task"));
+  }
+
+  @Deployment(resources="org/camunda/connect/plugin/ConnectProcessEnginePluginTest.testConnectorWithThrownExceptionInScriptResourceInputOutputMapping.bpmn")
+  public void testConnectorRuntimeExceptionThrownInScriptResourceOutputMappingIsNotHandledByBoundaryEvent() {
+    String exceptionMessage = "myException";
+    Map<String, Object> variables = new HashMap<String, Object>();
+    variables.put("throwInMapping", "out");
+    variables.put("exception", new RuntimeException(exceptionMessage));
+    try {
+      runtimeService.startProcessInstanceByKey("testProcess", variables);
+    } catch(RuntimeException re){
+      assertThat(re.getMessage(), containsString(exceptionMessage));
+    }
+  }
+}

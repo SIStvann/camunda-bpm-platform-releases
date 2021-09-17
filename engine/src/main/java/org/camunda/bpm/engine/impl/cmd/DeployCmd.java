@@ -21,11 +21,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import org.camunda.bpm.application.ProcessApplicationReference;
 import org.camunda.bpm.application.ProcessApplicationRegistration;
+import org.camunda.bpm.engine.impl.DeploymentQueryImpl;
 import org.camunda.bpm.engine.impl.ProcessDefinitionQueryImpl;
 import org.camunda.bpm.engine.impl.bpmn.deployer.BpmnDeployer;
 import org.camunda.bpm.engine.impl.cfg.TransactionState;
@@ -34,6 +36,7 @@ import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentFailListener;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.impl.persistence.entity.DeploymentEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessApplicationDeploymentImpl;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
@@ -45,6 +48,7 @@ import org.camunda.bpm.engine.impl.util.StringUtil;
 import org.camunda.bpm.engine.repository.Deployment;
 import org.camunda.bpm.engine.repository.ProcessApplicationDeploymentBuilder;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
+import org.camunda.bpm.engine.repository.ResumePreviousBy;
 import org.camunda.bpm.model.bpmn.Bpmn;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.bpm.model.bpmn.instance.Process;
@@ -70,36 +74,43 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
     this.deploymentBuilder = deploymentBuilder;
   }
 
-  public Deployment execute(CommandContext commandContext) {
+  public Deployment execute(final CommandContext commandContext) {
 
-    acquireExclusiveLock(commandContext);
-    DeploymentEntity deployment = initDeployment();
-    Map<String, ResourceEntity> resourcesToDeploy = resolveResourcesToDeploy(commandContext, deployment);
-    Map<String, ResourceEntity> resourcesToIgnore = new HashMap<String, ResourceEntity>(deployment.getResources());
-    resourcesToIgnore.keySet().removeAll(resourcesToDeploy.keySet());
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    authorizationManager.checkCreateDeployment();
 
-    if (!resourcesToDeploy.isEmpty()) {
-      log.fine("Creating new deployment.");
-      deployment.setResources(resourcesToDeploy);
-      deploy(deployment);
-    } else {
-      log.fine("Using existing deployment.");
-      deployment = getExistingDeployment(commandContext, deployment.getName());
-    }
+    return commandContext.runWithoutAuthorization(new Callable<Deployment>() {
+      public Deployment call() throws Exception {
+        acquireExclusiveLock(commandContext);
+        DeploymentEntity deployment = initDeployment();
+        Map<String, ResourceEntity> resourcesToDeploy = resolveResourcesToDeploy(commandContext, deployment);
+        Map<String, ResourceEntity> resourcesToIgnore = new HashMap<String, ResourceEntity>(deployment.getResources());
+        resourcesToIgnore.keySet().removeAll(resourcesToDeploy.keySet());
 
-    scheduleProcessDefinitionActivation(commandContext, deployment);
+        if (!resourcesToDeploy.isEmpty()) {
+          log.fine("Creating new deployment.");
+          deployment.setResources(resourcesToDeploy);
+          deploy(deployment);
+        } else {
+          log.fine("Using existing deployment.");
+          deployment = getExistingDeployment(commandContext, deployment.getName());
+        }
 
-    if(deploymentBuilder instanceof ProcessApplicationDeploymentBuilder) {
-      // for process application deployments, job executor registration is managed by
-      // process application manager
-      Set<String> processesToRegisterFor = retrieveProcessKeysFromResources(resourcesToIgnore);
-      ProcessApplicationRegistration registration = registerProcessApplication(commandContext, deployment, processesToRegisterFor);
-      return new ProcessApplicationDeploymentImpl(deployment, registration);
-    } else {
-      registerWithJobExecutor(commandContext, deployment);
-    }
+        scheduleProcessDefinitionActivation(commandContext, deployment);
 
-    return deployment;
+        if(deploymentBuilder instanceof ProcessApplicationDeploymentBuilder) {
+          // for process application deployments, job executor registration is managed by
+          // process application manager
+          Set<String> processesToRegisterFor = retrieveProcessKeysFromResources(resourcesToIgnore);
+          ProcessApplicationRegistration registration = registerProcessApplication(commandContext, deployment, processesToRegisterFor);
+          return new ProcessApplicationDeploymentImpl(deployment, registration);
+        } else {
+          registerWithJobExecutor(commandContext, deployment);
+        }
+
+        return deployment;
+      }
+    });
   }
 
   protected void acquireExclusiveLock(CommandContext commandContext) {
@@ -193,7 +204,7 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
   }
 
   protected ProcessApplicationRegistration registerProcessApplication(CommandContext commandContext, DeploymentEntity deployment,
-      Set<String> additionalProcessKeysToRegisterFor) {
+      Set<String> processKeysToRegisterFor) {
     ProcessApplicationDeploymentBuilderImpl appDeploymentBuilder = (ProcessApplicationDeploymentBuilderImpl) deploymentBuilder;
     final ProcessApplicationReference appReference = appDeploymentBuilder.getProcessApplicationReference();
 
@@ -201,17 +212,11 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
     Set<String> deploymentsToRegister = new HashSet<String>(Collections.singleton(deployment.getId()));
 
     if (appDeploymentBuilder.isResumePreviousVersions()) {
-      Set<String> processDefinitionKeys = new HashSet<String>();
-
-      List<ProcessDefinitionEntity> deployedProcesses = getDeployedProcesses(deployment);
-      for (ProcessDefinitionEntity deployedProcess : deployedProcesses) {
-        if (deployedProcess.getVersion() > 1) {
-          processDefinitionKeys.add(deployedProcess.getKey());
-        }
+      if (ResumePreviousBy.RESUME_BY_PROCESS_DEFINITION_KEY.equals(appDeploymentBuilder.getResumePreviousVersionsBy())) {
+        deploymentsToRegister.addAll(resumePreviousByProcessDefinitionKey(commandContext, deployment, processKeysToRegisterFor));
+      }else if(ResumePreviousBy.RESUME_BY_DEPLOYMENT_NAME.equals(appDeploymentBuilder.getResumePreviousVersionsBy())){
+        deploymentsToRegister.addAll(resumePreviousByDeploymentName(commandContext, deployment));
       }
-
-      processDefinitionKeys.addAll(additionalProcessKeysToRegisterFor);
-      resumePreviousVersions(commandContext, processDefinitionKeys, deploymentsToRegister);
     }
 
     // register process application for deployments
@@ -219,14 +224,53 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
 
   }
 
-  @SuppressWarnings({ "unchecked", "rawtypes" })
-  protected List<ProcessDefinitionEntity> getDeployedProcesses(DeploymentEntity deployment) {
-    List<ProcessDefinitionEntity> deployedProcessDefinitions = deployment.getDeployedArtifacts(ProcessDefinitionEntity.class);
-    if(deployedProcessDefinitions == null) {
+  /**
+   * Searches in previous deployments for the same processes and retrieves the deployment ids.
+   *
+   * @param commandContext
+   * @param deployment
+   *          the current deployment
+   * @param processKeysToRegisterFor
+   *          the process keys this process application wants to register
+   * @param deploymentsToRegister
+   *          the set where to add further deployments this process application
+   *          should be registered for
+   * @return a set of deployment ids that contain versions of the
+   *         processKeysToRegisterFor
+   */
+  protected Set<String> resumePreviousByProcessDefinitionKey(CommandContext commandContext, DeploymentEntity deployment, Set<String> processKeysToRegisterFor) {
+    Set<String> processDefinitionKeys = new HashSet<String>(processKeysToRegisterFor);
+
+    List<? extends ProcessDefinition> deployedProcesses = getDeployedProcesses(deployment);
+    for (ProcessDefinition deployedProcess : deployedProcesses) {
+      if (deployedProcess.getVersion() > 1) {
+        processDefinitionKeys.add(deployedProcess.getKey());
+      }
+    }
+
+    return findDeploymentIdsForProcessDefinitions(commandContext, processDefinitionKeys);
+  }
+
+  /**
+   * Searches for previous deployments with the same name.
+   * @param commandContext
+   * @param deployment the current deployment
+   * @return a set of deployment ids
+   */
+  protected Set<String> resumePreviousByDeploymentName(CommandContext commandContext, DeploymentEntity deployment) {
+    List<Deployment> previousDeployments = new DeploymentQueryImpl(commandContext).deploymentName(deployment.getName()).list();
+    Set<String> deploymentIds = new HashSet<String>(previousDeployments.size());
+    for (Deployment d : previousDeployments) {
+      deploymentIds.add(d.getId());
+    }
+    return deploymentIds;
+  }
+
+  protected List<? extends ProcessDefinition> getDeployedProcesses(DeploymentEntity deployment) {
+    List<? extends ProcessDefinition> deployedProcessDefinitions = deployment.getDeployedArtifacts(ProcessDefinitionEntity.class);
+    if (deployedProcessDefinitions == null) {
       // existing deployment
-      deployedProcessDefinitions = (List) new ProcessDefinitionQueryImpl(Context.getCommandContext())
-        .deploymentId(deployment.getId())
-        .list();
+      deployedProcessDefinitions = new ProcessDefinitionQueryImpl(Context.getCommandContext()).deploymentId(deployment.getId()).list();
     }
 
     return deployedProcessDefinitions;
@@ -264,7 +308,8 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
     return StringUtil.hasAnySuffix(resourceEntity.getName(), CmmnDeployer.CMMN_RESOURCE_SUFFIXES);
   }
 
-  protected void resumePreviousVersions(CommandContext commandContext, Set<String> processDefinitionKeys, Set<String> deploymentsToRegister) {
+  protected Set<String> findDeploymentIdsForProcessDefinitions(CommandContext commandContext, Set<String> processDefinitionKeys) {
+    Set<String> deploymentsToRegister = new HashSet<String>();
     for (String processDefinitionKey : processDefinitionKeys) {
       // query for process definitions with that key:
       List<ProcessDefinition> previousVersionDefinition = new ProcessDefinitionQueryImpl(commandContext)
@@ -276,6 +321,7 @@ public class DeployCmd<T> implements Command<Deployment>, Serializable {
         deploymentsToRegister.add(processDefinition.getDeploymentId());
       }
     }
+    return deploymentsToRegister;
   }
 
   protected void registerWithJobExecutor(CommandContext commandContext, DeploymentEntity deployment) {

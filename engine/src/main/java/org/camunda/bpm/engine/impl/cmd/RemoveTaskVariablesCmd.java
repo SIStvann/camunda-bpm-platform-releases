@@ -1,47 +1,43 @@
 package org.camunda.bpm.engine.impl.cmd;
 
-import java.io.Serializable;
-import java.util.Collection;
-import org.camunda.bpm.engine.impl.interceptor.Command;
-import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
-
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
+import java.util.Collection;
+
+import org.camunda.bpm.engine.impl.core.variable.scope.AbstractVariableScope;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
+import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
+import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
 
 /**
  * @author roman.smirnov
  * @author Joram Barrez
  */
-public class RemoveTaskVariablesCmd implements Command<Void>, Serializable {
-  
+public class RemoveTaskVariablesCmd extends AbstractRemoveVariableCmd {
+
   private static final long serialVersionUID = 1L;
 
-  private final String taskId;
-  private final Collection<String> variableNames;
-  private final boolean isLocal;
-
   public RemoveTaskVariablesCmd(String taskId, Collection<String> variableNames, boolean isLocal) {
-    this.taskId = taskId;
-    this.variableNames = variableNames;
-    this.isLocal = isLocal;
+    super(taskId, variableNames, isLocal);
   }
-  
-  public Void execute(CommandContext commandContext) {
 
-    ensureNotNull("taskId", taskId);
+  protected TaskEntity getEntity() {
+    ensureNotNull("taskId", entityId);
 
     TaskEntity task = commandContext
       .getTaskManager()
-      .findTaskById(taskId);
+      .findTaskById(entityId);
 
-    ensureNotNull("Cannot find task with id " + taskId, "task", task);
+    ensureNotNull("Cannot find task with id " + entityId, "task", task);
 
-    if (isLocal) {
-      task.removeVariablesLocal(variableNames);
-    } else {
-      task.removeVariables(variableNames);
-    }
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    authorizationManager.checkUpdateTask(task);
 
-    return null;
+    return task;
+  }
+
+  protected void logVariableOperation(AbstractVariableScope scope) {
+    TaskEntity task = (TaskEntity) scope;
+    commandContext.getOperationLogManager().logVariableOperation(getLogEntryOperation(), task, PropertyChange.EMPTY_CHANGE);
   }
 }

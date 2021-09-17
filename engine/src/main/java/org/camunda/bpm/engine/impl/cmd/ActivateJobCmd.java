@@ -12,6 +12,7 @@
  */
 package org.camunda.bpm.engine.impl.cmd;
 
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
 
 /**
@@ -23,8 +24,11 @@ public class ActivateJobCmd extends AbstractSetJobStateCmd {
     super(jobId, jobDefinitionId, processInstanceId, processDefinitionId, processDefinitionKey);
   }
 
-  protected SuspensionState getSuspensionState() {
+  protected SuspensionState getNewSuspensionState() {
     return SuspensionState.ACTIVE;
   }
 
+  protected String getLogEntryOperation() {
+    return UserOperationLogEntry.OPERATION_TYPE_ACTIVATE_JOB;
+  }
 }

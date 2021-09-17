@@ -19,6 +19,8 @@ import java.util.Collection;
  */
 public interface ValueTypeResolver {
 
+  void addType(ValueType type);
+
   ValueType typeForName(String typeName);
 
   /**

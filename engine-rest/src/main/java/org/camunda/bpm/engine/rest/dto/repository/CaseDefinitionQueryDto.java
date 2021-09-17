@@ -12,18 +12,20 @@
  */
 package org.camunda.bpm.engine.rest.dto.repository;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+import javax.ws.rs.core.MultivaluedMap;
+
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.repository.CaseDefinitionQuery;
 import org.camunda.bpm.engine.rest.dto.AbstractQueryDto;
 import org.camunda.bpm.engine.rest.dto.CamundaQueryParam;
 import org.camunda.bpm.engine.rest.dto.converter.BooleanConverter;
 import org.camunda.bpm.engine.rest.dto.converter.IntegerConverter;
-import org.codehaus.jackson.map.ObjectMapper;
 
-import javax.ws.rs.core.MultivaluedMap;
-
-import java.util.ArrayList;
-import java.util.List;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  *
@@ -127,7 +129,16 @@ public class CaseDefinitionQueryDto extends AbstractQueryDto<CaseDefinitionQuery
     this.version = version;
   }
 
+  /**
+   * @deprecated use {@link #setLatestVersion(Boolean)}
+   */
+  @Deprecated
   @CamundaQueryParam(value = "latest", converter = BooleanConverter.class)
+  public void setLatest(Boolean latest) {
+    setLatestVersion(latest);
+  }
+
+  @CamundaQueryParam(value = "latestVersion", converter = BooleanConverter.class)
   public void setLatestVersion(Boolean latestVersion) {
     this.latestVersion = latestVersion;
   }
@@ -183,29 +194,19 @@ public class CaseDefinitionQueryDto extends AbstractQueryDto<CaseDefinitionQuery
   }
 
   @Override
-  protected void applySortingOptions(CaseDefinitionQuery query) {
-    if (sortBy != null) {
-      if (sortBy.equals(SORT_BY_CATEGORY_VALUE)) {
-        query.orderByCaseDefinitionCategory();
-      } else if (sortBy.equals(SORT_BY_KEY_VALUE)) {
-        query.orderByCaseDefinitionKey();
-      } else if (sortBy.equals(SORT_BY_ID_VALUE)) {
-        query.orderByCaseDefinitionId();
-      } else if (sortBy.equals(SORT_BY_VERSION_VALUE)) {
-        query.orderByCaseDefinitionVersion();
-      } else if (sortBy.equals(SORT_BY_NAME_VALUE)) {
-        query.orderByCaseDefinitionName();
-      } else if (sortBy.equals(SORT_BY_DEPLOYMENT_ID_VALUE)) {
-        query.orderByDeploymentId();
-      }
-    }
-
-    if (sortOrder != null) {
-      if (sortOrder.equals(SORT_ORDER_ASC_VALUE)) {
-        query.asc();
-      } else if (sortOrder.equals(SORT_ORDER_DESC_VALUE)) {
-        query.desc();
-      }
+  protected void applySortBy(CaseDefinitionQuery query, String sortBy, Map<String, Object> parameters, ProcessEngine engine) {
+    if (sortBy.equals(SORT_BY_CATEGORY_VALUE)) {
+      query.orderByCaseDefinitionCategory();
+    } else if (sortBy.equals(SORT_BY_KEY_VALUE)) {
+      query.orderByCaseDefinitionKey();
+    } else if (sortBy.equals(SORT_BY_ID_VALUE)) {
+      query.orderByCaseDefinitionId();
+    } else if (sortBy.equals(SORT_BY_VERSION_VALUE)) {
+      query.orderByCaseDefinitionVersion();
+    } else if (sortBy.equals(SORT_BY_NAME_VALUE)) {
+      query.orderByCaseDefinitionName();
+    } else if (sortBy.equals(SORT_BY_DEPLOYMENT_ID_VALUE)) {
+      query.orderByDeploymentId();
     }
   }
 

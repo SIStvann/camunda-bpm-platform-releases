@@ -25,6 +25,7 @@
         ID_,
         PROC_INST_ID_,
         BUSINESS_KEY_,
+        PROC_DEF_KEY_,
         PROC_DEF_ID_,
         START_TIME_,
         END_TIME_,
@@ -33,12 +34,14 @@
         START_ACT_ID_,
         END_ACT_ID_,
         SUPER_PROCESS_INSTANCE_ID_,
+        SUPER_CASE_INSTANCE_ID_,
         CASE_INST_ID_,
         DELETE_REASON_
       ) values (
         #{id ,jdbcType=VARCHAR},
         #{processInstanceId, jdbcType=VARCHAR},
         #{businessKey, jdbcType=VARCHAR},
+        #{processDefinitionKey, jdbcType=VARCHAR},
         #{processDefinitionId, jdbcType=VARCHAR},
         #{startTime, jdbcType=TIMESTAMP},
         #{endTime, jdbcType=TIMESTAMP},
@@ -47,6 +50,7 @@
         #{startActivityId, jdbcType=VARCHAR},
         #{endActivityId, jdbcType=VARCHAR},
         #{superProcessInstanceId, jdbcType=VARCHAR},
+        #{superCaseInstanceId, jdbcType=VARCHAR},
         #{caseInstanceId, jdbcType=VARCHAR},
         #{deleteReason, jdbcType=VARCHAR}
       )
@@ -82,11 +86,12 @@
   </delete>
 
   <!-- HISTORIC PROCESS INSTANCE RESULT MAP -->
-  
+
   <resultMap id="historicProcessInstanceResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.HistoricProcessInstanceEntity">
     <id property="id" column="ID_" jdbcType="VARCHAR" />
     <result property="processInstanceId" column="PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="businessKey" column="BUSINESS_KEY_" jdbcType="VARCHAR"/>
+    <result property="processDefinitionKey" column="PROC_DEF_KEY_" jdbcType="VARCHAR" />
     <result property="processDefinitionId" column="PROC_DEF_ID_" jdbcType="VARCHAR" />
     <result property="startTime" column="START_TIME_" jdbcType="TIMESTAMP" />
     <result property="endTime" column="END_TIME_" jdbcType="TIMESTAMP" />
@@ -95,6 +100,7 @@
     <result property="startActivityId" column="START_ACT_ID_" jdbcType="VARCHAR" />
     <result property="endActivityId" column="END_ACT_ID_" jdbcType="VARCHAR" />
     <result property="superProcessInstanceId" column="SUPER_PROCESS_INSTANCE_ID_" jdbcType="VARCHAR" />
+    <result property="superCaseInstanceId" column="SUPER_CASE_INSTANCE_ID_" jdbcType="VARCHAR" />
     <result property="caseInstanceId" column="CASE_INST_ID_" jdbcType="VARCHAR" />
     <result property="deleteReason" column="DELETE_REASON_" jdbcType="VARCHAR" />
   </resultMap>
@@ -107,13 +113,15 @@
 
   <select id="selectHistoricProcessInstanceIdsByProcessDefinitionId" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultType="string">
     select ID_
-    from ${prefix}ACT_HI_PROCINST 
+    from ${prefix}ACT_HI_PROCINST
     where PROC_DEF_ID_ = #{parameter}
   </select>
 
   <select id="selectHistoricProcessInstancesByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricProcessInstanceQueryImpl" resultMap="historicProcessInstanceResultMap">
-  	${limitBefore}
-    select RES.* ${limitBetween}
+  	<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
+    ${limitBefore}
+    select RES.* 
+    ${limitBetween}
     <include refid="selectHistoricProcessInstancesByQueryCriteriaSql"/>
     ${orderBy}
     ${limitAfter}
@@ -212,7 +220,13 @@
       </if>
       <if test="subProcessInstanceId != null">
         and RES.PROC_INST_ID_ = (select SUPER_PROCESS_INSTANCE_ID_ from ${prefix}ACT_HI_PROCINST where PROC_INST_ID_ = #{subProcessInstanceId})
-      </if>      
+      </if>
+      <if test="superCaseInstanceId != null">
+        and RES.SUPER_CASE_INSTANCE_ID_ = #{superCaseInstanceId}
+      </if>
+      <if test="subCaseInstanceId != null">
+        and RES.PROC_INST_ID_ = (select SUPER_PROCESS_INSTANCE_ID_ from ${prefix}ACT_HI_CASEINST where CASE_INST_ID_ = #{subCaseInstanceId})
+      </if>
       <foreach collection="queryVariableValues" index="index" item="queryVariableValue">
         and EXISTS (
           select
@@ -222,7 +236,7 @@
           WHERE
             NAME_= #{queryVariableValue.name}
           AND PROC_INST_ID_ = RES.PROC_INST_ID_
-          
+
         <bind name="varTypeField" value="'VAR_TYPE_'"/>
         <bind name="varPrefix" value="''"/>
         <if test="queryVariableValue.valueConditions != null">
@@ -231,6 +245,9 @@
         </if>
         )
       </foreach>
+
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheck" />
+
     </where>
   </sql>
 

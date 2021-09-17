@@ -52,6 +52,7 @@ create table ACT_RU_EXECUTION (
     IS_EVENT_SCOPE_ smallint check(IS_EVENT_SCOPE_ in (1,0)),
     SUSPENSION_STATE_ integer,
     CACHED_ENT_STATE_ integer,
+    SEQUENCE_COUNTER_ bigint,
     primary key (ID_)
 );
 
@@ -76,6 +77,7 @@ create table ACT_RU_JOB (
     DEPLOYMENT_ID_ varchar(64),
     SUSPENSION_STATE_ integer,
     JOB_DEF_ID_ varchar(64),
+    SEQUENCE_COUNTER_ bigint,
     primary key (ID_)
 );
 
@@ -157,6 +159,8 @@ create table ACT_RU_VARIABLE (
     TEXT_ varchar(4000),
     TEXT2_ varchar(4000),
     VAR_SCOPE_ varchar(64) not null,
+    SEQUENCE_COUNTER_ bigint,
+    IS_CONCURRENT_LOCAL_ smallint check(IS_CONCURRENT_LOCAL_ in (1,0)),
     primary key (ID_)
 );
 
@@ -215,6 +219,14 @@ create table ACT_RU_FILTER (
   primary key (ID_)
 );
 
+create table ACT_RU_METER_LOG (
+    ID_ varchar(64) not null,
+    NAME_ varchar(64) not null,
+    VALUE_ bigint,
+    TIMESTAMP_ timestamp not null,
+    primary key (ID_)
+);
+
 create index ACT_IDX_EXEC_BUSKEY on ACT_RU_EXECUTION(BUSINESS_KEY_);
 create index ACT_IDX_TASK_CREATE on ACT_RU_TASK(CREATE_TIME_);
 create index ACT_IDX_TASK_ASSIGNEE on ACT_RU_TASK(ASSIGNEE_);
@@ -228,6 +240,7 @@ create index ACT_IDX_JOB_PROCINST on ACT_RU_JOB(PROCESS_INSTANCE_ID_);
 create unique index ACT_UNIQ_AUTH_USER on ACT_RU_AUTHORIZATION(TYPE_,UNI_USER_ID_,RESOURCE_TYPE_,UNI_RESOURCE_ID_);
 create unique index ACT_UNIQ_AUTH_GROUP on ACT_RU_AUTHORIZATION(TYPE_,UNI_GROUP_ID_,RESOURCE_TYPE_,UNI_RESOURCE_ID_);
 create unique index ACT_UNIQ_VARIABLE on ACT_RU_VARIABLE(VAR_SCOPE_,NAME_);
+create index ACT_IDX_METER_LOG on ACT_RU_METER_LOG(NAME_,TIMESTAMP_);
 
 alter table ACT_GE_BYTEARRAY
     add constraint ACT_FK_BYTEARR_DEPL 
@@ -337,6 +350,7 @@ alter table ACT_RU_INCIDENT
 create index ACT_IDX_EXECUTION_PROC on ACT_RU_EXECUTION(PROC_DEF_ID_);
 create index ACT_IDX_EXECUTION_PARENT on ACT_RU_EXECUTION(PARENT_ID_);
 create index ACT_IDX_EXECUTION_SUPER on ACT_RU_EXECUTION(SUPER_EXEC_);
+create index ACT_IDX_EXECUTION_PROCINST on ACT_RU_EXECUTION(PROC_INST_ID_);
 create index ACT_IDX_EVENT_SUBSCR_EXEC on ACT_RU_EVENT_SUBSCR(EXECUTION_ID_);
 create index ACT_IDX_BA_DEPLOYMENT on ACT_GE_BYTEARRAY(DEPLOYMENT_ID_);
 create index ACT_IDX_IDENT_LNK_TASK on ACT_RU_IDENTITYLINK(TASK_ID_);

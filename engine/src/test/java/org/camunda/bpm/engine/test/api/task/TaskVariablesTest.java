@@ -13,7 +13,7 @@
 
 package org.camunda.bpm.engine.test.api.task;
 
-import static org.camunda.bpm.engine.variable.Variables.*;
+import static org.camunda.bpm.engine.variable.Variables.objectValue;
 
 import java.util.ArrayList;
 import java.util.HashMap;

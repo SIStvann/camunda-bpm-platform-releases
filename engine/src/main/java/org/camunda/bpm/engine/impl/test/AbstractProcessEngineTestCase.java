@@ -45,10 +45,12 @@ import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.impl.util.LogUtil.ThreadLogMode;
+import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
 import org.camunda.bpm.engine.runtime.CaseInstance;
 import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.junit.Assert;
 
 
@@ -64,12 +66,13 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
   }
 
   private static final List<String> TABLENAMES_EXCLUDED_FROM_DB_CLEAN_CHECK = Arrays.asList(
-    "ACT_GE_PROPERTY"
+    "ACT_GE_PROPERTY",
+    "ACT_RU_METER_LOG"
   );
 
   protected ProcessEngine processEngine;
-
   protected ThreadLogMode threadRenderingMode = DEFAULT_THREAD_LOG_MODE;
+
   protected String deploymentId;
   protected Throwable exception;
 
@@ -120,12 +123,13 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
 
     } finally {
       TestHelper.annotationDeploymentTearDown(processEngine, deploymentId, getClass(), getName());
-      identityService.setAuthenticatedUserId(null);
+      identityService.clearAuthentication();
       assertAndEnsureCleanDb();
       ClockUtil.reset();
 
       // Can't do this in the teardown, as the teardown will be called as part of the super.runBare
       closeDownProcessEngine();
+      clearServiceReferences();
     }
   }
 
@@ -189,6 +193,20 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     filterService = processEngine.getFilterService();
   }
 
+  protected void clearServiceReferences() {
+    processEngineConfiguration = null;
+    repositoryService = null;
+    runtimeService = null;
+    taskService = null;
+    formService = null;
+    historyService = null;
+    identityService = null;
+    managementService = null;
+    authorizationService = null;
+    caseService = null;
+    filterService = null;
+  }
+
   public void assertProcessEnded(final String processInstanceId) {
     ProcessInstance processInstance = processEngine
       .getRuntimeService()
@@ -198,6 +216,18 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
 
     if (processInstance!=null) {
       throw new AssertionFailedError("Expected finished process instance '"+processInstanceId+"' but it was still in the db");
+    }
+  }
+
+  public void assertProcessNotEnded(final String processInstanceId) {
+    ProcessInstance processInstance = processEngine
+      .getRuntimeService()
+      .createProcessInstanceQuery()
+      .processInstanceId(processInstanceId)
+      .singleResult();
+
+    if (processInstance==null) {
+      throw new AssertionFailedError("Expected process instance '"+processInstanceId+"' to be still active but it was not in the db");
     }
   }
 
@@ -230,7 +260,7 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
 
     try {
       Timer timer = new Timer();
-      InteruptTask task = new InteruptTask(Thread.currentThread());
+      InterruptTask task = new InterruptTask(Thread.currentThread());
       timer.schedule(task, maxMillisToWait);
       boolean areJobsAvailable = true;
       try {
@@ -272,7 +302,7 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
 
     try {
       Timer timer = new Timer();
-      InteruptTask task = new InteruptTask(Thread.currentThread());
+      InterruptTask task = new InterruptTask(Thread.currentThread());
       timer.schedule(task, maxMillisToWait);
       boolean conditionIsViolated = true;
       try {
@@ -321,10 +351,18 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     return false;
   }
 
-  private static class InteruptTask extends TimerTask {
+  @Deprecated
+  private static class InteruptTask extends InterruptTask {
+    public InteruptTask(Thread thread) {
+      super(thread);
+    }
+  }
+
+
+  private static class InterruptTask extends TimerTask {
     protected boolean timeLimitExceeded = false;
     protected Thread thread;
-    public InteruptTask(Thread thread) {
+    public InterruptTask(Thread thread) {
       this.thread = thread;
     }
     public boolean isTimeLimitExceeded() {
@@ -336,13 +374,18 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     }
   }
 
+  @Deprecated
   protected List<ActivityInstance> getInstancesForActivitiyId(ActivityInstance activityInstance, String activityId) {
+    return getInstancesForActivityId(activityInstance, activityId);
+  }
+
+  protected List<ActivityInstance> getInstancesForActivityId(ActivityInstance activityInstance, String activityId) {
     List<ActivityInstance> result = new ArrayList<ActivityInstance>();
     if(activityInstance.getActivityId().equals(activityId)) {
       result.add(activityInstance);
     }
     for (ActivityInstance childInstance : activityInstance.getChildActivityInstances()) {
-      result.addAll(getInstancesForActivitiyId(childInstance,activityId));
+      result.addAll(getInstancesForActivityId(childInstance, activityId));
     }
     return result;
   }
@@ -358,6 +401,17 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
       identityService.setAuthenticatedUserId(null);
       processEngineConfiguration.setAuthorizationEnabled(false);
     }
+  }
+
+  public void deployment(BpmnModelInstance... bpmnModelInstances) {
+    DeploymentBuilder deploymentBuilder = repositoryService.createDeployment();
+
+    for (int i = 0; i < bpmnModelInstances.length; i++) {
+      BpmnModelInstance bpmnModelInstance = bpmnModelInstances[i];
+      deploymentBuilder.addModelInstance("testProcess-"+i+".bpmn", bpmnModelInstance);
+    }
+
+    deploymentId = deploymentBuilder.deploy().getId();
   }
 
 }

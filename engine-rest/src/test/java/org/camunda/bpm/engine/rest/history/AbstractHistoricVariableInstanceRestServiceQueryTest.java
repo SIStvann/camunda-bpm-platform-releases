@@ -2,8 +2,8 @@ package org.camunda.bpm.engine.rest.history;
 
 import static com.jayway.restassured.RestAssured.expect;
 import static com.jayway.restassured.RestAssured.given;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 import javax.xml.registry.InvalidRequestException;
 
@@ -29,6 +30,7 @@ import org.camunda.bpm.engine.rest.helper.MockHistoricVariableInstanceBuilder;
 import org.camunda.bpm.engine.rest.helper.MockObjectValue;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.helper.VariableTypeHelper;
+import org.camunda.bpm.engine.rest.util.OrderingBuilder;
 import org.camunda.bpm.engine.variable.Variables;
 import org.camunda.bpm.engine.variable.type.ValueType;
 import org.junit.Before;
@@ -206,6 +208,25 @@ public abstract class AbstractHistoricVariableInstanceRestServiceQueryTest exten
   }
 
   @Test
+  public void testSecondarySortingAsPost() {
+    InOrder inOrder = Mockito.inOrder(mockedQuery);
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("sorting", OrderingBuilder.create()
+      .orderBy("instanceId").desc()
+      .orderBy("variableName").asc()
+      .getJson());
+    given().contentType(POST_JSON_CONTENT_TYPE).body(json)
+      .header("accept", MediaType.APPLICATION_JSON)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().post(HISTORIC_VARIABLE_INSTANCE_RESOURCE_URL);
+
+    inOrder.verify(mockedQuery).orderByProcessInstanceId();
+    inOrder.verify(mockedQuery).desc();
+    inOrder.verify(mockedQuery).orderByVariableName();
+    inOrder.verify(mockedQuery).asc();
+  }
+
+  @Test
   public void testSuccessfulPagination() {
 
     int firstResult = 0;
@@ -306,9 +327,17 @@ public abstract class AbstractHistoricVariableInstanceRestServiceQueryTest exten
           .body("[0].name", equalTo(mockInstanceBuilder.getName()))
           .body("[0].type", equalTo(VariableTypeHelper.toExpectedValueTypeName(mockInstanceBuilder.getTypedValue().getType())))
           .body("[0].value", equalTo(mockInstanceBuilder.getValue()))
+          .body("[0].processDefinitionKey", equalTo(mockInstanceBuilder.getProcessDefinitionKey()))
+          .body("[0].processDefinitionId", equalTo(mockInstanceBuilder.getProcessDefinitionId()))
           .body("[0].processInstanceId", equalTo(mockInstanceBuilder.getProcessInstanceId()))
+          .body("[0].executionId", equalTo(mockInstanceBuilder.getExecutionId()))
           .body("[0].errorMessage", equalTo(mockInstanceBuilder.getErrorMessage()))
           .body("[0].activityInstanceId", equalTo(mockInstanceBuilder.getActivityInstanceId()))
+          .body("[0].caseDefinitionKey", equalTo(mockInstanceBuilder.getCaseDefinitionKey()))
+          .body("[0].caseDefinitionId", equalTo(mockInstanceBuilder.getCaseDefinitionId()))
+          .body("[0].caseInstanceId", equalTo(mockInstanceBuilder.getCaseInstanceId()))
+          .body("[0].caseExecutionId", equalTo(mockInstanceBuilder.getCaseExecutionId()))
+          .body("[0].taskId", equalTo(mockInstanceBuilder.getTaskId()))
       .when()
         .get(HISTORIC_VARIABLE_INSTANCE_RESOURCE_URL);
 

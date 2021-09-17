@@ -6,11 +6,12 @@ This testsuite allows running different kinds of performance tests against the p
 
 * [The Benchmark](#benchmark)
 * [The Sql Statement Log](#sql-statement-log)
+* [The Activity Log](#activity-log)
 * [Configuration](#configuration)
    1. [Database](#configuration-database)
    2. [History](#configuration-history)
 
-> **Design Rationale**: This testsuite does not try to produce absolute numbers. The goal is not to produce numbers that show "how fast the process engine is". On the contrary, the idea is to produce relative numbers that can be compared over time. The benchmarks allow us to get a sense of whether a certain change to the codebase made the process engine faster or slower compared to the numbers we were getting before. Other performance tests like the Sql Statement Log are meant to serve as a tool for gaining insight into the inner workings of the perocess engine and may be used for tracking down the source of performance degradations or for finding potential for optimization.
+> **Design Rationale**: This testsuite does not try to produce absolute numbers. The goal is not to produce numbers that show "how fast the process engine is". On the contrary, the idea is to produce relative numbers that can be compared over time. The benchmarks allow us to get a sense of whether a certain change to the codebase made the process engine faster or slower compared to the numbers we were getting before. Other performance tests like the Sql Statement Log are meant to serve as a tool for gaining insight into the inner workings of the process engine and may be used for tracking down the source of performance degradations or for finding potential for optimization.
 
 <a name="benchmark"></a>
 ## The Benchmark
@@ -144,6 +145,80 @@ The raw JSON result files allow you to inspect the database communication betwee
     ]
 }
 ```
+
+
+<a name="activity-log"></a>
+## The Activity Log
+
+The Activity Log allows you to gain insight into the process engine's job execution.
+
+### Running the Activity Log
+
+The to enable the activity log set the `watchActivities` properties to the activity ids to log. To create a reports for this activities use the `activity-count` profile.
+**Note**: Currently the activity count report only supports one test process to be execute, otherwise the report messed up.
+
+```Shell
+mvn clean install -P activity-count,h2 -DwatchActivities=start,timer,end -Dtest=AsyncStartAndTimerPerformanceTest
+```
+
+### Inspecting the Activity Log Results
+
+Running the Activity Log will produce the following folders in the `target/` folder of the project:
+
+* `reports/` - containing an aggregated report for all recorded activities in HTML, JSON and CSV format.
+* `results/` - containing the results of the individual test runs in raw JSON format.
+
+The HTML report gives you an aggregated overview over the start time, end time and average duration of every activity cumulated over the execution time:
+
+![Activity log Screenshot][4]
+
+The raw JSON result files allow you to inspect the activity execution on a fine grained level:
+
+```json
+{
+  "testName" : "AsyncStartAndTimerPerformanceTest.test",
+  "configuration" : {
+    "numberOfThreads" : 1,
+    "numberOfRuns" : 100,
+    "databaseName" : "org.postgresql.Driver",
+    "testWatchers" : "",
+    "historyLevel" : "full",
+    "watchActivities" : [ "start", "timer", "end" ],
+    "startTime" : 1430124594459,
+    "platform" : "camunda BPM"
+  },
+  "passResults" : [ {
+    "duration" : 15627,
+    "numberOfThreads" : 1,
+    "stepResults" : [ ],
+    "activityResults" : {
+      "27060" : [ {
+        "activityInstanceId" : "start:27076",
+        "activityId" : "start",
+        "processInstanceId" : "27060",
+        "startTime" : 1430124596918,
+        "endTime" : 1430124596919,
+        "duration" : 1
+      }, {
+        "activityInstanceId" : "timer:27081",
+        "activityId" : "timer",
+        "processInstanceId" : "27060",
+        "startTime" : 1430124596925,
+        "endTime" : 1430124609836,
+        "duration" : 12911
+      }, {
+        "activityInstanceId" : "end:27789",
+        "activityId" : "end",
+        "processInstanceId" : "27060",
+        "startTime" : 1430124609842,
+        "endTime" : 1430124609842,
+        "duration" : 0
+      } ],
+      ...
+}
+```
+
+
 <a name="configuration" />
 ## Configuration
 
@@ -157,8 +232,8 @@ Databases are selected using maven profiles:
 ```Shell
 mvn clean install -Pbenchmark,h2
 mvn clean install -Pbenchmark,mysql
-mvn clean install -Pbenchmark,postgres
-mvn clean install -Pbenchmark,oracle
+mvn clean install -Pbenchmark,postgresql
+mvn clean install -Pbenchmark,oracle,oracle-11
 mvn clean install -Pbenchmark,db2
 ```
 
@@ -174,7 +249,7 @@ Example for command line parameters:
 mvn clean install -Pbenchmark,mysql \
                   -Ddatabase.driver=com.mysql.jdbc.Driver \
                   -Ddatabase.url=jdbc:mysql://localhost:3306:camunda \
-                  -Ddatabase.user=oscar \
+                  -Ddatabase.username=oscar \
                   -Ddatabase.password=s3cret \
 ```
 
@@ -191,3 +266,4 @@ mvn clean install -Pbenchmark,mysql,history-level-full
 [1]: docs/benchmark-report.png
 [2]: docs/sql-statement-log-report.png
 [3]: docs/longTermBenchmarkResults.png
+[4]: docs/activity-log-report.png

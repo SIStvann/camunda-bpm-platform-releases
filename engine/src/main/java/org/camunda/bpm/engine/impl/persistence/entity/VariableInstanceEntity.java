@@ -13,27 +13,34 @@
 package org.camunda.bpm.engine.impl.persistence.entity;
 
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseExecutionEntity;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.core.variable.CoreVariableInstance;
 import org.camunda.bpm.engine.impl.core.variable.value.UntypedValueImpl;
 import org.camunda.bpm.engine.impl.db.DbEntity;
 import org.camunda.bpm.engine.impl.db.DbEntityLifecycleAware;
 import org.camunda.bpm.engine.impl.db.HasDbRevision;
-import org.camunda.bpm.engine.impl.variable.serializer.ValueFields;
+import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.interceptor.CommandContextListener;
+import org.camunda.bpm.engine.impl.variable.serializer.ByteArrayValueSerializer;
 import org.camunda.bpm.engine.impl.variable.serializer.TypedValueSerializer;
+import org.camunda.bpm.engine.impl.variable.serializer.ValueFields;
 import org.camunda.bpm.engine.impl.variable.serializer.VariableSerializers;
 import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.variable.type.ValueType;
+import org.camunda.bpm.engine.variable.value.SerializableValue;
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
 /**
  * @author Tom Baeyens
  */
-public class VariableInstanceEntity implements VariableInstance, CoreVariableInstance, ValueFields, DbEntity, DbEntityLifecycleAware, HasDbRevision, Serializable {
+public class VariableInstanceEntity implements VariableInstance, CoreVariableInstance, ValueFields, DbEntity, DbEntityLifecycleAware, HasDbRevision, Serializable,
+  CommandContextListener {
 
   private static final long serialVersionUID = 1L;
 
@@ -69,6 +76,32 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
 
   protected String configuration;
 
+  protected long sequenceCounter = 1;
+
+  /**
+   * <p>Determines whether this variable is supposed to be a local variable
+   * in case of concurrency in its scope. This affects
+   * </p>
+   *
+   * <ul>
+   * <li>tree expansion (not evaluated yet by the engine)
+   * <li>activity instance IDs of variable instances: concurrentLocal
+   *   variables always receive the activity instance id of their execution
+   *   (which may not be the scope execution), while non-concurrentLocal variables
+   *   always receive the activity instance id of their scope (which is set in the
+   *   parent execution)
+   * </ul>
+   *
+   * <p>
+   *   In the future, this field could be used for restoring the variable distribution
+   *   when the tree is expanded/compacted multiple times.
+   *   On expansion, the goal would be to keep concurrentLocal variables always with
+   *   their concurrent replacing executions while non-concurrentLocal variables
+   *   stay in the scope execution
+   * </p>
+   */
+  protected boolean isConcurrentLocal = false;
+
   // Default constructor for SQL mapping
   public VariableInstanceEntity() {
   }
@@ -93,12 +126,6 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
     variableInstance.setValue(value);
 
     return variableInstance;
-  }
-
-  public void setExecution(ExecutionEntity execution) {
-    this.executionId = execution.getId();
-    this.processInstanceId = execution.getProcessInstanceId();
-    forcedUpdate = true;
   }
 
   public void delete() {
@@ -136,6 +163,10 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
     if (forcedUpdate) {
       persistentState.put("forcedUpdate", Boolean.TRUE);
     }
+
+    persistentState.put("sequenceCounter", getSequenceCounter());
+    persistentState.put("concurrentLocal", isConcurrentLocal);
+
     return persistentState;
   }
 
@@ -240,10 +271,24 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
     return getTypedValue(true);
   }
 
+  @SuppressWarnings("unchecked")
   public TypedValue getTypedValue(boolean deserializeValue) {
+
+    if (cachedValue != null && cachedValue instanceof SerializableValue && Context.getCommandContext() != null) {
+      SerializableValue serializableValue = (SerializableValue) cachedValue;
+      if(deserializeValue && !serializableValue.isDeserialized()) {
+        // clear cached value in case it is not deserialized and user requests deserialized value
+        cachedValue = null;
+      }
+    }
+
     if (cachedValue == null && errorMessage == null) {
       try {
         cachedValue = getSerializer().readValue(this, deserializeValue);
+
+        if (serializer.isMutableValue(cachedValue)) {
+          Context.getCommandContext().registerCommandContextListener(this);
+        }
       }
       catch(RuntimeException e) {
         // intercept the error message
@@ -251,6 +296,7 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
         throw e;
       }
     }
+
     return cachedValue;
   }
 
@@ -275,18 +321,50 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
     // cache the value
     cachedValue = value;
 
+    // ensure that we serialize the object on command context flush
+    // if it can be implicitly changed
+    if (serializer.isMutableValue(cachedValue)) {
+      Context.getCommandContext().registerCommandContextListener(this);
+    }
+
     return value;
   }
+
 
   public void clearValueFields() {
     this.longValue = null;
     this.doubleValue = null;
     this.textValue = null;
     this.textValue2 = null;
+    this.cachedValue = null;
 
     if(this.byteArrayValueId != null) {
       deleteByteArrayValue();
       setByteArrayValueId(null);
+    }
+  }
+
+  public void onCommandContextClose(CommandContext commandContext) {
+    updateFields();
+  }
+
+  public void onCommandFailed(CommandContext commandContext, Throwable t) {
+    // ignore
+  }
+
+  @SuppressWarnings("unchecked")
+  public void updateFields() {
+    if (cachedValue != null && serializer.isMutableValue(cachedValue)) {
+      byte[] byteArray = ByteArrayValueSerializer.getBytes(this);
+
+      serializer.writeValue(cachedValue, this);
+
+      byte[] byteArrayAfter = ByteArrayValueSerializer.getBytes(this);
+
+      if (Arrays.equals(byteArray, byteArrayAfter)) {
+        // avoids an UPDATE statement when the byte array has not changed, cf ByteArrayEntity#getPersistentState
+        ByteArrayValueSerializer.setBytes(this, byteArray);
+      }
     }
   }
 
@@ -306,6 +384,36 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
   public void postLoad() {
     // make sure the serializer is initialized
     ensureSerializerInitialized();
+  }
+
+  // execution ////////////////////////////////////////////////////////////////
+
+  public ExecutionEntity getExecution() {
+    if (executionId != null) {
+      return Context
+        .getCommandContext()
+        .getExecutionManager()
+        .findExecutionById(executionId);
+    }
+    return null;
+  }
+
+  public void setExecution(ExecutionEntity execution) {
+    this.executionId = execution.getId();
+    this.processInstanceId = execution.getProcessInstanceId();
+    forcedUpdate = true;
+  }
+
+  // case execution ///////////////////////////////////////////////////////////
+
+  public CaseExecutionEntity getCaseExecution() {
+    if (caseExecutionId != null) {
+      return Context
+          .getCommandContext()
+          .getCaseExecutionManager()
+          .findCaseExecutionById(caseExecutionId);
+    }
+    return null;
   }
 
   // getters and setters //////////////////////////////////////////////////////
@@ -425,8 +533,8 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
     return activityInstanceId;
   }
 
-  public void setActivityInstanceId(String acitivtyInstanceId) {
-    this.activityInstanceId = acitivtyInstanceId;
+  public void setActivityInstanceId(String activityInstanceId) {
+    this.activityInstanceId = activityInstanceId;
   }
 
   public String getSerializerName() {
@@ -453,6 +561,29 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
     return cachedValue;
   }
 
+  //sequence counter ///////////////////////////////////////////////////////////
+
+  public long getSequenceCounter() {
+    return sequenceCounter;
+  }
+
+  public void setSequenceCounter(long sequenceCounter) {
+    this.sequenceCounter = sequenceCounter;
+  }
+
+   public void incrementSequenceCounter() {
+    sequenceCounter++;
+  }
+
+
+  public boolean isConcurrentLocal() {
+    return isConcurrentLocal;
+  }
+
+  public void setConcurrentLocal(boolean isConcurrentLocal) {
+    this.isConcurrentLocal = isConcurrentLocal;
+  }
+
   @Override
   public String toString() {
     return this.getClass().getSimpleName()
@@ -473,6 +604,7 @@ public class VariableInstanceEntity implements VariableInstance, CoreVariableIns
       + ", byteArrayValueId=" + byteArrayValueId
       + ", forcedUpdate=" + forcedUpdate
       + ", configuration=" + configuration
+      + ", isConcurrentLocal=" + isConcurrentLocal
       + "]";
   }
 

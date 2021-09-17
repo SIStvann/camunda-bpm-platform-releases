@@ -16,14 +16,22 @@ package org.camunda.bpm.engine.impl;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensurePositive;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 
 import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
+import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinitionQuery;
+import org.camunda.bpm.model.bpmn.BpmnModelInstance;
+import org.camunda.bpm.model.bpmn.instance.Documentation;
+import org.camunda.bpm.model.xml.instance.ModelElementInstance;
 
 
 /**
@@ -238,9 +246,31 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
 
   public List<ProcessDefinition> executeList(CommandContext commandContext, Page page) {
     checkQueryOk();
-    return commandContext
+    List<ProcessDefinition> list = commandContext
       .getProcessDefinitionManager()
       .findProcessDefinitionsByQueryCriteria(this, page);
+
+    for (ProcessDefinition processDefinition : list) {
+
+      BpmnModelInstance bpmnModelInstance = Context.getProcessEngineConfiguration()
+              .getDeploymentCache()
+              .findBpmnModelInstanceForProcessDefinition((ProcessDefinitionEntity) processDefinition);
+
+      ModelElementInstance processElement = bpmnModelInstance.getModelElementById(processDefinition.getKey());
+      if(processElement != null) {
+        Collection<Documentation> documentations = processElement.getChildElementsByType(Documentation.class);
+        List<String> docStrings = new ArrayList<String>();
+        for (Documentation documentation : documentations) {
+          docStrings.add(documentation.getTextContent());
+        }
+
+        ProcessDefinitionEntity processDefinitionEntity = (ProcessDefinitionEntity) processDefinition;
+        processDefinitionEntity.setProperty(BpmnParse.PROPERTYNAME_DOCUMENTATION, BpmnParse.parseDocumentation(docStrings));
+      }
+
+    }
+
+    return list;
   }
 
   public void checkQueryOk() {

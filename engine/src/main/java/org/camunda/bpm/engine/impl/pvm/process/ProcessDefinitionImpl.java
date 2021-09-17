@@ -24,6 +24,7 @@ import org.camunda.bpm.engine.delegate.BaseDelegateExecution;
 import org.camunda.bpm.engine.impl.core.delegate.CoreActivityBehavior;
 import org.camunda.bpm.engine.impl.pvm.PvmProcessDefinition;
 import org.camunda.bpm.engine.impl.pvm.PvmProcessInstance;
+import org.camunda.bpm.engine.impl.pvm.PvmScope;
 import org.camunda.bpm.engine.impl.pvm.runtime.ExecutionImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
@@ -46,18 +47,34 @@ public class ProcessDefinitionImpl extends ScopeImpl implements PvmProcessDefini
   public ProcessDefinitionImpl(String id) {
     super(id, null);
     processDefinition = this;
+    // the process definition is always "a sub process scope"
+    isSubProcessScope = true;
+  }
+
+  protected void ensureDefaultInitialExists() {
+    ensureNotNull("Process '" + name + "' has no default start activity (e.g. none start event), hence you cannot use 'startProcessInstanceBy...' but have to start it using one of the modeled start events (e.g. message start events)", "initial", initial);
   }
 
   public PvmProcessInstance createProcessInstance() {
-    ensureNotNull("Process '" + name + "' has no default start activity (e.g. none start event), hence you cannot use 'startProcessInstanceBy...' but have to start it using one of the modeled start events (e.g. message start events)", "initial", initial);
-    return createProcessInstanceForInitial(initial);
+    ensureDefaultInitialExists();
+    return createProcessInstance(null, null, initial);
   }
 
   public PvmProcessInstance createProcessInstance(String businessKey) {
-    return createProcessInstance(businessKey, null);
+    ensureDefaultInitialExists();
+    return createProcessInstance(businessKey, null, this.initial);
   }
 
   public PvmProcessInstance createProcessInstance(String businessKey, String caseInstanceId) {
+    ensureDefaultInitialExists();
+    return createProcessInstance(businessKey, caseInstanceId, this.initial);
+  }
+
+  public PvmProcessInstance createProcessInstance(String businessKey, ActivityImpl initial) {
+    return createProcessInstance(businessKey, null, initial);
+  }
+
+  public PvmProcessInstance createProcessInstance(String businessKey, String caseInstanceId, ActivityImpl initial) {
     PvmExecutionImpl processInstance = (PvmExecutionImpl) createProcessInstanceForInitial(initial);
 
     processInstance.setBusinessKey(businessKey);
@@ -70,30 +87,22 @@ public class ProcessDefinitionImpl extends ScopeImpl implements PvmProcessDefini
   public PvmProcessInstance createProcessInstanceForInitial(ActivityImpl initial) {
     ensureNotNull("Cannot start process instance, initial activity where the process instance should start is null", "initial", initial);
 
-    PvmExecutionImpl processInstance = newProcessInstance(initial);
+    PvmExecutionImpl processInstance = newProcessInstance();
 
     processInstance.setProcessDefinition(this);
+
     processInstance.setProcessInstance(processInstance);
 
-    processInstance.initialize();
-
-    PvmExecutionImpl scopeInstance = processInstance;
-
-    List<ActivityImpl> initialActivityStack = getInitialActivityStack(initial);
-
-    for (ActivityImpl initialActivity: initialActivityStack) {
-      if (initialActivity.isScope()) {
-        scopeInstance = scopeInstance.createExecution();
-        scopeInstance.setActivity(initialActivity);
-        if (initialActivity.isScope()) {
-          scopeInstance.initialize();
-        }
-      }
-    }
-
-    scopeInstance.setActivity(initial);
+    // always set the process instance to the initial activity, no matter how deeply it is nested;
+    // this is required for firing history events (cf start activity) and persisting the initial activity
+    // on async start
+    processInstance.setActivity(initial);
 
     return processInstance;
+  }
+
+  protected PvmExecutionImpl newProcessInstance() {
+    return new ExecutionImpl();
   }
 
   public List<ActivityImpl> getInitialActivityStack() {
@@ -107,15 +116,11 @@ public class ProcessDefinitionImpl extends ScopeImpl implements PvmProcessDefini
       ActivityImpl activity = startActivity;
       while (activity!=null) {
         initialActivityStack.add(0, activity);
-        activity = activity.getParentActivity();
+        activity = activity.getParentFlowScopeActivity();
       }
       initialActivityStacks.put(startActivity, initialActivityStack);
     }
     return initialActivityStack;
-  }
-
-  protected PvmExecutionImpl newProcessInstance(ActivityImpl startActivity) {
-    return new ExecutionImpl(startActivity);
   }
 
   public String getDiagramResourceName() {
@@ -185,15 +190,23 @@ public class ProcessDefinitionImpl extends ScopeImpl implements PvmProcessDefini
     return participantProcess;
   }
 
-  public ScopeImpl getParentScope() {
-    return null;
-  }
-
-  public ScopeImpl getParent() {
-    return null;
-  }
-
   public boolean isScope() {
+    return true;
+  }
+
+  public PvmScope getEventScope() {
+    return null;
+  }
+
+  public ScopeImpl getFlowScope() {
+    return null;
+  }
+
+  public PvmScope getLevelOfSubprocessScope() {
+    return null;
+  }
+
+  public boolean isSubProcessScope() {
     return true;
   }
 

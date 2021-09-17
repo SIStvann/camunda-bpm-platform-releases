@@ -18,26 +18,33 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
+import org.camunda.bpm.engine.EntityTypes;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.filter.Filter;
+import org.camunda.bpm.engine.filter.FilterQuery;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.identity.User;
-import org.camunda.bpm.engine.impl.AbstractQuery;
 import org.camunda.bpm.engine.impl.Direction;
+import org.camunda.bpm.engine.impl.QueryEntityRelationCondition;
 import org.camunda.bpm.engine.impl.QueryOperator;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.TaskQueryImpl;
 import org.camunda.bpm.engine.impl.TaskQueryProperty;
 import org.camunda.bpm.engine.impl.TaskQueryVariableValue;
+import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
 import org.camunda.bpm.engine.impl.json.JsonTaskQueryConverter;
 import org.camunda.bpm.engine.impl.persistence.entity.FilterEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
+import org.camunda.bpm.engine.impl.util.json.JSONObject;
 import org.camunda.bpm.engine.query.Query;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.DelegationState;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.variable.Variables;
+import org.camunda.bpm.engine.variable.type.ValueType;
 
 /**
  * @author Sebastian Menski
@@ -51,6 +58,7 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
   protected DelegationState testDelegationState = DelegationState.PENDING;
   protected Date testDate = new Date(0);
   protected String[] testActivityInstances = new String[] {"a", "b", "c"};
+  protected String[] testKeys = new String[] {"d", "e"};
   protected List<String> testCandidateGroups = new ArrayList<String>();
 
   protected String[] variableNames = new String[] {"a", "b", "c", "d", "e", "f"};
@@ -58,7 +66,6 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
   protected QueryOperator[] variableOperators = new QueryOperator[] {QueryOperator.EQUALS, QueryOperator.GREATER_THAN_OR_EQUAL, QueryOperator.LESS_THAN, QueryOperator.LIKE, QueryOperator.NOT_EQUALS, QueryOperator.LESS_THAN_OR_EQUAL};
   protected boolean[] isTaskVariable = new boolean[] {true, true, false, false, false, false};
   protected boolean[] isProcessVariable = new boolean[] {false, false, true, true, false, false};
-  protected String testOrderBy = TaskQueryProperty.EXECUTION_ID.getName() + " " + Direction.DESCENDING.getName() + ", " + TaskQueryProperty.DUE_DATE.getName() + " " + Direction.ASCENDING.getName();
   protected User testUser;
   protected Group testGroup;
 
@@ -140,12 +147,15 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     query.taskCreatedAfter(testDate);
     query.taskCreatedAfterExpression(testString);
     query.taskDefinitionKey(testString);
+    query.taskDefinitionKeyIn(testKeys);
     query.taskDefinitionKeyLike(testString);
     query.processDefinitionKey(testString);
+    query.processDefinitionKeyIn(testKeys);
     query.processDefinitionId(testString);
     query.processDefinitionName(testString);
     query.processDefinitionNameLike(testString);
     query.processInstanceBusinessKey(testString);
+    query.processInstanceBusinessKeyIn(testKeys);
     query.processInstanceBusinessKeyLike(testString);
 
     // variables
@@ -182,6 +192,9 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     // ordering
     query.orderByExecutionId().desc();
     query.orderByDueDate().asc();
+    query.orderByProcessVariable("var", ValueType.STRING).desc();
+
+    List<QueryOrderingProperty> expectedOrderingProperties = query.getOrderingProperties();
 
     // save filter
     filter.setQuery(query);
@@ -225,12 +238,22 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     assertEquals(testDate, query.getCreateTimeAfter());
     assertEquals(testString, query.getExpressions().get("taskCreatedAfter"));
     assertEquals(testString, query.getKey());
+    assertEquals(testKeys.length, query.getKeys().length);
+    for (int i = 0; i < query.getKeys().length; i++) {
+      assertEquals(testKeys[i], query.getKeys()[i]);
+    }
     assertEquals(testString, query.getKeyLike());
     assertEquals(testString, query.getProcessDefinitionKey());
+    for (int i = 0; i < query.getProcessDefinitionKeys().length; i++) {
+      assertEquals(testKeys[i], query.getProcessDefinitionKeys()[i]);
+    }
     assertEquals(testString, query.getProcessDefinitionId());
     assertEquals(testString, query.getProcessDefinitionName());
     assertEquals(testString, query.getProcessDefinitionNameLike());
     assertEquals(testString, query.getProcessInstanceBusinessKey());
+    for (int i = 0; i < query.getProcessInstanceBusinessKeys().length; i++) {
+      assertEquals(testKeys[i], query.getProcessInstanceBusinessKeys()[i]);
+    }
     assertEquals(testString, query.getProcessInstanceBusinessKeyLike());
 
     // variables
@@ -268,7 +291,42 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     assertEquals(testString, query.getCaseExecutionId());
 
     // ordering
-    assertEquals(testOrderBy, query.getOrderBy());
+    verifyOrderingProperties(expectedOrderingProperties, query.getOrderingProperties());
+  }
+
+  protected void verifyOrderingProperties(List<QueryOrderingProperty> expectedProperties,
+      List<QueryOrderingProperty> actualProperties) {
+    assertEquals(expectedProperties.size(), actualProperties.size());
+
+    for (int i = 0; i < expectedProperties.size(); i++) {
+      QueryOrderingProperty expectedProperty = expectedProperties.get(i);
+      QueryOrderingProperty actualProperty = actualProperties.get(i);
+
+      assertEquals(expectedProperty.getRelation(), actualProperty.getRelation());
+      assertEquals(expectedProperty.getDirection(), actualProperty.getDirection());
+      assertEquals(expectedProperty.isContainedProperty(), actualProperty.isContainedProperty());
+      assertEquals(expectedProperty.getQueryProperty(), actualProperty.getQueryProperty());
+
+      List<QueryEntityRelationCondition> expectedRelationConditions = expectedProperty.getRelationConditions();
+      List<QueryEntityRelationCondition> actualRelationConditions = expectedProperty.getRelationConditions();
+
+      if (expectedRelationConditions != null && actualRelationConditions != null) {
+        assertEquals(expectedRelationConditions.size(), actualRelationConditions.size());
+
+        for (int j = 0; j < expectedRelationConditions.size(); j++) {
+          QueryEntityRelationCondition expectedFilteringProperty = expectedRelationConditions.get(j);
+          QueryEntityRelationCondition actualFilteringProperty = expectedRelationConditions.get(j);
+
+          assertEquals(expectedFilteringProperty.getProperty(), actualFilteringProperty.getProperty());
+          assertEquals(expectedFilteringProperty.getComparisonProperty(), actualFilteringProperty.getComparisonProperty());
+          assertEquals(expectedFilteringProperty.getScalarValue(), actualFilteringProperty.getScalarValue());
+        }
+      } else if ((expectedRelationConditions == null && actualRelationConditions != null) ||
+          (expectedRelationConditions != null && actualRelationConditions == null)) {
+        fail("Expected filtering properties: " + expectedRelationConditions + ". "
+            + "Actual filtering properties: " + actualRelationConditions);
+      }
+    }
   }
 
   public void testTaskQueryByFollowUpBeforeOrNotExistent() {
@@ -405,6 +463,78 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     assertEquals(testGroup.getId(), query.getExpressions().get("taskCandidateGroup"));
   }
 
+  public void testTaskQueryCandidateUserIncludeAssignedTasks() {
+    TaskQueryImpl query = new TaskQueryImpl();
+    query.taskCandidateUser(testUser.getId());
+    query.includeAssignedTasks();
+
+    saveQuery(query);
+    query = filterService.getFilter(filter.getId()).getQuery();
+
+    assertEquals(testUser.getId(), query.getCandidateUser());
+    assertTrue(query.isIncludeAssignedTasks());
+  }
+
+  public void testTaskQueryCandidateUserExpressionIncludeAssignedTasks() {
+    TaskQueryImpl query = new TaskQueryImpl();
+    query.taskCandidateUserExpression(testString);
+    query.includeAssignedTasks();
+
+    saveQuery(query);
+    query = filterService.getFilter(filter.getId()).getQuery();
+
+    assertEquals(testString, query.getExpressions().get("taskCandidateUser"));
+    assertTrue(query.isIncludeAssignedTasks());
+  }
+
+  public void testTaskQueryCandidateGroupIncludeAssignedTasks() {
+    TaskQueryImpl query = new TaskQueryImpl();
+    query.taskCandidateGroup(testGroup.getId());
+    query.includeAssignedTasks();
+
+    saveQuery(query);
+    query = filterService.getFilter(filter.getId()).getQuery();
+
+    assertEquals(testGroup.getId(), query.getCandidateGroup());
+    assertTrue(query.isIncludeAssignedTasks());
+  }
+
+  public void testTaskQueryCandidateGroupExpressionIncludeAssignedTasks() {
+    TaskQueryImpl query = new TaskQueryImpl();
+    query.taskCandidateGroupExpression(testString);
+    query.includeAssignedTasks();
+
+    saveQuery(query);
+    query = filterService.getFilter(filter.getId()).getQuery();
+
+    assertEquals(testString, query.getExpressions().get("taskCandidateGroup"));
+    assertTrue(query.isIncludeAssignedTasks());
+  }
+
+  public void testTaskQueryCandidateGroupsIncludeAssignedTasks() {
+    TaskQueryImpl query = new TaskQueryImpl();
+    query.taskCandidateGroupIn(testCandidateGroups);
+    query.includeAssignedTasks();
+
+    saveQuery(query);
+    query = filterService.getFilter(filter.getId()).getQuery();
+
+    assertEquals(testCandidateGroups, query.getCandidateGroupsInternal());
+    assertTrue(query.isIncludeAssignedTasks());
+  }
+
+  public void testTaskQueryCandidateGroupsExpressionIncludeAssignedTasks() {
+    TaskQueryImpl query = new TaskQueryImpl();
+    query.taskCandidateGroupInExpression(testString);
+    query.includeAssignedTasks();
+
+    saveQuery(query);
+    query = filterService.getFilter(filter.getId()).getQuery();
+
+    assertEquals(testString, query.getExpressions().get("taskCandidateGroupIn"));
+    assertTrue(query.isIncludeAssignedTasks());
+  }
+
   public void testExecuteTaskQueryList() {
     TaskQuery query = taskService.createTaskQuery();
     query.taskNameLike("Task%");
@@ -464,6 +594,104 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
 
     tasks = filterService.list(filter.getId(), extendingQuery);
     assertEquals(1, tasks.size());
+  }
+
+  public void testExtendingTaskQueryListWithIncludeAssignedTasks() {
+    TaskQuery query = taskService.createTaskQuery();
+
+    query.taskCandidateGroup("accounting");
+
+    saveQuery(query);
+
+    List<Task> tasks = filterService.list(filter.getId());
+    assertEquals(1, tasks.size());
+
+    TaskQuery extendingQuery = taskService.createTaskQuery();
+
+    extendingQuery
+      .taskCandidateGroup("accounting")
+      .includeAssignedTasks();
+
+    tasks = filterService.list(filter.getId(), extendingQuery);
+    assertEquals(2, tasks.size());
+  }
+
+  public void testExtendTaskQueryWithCandidateUserExpressionAndIncludeAssignedTasks() {
+    // create an empty query and save it as a filter
+    TaskQuery emptyQuery = taskService.createTaskQuery();
+    Filter emptyFilter = filterService.newTaskFilter("empty");
+    emptyFilter.setQuery(emptyQuery);
+
+    // create a query with candidate user expression and include assigned tasks
+    // and save it as filter
+    TaskQuery query = taskService.createTaskQuery();
+    query.taskCandidateUserExpression("${'test'}").includeAssignedTasks();
+    Filter filter = filterService.newTaskFilter("filter");
+    filter.setQuery(query);
+
+    // extend empty query by query with candidate user expression and include assigned tasks
+    Filter extendedFilter = emptyFilter.extend(query);
+    TaskQueryImpl extendedQuery = extendedFilter.getQuery();
+    assertEquals("${'test'}", extendedQuery.getExpressions().get("taskCandidateUser"));
+    assertTrue(extendedQuery.isIncludeAssignedTasks());
+
+    // extend query with candidate user expression and include assigned tasks with empty query
+    extendedFilter = filter.extend(emptyQuery);
+    extendedQuery = extendedFilter.getQuery();
+    assertEquals("${'test'}", extendedQuery.getExpressions().get("taskCandidateUser"));
+    assertTrue(extendedQuery.isIncludeAssignedTasks());
+  }
+
+  public void testExtendTaskQueryWithCandidateGroupExpressionAndIncludeAssignedTasks() {
+    // create an empty query and save it as a filter
+    TaskQuery emptyQuery = taskService.createTaskQuery();
+    Filter emptyFilter = filterService.newTaskFilter("empty");
+    emptyFilter.setQuery(emptyQuery);
+
+    // create a query with candidate group expression and include assigned tasks
+    // and save it as filter
+    TaskQuery query = taskService.createTaskQuery();
+    query.taskCandidateGroupExpression("${'test'}").includeAssignedTasks();
+    Filter filter = filterService.newTaskFilter("filter");
+    filter.setQuery(query);
+
+    // extend empty query by query with candidate group expression and include assigned tasks
+    Filter extendedFilter = emptyFilter.extend(query);
+    TaskQueryImpl extendedQuery = extendedFilter.getQuery();
+    assertEquals("${'test'}", extendedQuery.getExpressions().get("taskCandidateGroup"));
+    assertTrue(extendedQuery.isIncludeAssignedTasks());
+
+    // extend query with candidate group expression and include assigned tasks with empty query
+    extendedFilter = filter.extend(emptyQuery);
+    extendedQuery = extendedFilter.getQuery();
+    assertEquals("${'test'}", extendedQuery.getExpressions().get("taskCandidateGroup"));
+    assertTrue(extendedQuery.isIncludeAssignedTasks());
+  }
+
+  public void testExtendTaskQueryWithCandidateGroupInExpressionAndIncludeAssignedTasks() {
+    // create an empty query and save it as a filter
+    TaskQuery emptyQuery = taskService.createTaskQuery();
+    Filter emptyFilter = filterService.newTaskFilter("empty");
+    emptyFilter.setQuery(emptyQuery);
+
+    // create a query with candidate group in expression and include assigned tasks
+    // and save it as filter
+    TaskQuery query = taskService.createTaskQuery();
+    query.taskCandidateGroupInExpression("${'test'}").includeAssignedTasks();
+    Filter filter = filterService.newTaskFilter("filter");
+    filter.setQuery(query);
+
+    // extend empty query by query with candidate group in expression and include assigned tasks
+    Filter extendedFilter = emptyFilter.extend(query);
+    TaskQueryImpl extendedQuery = extendedFilter.getQuery();
+    assertEquals("${'test'}", extendedQuery.getExpressions().get("taskCandidateGroupIn"));
+    assertTrue(extendedQuery.isIncludeAssignedTasks());
+
+    // extend query with candidate group in expression and include assigned tasks with empty query
+    extendedFilter = filter.extend(emptyQuery);
+    extendedQuery = extendedFilter.getQuery();
+    assertEquals("${'test'}", extendedQuery.getExpressions().get("taskCandidateGroupIn"));
+    assertTrue(extendedQuery.isIncludeAssignedTasks());
   }
 
   public void testExecuteTaskQueryListPage() {
@@ -599,42 +827,155 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
   }
 
   public void testExtendingSorting() {
-    String sortByNameAsc = TaskQueryProperty.NAME.getName() + " " + Direction.ASCENDING.getName();
-    String sortByAssigneeDesc = TaskQueryProperty.ASSIGNEE.getName() + " " + Direction.DESCENDING.getName();
-
     // create empty query
     TaskQueryImpl query = (TaskQueryImpl) taskService.createTaskQuery();
     saveQuery(query);
 
     // assert default sorting
     query = filter.getQuery();
-    String orderBy = query.getOrderBy();
-    assertEquals(AbstractQuery.DEFAULT_ORDER_BY, orderBy);
+    assertTrue(query.getOrderingProperties().isEmpty());
 
     // extend query by new task query with sorting
-    TaskQuery sortQuery = taskService.createTaskQuery().orderByTaskName().asc();
+    TaskQueryImpl sortQuery = (TaskQueryImpl) taskService.createTaskQuery().orderByTaskName().asc();
     Filter extendedFilter = filter.extend(sortQuery);
     query = extendedFilter.getQuery();
-    orderBy = query.getOrderBy();
 
-    assertEquals(sortByNameAsc, orderBy);
+    List<QueryOrderingProperty> expectedOrderingProperties =
+        new ArrayList<QueryOrderingProperty>(sortQuery.getOrderingProperties());
+
+    verifyOrderingProperties(expectedOrderingProperties, query.getOrderingProperties());
 
     // extend query by new task query with additional sorting
-    TaskQuery extendingQuery = taskService.createTaskQuery().orderByTaskAssignee().desc();
+    TaskQueryImpl extendingQuery = (TaskQueryImpl) taskService.createTaskQuery().orderByTaskAssignee().desc();
     extendedFilter = extendedFilter.extend(extendingQuery);
     query = extendedFilter.getQuery();
-    orderBy = query.getOrderBy();
 
-    assertEquals(sortByNameAsc + ", " + sortByAssigneeDesc, orderBy);
+    expectedOrderingProperties.addAll(extendingQuery.getOrderingProperties());
 
-    // extend query by incomplete sorting query (sorting should not change)
-    sortQuery = taskService.createTaskQuery().orderByCaseExecutionId();
+    verifyOrderingProperties(expectedOrderingProperties, query.getOrderingProperties());
+
+    // extend query by incomplete sorting query (should add sorting anyway)
+    sortQuery = (TaskQueryImpl) taskService.createTaskQuery().orderByCaseExecutionId();
     extendedFilter = extendedFilter.extend(sortQuery);
     query = extendedFilter.getQuery();
-    orderBy = query.getOrderBy();
 
-    assertEquals(sortByNameAsc + ", " + sortByAssigneeDesc, orderBy);
+    expectedOrderingProperties.addAll(sortQuery.getOrderingProperties());
+
+    verifyOrderingProperties(expectedOrderingProperties, query.getOrderingProperties());
   }
+
+  /**
+   * Tests compatibility with serialization format that was used in 7.2
+   */
+  @SuppressWarnings("deprecation")
+  public void testDeprecatedOrderingFormatDeserializationDefault() {
+    String defaultOrderBy = ListQueryParameterObject.DEFAULT_ORDER_BY;
+
+    JsonTaskQueryConverter converter = (JsonTaskQueryConverter) FilterEntity.queryConverter.get(EntityTypes.TASK);
+    JSONObject queryJson = converter.toJsonObject(filter.<TaskQuery>getQuery());
+
+    // when I apply default ordering in its deprecated format (i.e. ORDER_BY property is missing)
+    TaskQueryImpl deserializedTaskQuery = (TaskQueryImpl) converter.toObject(queryJson);
+
+    // then the default ordering is applied to the query
+    assertTrue(deserializedTaskQuery.getOrderingProperties().isEmpty());
+    assertEquals(defaultOrderBy, deserializedTaskQuery.getOrderBy());
+  }
+
+  /**
+   * Tests compatibility with serialization format that was used in 7.2
+   */
+  @SuppressWarnings("deprecation")
+  public void testDeprecatedOrderingFormatDeserializationSingleOrdering() {
+    String sortByNameAsc = "RES." + TaskQueryProperty.NAME.getName() + " " + Direction.ASCENDING.getName();
+
+    JsonTaskQueryConverter converter = (JsonTaskQueryConverter) FilterEntity.queryConverter.get(EntityTypes.TASK);
+    JSONObject queryJson = converter.toJsonObject(filter.<TaskQuery>getQuery());
+
+    // when I apply a specific ordering by one dimension
+    queryJson.put(JsonTaskQueryConverter.ORDER_BY, sortByNameAsc);
+    TaskQueryImpl deserializedTaskQuery = (TaskQueryImpl) converter.toObject(queryJson);
+
+    // then the ordering is applied accordingly
+    assertEquals(1, deserializedTaskQuery.getOrderingProperties().size());
+
+    QueryOrderingProperty orderingProperty =
+        deserializedTaskQuery.getOrderingProperties().get(0);
+    assertNull(orderingProperty.getRelation());
+    assertEquals("asc", orderingProperty.getDirection().getName());
+    assertNull(orderingProperty.getRelationConditions());
+    assertTrue(orderingProperty.isContainedProperty());
+    assertEquals(TaskQueryProperty.NAME.getName(), orderingProperty.getQueryProperty().getName());
+    assertNull(orderingProperty.getQueryProperty().getFunction());
+
+  }
+
+  /**
+   * Tests compatibility with serialization format that was used in 7.2
+   */
+  @SuppressWarnings("deprecation")
+  public void testDeprecatedOrderingFormatDeserializationSecondaryOrdering() {
+    String sortByNameAsc = "RES." + TaskQueryProperty.NAME.getName() + " " + Direction.ASCENDING.getName();
+    String secondaryOrdering = sortByNameAsc + ", RES." + TaskQueryProperty.ASSIGNEE.getName() + " " + Direction.DESCENDING.getName();
+
+    JsonTaskQueryConverter converter = (JsonTaskQueryConverter) FilterEntity.queryConverter.get(EntityTypes.TASK);
+    JSONObject queryJson = converter.toJsonObject(filter.<TaskQuery>getQuery());
+
+    // when I apply a secondary ordering
+    queryJson.put(JsonTaskQueryConverter.ORDER_BY, secondaryOrdering);
+    TaskQueryImpl deserializedTaskQuery = (TaskQueryImpl) converter.toObject(queryJson);
+
+    // then the ordering is applied accordingly
+    assertEquals(2, deserializedTaskQuery.getOrderingProperties().size());
+
+    QueryOrderingProperty orderingProperty1 =
+        deserializedTaskQuery.getOrderingProperties().get(0);
+    assertNull(orderingProperty1.getRelation());
+    assertEquals("asc", orderingProperty1.getDirection().getName());
+    assertNull(orderingProperty1.getRelationConditions());
+    assertTrue(orderingProperty1.isContainedProperty());
+    assertEquals(TaskQueryProperty.NAME.getName(), orderingProperty1.getQueryProperty().getName());
+    assertNull(orderingProperty1.getQueryProperty().getFunction());
+
+    QueryOrderingProperty orderingProperty2 =
+        deserializedTaskQuery.getOrderingProperties().get(1);
+    assertNull(orderingProperty2.getRelation());
+    assertEquals("desc", orderingProperty2.getDirection().getName());
+    assertNull(orderingProperty2.getRelationConditions());
+    assertTrue(orderingProperty2.isContainedProperty());
+    assertEquals(TaskQueryProperty.ASSIGNEE.getName(), orderingProperty2.getQueryProperty().getName());
+    assertNull(orderingProperty2.getQueryProperty().getFunction());
+  }
+
+  /**
+   * Tests compatibility with serialization format that was used in 7.2
+   */
+  @SuppressWarnings("deprecation")
+  public void testDeprecatedOrderingFormatDeserializationFunctionOrdering() {
+    String orderingWithFunction = "LOWER(RES." + TaskQueryProperty.NAME.getName() + ") asc";
+
+    JsonTaskQueryConverter converter = (JsonTaskQueryConverter) FilterEntity.queryConverter.get(EntityTypes.TASK);
+    JSONObject queryJson = converter.toJsonObject(filter.<TaskQuery>getQuery());
+
+    // when I apply an ordering with a function
+    queryJson.put(JsonTaskQueryConverter.ORDER_BY, orderingWithFunction);
+    TaskQueryImpl deserializedTaskQuery = (TaskQueryImpl) converter.toObject(queryJson);
+
+    assertEquals(1, deserializedTaskQuery.getOrderingProperties().size());
+
+    // then the ordering is applied accordingly
+    QueryOrderingProperty orderingProperty =
+        deserializedTaskQuery.getOrderingProperties().get(0);
+    assertNull(orderingProperty.getRelation());
+    assertEquals("asc", orderingProperty.getDirection().getName());
+    assertNull(orderingProperty.getRelationConditions());
+    assertFalse(orderingProperty.isContainedProperty());
+    assertEquals(TaskQueryProperty.NAME_CASE_INSENSITIVE.getName(),
+        orderingProperty.getQueryProperty().getName());
+    assertEquals(TaskQueryProperty.NAME_CASE_INSENSITIVE.getFunction(),
+      orderingProperty.getQueryProperty().getFunction());
+  }
+
 
   @Deployment(resources={"org/camunda/bpm/engine/test/api/task/oneTaskWithFormKeyProcess.bpmn20.xml"})
     public void testInitializeFormKeysEnabled() {
@@ -718,6 +1059,98 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     assertFalse(variables.get(2).isLocal());
   }
 
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml"})
+  public void testExtendTaskQueryByOrderByProcessVariable() {
+    ProcessInstance instance500 = runtimeService.startProcessInstanceByKey("oneTaskProcess",
+      Variables.createVariables().putValue("var", 500));
+    ProcessInstance instance1000 = runtimeService.startProcessInstanceByKey("oneTaskProcess",
+      Variables.createVariables().putValue("var", 1000));
+    ProcessInstance instance250 = runtimeService.startProcessInstanceByKey("oneTaskProcess",
+      Variables.createVariables().putValue("var", 250));
+
+    TaskQuery query = taskService.createTaskQuery().processDefinitionKey("oneTaskProcess");
+    saveQuery(query);
+
+    // asc
+    TaskQuery extendingQuery = taskService
+        .createTaskQuery()
+        .orderByProcessVariable("var", ValueType.INTEGER)
+        .asc();
+
+    List<Task> tasks = filterService.list(filter.getId(), extendingQuery);
+
+    assertEquals(3, tasks.size());
+    assertEquals(instance250.getId(), tasks.get(0).getProcessInstanceId());
+    assertEquals(instance500.getId(), tasks.get(1).getProcessInstanceId());
+    assertEquals(instance1000.getId(), tasks.get(2).getProcessInstanceId());
+
+    // desc
+    extendingQuery = taskService
+        .createTaskQuery()
+        .orderByProcessVariable("var", ValueType.INTEGER)
+        .desc();
+
+    tasks = filterService.list(filter.getId(), extendingQuery);
+
+    assertEquals(3, tasks.size());
+    assertEquals(instance1000.getId(), tasks.get(0).getProcessInstanceId());
+    assertEquals(instance500.getId(), tasks.get(1).getProcessInstanceId());
+    assertEquals(instance250.getId(), tasks.get(2).getProcessInstanceId());
+
+    runtimeService.deleteProcessInstance(instance250.getId(), null);
+    runtimeService.deleteProcessInstance(instance500.getId(), null);
+    runtimeService.deleteProcessInstance(instance1000.getId(), null);
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml"})
+  public void testExtendTaskQueryByOrderByTaskVariable() {
+    ProcessInstance instance1 = runtimeService.startProcessInstanceByKey("oneTaskProcess");
+    ProcessInstance instance2 = runtimeService.startProcessInstanceByKey("oneTaskProcess");
+    ProcessInstance instance3 = runtimeService.startProcessInstanceByKey("oneTaskProcess");
+
+    Task task500 = taskService.createTaskQuery().processInstanceId(instance1.getId()).singleResult();
+    taskService.setVariableLocal(task500.getId(), "var", 500);
+
+    Task task250 = taskService.createTaskQuery().processInstanceId(instance2.getId()).singleResult();
+    taskService.setVariableLocal(task250.getId(), "var", 250);
+
+    Task task1000 = taskService.createTaskQuery().processInstanceId(instance3.getId()).singleResult();
+    taskService.setVariableLocal(task1000.getId(), "var", 1000);
+
+    TaskQuery query = taskService.createTaskQuery().processDefinitionKey("oneTaskProcess");
+    saveQuery(query);
+
+    // asc
+    TaskQuery extendingQuery = taskService
+        .createTaskQuery()
+        .orderByProcessVariable("var", ValueType.INTEGER)
+        .asc();
+
+    List<Task> tasks = filterService.list(filter.getId(), extendingQuery);
+
+    assertEquals(3, tasks.size());
+    assertEquals(task250.getId(), tasks.get(0).getId());
+    assertEquals(task500.getId(), tasks.get(1).getId());
+    assertEquals(task1000.getId(), tasks.get(2).getId());
+
+    // desc
+    extendingQuery = taskService
+        .createTaskQuery()
+        .orderByProcessVariable("var", ValueType.INTEGER)
+        .desc();
+
+    tasks = filterService.list(filter.getId(), extendingQuery);
+
+    assertEquals(3, tasks.size());
+    assertEquals(task1000.getId(), tasks.get(0).getId());
+    assertEquals(task500.getId(), tasks.get(1).getId());
+    assertEquals(task250.getId(), tasks.get(2).getId());
+
+    runtimeService.deleteProcessInstance(instance1.getId(), null);
+    runtimeService.deleteProcessInstance(instance2.getId(), null);
+    runtimeService.deleteProcessInstance(instance3.getId(), null);
+  }
+
   protected void saveQuery(Query query) {
     filter.setQuery(query);
     filterService.saveFilter(filter);
@@ -730,15 +1163,15 @@ public class FilterTaskQueryTest extends PluggableProcessEngineTestCase {
     task.setOwner(testUser.getId());
     task.setDelegationState(DelegationState.PENDING);
     taskService.saveTask(task);
-
-    String taskId = taskService.createTaskQuery().singleResult().getId();
-    taskService.addCandidateGroup(taskId, "accounting");
+    taskService.addCandidateGroup(task.getId(), "accounting");
 
     task = taskService.newTask("task2");
     task.setName("Task 2");
     task.setOwner(testUser.getId());
     task.setDelegationState(DelegationState.RESOLVED);
     taskService.saveTask(task);
+    taskService.setAssignee(task.getId(), "kermit");
+    taskService.addCandidateGroup(task.getId(), "accounting");
 
     task = taskService.newTask("task3");
     task.setName("Task 3");

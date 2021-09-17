@@ -14,6 +14,7 @@ package org.camunda.bpm.engine.rest.dto.management;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.ws.rs.core.MultivaluedMap;
 
@@ -23,7 +24,8 @@ import org.camunda.bpm.engine.rest.dto.AbstractQueryDto;
 import org.camunda.bpm.engine.rest.dto.CamundaQueryParam;
 import org.camunda.bpm.engine.rest.dto.converter.BooleanConverter;
 import org.camunda.bpm.engine.rest.dto.converter.StringArrayConverter;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * @author roman.smirnov
@@ -147,29 +149,19 @@ public class JobDefinitionQueryDto extends AbstractQueryDto<JobDefinitionQuery> 
     }
   }
 
-  protected void applySortingOptions(JobDefinitionQuery query) {
-    if (sortBy != null) {
-      if (sortBy.equals(SORT_BY_JOB_DEFINITION_ID)) {
-        query.orderByJobDefinitionId();
-      } else if (sortBy.equals(SORT_BY_ACTIVITY_ID)) {
-        query.orderByActivityId();
-      } else if (sortBy.equals(SORT_BY_PROCESS_DEFINITION_ID)) {
-        query.orderByProcessDefinitionId();
-      } else if (sortBy.equals(SORT_BY_PROCESS_DEFINITION_KEY)) {
-        query.orderByProcessDefinitionKey();
-      } else if (sortBy.equals(SORT_BY_JOB_TYPE)) {
-        query.orderByJobType();
-      } else if (sortBy.equals(SORT_BY_JOB_CONFIGURATION)) {
-        query.orderByJobConfiguration();
-      }
-    }
-
-    if (sortOrder != null) {
-      if (sortOrder.equals(SORT_ORDER_ASC_VALUE)) {
-        query.asc();
-      } else if (sortOrder.equals(SORT_ORDER_DESC_VALUE)) {
-        query.desc();
-      }
+  protected void applySortBy(JobDefinitionQuery query, String sortBy, Map<String, Object> parameters, ProcessEngine engine) {
+    if (sortBy.equals(SORT_BY_JOB_DEFINITION_ID)) {
+      query.orderByJobDefinitionId();
+    } else if (sortBy.equals(SORT_BY_ACTIVITY_ID)) {
+      query.orderByActivityId();
+    } else if (sortBy.equals(SORT_BY_PROCESS_DEFINITION_ID)) {
+      query.orderByProcessDefinitionId();
+    } else if (sortBy.equals(SORT_BY_PROCESS_DEFINITION_KEY)) {
+      query.orderByProcessDefinitionKey();
+    } else if (sortBy.equals(SORT_BY_JOB_TYPE)) {
+      query.orderByJobType();
+    } else if (sortBy.equals(SORT_BY_JOB_CONFIGURATION)) {
+      query.orderByJobConfiguration();
     }
   }
 

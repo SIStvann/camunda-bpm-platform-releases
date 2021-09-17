@@ -13,6 +13,7 @@
 package org.camunda.bpm.engine.impl.history.event;
 
 import java.io.Serializable;
+
 import org.camunda.bpm.engine.impl.db.DbEntity;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.history.handler.HistoryEventHandler;
@@ -89,6 +90,9 @@ public class HistoryEvent implements Serializable, DbEntity {
   /** the id of the process definition */
   protected String processDefinitionId;
 
+  /** the key of the process definition */
+  protected String processDefinitionKey;
+
   /** the case instance in which the event has happened */
   protected String caseInstanceId;
 
@@ -98,11 +102,16 @@ public class HistoryEvent implements Serializable, DbEntity {
   /** the id of the case definition */
   protected String caseDefinitionId;
 
+  /** the key of the case definition */
+  protected String caseDefinitionKey;
+
   /**
    * The type of the activity audit event.
    * @see HistoryEventType#getEventName()
    * */
   protected String eventType;
+
+  protected long sequenceCounter;
 
   // getters / setters ///////////////////////////////////
 
@@ -128,6 +137,22 @@ public class HistoryEvent implements Serializable, DbEntity {
 
   public void setProcessDefinitionId(String processDefinitionId) {
     this.processDefinitionId = processDefinitionId;
+  }
+
+  public String getProcessDefinitionKey() {
+    return processDefinitionKey;
+  }
+
+  public void setProcessDefinitionKey(String processDefinitionKey) {
+    this.processDefinitionKey = processDefinitionKey;
+  }
+
+  public String getCaseDefinitionKey() {
+    return caseDefinitionKey;
+  }
+
+  public void setCaseDefinitionKey(String caseDefinitionKey) {
+    this.caseDefinitionKey = caseDefinitionKey;
   }
 
   public String getCaseDefinitionId() {
@@ -168,6 +193,14 @@ public class HistoryEvent implements Serializable, DbEntity {
 
   public void setEventType(String eventType) {
     this.eventType = eventType;
+  }
+
+  public long getSequenceCounter() {
+    return sequenceCounter;
+  }
+
+  public void setSequenceCounter(long sequenceCounter) {
+    this.sequenceCounter = sequenceCounter;
   }
 
   // persistent object implementation ///////////////

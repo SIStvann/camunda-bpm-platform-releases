@@ -31,6 +31,9 @@ public interface HistoricProcessInstance {
   /** The user provided unique reference to this process instance. */
   String getBusinessKey();
 
+  /** The process definition key reference. */
+  String getProcessDefinitionKey();
+
   /** The process definition reference. */
   String getProcessDefinitionId();
 
@@ -65,6 +68,11 @@ public interface HistoricProcessInstance {
    * The process instance id of a potential super process instance or null if no super process instance exists
    */
   String getSuperProcessInstanceId();
+
+  /**
+   * The case instance id of a potential super case instance or null if no super case instance exists
+   */
+  String getSuperCaseInstanceId();
 
   /**
    * The case instance id of a potential super case instance or null if no super case instance exists

@@ -31,10 +31,31 @@ public class SpringTransactionContext implements TransactionContext {
 
   protected PlatformTransactionManager transactionManager;
   protected CommandContext commandContext;
+  protected TransactionState lastTransactionState = null; 
   
   public SpringTransactionContext(PlatformTransactionManager transactionManager, CommandContext commandContext) {
     this.transactionManager = transactionManager;
     this.commandContext = commandContext;
+    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronizationAdapter() {
+      @Override
+      public void beforeCommit(boolean readOnly) {
+        lastTransactionState = TransactionState.COMMITTING;
+      }
+      @Override
+      public void afterCommit() {
+        lastTransactionState = TransactionState.COMMITTED;
+      }
+      @Override
+      public void beforeCompletion() {
+        lastTransactionState = TransactionState.ROLLINGBACK;
+      }
+      @Override
+      public void afterCompletion(int status) {
+        if(TransactionSynchronization.STATUS_ROLLED_BACK == status) {
+          lastTransactionState = TransactionState.ROLLED_BACK;
+        }
+      }
+    });
   }
   
   public void commit() {
@@ -88,6 +109,12 @@ public class SpringTransactionContext implements TransactionContext {
       
     }
     
+  }
+
+  public boolean isTransactionActive() {
+    return TransactionSynchronizationManager.isActualTransactionActive() &&
+           !TransactionState.ROLLED_BACK.equals(lastTransactionState) &&
+           !TransactionState.ROLLINGBACK.equals(lastTransactionState);
   }
   
   protected abstract class TransactionSynchronizationAdapter implements TransactionSynchronization {

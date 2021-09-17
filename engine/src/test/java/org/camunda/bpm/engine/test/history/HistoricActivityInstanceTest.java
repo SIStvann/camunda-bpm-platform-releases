@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
 import org.camunda.bpm.engine.history.HistoricActivityInstanceQuery;
@@ -748,13 +747,16 @@ public class HistoricActivityInstanceTest extends PluggableProcessEngineTestCase
 
     HistoricActivityInstanceQuery query = historyService.createHistoricActivityInstanceQuery();
 
+    HistoricActivityInstance miBodyInstance = query.activityId("userTask#multiInstanceBody").singleResult();
+
     query.activityId("userTask");
     assertEquals(5, query.count());
+
 
     List<HistoricActivityInstance> result = query.list();
 
     for (HistoricActivityInstance instance : result) {
-      assertEquals(pi.getId(), instance.getParentActivityInstanceId());
+      assertEquals(miBodyInstance.getId(), instance.getParentActivityInstanceId());
     }
 
     List<Task> tasks = taskService.createTaskQuery().list();
@@ -770,6 +772,7 @@ public class HistoricActivityInstanceTest extends PluggableProcessEngineTestCase
     ProcessInstance pi = runtimeService.startProcessInstanceByKey("process");
 
     HistoricActivityInstanceQuery query = historyService.createHistoricActivityInstanceQuery();
+    HistoricActivityInstance miBodyInstance = query.activityId("receiveTask#multiInstanceBody").singleResult();
 
     query.activityId("receiveTask");
     assertEquals(5, query.count());
@@ -777,7 +780,7 @@ public class HistoricActivityInstanceTest extends PluggableProcessEngineTestCase
     List<HistoricActivityInstance> result = query.list();
 
     for (HistoricActivityInstance instance : result) {
-      assertEquals(pi.getId(), instance.getParentActivityInstanceId());
+      assertEquals(miBodyInstance.getId(), instance.getParentActivityInstanceId());
     }
 
   }
@@ -935,4 +938,63 @@ public class HistoricActivityInstanceTest extends PluggableProcessEngineTestCase
 
     assertEquals("errorStartEvent", historicActivity.getActivityType());
   }
+
+  @Deployment(resources = {
+      "org/camunda/bpm/engine/test/history/HistoricActivityInstanceTest.testCaseCallActivity.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn"
+  })
+  public void testCaseCallActivity() {
+    runtimeService.startProcessInstanceByKey("process");
+
+    String subCaseInstanceId = caseService
+        .createCaseInstanceQuery()
+        .singleResult()
+        .getId();
+
+
+    HistoricActivityInstance historicCallActivity = historyService
+        .createHistoricActivityInstanceQuery()
+        .activityId("callActivity")
+        .singleResult();
+
+    assertEquals(subCaseInstanceId, historicCallActivity.getCalledCaseInstanceId());
+    assertNull(historicCallActivity.getEndTime());
+
+    String humanTaskId = caseService
+        .createCaseExecutionQuery()
+        .activityId("PI_HumanTask_1")
+        .singleResult()
+        .getId();
+
+    caseService.manuallyStartCaseExecution(humanTaskId);
+    caseService.completeCaseExecution(humanTaskId);
+
+    historicCallActivity = historyService
+        .createHistoricActivityInstanceQuery()
+        .activityId("callActivity")
+        .singleResult();
+
+    assertEquals(subCaseInstanceId, historicCallActivity.getCalledCaseInstanceId());
+    assertNotNull(historicCallActivity.getEndTime());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/history/oneTaskProcess.bpmn20.xml"})
+  public void testProcessDefinitionKeyProperty() {
+    // given
+    String key = "oneTaskProcess";
+    String processInstanceId = runtimeService.startProcessInstanceByKey(key).getId();
+
+    // when
+    HistoricActivityInstance activityInstance = historyService
+      .createHistoricActivityInstanceQuery()
+      .processInstanceId(processInstanceId)
+      .activityId("theTask")
+      .singleResult();
+
+    // then
+    assertNotNull(activityInstance.getProcessDefinitionKey());
+    assertEquals(key, activityInstance.getProcessDefinitionKey());
+
+  }
+
 }

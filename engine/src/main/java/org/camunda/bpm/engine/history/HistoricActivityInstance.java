@@ -39,6 +39,9 @@ public interface HistoricActivityInstance {
   /** The XML tag of the activity as in the process file */
   String getActivityType();
 
+  /** Process definition key reference */
+  String getProcessDefinitionKey();
+
   /** Process definition reference */
   String getProcessDefinitionId();
 
@@ -53,6 +56,9 @@ public interface HistoricActivityInstance {
 
   /** The called process instance in case of call activity */
   String getCalledProcessInstanceId();
+
+  /** The called case instance in case of (case) call activity */
+  String getCalledCaseInstanceId();
 
   /** Assignee in case of user task activity */
   String getAssignee();

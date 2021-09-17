@@ -28,7 +28,10 @@ public class MockHistoricVariableUpdateBuilder {
 
   protected String id;
   protected String name;
+  protected String variableInstanceId;
   protected TypedValue typedValue;
+  protected String processDefinitionKey;
+  protected String processDefinitionId;
   protected String processInstanceId;
   protected String errorMessage;
   protected String activityInstanceId;
@@ -36,6 +39,10 @@ public class MockHistoricVariableUpdateBuilder {
   protected String time;
   protected String executionId;
   protected String taskId;
+  protected String caseDefinitionKey;
+  protected String caseDefinitionId;
+  protected String caseInstanceId;
+  protected String caseExecutionId;
 
   public MockHistoricVariableUpdateBuilder id(String id) {
     this.id = id;
@@ -47,8 +54,23 @@ public class MockHistoricVariableUpdateBuilder {
     return this;
   }
 
+  public MockHistoricVariableUpdateBuilder variableInstanceId(String variableInstanceId) {
+    this.variableInstanceId = variableInstanceId;
+    return this;
+  }
+
   public MockHistoricVariableUpdateBuilder typedValue(TypedValue value) {
     this.typedValue = value;
+    return this;
+  }
+
+  public MockHistoricVariableUpdateBuilder processDefinitionKey(String processDefinitionKey) {
+    this.processDefinitionKey = processDefinitionKey;
+    return this;
+  }
+
+  public MockHistoricVariableUpdateBuilder processDefinitionId(String processDefinitionId) {
+    this.processDefinitionId = processDefinitionId;
     return this;
   }
 
@@ -87,10 +109,31 @@ public class MockHistoricVariableUpdateBuilder {
     return this;
   }
 
+  public MockHistoricVariableUpdateBuilder caseDefinitionKey(String caseDefinitionKey) {
+    this.caseDefinitionKey = caseDefinitionKey;
+    return this;
+  }
+
+  public MockHistoricVariableUpdateBuilder caseDefinitionId(String caseDefinitionId) {
+    this.caseDefinitionId = caseDefinitionId;
+    return this;
+  }
+
+  public MockHistoricVariableUpdateBuilder caseInstanceId(String caseInstanceId) {
+    this.caseInstanceId = caseInstanceId;
+    return this;
+  }
+
+  public MockHistoricVariableUpdateBuilder caseExecutionId(String caseExecutionId) {
+    this.caseExecutionId = caseExecutionId;
+    return this;
+  }
+
   public HistoricVariableUpdate build() {
     HistoricVariableUpdate mockVariable = mock(HistoricVariableUpdate.class);
     when(mockVariable.getId()).thenReturn(id);
     when(mockVariable.getVariableName()).thenReturn(name);
+    when(mockVariable.getVariableInstanceId()).thenReturn(variableInstanceId);
     when(mockVariable.getVariableTypeName()).thenReturn(typedValue.getType().getName());
 
     if (ObjectValue.class.isAssignableFrom(typedValue.getClass())) {
@@ -105,6 +148,8 @@ public class MockHistoricVariableUpdateBuilder {
     }
 
     when(mockVariable.getTypedValue()).thenReturn(typedValue);
+    when(mockVariable.getProcessDefinitionKey()).thenReturn(processDefinitionKey);
+    when(mockVariable.getProcessDefinitionId()).thenReturn(processDefinitionId);
     when(mockVariable.getProcessInstanceId()).thenReturn(processInstanceId);
     when(mockVariable.getErrorMessage()).thenReturn(errorMessage);
     when(mockVariable.getRevision()).thenReturn(revision);
@@ -113,6 +158,10 @@ public class MockHistoricVariableUpdateBuilder {
     when(mockVariable.getTaskId()).thenReturn(taskId);
     when(mockVariable.getExecutionId()).thenReturn(executionId);
     when(mockVariable.getTypeName()).thenReturn(typedValue.getType().getName());
+    when(mockVariable.getCaseDefinitionKey()).thenReturn(caseDefinitionKey);
+    when(mockVariable.getCaseDefinitionId()).thenReturn(caseDefinitionId);
+    when(mockVariable.getCaseInstanceId()).thenReturn(caseInstanceId);
+    when(mockVariable.getCaseExecutionId()).thenReturn(caseExecutionId);
 
     return mockVariable;
   }
@@ -125,12 +174,24 @@ public class MockHistoricVariableUpdateBuilder {
     return name;
   }
 
+  public String getVariableInstanceId() {
+    return variableInstanceId;
+  }
+
   public Object getValue() {
     return typedValue.getValue();
   }
 
   public TypedValue getTypedValue() {
     return typedValue;
+  }
+
+  public String getProcessDefinitionKey() {
+    return processDefinitionKey;
+  }
+
+  public String getProcessDefinitionId() {
+    return processDefinitionId;
   }
 
   public String getProcessInstanceId() {
@@ -159,6 +220,22 @@ public class MockHistoricVariableUpdateBuilder {
 
   public String getTaskId() {
     return taskId;
+  }
+
+  public String getCaseDefinitionKey() {
+    return caseDefinitionKey;
+  }
+
+  public String getCaseDefinitionId() {
+    return caseDefinitionId;
+  }
+
+  public String getCaseInstanceId() {
+    return caseInstanceId;
+  }
+
+  public String getCaseExecutionId() {
+    return caseExecutionId;
   }
 
 }

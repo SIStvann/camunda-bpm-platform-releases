@@ -74,11 +74,13 @@ public abstract class AbstractHistoricActivityInstanceRestServiceInteractionTest
     String returnedActivityId = from(content).getString("activityId");
     String returnedActivityName = from(content).getString("activityName");
     String returnedActivityType = from(content).getString("activityType");
+    String returnedProcessDefinitionKey = from(content).getString("processDefinitionKey");
     String returnedProcessDefinitionId = from(content).getString("processDefinitionId");
     String returnedProcessInstanceId = from(content).getString("processInstanceId");
     String returnedExecutionId = from(content).getString("executionId");
     String returnedTaskId = from(content).getString("taskId");
     String returnedCalledProcessInstanceId = from(content).getString("calledProcessInstanceId");
+    String returnedCalledCaseInstanceId = from(content).getString("calledCaseInstanceId");
     String returnedAssignee = from(content).getString("assignee");
     String returnedStartTime = from(content).getString("startTime");
     String returnedEndTime = from(content).getString("endTime");
@@ -91,11 +93,13 @@ public abstract class AbstractHistoricActivityInstanceRestServiceInteractionTest
     Assert.assertEquals(MockProvider.EXAMPLE_ACTIVITY_ID, returnedActivityId);
     Assert.assertEquals(MockProvider.EXAMPLE_ACTIVITY_NAME, returnedActivityName);
     Assert.assertEquals(MockProvider.EXAMPLE_ACTIVITY_TYPE, returnedActivityType);
+    Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY, returnedProcessDefinitionKey);
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, returnedProcessDefinitionId);
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, returnedProcessInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_EXECUTION_ID, returnedExecutionId);
     Assert.assertEquals(MockProvider.EXAMPLE_TASK_ID, returnedTaskId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_ACTIVITY_INSTANCE_CALLED_PROCESS_INSTANCE_ID, returnedCalledProcessInstanceId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_ACTIVITY_INSTANCE_CALLED_CASE_INSTANCE_ID, returnedCalledCaseInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_TASK_ASSIGNEE_NAME, returnedAssignee);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_ACTIVITY_INSTANCE_START_TIME, returnedStartTime);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_ACTIVITY_INSTANCE_END_TIME, returnedEndTime);

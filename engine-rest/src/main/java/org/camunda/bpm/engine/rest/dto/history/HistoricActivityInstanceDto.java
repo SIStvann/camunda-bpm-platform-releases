@@ -23,11 +23,13 @@ public class HistoricActivityInstanceDto {
   private String activityId;
   private String activityName;
   private String activityType;
+  private String processDefinitionKey;
   private String processDefinitionId;
   private String processInstanceId;
   private String executionId;
   private String taskId;
   private String calledProcessInstanceId;
+  private String calledCaseInstanceId;
   private String assignee;
   private Date startTime;
   private Date endTime;
@@ -55,6 +57,10 @@ public class HistoricActivityInstanceDto {
     return activityType;
   }
 
+  public String getProcessDefinitionKey() {
+    return processDefinitionKey;
+  }
+
   public String getProcessDefinitionId() {
     return processDefinitionId;
   }
@@ -73,6 +79,10 @@ public class HistoricActivityInstanceDto {
 
   public String getCalledProcessInstanceId() {
     return calledProcessInstanceId;
+  }
+
+  public String getCalledCaseInstanceId() {
+    return calledCaseInstanceId;
   }
 
   public String getAssignee() {
@@ -108,11 +118,13 @@ public class HistoricActivityInstanceDto {
     dto.activityId = historicActivityInstance.getActivityId();
     dto.activityName = historicActivityInstance.getActivityName();
     dto.activityType = historicActivityInstance.getActivityType();
+    dto.processDefinitionKey = historicActivityInstance.getProcessDefinitionKey();
     dto.processDefinitionId = historicActivityInstance.getProcessDefinitionId();
     dto.processInstanceId = historicActivityInstance.getProcessInstanceId();
     dto.executionId = historicActivityInstance.getExecutionId();
     dto.taskId = historicActivityInstance.getTaskId();
     dto.calledProcessInstanceId = historicActivityInstance.getCalledProcessInstanceId();
+    dto.calledCaseInstanceId = historicActivityInstance.getCalledCaseInstanceId();
     dto.assignee = historicActivityInstance.getAssignee();
     dto.startTime = historicActivityInstance.getStartTime();
     dto.endTime = historicActivityInstance.getEndTime();

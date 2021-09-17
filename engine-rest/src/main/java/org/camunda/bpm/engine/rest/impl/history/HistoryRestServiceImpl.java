@@ -18,13 +18,15 @@ import org.camunda.bpm.engine.rest.history.HistoricCaseActivityInstanceRestServi
 import org.camunda.bpm.engine.rest.history.HistoricCaseInstanceRestService;
 import org.camunda.bpm.engine.rest.history.HistoricDetailRestService;
 import org.camunda.bpm.engine.rest.history.HistoricIncidentRestService;
+import org.camunda.bpm.engine.rest.history.HistoricJobLogRestService;
 import org.camunda.bpm.engine.rest.history.HistoricProcessInstanceRestService;
 import org.camunda.bpm.engine.rest.history.HistoricTaskInstanceRestService;
 import org.camunda.bpm.engine.rest.history.HistoricVariableInstanceRestService;
 import org.camunda.bpm.engine.rest.history.HistoryRestService;
 import org.camunda.bpm.engine.rest.history.UserOperationLogRestService;
 import org.camunda.bpm.engine.rest.impl.AbstractRestProcessEngineAware;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class HistoryRestServiceImpl extends AbstractRestProcessEngineAware implements HistoryRestService {
 
@@ -70,6 +72,10 @@ public class HistoryRestServiceImpl extends AbstractRestProcessEngineAware imple
 
   public HistoricIncidentRestService getIncidentService() {
     return new HistoricIncidentRestServiceImpl(getObjectMapper(), getProcessEngine());
+  }
+
+  public HistoricJobLogRestService getJobLogService() {
+    return new HistoricJobLogRestServiceImpl(getObjectMapper(), getProcessEngine());
   }
 
 }

@@ -41,6 +41,7 @@ import org.camunda.bpm.engine.impl.history.event.HistoryEvent;
 import org.camunda.bpm.engine.impl.history.event.HistoryEventTypes;
 import org.camunda.bpm.engine.impl.history.handler.HistoryEventHandler;
 import org.camunda.bpm.engine.impl.history.producer.CmmnHistoryEventProducer;
+import org.camunda.bpm.engine.impl.history.producer.HistoryEventProducer;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
@@ -82,6 +83,8 @@ public class CaseExecutionEntity extends CmmnExecution implements CaseExecution,
   /** reference to a sub process instance, not-null if currently subprocess is started from this execution */
   protected transient ExecutionEntity subProcessInstance;
 
+  protected transient ExecutionEntity superExecution;
+
   protected transient CaseExecutionEntity subCaseInstance;
 
   protected transient CaseExecutionEntity superCaseExecution;
@@ -98,6 +101,7 @@ public class CaseExecutionEntity extends CmmnExecution implements CaseExecution,
   protected String caseInstanceId;
   protected String parentId;
   protected String superCaseExecutionId;
+  protected String superExecutionId;
 
   // activity properites //////////////////////////////////////////////////////
 
@@ -379,6 +383,40 @@ public class CaseExecutionEntity extends CmmnExecution implements CaseExecution,
       .insertCaseExecution(newCaseExecution);
 
     return newCaseExecution;
+  }
+
+  // super execution //////////////////////////////////////////////////////
+
+  public String getSuperExecutionId() {
+    return superExecutionId;
+  }
+
+  public void setSuperExecutionId(String superProcessExecutionId) {
+    this.superExecutionId = superProcessExecutionId;
+  }
+
+  public ExecutionEntity getSuperExecution() {
+    ensureSuperExecutionInstanceInitialized();
+    return superExecution;
+  }
+
+  public void setSuperExecution(PvmExecutionImpl superExecution) {
+    this.superExecution = (ExecutionEntity) superExecution;
+
+    if (superExecution != null) {
+      this.superExecutionId = superExecution.getId();
+    } else {
+      this.superExecutionId = null;
+    }
+  }
+
+  protected void ensureSuperExecutionInstanceInitialized() {
+    if (superExecution == null && superExecutionId != null) {
+      superExecution = Context
+        .getCommandContext()
+        .getExecutionManager()
+        .findExecutionById(superExecutionId);
+    }
   }
 
   // sub process instance ///////////////////////////////////////////////////

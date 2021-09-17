@@ -61,29 +61,26 @@ public class HistoricProcessInstanceManager extends AbstractHistoricManager {
     if (isHistoryEnabled()) {
       CommandContext commandContext = Context.getCommandContext();
 
-      commandContext
-        .getHistoricDetailManager()
+      getHistoricDetailManager()
         .deleteHistoricDetailsByProcessInstanceId(historicProcessInstanceId);
 
-      commandContext
-        .getHistoricVariableInstanceManager()
+      getHistoricVariableInstanceManager()
         .deleteHistoricVariableInstanceByProcessInstanceId(historicProcessInstanceId);
 
-      commandContext
-        .getHistoricActivityInstanceManager()
+      getHistoricActivityInstanceManager()
         .deleteHistoricActivityInstancesByProcessInstanceId(historicProcessInstanceId);
 
-      commandContext
-        .getHistoricTaskInstanceManager()
+      getHistoricTaskInstanceManager()
         .deleteHistoricTaskInstancesByProcessInstanceId(historicProcessInstanceId);
 
-      commandContext
-          .getOperationLogManager()
-          .deleteOperationLogEntriesByProcessInstanceId(historicProcessInstanceId);
+      getUserOperationLogManager()
+        .deleteOperationLogEntriesByProcessInstanceId(historicProcessInstanceId);
 
-      commandContext
-          .getHistoricIncidentManager()
-          .deleteHistoricIncidentsByProcessInstanceId(historicProcessInstanceId);
+      getHistoricIncidentManager()
+        .deleteHistoricIncidentsByProcessInstanceId(historicProcessInstanceId);
+
+      getHistoricJobLogManager()
+        .deleteHistoricJobLogsByProcessInstanceId(historicProcessInstanceId);
 
       commandContext.getDbEntityManager().delete(HistoricProcessInstanceEntity.class, "deleteHistoricProcessInstance", historicProcessInstanceId);
 
@@ -92,6 +89,7 @@ public class HistoricProcessInstanceManager extends AbstractHistoricManager {
 
   public long findHistoricProcessInstanceCountByQueryCriteria(HistoricProcessInstanceQueryImpl historicProcessInstanceQuery) {
     if (isHistoryEnabled()) {
+      getAuthorizationManager().configureHistoricProcessInstanceQuery(historicProcessInstanceQuery);
       return (Long) getDbEntityManager().selectOne("selectHistoricProcessInstanceCountByQueryCriteria", historicProcessInstanceQuery);
     }
     return 0;
@@ -100,6 +98,7 @@ public class HistoricProcessInstanceManager extends AbstractHistoricManager {
   @SuppressWarnings("unchecked")
   public List<HistoricProcessInstance> findHistoricProcessInstancesByQueryCriteria(HistoricProcessInstanceQueryImpl historicProcessInstanceQuery, Page page) {
     if (isHistoryEnabled()) {
+      getAuthorizationManager().configureHistoricProcessInstanceQuery(historicProcessInstanceQuery);
       return getDbEntityManager().selectList("selectHistoricProcessInstancesByQueryCriteria", historicProcessInstanceQuery, page);
     }
     return Collections.EMPTY_LIST;

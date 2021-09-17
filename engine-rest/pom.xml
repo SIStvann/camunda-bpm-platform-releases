@@ -6,14 +6,16 @@
 
   <parent>
     <groupId>org.camunda.bpm</groupId>
-    <artifactId>camunda-parent</artifactId>
-    <relativePath>../parent</relativePath>
-    <version>7.2.0</version>
+    <artifactId>camunda-database-settings</artifactId>
+    <relativePath>../database</relativePath>
+    <version>7.3.0</version>
   </parent>
 
   <properties>
+    <!-- pin tomcat version for engine-rest -->
+    <version.tomcat>7.0.50</version.tomcat>
     <rest.http.port>8080</rest.http.port>
-    <jackson.version>1.9.11</jackson.version>
+    <jackson.version>2.5.1</jackson.version>
     <!-- use inherited version as default -->
     <resteasy.version>${version.resteasy}</resteasy.version>
     <resteasy.netty.version>2.3.6.Final</resteasy.netty.version>
@@ -21,8 +23,8 @@
 
   <dependencies>
     <dependency>
-      <groupId>org.codehaus.jackson</groupId>
-      <artifactId>jackson-jaxrs</artifactId>
+      <groupId>com.fasterxml.jackson.jaxrs</groupId>
+      <artifactId>jackson-jaxrs-json-provider</artifactId>
       <version>${jackson.version}</version>
     </dependency>
 
@@ -221,7 +223,7 @@
         <artifactId>maven-jar-plugin</artifactId>
         <executions>
           <execution>
-            <id>create-jar</id>
+            <id>create-classes-jar</id>
             <goals>
               <goal>jar</goal>
             </goals>
@@ -453,49 +455,30 @@
         </plugins>
       </build>
     </profile>
-
+    
+    <!-- Execute tests with Jersey only; sufficient in 99% of cases to find errors -->
     <profile>
-      <id>was-compatibility</id>
-      <properties>
-        <rest.http.port>38080</rest.http.port>
-        <jackson.version>1.6.2</jackson.version>
-      </properties>
+      <id>develop</id>
       <build>
         <plugins>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-surefire-plugin</artifactId>
             <configuration>
-              <systemPropertyVariables>
-                <org.apache.maven.user-settings>../settings/maven/nexus-settings.xml</org.apache.maven.user-settings>
-              </systemPropertyVariables>
+              <includes>
+                <include>**/rest/jersey/**</include>
+                <include>**/rest/history/jersey/**</include>
+                <include>**/rest/standalone/**</include>
+              </includes>
               <excludes>
                 <exclude>**/Abstract*</exclude>
+                <exclude>**/rest/resteasy/**</exclude>
+                <exclude>**/rest/history/resteasy/**</exclude>
+                <exclude>**/rest/wink/**</exclude>
+                <exclude>**/rest/history/wink/**</exclude>
               </excludes>
               <redirectTestOutputToFile>true</redirectTestOutputToFile>
             </configuration>
-            <executions>
-              <execution>
-                <id>default-test</id>
-                <goals>
-                  <goal>test</goal>
-                </goals>
-                <phase>test</phase>
-                <configuration>
-                  <includes>
-                    <include>**/rest/wink/**</include>
-                    <include>**/rest/history/wink/**</include>
-                  </includes>
-                  <excludes>
-                    <exclude>**/rest/resteasy/**</exclude>
-                    <exclude>**/rest/history/resteasy/**</exclude>
-                    <exclude>**/rest/jersey/**</exclude>
-                    <exclude>**/rest/history/jersey/**</exclude>
-                    <exclude>**/rest/standalone/**</exclude>
-                  </excludes>
-                </configuration>
-              </execution>
-            </executions>
           </plugin>
         </plugins>
       </build>

@@ -25,7 +25,8 @@ public class UserOperationLogEntryEventEntity extends HistoryEvent implements Us
 
   protected String operationId;
   protected String operationType;
-  protected String processDefinitionKey;
+  protected String jobId;
+  protected String jobDefinitionId;
   protected String taskId;
   protected String userId;
   protected Date timestamp;
@@ -40,10 +41,6 @@ public class UserOperationLogEntryEventEntity extends HistoryEvent implements Us
 
   public String getOperationType() {
     return operationType;
-  }
-
-  public String getProcessDefinitionKey() {
-    return processDefinitionKey;
   }
 
   public String getTaskId() {
@@ -78,10 +75,6 @@ public class UserOperationLogEntryEventEntity extends HistoryEvent implements Us
     this.operationType = operationType;
   }
 
-  public void setProcessDefinitionKey(String processDefinitionKey) {
-    this.processDefinitionKey = processDefinitionKey;
-  }
-
   public void setTaskId(String taskId) {
     this.taskId = taskId;
   }
@@ -114,11 +107,29 @@ public class UserOperationLogEntryEventEntity extends HistoryEvent implements Us
     this.entityType = entityType;
   }
 
+  public String getJobId() {
+    return jobId;
+  }
+
+  public void setJobId(String jobId) {
+    this.jobId = jobId;
+  }
+
+  public String getJobDefinitionId() {
+    return jobDefinitionId;
+  }
+
+  public void setJobDefinitionId(String jobDefinitionId) {
+    this.jobDefinitionId = jobDefinitionId;
+  }
+
   @Override
   public String toString() {
     return this.getClass().getSimpleName()
         + "[taskId" + taskId
         + ", processDefinitionKey =" + processDefinitionKey
+        + ", jobId = " + jobId
+        + ", jobDefinitionId = " + jobDefinitionId
         + ", operationId =" + operationId
         + ", operationType =" + operationType
         + ", userId =" + userId

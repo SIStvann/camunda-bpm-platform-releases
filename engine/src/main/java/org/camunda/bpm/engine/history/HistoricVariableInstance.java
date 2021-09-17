@@ -69,9 +69,24 @@ public interface HistoricVariableInstance {
   String getVariableTypeName();
 
   /**
+   * The process definition key reference.
+   */
+  String getProcessDefinitionKey();
+
+  /**
+   * The process definition reference.
+   */
+  String getProcessDefinitionId();
+
+  /**
    * The process instance reference.
    */
   String getProcessInstanceId();
+
+  /**
+   * Return the corresponding execution id.
+   */
+  String getExecutionId();
 
   /**
    * Returns the corresponding activity instance id.
@@ -85,6 +100,16 @@ public interface HistoricVariableInstance {
   String getActivityInstanceId();
 
   /**
+   * The case definition key reference.
+   */
+  String getCaseDefinitionKey();
+
+  /**
+   * The case definition reference.
+   */
+  String getCaseDefinitionId();
+
+  /**
    * The case instance reference.
    */
   String getCaseInstanceId();
@@ -93,6 +118,11 @@ public interface HistoricVariableInstance {
    * Return the corresponding case execution id.
    */
   String getCaseExecutionId();
+
+  /**
+   * Return the corresponding task id.
+   */
+  String getTaskId();
 
   /**
    * If the variable value could not be loaded, this returns the error message.

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" ?> 
 
-<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd"> 
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 
 <mapper namespace="org.camunda.bpm.engine.impl.persistence.entity.JobEntity">
 
@@ -60,7 +60,6 @@
     </where>
   </update>
 
-
   <!-- JOB RESULTMAP (FOR TIMER AND MESSAGE) -->
 
   <resultMap id="jobResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.JobEntity">
@@ -76,46 +75,49 @@
     <result property="retriesFromPersistence" column="RETRIES_" jdbcType="INTEGER" />
     <result property="exceptionByteArrayId" column="EXCEPTION_STACK_ID_" jdbcType="VARCHAR" />
     <result property="exceptionMessage" column="EXCEPTION_MSG_" jdbcType="VARCHAR" />
+    <result property="duedate" column="DUEDATE_" jdbcType="TIMESTAMP" />
     <result property="jobHandlerType" column="HANDLER_TYPE_" jdbcType="VARCHAR" />
     <result property="jobHandlerConfiguration" column="HANDLER_CFG_" jdbcType="VARCHAR" />
     <result property="deploymentId" column="DEPLOYMENT_ID_" jdbcType="VARCHAR" />
     <result property="suspensionState" column="SUSPENSION_STATE_" jdbcType="INTEGER"/>
     <result property="jobDefinitionId" column="JOB_DEF_ID_" jdbcType="VARCHAR" />
+    <result property="sequenceCounter" column="SEQUENCE_COUNTER_" jdbcType="BIGINT" />
     <discriminator javaType="string" column="TYPE_">
-      <case value="message" resultMap="messageResultMap"/> 
-      <case value="timer" resultMap="timerResultMap"/> 
+      <case value="message" resultMap="messageResultMap"/>
+      <case value="timer" resultMap="timerResultMap"/>
     </discriminator>
   </resultMap>
 
   <resultMap id="messageResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.MessageEntity" extends="jobResultMap"/>
 
   <resultMap id="timerResultMap" type="org.camunda.bpm.engine.impl.persistence.entity.TimerEntity" extends="jobResultMap">
-    <result property="duedate" column="DUEDATE_" jdbcType="TIMESTAMP" />
     <result property="repeat" column="REPEAT_" jdbcType="VARCHAR" />
   </resultMap>
 
-  <!-- JOB SELECT (FOR TIMER AND MESSAGE) -->  
+  <!-- JOB SELECT (FOR TIMER AND MESSAGE) -->
 
   <select id="selectJob" parameterType="string" resultMap="jobResultMap">
     select * from ${prefix}ACT_RU_JOB where ID_ = #{id}
   </select>
 
   <select id="selectNextJobsToExecute" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="jobResultMap">
-  	${limitBefore}
-    select 
-    	RES.* ${limitBetween}
+    <bind name="orderingProperties" value="parameter.orderingProperties" />
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
+    ${limitBefore}
+    select
+      RES.* ${limitBetween}
     from ${prefix}ACT_RU_JOB RES
 
     where (RES.RETRIES_ &gt; 0)
-      and (RES.DUEDATE_ is null or RES.DUEDATE_ &lt; #{parameter.now, jdbcType=TIMESTAMP})
+      and (RES.DUEDATE_ is null or RES.DUEDATE_ &lt;= #{parameter.now, jdbcType=TIMESTAMP})
       and (RES.LOCK_OWNER_ is null or RES.LOCK_EXP_TIME_ &lt; #{parameter.now, jdbcType=TIMESTAMP})
       and (RES.SUSPENSION_STATE_ = 1 or RES.SUSPENSION_STATE_ is null)
 
       <if test="parameter.deploymentAware">
-        and (RES.DEPLOYMENT_ID_ is null 
+        and (RES.DEPLOYMENT_ID_ is null
         <if test="parameter.deploymentIds != null">
-          or 
-          RES.DEPLOYMENT_ID_ in 
+          or
+          RES.DEPLOYMENT_ID_ in
 	        <foreach item="deploymentId" index="index" collection="parameter.deploymentIds"
 	        open="(" separator="," close=")">
 	          #{deploymentId}
@@ -123,6 +125,9 @@
         </if>
         )
       </if>
+    <if test="parameter.applyOrdering">
+      ${orderBy}
+    </if>
     ${limitAfter}
   </select>
 
@@ -131,7 +136,7 @@
     select RES.* ${limitBetween}
     from ${prefix}ACT_RU_JOB RES
     where (RETRIES_ &gt; 0)
-      and (DUEDATE_ is null or DUEDATE_ &lt; #{parameter.now, jdbcType=TIMESTAMP})
+      and (DUEDATE_ is null or DUEDATE_ &lt;= #{parameter.now, jdbcType=TIMESTAMP})
       and (LOCK_OWNER_ is null or LOCK_EXP_TIME_ &lt; #{parameter.now, jdbcType=TIMESTAMP})
       and (EXCLUSIVE_ = ${trueConstant})
       and (PROCESS_INSTANCE_ID_ = #{parameter.pid})
@@ -142,7 +147,10 @@
   <select id="selectJobsByConfiguration" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="jobResultMap">
       select * from ${prefix}ACT_RU_JOB
       where HANDLER_TYPE_ = #{parameter.handlerType}
-      and HANDLER_CFG_ =  #{parameter.handlerConfiguration}
+      and (HANDLER_CFG_ = #{parameter.handlerConfiguration}
+      <if test="parameter.handlerConfigurationWithFollowUpJobCreatedProperty != null">
+      or HANDLER_CFG_ = #{parameter.handlerConfigurationWithFollowUpJobCreatedProperty}
+      </if>)
   </select>
 
   <select id="selectJobsByExecutionId" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="jobResultMap">
@@ -150,16 +158,18 @@
     from ${prefix}ACT_RU_JOB J
     where J.EXECUTION_ID_ = #{parameter}
   </select>
-  
+
   <select id="selectJobsByProcessInstanceId" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="jobResultMap">
     select *
     from ${prefix}ACT_RU_JOB J
-    where J.PROC_INST_ID_ = #{parameter}
+    where J.PROCESS_INSTANCE_ID_ = #{parameter}
   </select>
 
   <select id="selectJobByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.JobQueryImpl" resultMap="jobResultMap">
-  	${limitBefore}
-    select RES.* ${limitBetween}
+  	<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
+    ${limitBefore}
+    select RES.*
+    ${limitBetween}
     <include refid="selectJobByQueryCriteriaSql"/>
     ${orderBy}
     ${limitAfter}
@@ -242,62 +252,39 @@
       <if test="suspensionState != null">
         and RES.SUSPENSION_STATE_ = #{suspensionState.stateCode}
       </if>
+
+      <if test="isAuthorizationCheckEnabled &amp;&amp; authUserId != null">
+        AND
+          ( CASE
+
+            WHEN
+              RES.PROCESS_DEF_KEY_ is not null
+            THEN
+              (<include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authorizationCheck" />)
+
+            ELSE
+              <!-- "standalone" job (e.g. job to activate/suspend a process definition etc.) -->
+              1
+          END ) = 1
+      </if>
+
     </where>
   </sql>
-
-  <!--  SELECT DEPENDENT -->  
-  <!--  ACT-1064: MySQL-specific select's are needed to handle non-millisecond precision -->
-  <select id="selectNextJobsToExecute_mysql" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="jobResultMap">
-	 	${limitBefore}
-	  select RES.* ${limitBetween} 
-	  from ${prefix}ACT_RU_JOB RES
-	  where (RETRIES_ &gt; 0)
-	    and (DUEDATE_ is null or DUEDATE_ &lt;= #{parameter.now, jdbcType=TIMESTAMP})
-	    and (LOCK_OWNER_ is null or LOCK_EXP_TIME_ &lt;= #{parameter.now, jdbcType=TIMESTAMP})
-      and (RES.SUSPENSION_STATE_ = 1 or RES.SUSPENSION_STATE_ is null)
-	   <if test="parameter.deploymentAware">
-        and (RES.DEPLOYMENT_ID_ is null 
-        <if test="parameter.deploymentIds != null">
-          or 
-          RES.DEPLOYMENT_ID_ in 
-          <foreach item="deploymentId" index="index" collection="parameter.deploymentIds"
-          open="(" separator="," close=")">
-            #{deploymentId}
-          </foreach>
-        </if>
-        )
-      </if>  
-	  ${limitAfter}
-  </select>
-
-  <select id="selectExclusiveJobsToExecute_mysql" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="jobResultMap">
-  	${limitBefore}
-    select RES.* ${limitBetween} 
-    from ${prefix}ACT_RU_JOB RES
-    where (RETRIES_ &gt; 0)
-      and (DUEDATE_ is null or DUEDATE_ &lt;= #{parameter.now, jdbcType=TIMESTAMP})
-      and (LOCK_OWNER_ is null or LOCK_EXP_TIME_ &lt;= #{parameter.now, jdbcType=TIMESTAMP})
-      and (EXCLUSIVE_ = TRUE)
-      and (PROCESS_INSTANCE_ID_ = #{parameter.pid})
-      and (RES.SUSPENSION_STATE_ = 1 or RES.SUSPENSION_STATE_ is null)
-    ${limitAfter}
-  </select>
-
 
   <!-- TIMER INSERT -->
 
   <insert id="insertTimer" parameterType="org.camunda.bpm.engine.impl.persistence.entity.TimerEntity">
     insert into ${prefix}ACT_RU_JOB (
-            ID_, 
+            ID_,
             TYPE_,
-            LOCK_OWNER_, 
+            LOCK_OWNER_,
             LOCK_EXP_TIME_,
             EXCLUSIVE_,
-            EXECUTION_ID_, 
+            EXECUTION_ID_,
             PROCESS_INSTANCE_ID_,
             PROCESS_DEF_ID_,
             PROCESS_DEF_KEY_,
-            RETRIES_, 
+            RETRIES_,
             EXCEPTION_STACK_ID_,
             EXCEPTION_MSG_,
             DUEDATE_,
@@ -306,7 +293,8 @@
             HANDLER_CFG_,
             DEPLOYMENT_ID_,
             SUSPENSION_STATE_,
-            JOB_DEF_ID_, 
+            JOB_DEF_ID_,
+            SEQUENCE_COUNTER_,
             REV_
           )
     values (#{id, jdbcType=VARCHAR},
@@ -328,6 +316,7 @@
             #{deploymentId, jdbcType=VARCHAR},
             #{suspensionState, jdbcType=INTEGER},
             #{jobDefinitionId, jdbcType=VARCHAR},
+            #{sequenceCounter, jdbcType=BIGINT},
             1
     )
   </insert>
@@ -348,7 +337,9 @@
        SUSPENSION_STATE_ = #{suspensionState, jdbcType=INTEGER},
        PROCESS_DEF_ID_ = #{processDefinitionId, jdbcType=VARCHAR},
        JOB_DEF_ID_ = #{jobDefinitionId, jdbcType=VARCHAR},
-       DEPLOYMENT_ID_ = #{deploymentId, jdbcType=VARCHAR}
+       DEPLOYMENT_ID_ = #{deploymentId, jdbcType=VARCHAR},
+       HANDLER_CFG_ = #{jobHandlerConfiguration, jdbcType=VARCHAR},
+       SEQUENCE_COUNTER_ = #{sequenceCounter, jdbcType=BIGINT}
     </set>
     where ID_= #{id, jdbcType=VARCHAR}
       and REV_ = #{revision, jdbcType=INTEGER}
@@ -368,8 +359,8 @@
   </select>
 
   <select id="selectTimersByExecutionId" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="jobResultMap">
-    select * 
-    from ${prefix}ACT_RU_JOB 
+    select *
+    from ${prefix}ACT_RU_JOB
     where (RETRIES_ &gt; 0)
       and (TYPE_ = 'timer')
       and (EXECUTION_ID_ = #{parameter})
@@ -379,23 +370,25 @@
 
   <insert id="insertMessage" parameterType="org.camunda.bpm.engine.impl.persistence.entity.MessageEntity">
     insert into ${prefix}ACT_RU_JOB (
-            ID_, 
+            ID_,
             TYPE_,
-            LOCK_OWNER_, 
+            LOCK_OWNER_,
             LOCK_EXP_TIME_,
             EXCLUSIVE_,
-            EXECUTION_ID_, 
+            EXECUTION_ID_,
             PROCESS_INSTANCE_ID_,
             PROCESS_DEF_ID_,
             PROCESS_DEF_KEY_,
             RETRIES_, 
             EXCEPTION_STACK_ID_,
             EXCEPTION_MSG_,
+            DUEDATE_,
             HANDLER_TYPE_,
             HANDLER_CFG_,
             DEPLOYMENT_ID_,
             SUSPENSION_STATE_,
             JOB_DEF_ID_,
+            SEQUENCE_COUNTER_,
             REV_
             )
     values (#{id, jdbcType=VARCHAR},
@@ -410,11 +403,13 @@
             #{retries, jdbcType=INTEGER},
             #{exceptionByteArrayId, jdbcType=VARCHAR},
             #{exceptionMessage, jdbcType=VARCHAR},
+            #{duedate, jdbcType=TIMESTAMP},
             #{jobHandlerType, jdbcType=VARCHAR},
             #{jobHandlerConfiguration, jdbcType=VARCHAR},
             #{deploymentId, jdbcType=VARCHAR},
             #{suspensionState, jdbcType=INTEGER},
             #{jobDefinitionId, jdbcType=VARCHAR},
+            #{sequenceCounter, jdbcType=BIGINT},
             1
     )
   </insert>
@@ -434,7 +429,9 @@
        SUSPENSION_STATE_ = #{suspensionState, jdbcType=INTEGER},
        PROCESS_DEF_ID_ = #{processDefinitionId, jdbcType=VARCHAR},
        JOB_DEF_ID_ = #{jobDefinitionId, jdbcType=VARCHAR},
-       DEPLOYMENT_ID_ = #{deploymentId, jdbcType=VARCHAR}
+       DEPLOYMENT_ID_ = #{deploymentId, jdbcType=VARCHAR},
+       HANDLER_CFG_ = #{jobHandlerConfiguration, jdbcType=VARCHAR},
+       SEQUENCE_COUNTER_ = #{sequenceCounter, jdbcType=BIGINT}
     </set>
     where ID_= #{id, jdbcType=VARCHAR}
       and REV_ = #{revision, jdbcType=INTEGER}

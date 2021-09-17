@@ -12,9 +12,11 @@
  */
 package org.camunda.bpm.engine.test.cmmn.handler;
 
-import static org.camunda.bpm.engine.impl.cmmn.handler.ItemHandler.PROPERTY_ACTIVITY_TYPE;
 import static org.camunda.bpm.engine.impl.cmmn.handler.ItemHandler.PROPERTY_ACTIVITY_DESCRIPTION;
+import static org.camunda.bpm.engine.impl.cmmn.handler.ItemHandler.PROPERTY_ACTIVITY_TYPE;
 import static org.camunda.bpm.engine.impl.cmmn.handler.ItemHandler.PROPERTY_IS_BLOCKING;
+import static org.camunda.bpm.engine.impl.cmmn.handler.ItemHandler.PROPERTY_MANUAL_ACTIVATION_RULE;
+import static org.camunda.bpm.engine.impl.cmmn.handler.ItemHandler.PROPERTY_REQUIRED_RULE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotEquals;
@@ -28,6 +30,7 @@ import java.util.Set;
 
 import org.camunda.bpm.engine.delegate.Expression;
 import org.camunda.bpm.engine.delegate.TaskListener;
+import org.camunda.bpm.engine.impl.cmmn.CaseControlRule;
 import org.camunda.bpm.engine.impl.cmmn.behavior.CmmnActivityBehavior;
 import org.camunda.bpm.engine.impl.cmmn.behavior.HumanTaskActivityBehavior;
 import org.camunda.bpm.engine.impl.cmmn.handler.CasePlanModelHandler;
@@ -41,13 +44,19 @@ import org.camunda.bpm.engine.impl.task.TaskDefinition;
 import org.camunda.bpm.engine.impl.task.listener.ClassDelegateTaskListener;
 import org.camunda.bpm.engine.impl.task.listener.DelegateExpressionTaskListener;
 import org.camunda.bpm.engine.impl.task.listener.ExpressionTaskListener;
+import org.camunda.bpm.model.cmmn.Cmmn;
 import org.camunda.bpm.model.cmmn.impl.instance.Body;
 import org.camunda.bpm.model.cmmn.impl.instance.CaseRoles;
 import org.camunda.bpm.model.cmmn.impl.instance.ConditionExpression;
+import org.camunda.bpm.model.cmmn.impl.instance.DefaultControl;
+import org.camunda.bpm.model.cmmn.impl.instance.ItemControl;
 import org.camunda.bpm.model.cmmn.instance.ExtensionElements;
 import org.camunda.bpm.model.cmmn.instance.HumanTask;
 import org.camunda.bpm.model.cmmn.instance.IfPart;
+import org.camunda.bpm.model.cmmn.instance.ManualActivationRule;
 import org.camunda.bpm.model.cmmn.instance.PlanItem;
+import org.camunda.bpm.model.cmmn.instance.PlanItemControl;
+import org.camunda.bpm.model.cmmn.instance.RequiredRule;
 import org.camunda.bpm.model.cmmn.instance.Sentry;
 import org.camunda.bpm.model.cmmn.instance.camunda.CamundaTaskListener;
 import org.junit.Before;
@@ -310,6 +319,24 @@ public class HumanTaskPlanItemHandlerTest extends CmmnElementHandlerTest {
     Expression dueDateExpression = taskDefinition.getDueDateExpression();
     assertNotNull(dueDateExpression);
     assertEquals(aDueDate, dueDateExpression.getExpressionText());
+  }
+
+  @Test
+  public void testTaskDefinitionFollowUpDateExpression() {
+    // given
+    String aFollowUpDate = "aFollowDate";
+    humanTask.setCamundaFollowUpDate(aFollowUpDate);
+
+    // when
+    CmmnActivity activity = handler.handleElement(planItem, context);
+
+    // then
+    HumanTaskActivityBehavior behavior = (HumanTaskActivityBehavior) activity.getActivityBehavior();
+    TaskDefinition taskDefinition = behavior.getTaskDefinition();
+
+    Expression followUpDateExpression = taskDefinition.getFollowUpDateExpression();
+    assertNotNull(followUpDateExpression);
+    assertEquals(aFollowUpDate, followUpDateExpression.getExpressionText());
   }
 
   @Test
@@ -1108,6 +1135,86 @@ public class HumanTaskPlanItemHandlerTest extends CmmnElementHandlerTest {
     assertEquals(1, newActivity.getEntryCriteria().size());
     assertEquals(sentryDeclaration, newActivity.getEntryCriteria().get(0));
 
+  }
+
+  @Test
+  public void testManualActivationRule() {
+    // given
+    ItemControl itemControl = createElement(planItem, "ItemControl_1", ItemControl.class);
+    ManualActivationRule manualActivationRule = createElement(itemControl, "ManualActivationRule_1", ManualActivationRule.class);
+    ConditionExpression expression = createElement(manualActivationRule, "Expression_1", ConditionExpression.class);
+    Body body = createElement(expression, Body.class);
+    body.setTextContent("${true}");
+
+    Cmmn.validateModel(modelInstance);
+
+    // when
+    CmmnActivity newActivity = handler.handleElement(planItem, context);
+
+    // then
+    Object rule = newActivity.getProperty(PROPERTY_MANUAL_ACTIVATION_RULE);
+    assertNotNull(rule);
+    assertTrue(rule instanceof CaseControlRule);
+  }
+
+  @Test
+  public void testManualActivationRuleByDefaultPlanItemControl() {
+    // given
+    PlanItemControl defaultControl = createElement(humanTask, "ItemControl_1", DefaultControl.class);
+    ManualActivationRule manualActivationRule = createElement(defaultControl, "ManualActivationRule_1", ManualActivationRule.class);
+    ConditionExpression expression = createElement(manualActivationRule, "Expression_1", ConditionExpression.class);
+    Body body = createElement(expression, Body.class);
+    body.setTextContent("${true}");
+
+    Cmmn.validateModel(modelInstance);
+
+    // when
+    CmmnActivity newActivity = handler.handleElement(planItem, context);
+
+    // then
+    Object rule = newActivity.getProperty(PROPERTY_MANUAL_ACTIVATION_RULE);
+    assertNotNull(rule);
+    assertTrue(rule instanceof CaseControlRule);
+  }
+
+  @Test
+  public void testRequiredRule() {
+    // given
+    ItemControl itemControl = createElement(planItem, "ItemControl_1", ItemControl.class);
+    RequiredRule requiredRule = createElement(itemControl, "RequiredRule_1", RequiredRule.class);
+    ConditionExpression expression = createElement(requiredRule, "Expression_1", ConditionExpression.class);
+    Body body = createElement(expression, Body.class);
+    body.setTextContent("${true}");
+
+    Cmmn.validateModel(modelInstance);
+
+    // when
+    CmmnActivity newActivity = handler.handleElement(planItem, context);
+
+    // then
+    Object rule = newActivity.getProperty(PROPERTY_REQUIRED_RULE);
+    assertNotNull(rule);
+    assertTrue(rule instanceof CaseControlRule);
+  }
+
+  @Test
+  public void testRequiredRuleByDefaultPlanItemControl() {
+    // given
+    PlanItemControl defaultControl = createElement(humanTask, "ItemControl_1", DefaultControl.class);
+    RequiredRule requiredRule = createElement(defaultControl, "RequiredRule_1", RequiredRule.class);
+    ConditionExpression expression = createElement(requiredRule, "Expression_1", ConditionExpression.class);
+    Body body = createElement(expression, Body.class);
+    body.setTextContent("${true}");
+
+    Cmmn.validateModel(modelInstance);
+
+    // when
+    CmmnActivity newActivity = handler.handleElement(planItem, context);
+
+    // then
+    Object rule = newActivity.getProperty(PROPERTY_REQUIRED_RULE);
+    assertNotNull(rule);
+    assertTrue(rule instanceof CaseControlRule);
   }
 
 }

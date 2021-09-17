@@ -14,6 +14,7 @@ package org.camunda.bpm.engine.rest.dto.identity;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.ws.rs.core.MultivaluedMap;
 
@@ -21,7 +22,8 @@ import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.identity.GroupQuery;
 import org.camunda.bpm.engine.rest.dto.AbstractQueryDto;
 import org.camunda.bpm.engine.rest.dto.CamundaQueryParam;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  *
@@ -110,23 +112,13 @@ public class GroupQueryDto extends AbstractQueryDto<GroupQuery> {
   }
 
   @Override
-  protected void applySortingOptions(GroupQuery query) {
-    if (sortBy != null) {
-      if (sortBy.equals(SORT_BY_GROUP_ID_VALUE)) {
-        query.orderByGroupId();
-      } else if (sortBy.equals(SORT_BY_GROUP_NAME_VALUE)) {
-        query.orderByGroupName();
-      } else if (sortBy.equals(SORT_BY_GROUP_TYPE_VALUE)) {
-        query.orderByGroupType();
-      }
-    }
-
-    if (sortOrder != null) {
-      if (sortOrder.equals(SORT_ORDER_ASC_VALUE)) {
-        query.asc();
-      } else if (sortOrder.equals(SORT_ORDER_DESC_VALUE)) {
-        query.desc();
-      }
+  protected void applySortBy(GroupQuery query, String sortBy, Map<String, Object> parameters, ProcessEngine engine) {
+    if (sortBy.equals(SORT_BY_GROUP_ID_VALUE)) {
+      query.orderByGroupId();
+    } else if (sortBy.equals(SORT_BY_GROUP_NAME_VALUE)) {
+      query.orderByGroupName();
+    } else if (sortBy.equals(SORT_BY_GROUP_TYPE_VALUE)) {
+      query.orderByGroupType();
     }
   }
 

@@ -12,50 +12,26 @@
  */
 package org.camunda.bpm.engine.impl.pvm.runtime.operation;
 
-import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
+import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
-
-import java.util.logging.Logger;
 
 
 /**
  * @author Tom Baeyens
  */
-public class PvmAtomicOperationTransitionCreateScope implements PvmAtomicOperation {
-
-  private static Logger log = Logger.getLogger(PvmAtomicOperationTransitionCreateScope.class.getName());
+public class PvmAtomicOperationTransitionCreateScope extends PvmAtomicOperationCreateScope {
 
   public boolean isAsync(PvmExecutionImpl execution) {
-    ActivityImpl activity = execution.getActivity();
+    PvmActivity activity = execution.getActivity();
     return activity.isAsyncBefore();
-  }
-
-  public void execute(PvmExecutionImpl execution) {
-
-    // we are continuing execution along this sequence flow:
-    // reset activity instance id before creating the scope
-    execution.setActivityInstanceId(execution.getParentActivityInstanceId());
-
-    PvmExecutionImpl propagatingExecution = null;
-    ActivityImpl activity = execution.getActivity();
-    if (activity.isScope()) {
-      propagatingExecution = execution.createExecution();
-      propagatingExecution.setActivity(activity);
-      propagatingExecution.setTransition(execution.getTransition());
-      execution.setTransition(null);
-      execution.setActive(false);
-      execution.setActivity(null);
-      log.fine("create scope: parent "+execution+" continues as execution "+propagatingExecution);
-      propagatingExecution.initialize();
-
-    } else {
-      propagatingExecution = execution;
-    }
-
-    propagatingExecution.performOperation(TRANSITION_NOTIFY_LISTENER_START);
   }
 
   public String getCanonicalName() {
     return "transition-create-scope";
+  }
+
+  protected void scopeCreated(PvmExecutionImpl execution) {
+    execution.performOperation(TRANSITION_NOTIFY_LISTENER_START);
+
   }
 }

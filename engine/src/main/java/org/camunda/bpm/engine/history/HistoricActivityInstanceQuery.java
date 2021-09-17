@@ -105,4 +105,25 @@ public interface HistoricActivityInstanceQuery extends Query<HistoricActivityIns
   /** Order by processDefinitionId (needs to be followed by {@link #asc()} or {@link #desc()}). */
   HistoricActivityInstanceQuery orderByProcessDefinitionId();
 
+  /**
+   * <p>Sort the {@link HistoricActivityInstance activity instances} in the order in which
+   * they occurred (ie. started) and needs to be followed by {@link #asc()} or {@link #desc()}.</p>
+   *
+   * <p>The set of all {@link HistoricActivityInstance activity instances} is a <strong>partially
+   * ordered set</strong>. At a BPMN level this means that instances of concurrent activities (example:
+   * activities on different parallel branched after a parallel gateway) cannot be compared to each other.
+   * Instances of activities which are part of happens-before relation at the BPMN level will be ordered
+   * in respect to that relation.</p>
+   *
+   * <p>Technically this means that {@link HistoricActivityInstance activity instances}
+   * with different {@link HistoricActivityInstance#getExecutionId() execution ids} are
+   * <strong>incomparable</strong>. Only {@link HistoricActivityInstance activity instances} with
+   * the same {@link HistoricActivityInstance#getExecutionId() execution id} can be <strong>totally
+   * ordered</strong> by using {@link #executionId(String)} and {@link #orderPartiallyByOccurrence()}
+   * which will return a result set ordered by its occurrence.</p>
+   *
+   * @since 7.3
+   */
+  HistoricActivityInstanceQuery orderPartiallyByOccurrence();
+
 }

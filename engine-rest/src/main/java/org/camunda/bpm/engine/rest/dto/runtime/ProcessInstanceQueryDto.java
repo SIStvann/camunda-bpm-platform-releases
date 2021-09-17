@@ -14,6 +14,7 @@ package org.camunda.bpm.engine.rest.dto.runtime;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import javax.ws.rs.core.MultivaluedMap;
@@ -28,7 +29,8 @@ import org.camunda.bpm.engine.rest.dto.converter.StringSetConverter;
 import org.camunda.bpm.engine.rest.dto.converter.VariableListConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQuery> {
 
@@ -50,6 +52,8 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
   private String processDefinitionId;
   private String superProcessInstance;
   private String subProcessInstance;
+  private String superCaseInstance;
+  private String subCaseInstance;
   private Boolean active;
   private Boolean suspended;
   private Set<String> processInstanceIds;
@@ -105,6 +109,16 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
   @CamundaQueryParam("subProcessInstance")
   public void setSubProcessInstance(String subProcessInstance) {
     this.subProcessInstance = subProcessInstance;
+  }
+
+  @CamundaQueryParam("superCaseInstance")
+  public void setSuperCaseInstance(String superCaseInstance) {
+    this.superCaseInstance = superCaseInstance;
+  }
+
+  @CamundaQueryParam("subCaseInstance")
+  public void setSubCaseInstance(String subCaseInstance) {
+    this.subCaseInstance = subCaseInstance;
   }
 
   @CamundaQueryParam(value = "active", converter = BooleanConverter.class)
@@ -176,6 +190,12 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
     if (subProcessInstance != null) {
       query.subProcessInstanceId(subProcessInstance);
     }
+    if (superCaseInstance != null) {
+      query.superCaseInstanceId(superCaseInstance);
+    }
+    if (subCaseInstance != null) {
+      query.subCaseInstanceId(subCaseInstance);
+    }
     if (active != null && active == true) {
       query.active();
     }
@@ -222,23 +242,13 @@ public class ProcessInstanceQueryDto extends AbstractQueryDto<ProcessInstanceQue
   }
 
   @Override
-  protected void applySortingOptions(ProcessInstanceQuery query) {
-    if (sortBy != null) {
-      if (sortBy.equals(SORT_BY_INSTANCE_ID_VALUE)) {
-        query.orderByProcessInstanceId();
-      } else if (sortBy.equals(SORT_BY_DEFINITION_KEY_VALUE)) {
-        query.orderByProcessDefinitionKey();
-      } else if (sortBy.equals(SORT_BY_DEFINITION_ID_VALUE)) {
-        query.orderByProcessDefinitionId();
-      }
-    }
-
-    if (sortOrder != null) {
-      if (sortOrder.equals(SORT_ORDER_ASC_VALUE)) {
-        query.asc();
-      } else if (sortOrder.equals(SORT_ORDER_DESC_VALUE)) {
-        query.desc();
-      }
+  protected void applySortBy(ProcessInstanceQuery query, String sortBy, Map<String, Object> parameters, ProcessEngine engine) {
+    if (sortBy.equals(SORT_BY_INSTANCE_ID_VALUE)) {
+      query.orderByProcessInstanceId();
+    } else if (sortBy.equals(SORT_BY_DEFINITION_KEY_VALUE)) {
+      query.orderByProcessDefinitionKey();
+    } else if (sortBy.equals(SORT_BY_DEFINITION_ID_VALUE)) {
+      query.orderByProcessDefinitionId();
     }
   }
 

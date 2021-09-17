@@ -24,6 +24,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 
+import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.FormService;
 import org.camunda.bpm.engine.ManagementService;
 import org.camunda.bpm.engine.ProcessEngine;
@@ -45,14 +46,17 @@ import org.camunda.bpm.engine.rest.dto.repository.ProcessDefinitionDto;
 import org.camunda.bpm.engine.rest.dto.repository.ProcessDefinitionSuspensionStateDto;
 import org.camunda.bpm.engine.rest.dto.runtime.ProcessInstanceDto;
 import org.camunda.bpm.engine.rest.dto.runtime.StartProcessInstanceDto;
+import org.camunda.bpm.engine.rest.dto.runtime.modification.ProcessInstanceModificationInstructionDto;
 import org.camunda.bpm.engine.rest.dto.task.FormDto;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.rest.exception.RestException;
 import org.camunda.bpm.engine.rest.sub.repository.ProcessDefinitionResource;
 import org.camunda.bpm.engine.rest.util.ApplicationContextPathUtil;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.engine.runtime.ProcessInstantiationBuilder;
 import org.camunda.bpm.engine.variable.VariableMap;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource {
 
@@ -86,15 +90,17 @@ public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource 
 
   @Override
   public ProcessInstanceDto startProcessInstance(UriInfo context, StartProcessInstanceDto parameters) {
-    RuntimeService runtimeService = engine.getRuntimeService();
-
     ProcessInstance instance = null;
     try {
-      Map<String, Object> variables = VariableValueDto.toMap(parameters.getVariables(), engine, objectMapper);
-      String businessKey = parameters.getBusinessKey();
-      String caseInstanceId = parameters.getCaseInstanceId();
+      if (parameters.getStartInstructions() == null || parameters.getStartInstructions().isEmpty()) {
+        instance = startProcessInstance(parameters);
+      }
+      else {
+        instance = startProcessInstanceAtActivities(parameters);
+      }
 
-      instance = runtimeService.startProcessInstanceById(processDefinitionId, businessKey, caseInstanceId, variables);
+    } catch (AuthorizationException e) {
+      throw e;
 
     } catch (ProcessEngineException e) {
       String errorMessage = String.format("Cannot instantiate process definition %s: %s", processDefinitionId, e.getMessage());
@@ -119,6 +125,33 @@ public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource 
     return result;
   }
 
+  protected ProcessInstance startProcessInstance(StartProcessInstanceDto dto) {
+    Map<String, Object> variables = VariableValueDto.toMap(dto.getVariables(), engine, objectMapper);
+    String businessKey = dto.getBusinessKey();
+    String caseInstanceId = dto.getCaseInstanceId();
+
+    return engine.getRuntimeService()
+        .startProcessInstanceById(processDefinitionId, businessKey, caseInstanceId, variables);
+  }
+
+  protected ProcessInstance startProcessInstanceAtActivities(StartProcessInstanceDto dto) {
+    Map<String, Object> processInstanceVariables = VariableValueDto.toMap(dto.getVariables(), engine, objectMapper);
+    String businessKey = dto.getBusinessKey();
+    String caseInstanceId = dto.getCaseInstanceId();
+
+    ProcessInstantiationBuilder instantiationBuilder = engine.getRuntimeService()
+        .createProcessInstanceById(processDefinitionId)
+        .businessKey(businessKey)
+        .caseInstanceId(caseInstanceId)
+        .setVariables(processInstanceVariables);
+
+    for (ProcessInstanceModificationInstructionDto instruction : dto.getStartInstructions()) {
+      instruction.applyTo(instantiationBuilder, engine, objectMapper);
+    }
+
+    return instantiationBuilder.execute(dto.isSkipCustomListeners(), dto.isSkipIoMappings());
+  }
+
   @Override
   public ProcessInstanceDto submitForm(UriInfo context, StartProcessInstanceDto parameters) {
     FormService formService = engine.getFormService();
@@ -132,6 +165,9 @@ public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource 
       } else {
         instance = formService.submitStartForm(processDefinitionId, variables);
       }
+
+    } catch (AuthorizationException e) {
+      throw e;
 
     } catch (ProcessEngineException e) {
       String errorMessage = String.format("Cannot instantiate process definition %s: %s", processDefinitionId, e.getMessage());
@@ -194,6 +230,8 @@ public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource 
       processModelIn = engine.getRepositoryService().getProcessModel(processDefinitionId);
       byte[] processModel = IoUtil.readInputStream(processModelIn, "processModelBpmn20Xml");
       return ProcessDefinitionDiagramDto.create(processDefinitionId, new String(processModel, "UTF-8"));
+    } catch (AuthorizationException e) {
+      throw e;
     } catch (ProcessEngineException e) {
       throw new InvalidRequestException(Status.BAD_REQUEST, e, "No matching definition with id " + processDefinitionId);
     } catch (UnsupportedEncodingException e) {
@@ -250,6 +288,8 @@ public class ProcessDefinitionResourceImpl implements ProcessDefinitionResource 
     final StartFormData formData;
     try {
       formData = formService.getStartFormData(processDefinitionId);
+    } catch (AuthorizationException e) {
+      throw e;
     } catch (ProcessEngineException e) {
       throw new InvalidRequestException(Status.BAD_REQUEST, e, "Cannot get start form data for process definition " + processDefinitionId);
     }

@@ -12,10 +12,14 @@
  */
 package org.camunda.bpm.engine.test.bpmn.async;
 
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.assertThat;
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.describeActivityInstanceTree;
+
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 
+import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.persistence.entity.MessageEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
@@ -25,6 +29,8 @@ import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener;
+import org.camunda.bpm.engine.variable.Variables;
 
 /**
  *
@@ -34,6 +40,7 @@ import org.camunda.bpm.engine.test.Deployment;
 public class AsyncTaskTest extends PluggableProcessEngineTestCase {
 
   public static boolean INVOCATION;
+  public static int NUM_INVOCATIONS = 0;
 
   @Deployment
   public void testAsyncServiceNoListeners() {
@@ -92,19 +99,38 @@ public class AsyncTaskTest extends PluggableProcessEngineTestCase {
   }
 
   @Deployment
-  public void testAsyncServiceMultiInstance() {
-    INVOCATION = false;
+  public void testAsyncServiceSequentialMultiInstance() {
+    NUM_INVOCATIONS = 0;
     // start process
     runtimeService.startProcessInstanceByKey("asyncService");
-    // now there should be one job in the database:
+    // now there should be one job for the multi-instance body:
     assertEquals(1, managementService.createJobQuery().count());
     // the service was not invoked:
-    assertFalse(INVOCATION);
+    assertEquals(0, NUM_INVOCATIONS);
 
     executeAvailableJobs();
 
     // the service was invoked
-    assertTrue(INVOCATION);
+    assertEquals(5, NUM_INVOCATIONS);
+    // and the job is done
+    assertEquals(0, managementService.createJobQuery().count());
+  }
+
+
+  @Deployment
+  public void testAsyncServiceParallelMultiInstance() {
+    NUM_INVOCATIONS = 0;
+    // start process
+    runtimeService.startProcessInstanceByKey("asyncService");
+    // now there should be one job for the multi-instance body:
+    assertEquals(1, managementService.createJobQuery().count());
+    // the service was not invoked:
+    assertEquals(0, NUM_INVOCATIONS);
+
+    executeAvailableJobs();
+
+    // the service was invoked
+    assertEquals(5, NUM_INVOCATIONS);
     // and the job is done
     assertEquals(0, managementService.createJobQuery().count());
   }
@@ -187,9 +213,16 @@ public class AsyncTaskTest extends PluggableProcessEngineTestCase {
   @Deployment
   public void testAsyncServiceSubProcess() {
     // start process
-    runtimeService.startProcessInstanceByKey("asyncService");
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("asyncService");
 
     assertEquals(1, managementService.createJobQuery().count());
+
+    ActivityInstance activityInstance = runtimeService.getActivityInstance(processInstance.getId());
+
+    assertThat(activityInstance).hasStructure(
+      describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .transition("subProcess")
+      .done());
 
     executeAvailableJobs();
 
@@ -432,6 +465,48 @@ public class AsyncTaskTest extends PluggableProcessEngineTestCase {
 
     String taskId = taskService.createTaskQuery().singleResult().getId();
     taskService.complete(taskId);
+  }
+
+  /**
+   * CAM-3707
+   */
+  @Deployment
+  public void FAILING_testDeleteShouldNotInvokeListeners() {
+    RecorderExecutionListener.clear();
+
+    // given
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("asyncListener",
+        Variables.createVariables().putValue("listener", new RecorderExecutionListener()));
+    assertEquals(1, managementService.createJobQuery().count());
+
+    // when deleting the process instance
+    runtimeService.deleteProcessInstance(instance.getId(), "");
+
+    // then no listeners for the async activity should have been invoked because
+    // it was not active yet
+    assertEquals(0, RecorderExecutionListener.getRecordedEvents().size());
+
+    RecorderExecutionListener.clear();
+  }
+
+  /**
+   * CAM-3708
+   */
+  @Deployment
+  public void FAILING_testDeleteShouldNotInvokeOutputMapping() {
+    // given
+    ProcessInstance instance = runtimeService.startProcessInstanceByKey("asyncOutputMapping");
+    assertEquals(1, managementService.createJobQuery().count());
+
+    // when
+    runtimeService.deleteProcessInstance(instance.getId(), "");
+
+    // then the output mapping has not been executed because the
+    // activity was not active yet
+    if (processEngineConfiguration.getHistoryLevel().getId() >= HistoryLevel.HISTORY_LEVEL_AUDIT.getId()) {
+      assertEquals(0, historyService.createHistoricVariableInstanceQuery().count());
+    }
+
   }
 
 }

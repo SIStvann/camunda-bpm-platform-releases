@@ -22,7 +22,6 @@ import org.camunda.bpm.application.ProcessApplicationReference;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.delegate.BpmnError;
 import org.camunda.bpm.engine.delegate.JavaDelegate;
-import org.camunda.bpm.engine.impl.bpmn.helper.ErrorPropagation;
 import org.camunda.bpm.engine.impl.bpmn.parser.FieldDeclaration;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.context.ProcessApplicationContextUtil;
@@ -62,51 +61,48 @@ public class ClassDelegateActivityBehavior extends AbstractBpmnActivityBehavior 
     try {
       activityBehaviorInstance.execute(execution);
     } catch (BpmnError error) {
-      ErrorPropagation.propagateError(error, execution);
+      propagateBpmnError(error, execution);
     } catch (Exception ex) {
-      ErrorPropagation.propagateException(ex, execution);
+      propagateExceptionAsError(ex, execution);
     }
   }
 
   // Signallable activity behavior
   public void signal(final ActivityExecution execution, final String signalName, final Object signalData) throws Exception {
-
     ProcessApplicationReference targetProcessApplication = ProcessApplicationContextUtil.getTargetProcessApplication((ExecutionEntity) execution);
-
-    if(!ProcessApplicationContextUtil.requiresContextSwitch(targetProcessApplication)) {
-      ActivityBehavior activityBehaviorInstance = getActivityBehaviorInstance(execution);
-
-      if (activityBehaviorInstance instanceof SignallableActivityBehavior) {
-        try {
-          ((SignallableActivityBehavior) activityBehaviorInstance).signal(execution, signalName, signalData);
-        }
-        catch (BpmnError error) {
-          ErrorPropagation.propagateError(error, execution);
-        }
-        catch (Exception exception) {
-          ErrorPropagation.propagateException(exception, execution);
-        }
-      } else {
-        throw new ProcessEngineException("signal() can only be called on a " + SignallableActivityBehavior.class.getName() + " instance");
-      }
-
-    } else {
+    if(ProcessApplicationContextUtil.requiresContextSwitch(targetProcessApplication)) {
       Context.executeWithinProcessApplication(new Callable<Void>() {
-
         public Void call() throws Exception {
-          try {
-            signal(execution, signalName, signalData);
-          }
-          catch (BpmnError error) {
-            ErrorPropagation.propagateError(error, execution);
-          }
-          catch (Exception exception) {
-            ErrorPropagation.propagateException(exception, execution);
-          }
+          signal(execution, signalName, signalData);
           return null;
         }
-
       }, targetProcessApplication);
+    }
+    else {
+      doSignal(execution, signalName, signalData);
+    }
+  }
+
+  protected void doSignal(ActivityExecution execution, String signalName, Object signalData) throws Exception {
+    ActivityBehavior activityBehaviorInstance = getActivityBehaviorInstance(execution);
+
+    if (activityBehaviorInstance instanceof CustomActivityBehavior) {
+      CustomActivityBehavior behavior = (CustomActivityBehavior) activityBehaviorInstance;
+      ActivityBehavior delegate = behavior.getDelegateActivityBehavior();
+
+      if (!(delegate instanceof SignallableActivityBehavior)) {
+        throw new ProcessEngineException("signal() can only be called on a " + SignallableActivityBehavior.class.getName() + " instance");
+      }
+    }
+
+    try {
+      ((SignallableActivityBehavior) activityBehaviorInstance).signal(execution, signalName, signalData);
+    }
+    catch (BpmnError error) {
+      propagateBpmnError(error, execution);
+    }
+    catch (Exception exception) {
+      propagateExceptionAsError(exception, execution);
     }
   }
 
@@ -114,20 +110,12 @@ public class ClassDelegateActivityBehavior extends AbstractBpmnActivityBehavior 
     Object delegateInstance = instantiateDelegate(className, fieldDeclarations);
 
     if (delegateInstance instanceof ActivityBehavior) {
-      return determineBehaviour((ActivityBehavior) delegateInstance, execution);
+      return new CustomActivityBehavior((ActivityBehavior) delegateInstance);
     } else if (delegateInstance instanceof JavaDelegate) {
-      return determineBehaviour(new ServiceTaskJavaDelegateActivityBehavior((JavaDelegate) delegateInstance), execution);
+      return new ServiceTaskJavaDelegateActivityBehavior((JavaDelegate) delegateInstance);
     } else {
       throw new ProcessEngineException(delegateInstance.getClass().getName()+" doesn't implement "+JavaDelegate.class.getName()+" nor "+ActivityBehavior.class.getName());
     }
-  }
-
-  // Adds properties to the given delegation instance (eg multi instance) if needed
-  protected ActivityBehavior determineBehaviour(ActivityBehavior delegateInstance, ActivityExecution execution) {
-    if (hasMultiInstanceCharacteristics()) {
-      ((AbstractBpmnActivityBehavior) delegateInstance).setMultiInstanceActivityBehavior(multiInstanceActivityBehavior);
-    }
-    return delegateInstance;
   }
 
 }

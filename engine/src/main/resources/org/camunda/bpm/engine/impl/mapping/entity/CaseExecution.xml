@@ -16,8 +16,10 @@
       ACT_ID_,
       PARENT_ID_,
       SUPER_CASE_EXEC_,
+      SUPER_EXEC_,
       CURRENT_STATE_,
       PREV_STATE_,
+      REQUIRED_,
       REV_
     )
     values
@@ -29,8 +31,10 @@
       #{activityId, jdbcType=VARCHAR},
       #{parentId, jdbcType=VARCHAR},
       #{superCaseExecutionId, jdbcType=VARCHAR},
+      #{superExecutionId, jdbcType=VARCHAR},
       #{state, jdbcType=INTEGER},
       #{previous, jdbcType=INTEGER},
+      #{required, jdbcType=BOOLEAN},
       1
     )
   </insert>
@@ -41,7 +45,9 @@
     update ${prefix}ACT_RU_CASE_EXECUTION set
       REV_ = #{revisionNext, jdbcType=INTEGER},
       CURRENT_STATE_ = #{state, jdbcType=INTEGER},
-      PREV_STATE_ = #{previous, jdbcType=INTEGER}
+      PREV_STATE_ = #{previous, jdbcType=INTEGER},
+      SUPER_CASE_EXEC_ = #{superCaseExecutionId, jdbcType=VARCHAR},
+      SUPER_EXEC_ = #{superExecutionId, jdbcType=VARCHAR}
     where ID_ = #{id, jdbcType=VARCHAR}
       and REV_ = #{revision, jdbcType=INTEGER}
   </update>
@@ -63,8 +69,10 @@
     <result property="activityId" column="ACT_ID_" jdbcType="VARCHAR" />
     <result property="parentId" column="PARENT_ID_" jdbcType="VARCHAR" />
     <result property="superCaseExecutionId" column="SUPER_CASE_EXEC_" jdbcType="VARCHAR" />
+    <result property="superExecutionId" column="SUPER_EXEC_" jdbcType="VARCHAR" />
     <result property="state" column="CURRENT_STATE_" jdbcType="INTEGER" />
     <result property="previous" column="PREV_STATE_" jdbcType="INTEGER" />
+    <result property="required" column="REQUIRED_" jdbcType="BOOLEAN" />
   </resultMap>
 
   <!-- CASE EXECUTION SELECT -->
@@ -94,9 +102,17 @@
     where SUPER_CASE_EXEC_ = #{id}
   </select>
 
+  <select id="selectSubCaseInstanceBySuperExecutionId" parameterType="string" resultMap="caseExecutionResultMap">
+    select * from ${prefix}ACT_RU_CASE_EXECUTION
+    where SUPER_EXEC_ = #{id}
+  </select>
+
   <select id="selectCaseExecutionsByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseExecutionQueryImpl" resultMap="caseExecutionResultMap">
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    select RES.* ${limitBetween}, P.KEY_
+    select RES.* 
+    ${limitBetween}
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.orderBySelection"/>
     <include refid="selectCaseExecutionsByQueryCriteriaSql"/>
     ${orderBy}
     ${limitAfter}
@@ -109,8 +125,11 @@
 
   <!--  same as selectCaseExecutionByQueryCriteria, but with different parameterType -->
   <select id="selectCaseInstanceByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseInstanceQueryImpl" resultMap="caseExecutionResultMap">
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    select RES.* ${limitBetween}, P.KEY_
+    select RES.* 
+    ${limitBetween}
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.orderBySelection"/>
     <include refid="selectCaseExecutionsByQueryCriteriaSql"/>
     ${orderBy}
     ${limitAfter}
@@ -151,6 +170,22 @@
       </if>
       <if test="state != null">
         and RES.CURRENT_STATE_ = #{state.stateCode}
+      </if>
+      <if test="required">
+        and RES.REQUIRED_ = ${trueConstant}
+      </if>
+
+      <if test="superProcessInstanceId != null">
+        and RES.SUPER_EXEC_ IN (select ID_ from ${prefix}ACT_RU_EXECUTION where PROC_INST_ID_ = #{superProcessInstanceId})
+      </if>
+      <if test="subProcessInstanceId != null">
+        and RES.ID_ = (select CASE_INST_ID_ from ${prefix}ACT_RU_CASE_EXECUTION where ID_ = (select SUPER_CASE_EXEC_ from ${prefix}ACT_RU_EXECUTION where ID_ = #{subProcessInstanceId}))
+      </if>
+      <if test="superCaseInstanceId != null">
+        and RES.SUPER_CASE_EXEC_ IN (select ID_ from ${prefix}ACT_RU_CASE_EXECUTION where CASE_INST_ID_ = #{superCaseInstanceId})
+      </if>
+      <if test="subCaseInstanceId != null">
+        and RES.ID_ = (select CASE_INST_ID_ from ${prefix}ACT_RU_CASE_EXECUTION where ID_ = (select SUPER_CASE_EXEC_ from ${prefix}ACT_RU_CASE_EXECUTION where ID_ = #{subCaseInstanceId}))
       </if>
 
       <!-- queryVariables -->

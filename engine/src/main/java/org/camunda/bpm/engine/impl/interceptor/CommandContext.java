@@ -27,6 +27,7 @@ import org.camunda.bpm.application.ProcessApplicationReference;
 import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.IdentityService;
 import org.camunda.bpm.engine.OptimisticLockingException;
+import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.TaskAlreadyClaimedException;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cfg.TransactionContext;
@@ -58,6 +59,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.HistoricCaseActivityInstan
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricCaseInstanceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricDetailManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricIncidentManager;
+import org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricProcessInstanceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricStatisticsManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceManager;
@@ -67,6 +69,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.IdentityLinkManager;
 import org.camunda.bpm.engine.impl.persistence.entity.IncidentManager;
 import org.camunda.bpm.engine.impl.persistence.entity.JobDefinitionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.JobManager;
+import org.camunda.bpm.engine.impl.persistence.entity.MeterLogManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.PropertyManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ResourceManager;
@@ -85,6 +88,8 @@ import org.camunda.bpm.engine.impl.pvm.runtime.AtomicOperation;
 public class CommandContext {
 
   private static Logger log = Logger.getLogger(CommandContext.class.getName());
+
+  protected boolean authorizationCheckEnabled = true;
 
   protected TransactionContext transactionContext;
   protected Map<Class< ? >, SessionFactory> sessionFactories;
@@ -315,6 +320,10 @@ public class CommandContext {
     return getSession(TaskManager.class);
   }
 
+  public MeterLogManager getMeterLogManager() {
+    return getSession(MeterLogManager.class);
+  }
+
   public IdentityLinkManager getIdentityLinkManager() {
     return getSession(IdentityLinkManager.class);
   }
@@ -407,6 +416,10 @@ public class CommandContext {
     return getSession(HistoricStatisticsManager.class);
   }
 
+  public HistoricJobLogManager getHistoricJobLogManager() {
+    return getSession(HistoricJobLogManager.class);
+  }
+
   public AuthorizationManager getAuthorizationManager() {
     return getSession(AuthorizationManager.class);
   }
@@ -464,14 +477,20 @@ public class CommandContext {
     return identityService.getCurrentAuthentication();
   }
 
-  public void runWithoutAuthentication(Runnable runnable) {
-    IdentityService identityService = processEngineConfiguration.getIdentityService();
-    Authentication currentAuthentication = identityService.getCurrentAuthentication();
+  public <T> T runWithoutAuthorization(Callable<T> runnable) {
+    CommandContext commandContext = Context.getCommandContext();
+    boolean authorizationEnabled = commandContext.isAuthorizationCheckEnabled();
     try {
-      identityService.clearAuthentication();
-      runnable.run();
+      commandContext.disableAuthorizationCheck();
+      return runnable.call();
+    } catch (RuntimeException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new ProcessEngineException(e);
     } finally {
-      identityService.setAuthentication(currentAuthentication);
+      if (authorizationEnabled) {
+        commandContext.enableAuthorizationCheck();
+      }
     }
   }
 
@@ -493,5 +512,21 @@ public class CommandContext {
     } else {
       return currentAuthentication.getGroupIds();
     }
+  }
+
+  public void enableAuthorizationCheck() {
+    authorizationCheckEnabled = true;
+  }
+
+  public void disableAuthorizationCheck() {
+    authorizationCheckEnabled = false;
+  }
+
+  public boolean isAuthorizationCheckEnabled() {
+    return authorizationCheckEnabled;
+  }
+
+  public void setAuthorizationCheckEnabled(boolean authorizationCheckEnabled) {
+    this.authorizationCheckEnabled = authorizationCheckEnabled;
   }
 }

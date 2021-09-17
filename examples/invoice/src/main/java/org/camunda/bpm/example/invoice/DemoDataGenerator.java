@@ -5,8 +5,10 @@ import static org.camunda.bpm.engine.authorization.Authorization.AUTH_TYPE_GRANT
 import static org.camunda.bpm.engine.authorization.Permissions.ACCESS;
 import static org.camunda.bpm.engine.authorization.Permissions.ALL;
 import static org.camunda.bpm.engine.authorization.Permissions.READ;
+import static org.camunda.bpm.engine.authorization.Permissions.UPDATE;
 import static org.camunda.bpm.engine.authorization.Resources.APPLICATION;
 import static org.camunda.bpm.engine.authorization.Resources.FILTER;
+import static org.camunda.bpm.engine.authorization.Resources.TASK;
 import static org.camunda.bpm.engine.authorization.Resources.USER;
 
 import java.util.ArrayList;
@@ -199,6 +201,14 @@ public class DemoDataGenerator {
       accMaryAuth.addPermission(READ);
       authorizationService.saveAuthorization(accMaryAuth);
 
+      Authorization taskMaryAuth = authorizationService.createNewAuthorization(AUTH_TYPE_GRANT);
+      taskMaryAuth.setUserId("mary");
+      taskMaryAuth.setResource(TASK);
+      taskMaryAuth.setResourceId(ANY);
+      taskMaryAuth.addPermission(READ);
+      taskMaryAuth.addPermission(UPDATE);
+      authorizationService.saveAuthorization(taskMaryAuth);
+
       // create default filters
 
       FilterService filterService = engine.getFilterService();
@@ -238,7 +248,7 @@ public class DemoDataGenerator {
 
       filterProperties.clear();
       filterProperties.put("description", "Tasks for Group Accounting");
-      filterProperties.put("priority", -5);
+      filterProperties.put("priority", -3);
       addVariables(filterProperties);
       query = taskService.createTaskQuery().taskCandidateGroupIn(Arrays.asList("accounting")).taskUnassigned();
       Filter candidateGroupTasksFilter = filterService.newTaskFilter().setName("Accounting").setProperties(filterProperties).setOwner("demo").setQuery(query);
@@ -255,7 +265,7 @@ public class DemoDataGenerator {
 
       filterProperties.clear();
       filterProperties.put("description", "Tasks assigned to John");
-      filterProperties.put("priority", -5);
+      filterProperties.put("priority", -1);
       addVariables(filterProperties);
       query = taskService.createTaskQuery().taskAssignee("john");
       Filter johnsTasksFilter = filterService.newTaskFilter().setName("John's Tasks").setProperties(filterProperties).setOwner("demo").setQuery(query);
@@ -265,7 +275,7 @@ public class DemoDataGenerator {
 
       filterProperties.clear();
       filterProperties.put("description", "Tasks assigned to Mary");
-      filterProperties.put("priority", -5);
+      filterProperties.put("priority", -1);
       addVariables(filterProperties);
       query = taskService.createTaskQuery().taskAssignee("mary");
       Filter marysTasksFilter = filterService.newTaskFilter().setName("Mary's Tasks").setProperties(filterProperties).setOwner("demo").setQuery(query);
@@ -275,7 +285,7 @@ public class DemoDataGenerator {
 
       filterProperties.clear();
       filterProperties.put("description", "Tasks assigned to Peter");
-      filterProperties.put("priority", -5);
+      filterProperties.put("priority", -1);
       addVariables(filterProperties);
       query = taskService.createTaskQuery().taskAssignee("peter");
       Filter petersTasksFilter = filterService.newTaskFilter().setName("Peter's Tasks").setProperties(filterProperties).setOwner("demo").setQuery(query);
@@ -285,7 +295,7 @@ public class DemoDataGenerator {
 
       filterProperties.clear();
       filterProperties.put("description", "All Tasks - Not recommended to be used in production :)");
-      filterProperties.put("priority", -5);
+      filterProperties.put("priority", 10);
       addVariables(filterProperties);
       query = taskService.createTaskQuery();
       Filter allTasksFilter = filterService.newTaskFilter().setName("All Tasks").setProperties(filterProperties).setOwner("demo").setQuery(query);

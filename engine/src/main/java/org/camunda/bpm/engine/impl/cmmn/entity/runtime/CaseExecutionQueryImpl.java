@@ -18,6 +18,7 @@ import java.util.List;
 
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.impl.AbstractVariableQueryImpl;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.Page;
 import org.camunda.bpm.engine.impl.QueryOperator;
 import org.camunda.bpm.engine.impl.cmmn.execution.CaseExecutionState;
@@ -41,6 +42,13 @@ public class CaseExecutionQueryImpl extends AbstractVariableQueryImpl<CaseExecut
   protected String caseInstanceId;
   protected String businessKey;
   protected CaseExecutionState state;
+  protected Boolean required = false;
+
+  // Not used by end-users, but needed for dynamic ibatis query
+  protected String superProcessInstanceId;
+  protected String subProcessInstanceId;
+  protected String superCaseInstanceId;
+  protected String subCaseInstanceId;
 
   public CaseExecutionQueryImpl() {
   }
@@ -86,6 +94,11 @@ public class CaseExecutionQueryImpl extends AbstractVariableQueryImpl<CaseExecut
   public CaseExecutionQuery activityId(String activityId) {
     ensureNotNull(NotValidException.class, "activityId", activityId);
     this.activityId = activityId;
+    return this;
+  }
+
+  public CaseExecutionQuery required() {
+    this.required = true;
     return this;
   }
 
@@ -152,12 +165,13 @@ public class CaseExecutionQueryImpl extends AbstractVariableQueryImpl<CaseExecut
   }
 
   public CaseExecutionQuery orderByCaseDefinitionKey() {
-    orderBy(CaseExecutionQueryProperty.CASE_DEFINITION_ID);
+    orderBy(new QueryOrderingProperty(QueryOrderingProperty.RELATION_CASE_DEFINITION,
+        CaseExecutionQueryProperty.CASE_DEFINITION_KEY));
     return this;
   }
 
   public CaseExecutionQuery orderByCaseDefinitionId() {
-    orderBy(CaseExecutionQueryProperty.CASE_DEFINITION_KEY);
+    orderBy(CaseExecutionQueryProperty.CASE_DEFINITION_ID);
     return this;
   }
 
@@ -222,4 +236,23 @@ public class CaseExecutionQueryImpl extends AbstractVariableQueryImpl<CaseExecut
     return false;
   }
 
+  public String getSuperProcessInstanceId() {
+    return superProcessInstanceId;
+  }
+
+  public String getSubProcessInstanceId() {
+    return subProcessInstanceId;
+  }
+
+  public String getSuperCaseInstanceId() {
+    return superCaseInstanceId;
+  }
+
+  public String getSubCaseInstanceId() {
+    return subCaseInstanceId;
+  }
+
+  public Boolean isRequired() {
+    return required;
+  }
 }

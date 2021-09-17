@@ -343,10 +343,22 @@ public class IncidentTest extends PluggableProcessEngineTestCase {
     JobQuery jobQuery = managementService.createJobQuery();
     assertEquals(1, jobQuery.count());
 
-    executeAvailableJobs();
+    Job job = jobQuery.singleResult();
+    String jobId = job.getId();
+
+    while(0 != job.getRetries()) {
+      try {
+        managementService.executeJob(jobId);
+        fail();
+      } catch (Exception e) {
+        // expected
+      }
+      job = jobQuery.jobId(jobId).singleResult();
+
+    }
 
     // job exists
-    Job job = managementService.createJobQuery().singleResult();
+    job = jobQuery.singleResult();
     assertNotNull(job);
 
     assertEquals(0, job.getRetries());
@@ -386,7 +398,6 @@ public class IncidentTest extends PluggableProcessEngineTestCase {
     assertEquals(1, query.count());
     tmp = query.singleResult();
     assertEquals(incident.getId(), tmp.getId());
-
   }
 
   @Deployment
@@ -465,6 +476,22 @@ public class IncidentTest extends PluggableProcessEngineTestCase {
       // expected
     }
 
+  }
+
+  @Deployment
+  public void testActivityIdProperty() {
+    executeAvailableJobs();
+
+    Incident incident = runtimeService
+      .createIncidentQuery()
+      .singleResult();
+
+    assertNotNull(incident);
+
+    assertNotNull(incident.getActivityId());
+    assertEquals("theStart", incident.getActivityId());
+    assertNull(incident.getProcessInstanceId());
+    assertNull(incident.getExecutionId());
   }
 
 }

@@ -2,6 +2,7 @@ package org.camunda.bpm.engine.rest;
 
 import static com.jayway.restassured.RestAssured.given;
 import static com.jayway.restassured.path.json.JsonPath.from;
+import static org.camunda.bpm.engine.rest.util.QueryParamUtils.arrayAsCommaSeperatedList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
@@ -38,9 +39,11 @@ import org.camunda.bpm.engine.rest.helper.EqualsList;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.helper.ValueGenerator;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsPrimitiveValue;
+import org.camunda.bpm.engine.rest.util.OrderingBuilder;
 import org.camunda.bpm.engine.task.DelegationState;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
+import org.camunda.bpm.engine.variable.type.ValueType;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -352,13 +355,15 @@ public abstract class AbstractTaskRestServiceQueryTest extends AbstractRestServi
     Map<String, String> stringQueryParameters = getCompleteStringQueryParameters();
     Map<String, Integer> intQueryParameters = getCompleteIntQueryParameters();
 
-    String[] stringArrayQueryParameters = getCompleteStringArrayQueryParameters().get("activityInstanceIdIn");
-    String activityInstanceIds = stringArrayQueryParameters[0] + "," + stringArrayQueryParameters[1];
+    Map<String, String[]> arrayQueryParameters = getCompleteStringArrayQueryParameters();
 
     given()
       .queryParams(stringQueryParameters)
       .queryParams(intQueryParameters)
-      .queryParam("activityInstanceIdIn", activityInstanceIds)
+      .queryParam("activityInstanceIdIn", arrayAsCommaSeperatedList(arrayQueryParameters.get("activityInstanceIdIn")))
+      .queryParam("taskDefinitionKeyIn", arrayAsCommaSeperatedList(arrayQueryParameters.get("taskDefinitionKeyIn")))
+      .queryParam("processDefinitionKeyIn", arrayAsCommaSeperatedList(arrayQueryParameters.get("processDefinitionKeyIn")))
+      .queryParam("processInstanceBusinessKeyIn", arrayAsCommaSeperatedList(arrayQueryParameters.get("processInstanceBusinessKeyIn")))
       .header("accept", MediaType.APPLICATION_JSON)
       .expect().statusCode(Status.OK.getStatusCode())
       .when().get(TASK_QUERY_URL);
@@ -396,8 +401,14 @@ public abstract class AbstractTaskRestServiceQueryTest extends AbstractRestServi
     Map<String, String[]> parameters = new HashMap<String, String[]>();
 
     String[] activityInstanceIds = { "anActivityInstanceId", "anotherActivityInstanceId" };
+    String[] taskDefinitionKeys = { "aTaskDefinitionKey", "anotherTaskDefinitionKey" };
+    String[] processDefinitionKeys = { "aProcessDefinitionKey", "anotherProcessDefinitionKey" };
+    String[] processInstanceBusinessKeys = { "aBusinessKey", "anotherBusinessKey" };
 
     parameters.put("activityInstanceIdIn", activityInstanceIds);
+    parameters.put("taskDefinitionKeyIn", taskDefinitionKeys);
+    parameters.put("processDefinitionKeyIn", processDefinitionKeys);
+    parameters.put("processInstanceBusinessKeyIn", processInstanceBusinessKeys);
 
     return parameters;
   }
@@ -417,6 +428,7 @@ public abstract class AbstractTaskRestServiceQueryTest extends AbstractRestServi
     parameters.put("assigneeLike", "anAssigneeLike");
     parameters.put("candidateGroup", "aCandidateGroup");
     parameters.put("candidateUser", "aCandidate");
+    parameters.put("includeAssignedTasks", "false");
     parameters.put("taskDefinitionKey", "aTaskDefKey");
     parameters.put("taskDefinitionKeyLike", "aTaskDefKeyLike");
     parameters.put("description", "aDesc");
@@ -436,6 +448,7 @@ public abstract class AbstractTaskRestServiceQueryTest extends AbstractRestServi
     parameters.put("caseInstanceBusinessKey", "aCaseInstanceBusinessKey");
     parameters.put("caseInstanceBusinessKeyLike", "aCaseInstanceBusinessKeyLike");
     parameters.put("caseExecutionId", "aCaseExecutionId");
+    parameters.put("parentTaskId", "aParentTaskId");
 
     return parameters;
   }
@@ -471,13 +484,17 @@ public abstract class AbstractTaskRestServiceQueryTest extends AbstractRestServi
     verify(mockQuery).caseInstanceBusinessKey(stringQueryParameters.get("caseInstanceBusinessKey"));
     verify(mockQuery).caseInstanceBusinessKeyLike(stringQueryParameters.get("caseInstanceBusinessKeyLike"));
     verify(mockQuery).caseExecutionId(stringQueryParameters.get("caseExecutionId"));
+    verify(mockQuery).taskParentTaskId(stringQueryParameters.get("parentTaskId"));
 
   }
 
   private void verifyStringArrayParametersInvocations() {
-    Map<String, String[]> stringArrayParameter = getCompleteStringArrayQueryParameters();
+    Map<String, String[]> stringArrayParameters = getCompleteStringArrayQueryParameters();
 
-    verify(mockQuery).activityInstanceIdIn(stringArrayParameter.get("activityInstanceIdIn"));
+    verify(mockQuery).activityInstanceIdIn(stringArrayParameters.get("activityInstanceIdIn"));
+    verify(mockQuery).taskDefinitionKeyIn(stringArrayParameters.get("taskDefinitionKeyIn"));
+    verify(mockQuery).processDefinitionKeyIn(stringArrayParameters.get("processDefinitionKeyIn"));
+    verify(mockQuery).processInstanceBusinessKeyIn(stringArrayParameters.get("processInstanceBusinessKeyIn"));
   }
 
   @Test
@@ -501,18 +518,63 @@ public abstract class AbstractTaskRestServiceQueryTest extends AbstractRestServi
     verify(mockQuery).taskCreatedOn(any(Date.class));
   }
 
+  @Test
+  public void testDateParametersPost() {
+    Map<String, String> json = getDateParameters();
+
+    given()
+      .contentType(POST_JSON_CONTENT_TYPE)
+      .body(json)
+      .header("accept", MediaType.APPLICATION_JSON)
+    .expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .post(TASK_QUERY_URL);
+
+    verify(mockQuery).dueAfter(any(Date.class));
+    verify(mockQuery).dueBefore(any(Date.class));
+    verify(mockQuery).dueDate(any(Date.class));
+    verify(mockQuery).followUpAfter(any(Date.class));
+    verify(mockQuery).followUpBefore(any(Date.class));
+    verify(mockQuery).followUpBeforeOrNotExistent(any(Date.class));
+    verify(mockQuery).followUpDate(any(Date.class));
+    verify(mockQuery).taskCreatedAfter(any(Date.class));
+    verify(mockQuery).taskCreatedBefore(any(Date.class));
+    verify(mockQuery).taskCreatedOn(any(Date.class));
+  }
+
+  @Test
+  public void testDeprecatedDateParameters() {
+    Map<String, String> queryParameters = new HashMap<String, String>();
+    queryParameters.put("due", "2013-01-23T14:42:44");
+    queryParameters.put("created", "2013-01-23T14:42:47");
+    queryParameters.put("followUp", "2013-01-23T14:42:50");
+
+    given()
+      .queryParams(queryParameters)
+      .header("accept", MediaType.APPLICATION_JSON)
+    .expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(TASK_QUERY_URL);
+
+    verify(mockQuery).dueDate(any(Date.class));
+    verify(mockQuery).taskCreatedOn(any(Date.class));
+    verify(mockQuery).followUpDate(any(Date.class));
+  }
+
   private Map<String, String> getDateParameters() {
     Map<String, String> parameters = new HashMap<String, String>();
     parameters.put("dueAfter", "2013-01-23T14:42:42");
     parameters.put("dueBefore", "2013-01-23T14:42:43");
-    parameters.put("due", "2013-01-23T14:42:44");
+    parameters.put("dueDate", "2013-01-23T14:42:44");
     parameters.put("createdAfter", "2013-01-23T14:42:45");
     parameters.put("createdBefore", "2013-01-23T14:42:46");
-    parameters.put("created", "2013-01-23T14:42:47");
+    parameters.put("createdOn", "2013-01-23T14:42:47");
     parameters.put("followUpAfter", "2013-01-23T14:42:48");
     parameters.put("followUpBefore", "2013-01-23T14:42:49");
     parameters.put("followUpBeforeOrNotExistent", "2013-01-23T14:42:49");
-    parameters.put("followUp", "2013-01-23T14:42:50");
+    parameters.put("followUpDate", "2013-01-23T14:42:50");
     return parameters;
   }
 
@@ -682,11 +744,69 @@ public abstract class AbstractTaskRestServiceQueryTest extends AbstractRestServi
 
   }
 
-  private void executeAndVerifySorting(String sortBy, String sortOrder, Status expectedStatus) {
+  protected void executeAndVerifySorting(String sortBy, String sortOrder, Status expectedStatus) {
     given().queryParam("sortBy", sortBy).queryParam("sortOrder", sortOrder)
       .header("accept", MediaType.APPLICATION_JSON)
       .then().expect().statusCode(expectedStatus.getStatusCode())
       .when().get(TASK_QUERY_URL);
+  }
+
+  protected void executeAndVerifySortingAsPost(List<Map<String, Object>> sortingJson, Status expectedStatus) {
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("sorting", sortingJson);
+
+    given().contentType(POST_JSON_CONTENT_TYPE).body(json)
+      .header("accept", MediaType.APPLICATION_JSON)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().post(TASK_QUERY_URL);
+  }
+
+  @Test
+  public void testSecondarySortingAsPost() {
+    InOrder inOrder = Mockito.inOrder(mockQuery);
+    executeAndVerifySortingAsPost(
+      OrderingBuilder.create()
+        .orderBy("dueDate").desc()
+        .orderBy("caseExecutionId").asc()
+        .getJson(),
+      Status.OK);
+
+    inOrder.verify(mockQuery).orderByDueDate();
+    inOrder.verify(mockQuery).desc();
+    inOrder.verify(mockQuery).orderByCaseExecutionId();
+    inOrder.verify(mockQuery).asc();
+
+    inOrder = Mockito.inOrder(mockQuery);
+    executeAndVerifySortingAsPost(
+      OrderingBuilder.create()
+        .orderBy("processVariable").desc()
+          .parameter("variable", "var")
+          .parameter("type", "String")
+        .orderBy("executionVariable").asc()
+          .parameter("variable", "var2")
+          .parameter("type", "Integer")
+        .orderBy("taskVariable").desc()
+          .parameter("variable", "var3")
+          .parameter("type", "Double")
+        .orderBy("caseInstanceVariable").asc()
+          .parameter("variable", "var4")
+          .parameter("type", "Long")
+        .orderBy("caseExecutionVariable").desc()
+          .parameter("variable", "var5")
+          .parameter("type", "Date")
+        .getJson(),
+      Status.OK);
+
+    inOrder.verify(mockQuery).orderByProcessVariable("var", ValueType.STRING);
+    inOrder.verify(mockQuery).desc();
+    inOrder.verify(mockQuery).orderByExecutionVariable("var2", ValueType.INTEGER);
+    inOrder.verify(mockQuery).asc();
+    inOrder.verify(mockQuery).orderByTaskVariable("var3", ValueType.DOUBLE);
+    inOrder.verify(mockQuery).desc();
+    inOrder.verify(mockQuery).orderByCaseInstanceVariable("var4", ValueType.LONG);
+    inOrder.verify(mockQuery).asc();
+    inOrder.verify(mockQuery).orderByCaseExecutionVariable("var5", ValueType.DATE);
+    inOrder.verify(mockQuery).desc();
   }
 
   @Test
@@ -1202,6 +1322,8 @@ public abstract class AbstractTaskRestServiceQueryTest extends AbstractRestServi
 
     queryParameters.put("candidateGroups", candidateGroups);
 
+    queryParameters.put("includeAssignedTasks", true);
+
     given().contentType(POST_JSON_CONTENT_TYPE).body(queryParameters)
       .header("accept", MediaType.APPLICATION_JSON)
       .expect().statusCode(Status.OK.getStatusCode())
@@ -1214,6 +1336,7 @@ public abstract class AbstractTaskRestServiceQueryTest extends AbstractRestServi
     verify(mockQuery).taskUnassigned();
     verify(mockQuery).active();
     verify(mockQuery).suspended();
+    verify(mockQuery).includeAssignedTasks();
 
     verify(mockQuery).taskCandidateGroupIn(argThat(new EqualsList(candidateGroups)));
   }

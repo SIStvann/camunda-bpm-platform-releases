@@ -14,6 +14,7 @@ package org.camunda.bpm.engine.rest.dto.history;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.ws.rs.core.MultivaluedMap;
 
@@ -22,7 +23,8 @@ import org.camunda.bpm.engine.history.HistoricDetailQuery;
 import org.camunda.bpm.engine.rest.dto.AbstractQueryDto;
 import org.camunda.bpm.engine.rest.dto.CamundaQueryParam;
 import org.camunda.bpm.engine.rest.dto.converter.BooleanConverter;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * @author Roman Smirnov
@@ -36,6 +38,7 @@ public class HistoricDetailQueryDto extends AbstractQueryDto<HistoricDetailQuery
   private static final String SORT_BY_VARIABLE_REVISION = "variableRevision";
   private static final String SORT_BY_FORM_PROPERTY_ID = "formPropertyId";
   private static final String SORT_BY_TIME = "time";
+  private static final String SORT_PARTIALLY_BY_OCCURENCE = "occurrence";
 
   private static final List<String> VALID_SORT_BY_VALUES;
   static {
@@ -46,6 +49,7 @@ public class HistoricDetailQueryDto extends AbstractQueryDto<HistoricDetailQuery
     VALID_SORT_BY_VALUES.add(SORT_BY_VARIABLE_REVISION);
     VALID_SORT_BY_VALUES.add(SORT_BY_FORM_PROPERTY_ID);
     VALID_SORT_BY_VALUES.add(SORT_BY_TIME);
+    VALID_SORT_BY_VALUES.add(SORT_PARTIALLY_BY_OCCURENCE);
   }
 
   protected String processInstanceId;
@@ -161,29 +165,21 @@ public class HistoricDetailQueryDto extends AbstractQueryDto<HistoricDetailQuery
   }
 
   @Override
-  protected void applySortingOptions(HistoricDetailQuery query) {
-    if (sortBy != null) {
-      if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_ID)) {
-        query.orderByProcessInstanceId();
-      } else if (sortBy.equals(SORT_BY_VARIABLE_NAME)) {
-        query.orderByVariableName();
-      } else if (sortBy.equals(SORT_BY_VARIABLE_TYPE)) {
-        query.orderByVariableType();
-      } else if (sortBy.equals(SORT_BY_VARIABLE_REVISION)) {
-        query.orderByVariableRevision();
-      } else if (sortBy.equals(SORT_BY_FORM_PROPERTY_ID)) {
-        query.orderByFormPropertyId();
-      } else if (sortBy.equals(SORT_BY_TIME)) {
-        query.orderByTime();
-      }
-    }
-
-    if (sortOrder != null) {
-      if (sortOrder.equals(SORT_ORDER_ASC_VALUE)) {
-        query.asc();
-      } else if (sortOrder.equals(SORT_ORDER_DESC_VALUE)) {
-        query.desc();
-      }
+  protected void applySortBy(HistoricDetailQuery query, String sortBy, Map<String, Object> parameters, ProcessEngine engine) {
+    if (sortBy.equals(SORT_BY_PROCESS_INSTANCE_ID)) {
+      query.orderByProcessInstanceId();
+    } else if (sortBy.equals(SORT_BY_VARIABLE_NAME)) {
+      query.orderByVariableName();
+    } else if (sortBy.equals(SORT_BY_VARIABLE_TYPE)) {
+      query.orderByVariableType();
+    } else if (sortBy.equals(SORT_BY_VARIABLE_REVISION)) {
+      query.orderByVariableRevision();
+    } else if (sortBy.equals(SORT_BY_FORM_PROPERTY_ID)) {
+      query.orderByFormPropertyId();
+    } else if (sortBy.equals(SORT_BY_TIME)) {
+      query.orderByTime();
+    } else if (sortBy.equals(SORT_PARTIALLY_BY_OCCURENCE)) {
+      query.orderPartiallyByOccurrence();
     }
   }
 

@@ -12,21 +12,18 @@
  */
 package org.camunda.bpm.engine.test.cmmn.listener;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.delegate.CaseVariableListener;
 import org.camunda.bpm.engine.delegate.DelegateCaseVariableInstance;
 import org.camunda.bpm.engine.delegate.VariableListener;
 import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricVariableUpdate;
-import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.CaseExecutionContext;
 import org.camunda.bpm.engine.impl.history.HistoryLevel;
-import org.camunda.bpm.engine.impl.test.AbstractProcessEngineTestCase;
+import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.repository.CaseDefinition;
 import org.camunda.bpm.engine.runtime.CaseExecution;
 import org.camunda.bpm.engine.runtime.CaseInstance;
@@ -36,25 +33,15 @@ import org.camunda.bpm.engine.test.Deployment;
  * @author Thorben Lindhauer
  *
  */
-public class VariableListenerTest extends AbstractProcessEngineTestCase {
+public class VariableListenerTest extends PluggableProcessEngineTestCase {
 
-  protected Map<Object, Object> beans = new HashMap<Object, Object>();
+  protected Map<Object, Object> beans = null;
 
   protected void setUp() throws Exception {
     super.setUp();
 
     LogVariableListener.reset();
-  }
-
-  protected void initializeProcessEngine() {
-    if (processEngine == null) {
-      ProcessEngineConfigurationImpl engineConfig =
-          (ProcessEngineConfigurationImpl) ProcessEngineConfiguration.createProcessEngineConfigurationFromResource("camunda.cfg.xml");
-
-      engineConfig.setBeans(beans);
-
-      processEngine = engineConfig.buildProcessEngine();
-    }
+    beans = processEngineConfiguration.getBeans();
   }
 
   @Deployment
@@ -98,8 +85,8 @@ public class VariableListenerTest extends AbstractProcessEngineTestCase {
       .event(VariableListener.UPDATE)
       .name("aTaskVariable")
       .value("aNewTaskValue")
+      .activityInstanceId(taskExecution.getId())
       .matches(LogVariableListener.getInvocations().get(0));
-
     LogVariableListener.reset();
 
     // when i remove the variable from the human task
@@ -112,6 +99,7 @@ public class VariableListenerTest extends AbstractProcessEngineTestCase {
       .event(VariableListener.DELETE)
       .name("aTaskVariable")
       .value(null)
+      .activityInstanceId(taskExecution.getId())
       .matches(LogVariableListener.getInvocations().get(0));
 
     LogVariableListener.reset();
@@ -182,6 +170,7 @@ public class VariableListenerTest extends AbstractProcessEngineTestCase {
       .event(VariableListener.UPDATE)
       .name("aTaskVariable")
       .value("aNewTaskValue")
+      .activityInstanceId(taskExecution.getId())
       .matches(LogVariableListener.getInvocations().get(0));
 
     LogVariableListener.reset();
@@ -223,6 +212,7 @@ public class VariableListenerTest extends AbstractProcessEngineTestCase {
       .event(VariableListener.UPDATE)
       .name("aTaskVariable")
       .value("aTaskValue")
+      .activityInstanceId(caseInstance.getId())
       .matches(LogVariableListener.getInvocations().get(0));
 
     LogVariableListener.reset();
@@ -261,6 +251,7 @@ public class VariableListenerTest extends AbstractProcessEngineTestCase {
       .event(VariableListener.DELETE)
       .name("aTaskVariable")
       .value(null)
+      .activityInstanceId(taskExecution.getId())
       .matches(LogVariableListener.getInvocations().get(0));
 
     LogVariableListener.reset();
@@ -729,11 +720,43 @@ public class VariableListenerTest extends AbstractProcessEngineTestCase {
     assertTrue(processEngineConfiguration.isInvokeCustomVariableListeners());
   }
 
+  @Deployment(resources={
+      "org/camunda/bpm/engine/test/cmmn/listener/VariableListenerTest.testVariableListenerWithProcessTask.cmmn",
+      "org/camunda/bpm/engine/test/cmmn/listener/VariableListenerTest.testVariableListenerWithProcessTask.bpmn20.xml"
+      })
+  public void testVariableListenerWithProcessTask() {
+    CaseInstance caseInstance = caseService.createCaseInstanceByKey("case");
+
+    CaseExecution processTask = caseService
+        .createCaseExecutionQuery()
+        .activityId("PI_ProcessTask_1")
+        .singleResult();
+
+    String processTaskId = processTask.getId();
+
+    caseService
+      .withCaseExecution(processTaskId)
+      .manualStart();
+
+    // then the listener is invoked
+    assertEquals(1, LogVariableListener.getInvocations().size());
+
+    DelegateVariableInstanceSpec
+      .fromCaseExecution(caseInstance)
+      .sourceExecution(processTask)
+      .event(VariableListener.CREATE)
+      .name("aVariable")
+      .value("aValue")
+      .matches(LogVariableListener.getInvocations().get(0));
+
+    LogVariableListener.reset();
+  }
+
 
   protected void tearDown() throws Exception {
-    super.tearDown();
-
     beans.clear();
+
+    super.tearDown();
   }
 
 }

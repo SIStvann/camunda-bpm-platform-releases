@@ -85,7 +85,7 @@ public class HistoryParseListener implements BpmnParseListener {
 
   public void parseProcess(Element processElement, ProcessDefinitionEntity processDefinition) {
     if (historyLevel.isHistoryEventProduced(HistoryEventTypes.PROCESS_INSTANCE_END, null)) {
-      processDefinition.addExecutionListener(PvmEvent.EVENTNAME_END, PROCESS_INSTANCE_END_LISTENER);
+      processDefinition.addBuiltInListener(PvmEvent.EVENTNAME_END, PROCESS_INSTANCE_END_LISTENER);
     }
   }
 
@@ -185,8 +185,7 @@ public class HistoryParseListener implements BpmnParseListener {
 
   public void parseMultiInstanceLoopCharacteristics(Element activityElement,
           Element multiInstanceLoopCharacteristicsElement, ActivityImpl activity) {
-    // Remove any history parse listeners already attached: the Multi instance behavior will
-    // call them for every instance that will be created
+    addActivityHandlers(activity);
   }
 
   public void parseIntermediateSignalCatchEventDefinition(Element signalEventDefinition, ActivityImpl signalActivity) {

@@ -8,7 +8,7 @@ create table ACT_RE_CASE_DEF (
     VERSION_ integer not null,
     DEPLOYMENT_ID_ varchar(64),
     RESOURCE_NAME_ varchar(4000),
-    DGRM_RESOURCE_NAME_ varchar(4000),    
+    DGRM_RESOURCE_NAME_ varchar(4000),
     primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
 
@@ -18,12 +18,14 @@ create table ACT_RU_CASE_EXECUTION (
     REV_ integer,
     CASE_INST_ID_ varchar(64),
     SUPER_CASE_EXEC_ varchar(64),
+    SUPER_EXEC_ varchar(64),
     BUSINESS_KEY_ varchar(255),
     PARENT_ID_ varchar(64),
     CASE_DEF_ID_ varchar(64),
     ACT_ID_ varchar(255),
     PREV_STATE_ integer,
     CURRENT_STATE_ integer,
+    REQUIRED_ boolean,
     primary key (ID_)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE utf8_bin;
 

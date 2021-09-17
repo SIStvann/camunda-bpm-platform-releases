@@ -12,7 +12,13 @@
  */
 package org.camunda.bpm.engine.test.api.runtime;
 
+import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.caseExecutionByDefinitionId;
+import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.caseExecutionByDefinitionKey;
+import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.caseExecutionById;
+import static org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.inverted;
+
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 
@@ -23,6 +29,7 @@ import org.camunda.bpm.engine.runtime.CaseExecution;
 import org.camunda.bpm.engine.runtime.CaseExecutionQuery;
 import org.camunda.bpm.engine.runtime.CaseInstance;
 import org.camunda.bpm.engine.test.Deployment;
+import org.camunda.bpm.engine.test.api.runtime.TestOrderingUtil.NullTolerantComparator;
 import org.camunda.bpm.engine.variable.Variables;
 
 /**
@@ -75,6 +82,11 @@ public class CaseExecutionQueryTest extends PluggableProcessEngineTestCase {
     } else if (countExpected == 0) {
       assertNull(query.singleResult());
     }
+  }
+
+  protected void verifyQueryWithOrdering(CaseExecutionQuery query, int countExpected, NullTolerantComparator<CaseExecution> expectedOrdering) {
+    verifyQueryResults(query, countExpected);
+    TestOrderingUtil.verifySorting(query.list(), expectedOrdering);
   }
 
   private void verifySingleResultFails(CaseExecutionQuery query) {
@@ -2403,7 +2415,7 @@ public class CaseExecutionQueryTest extends PluggableProcessEngineTestCase {
     assertEquals(1, caseService.createCaseExecutionQuery().variableValueEquals("var", Variables.numberValue(null)).count());
 
     // other operators
-    assertEquals(3, caseService.createCaseExecutionQuery().variableValueNotEquals("var", Variables.numberValue(123)).count());
+    assertEquals(4, caseService.createCaseExecutionQuery().variableValueNotEquals("var", Variables.numberValue(123)).count());
     assertEquals(1, caseService.createCaseExecutionQuery().variableValueGreaterThan("var", Variables.numberValue(123L)).count());
     assertEquals(5, caseService.createCaseExecutionQuery().variableValueGreaterThanOrEqual("var", Variables.numberValue(123.0d)).count());
     assertEquals(0, caseService.createCaseExecutionQuery().variableValueLessThan("var", Variables.numberValue((short) 123)).count());
@@ -2418,7 +2430,7 @@ public class CaseExecutionQueryTest extends PluggableProcessEngineTestCase {
     assertEquals(2, caseService.createCaseExecutionQuery().caseInstanceVariableValueEquals("var", Variables.numberValue(null)).count());
 
     // other operators
-    assertEquals(6, caseService.createCaseExecutionQuery().caseInstanceVariableValueNotEquals("var", Variables.numberValue(123)).count());
+    assertEquals(8, caseService.createCaseExecutionQuery().caseInstanceVariableValueNotEquals("var", Variables.numberValue(123)).count());
     assertEquals(2, caseService.createCaseExecutionQuery().caseInstanceVariableValueGreaterThan("var", Variables.numberValue(123L)).count());
     assertEquals(10, caseService.createCaseExecutionQuery().caseInstanceVariableValueGreaterThanOrEqual("var", Variables.numberValue(123.0d)).count());
     assertEquals(0, caseService.createCaseExecutionQuery().caseInstanceVariableValueLessThan("var", Variables.numberValue((short) 123)).count());
@@ -2434,21 +2446,22 @@ public class CaseExecutionQueryTest extends PluggableProcessEngineTestCase {
     query
       .orderByCaseDefinitionId()
       .asc();
-    verifyQueryResults(query, 11);
+    verifyQueryWithOrdering(query, 11, caseExecutionByDefinitionId());
 
     query = caseService.createCaseExecutionQuery();
 
     query
       .orderByCaseDefinitionKey()
       .asc();
-    verifyQueryResults(query, 11);
+    verifyQueryWithOrdering(query, 11, caseExecutionByDefinitionKey(processEngine));
 
     query = caseService.createCaseExecutionQuery();
 
     query
       .orderByCaseExecutionId()
       .asc();
-    verifyQueryResults(query, 11);
+    verifyQueryWithOrdering(query, 11, caseExecutionById());
+
 
     // desc
 
@@ -2457,21 +2470,21 @@ public class CaseExecutionQueryTest extends PluggableProcessEngineTestCase {
     query
       .orderByCaseDefinitionId()
       .desc();
-    verifyQueryResults(query, 11);
+    verifyQueryWithOrdering(query, 11, inverted(caseExecutionByDefinitionId()));
 
     query = caseService.createCaseExecutionQuery();
 
     query
       .orderByCaseDefinitionKey()
       .desc();
-    verifyQueryResults(query, 11);
+    verifyQueryWithOrdering(query, 11, inverted(caseExecutionByDefinitionKey(processEngine)));
 
     query = caseService.createCaseExecutionQuery();
 
     query
       .orderByCaseExecutionId()
       .desc();
-    verifyQueryResults(query, 11);
+    verifyQueryWithOrdering(query, 11, inverted(caseExecutionById()));
 
     query = caseService.createCaseExecutionQuery();
 
@@ -2506,5 +2519,20 @@ public class CaseExecutionQueryTest extends PluggableProcessEngineTestCase {
     assertEquals("humanTask", task.getActivityType());
     assertNotNull(task.getActivityDescription());
     assertNotNull(task.getId());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/cmmn/required/RequiredRuleTest.testVariableBasedRule.cmmn")
+  public void testQueryByRequired() {
+    caseService.createCaseInstanceByKey("case", Collections.<String, Object>singletonMap("required", true));
+
+    CaseExecutionQuery query = caseService
+        .createCaseExecutionQuery()
+        .required();
+
+    verifyQueryResults(query, 1);
+
+    CaseExecution execution = query.singleResult();
+    assertNotNull(execution);
+    assertTrue(execution.isRequired());
   }
 }

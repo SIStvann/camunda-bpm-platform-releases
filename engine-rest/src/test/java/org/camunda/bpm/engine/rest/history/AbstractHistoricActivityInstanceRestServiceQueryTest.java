@@ -1,31 +1,39 @@
 package org.camunda.bpm.engine.rest.history;
 
-import com.jayway.restassured.http.ContentType;
-import com.jayway.restassured.response.Response;
+import static com.jayway.restassured.RestAssured.expect;
+import static com.jayway.restassured.RestAssured.given;
+import static com.jayway.restassured.path.json.JsonPath.from;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response.Status;
+import javax.xml.registry.InvalidRequestException;
+
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
 import org.camunda.bpm.engine.history.HistoricActivityInstanceQuery;
 import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
 import org.camunda.bpm.engine.rest.AbstractRestServiceTest;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
+import org.camunda.bpm.engine.rest.util.OrderingBuilder;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.InOrder;
 import org.mockito.Mockito;
 
-import javax.ws.rs.core.Response.Status;
-import javax.xml.registry.InvalidRequestException;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static com.jayway.restassured.RestAssured.expect;
-import static com.jayway.restassured.RestAssured.given;
-import static com.jayway.restassured.path.json.JsonPath.from;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.*;
+import com.jayway.restassured.http.ContentType;
+import com.jayway.restassured.response.Response;
 
 public abstract class AbstractHistoricActivityInstanceRestServiceQueryTest extends AbstractRestServiceTest {
 
@@ -233,6 +241,35 @@ public abstract class AbstractHistoricActivityInstanceRestServiceQueryTest exten
     executeAndVerifySorting("definitionId", "desc", Status.OK);
     inOrder.verify(mockedQuery).orderByProcessDefinitionId();
     inOrder.verify(mockedQuery).desc();
+
+    inOrder = Mockito.inOrder(mockedQuery);
+    executeAndVerifySorting("occurrence", "asc", Status.OK);
+    inOrder.verify(mockedQuery).orderPartiallyByOccurrence();
+    inOrder.verify(mockedQuery).asc();
+
+    inOrder = Mockito.inOrder(mockedQuery);
+    executeAndVerifySorting("occurrence", "desc", Status.OK);
+    inOrder.verify(mockedQuery).orderPartiallyByOccurrence();
+    inOrder.verify(mockedQuery).desc();
+  }
+
+  @Test
+  public void testSecondarySortingAsPost() {
+    InOrder inOrder = Mockito.inOrder(mockedQuery);
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("sorting", OrderingBuilder.create()
+      .orderBy("definitionId").desc()
+      .orderBy("instanceId").asc()
+      .getJson());
+    given().contentType(POST_JSON_CONTENT_TYPE).body(json)
+      .header("accept", MediaType.APPLICATION_JSON)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().post(HISTORIC_ACTIVITY_INSTANCE_RESOURCE_URL);
+
+    inOrder.verify(mockedQuery).orderByProcessDefinitionId();
+    inOrder.verify(mockedQuery).desc();
+    inOrder.verify(mockedQuery).orderByProcessInstanceId();
+    inOrder.verify(mockedQuery).asc();
   }
 
   @Test
@@ -333,11 +370,13 @@ public abstract class AbstractHistoricActivityInstanceRestServiceQueryTest exten
     String returnedActivityId = from(content).getString("[0].activityId");
     String returnedActivityName = from(content).getString("[0].activityName");
     String returnedActivityType = from(content).getString("[0].activityType");
+    String returnedProcessDefinitionKey = from(content).getString("[0].processDefinitionKey");
     String returnedProcessDefinitionId = from(content).getString("[0].processDefinitionId");
     String returnedProcessInstanceId = from(content).getString("[0].processInstanceId");
     String returnedExecutionId = from(content).getString("[0].executionId");
     String returnedTaskId = from(content).getString("[0].taskId");
     String returnedCalledProcessInstanceId = from(content).getString("[0].calledProcessInstanceId");
+    String returnedCalledCaseInstanceId = from(content).getString("[0].calledCaseInstanceId");
     String returnedAssignee = from(content).getString("[0].assignee");
     Date returnedStartTime = DateTimeUtil.parseDate(from(content).getString("[0].startTime"));
     Date returnedEndTime = DateTimeUtil.parseDate(from(content).getString("[0].endTime"));
@@ -350,11 +389,13 @@ public abstract class AbstractHistoricActivityInstanceRestServiceQueryTest exten
     Assert.assertEquals(MockProvider.EXAMPLE_ACTIVITY_ID, returnedActivityId);
     Assert.assertEquals(MockProvider.EXAMPLE_ACTIVITY_NAME, returnedActivityName);
     Assert.assertEquals(MockProvider.EXAMPLE_ACTIVITY_TYPE, returnedActivityType);
+    Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY, returnedProcessDefinitionKey);
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, returnedProcessDefinitionId);
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, returnedProcessInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_EXECUTION_ID, returnedExecutionId);
     Assert.assertEquals(MockProvider.EXAMPLE_TASK_ID, returnedTaskId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_ACTIVITY_INSTANCE_CALLED_PROCESS_INSTANCE_ID, returnedCalledProcessInstanceId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_ACTIVITY_INSTANCE_CALLED_CASE_INSTANCE_ID, returnedCalledCaseInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_TASK_ASSIGNEE_NAME, returnedAssignee);
     Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_ACTIVITY_INSTANCE_START_TIME), returnedStartTime);
     Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_ACTIVITY_INSTANCE_END_TIME), returnedEndTime);

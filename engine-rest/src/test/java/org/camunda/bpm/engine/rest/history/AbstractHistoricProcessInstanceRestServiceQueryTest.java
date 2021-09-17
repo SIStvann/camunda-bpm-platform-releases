@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 import javax.xml.registry.InvalidRequestException;
 
@@ -30,6 +31,7 @@ import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
 import org.camunda.bpm.engine.rest.AbstractRestServiceTest;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsPrimitiveValue;
+import org.camunda.bpm.engine.rest.util.OrderingBuilder;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -242,6 +244,25 @@ public abstract class AbstractHistoricProcessInstanceRestServiceQueryTest extend
   }
 
   @Test
+  public void testSecondarySortingAsPost() {
+    InOrder inOrder = Mockito.inOrder(mockedQuery);
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("sorting", OrderingBuilder.create()
+      .orderBy("instanceId").desc()
+      .orderBy("startTime").asc()
+      .getJson());
+    given().contentType(POST_JSON_CONTENT_TYPE).body(json)
+      .header("accept", MediaType.APPLICATION_JSON)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().post(HISTORIC_PROCESS_INSTANCE_RESOURCE_URL);
+
+    inOrder.verify(mockedQuery).orderByProcessInstanceId();
+    inOrder.verify(mockedQuery).desc();
+    inOrder.verify(mockedQuery).orderByProcessInstanceStartTime();
+    inOrder.verify(mockedQuery).asc();
+  }
+
+  @Test
   public void testSuccessfulPagination() {
     int firstResult = 0;
     int maxResults = 10;
@@ -337,6 +358,7 @@ public abstract class AbstractHistoricProcessInstanceRestServiceQueryTest extend
     String returnedProcessInstanceId = from(content).getString("[0].id");
     String returnedProcessInstanceBusinessKey = from(content).getString("[0].businessKey");
     String returnedProcessDefinitionId = from(content).getString("[0].processDefinitionId");
+    String returnedProcessDefinitionKey = from(content).getString("[0].processDefinitionKey");
     String returnedStartTime = from(content).getString("[0].startTime");
     String returnedEndTime = from(content).getString("[0].endTime");
     long returnedDurationInMillis = from(content).getLong("[0].durationInMillis");
@@ -344,11 +366,13 @@ public abstract class AbstractHistoricProcessInstanceRestServiceQueryTest extend
     String returnedStartActivityId = from(content).getString("[0].startActivityId");
     String returnedDeleteReason = from(content).getString("[0].deleteReason");
     String returnedSuperProcessInstanceId = from(content).getString("[0].superProcessInstanceId");
+    String returnedSuperCaseInstanceId = from(content).getString("[0].superCaseInstanceId");
     String returnedCaseInstanceId = from(content).getString("[0].caseInstanceId");
 
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID, returnedProcessInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_INSTANCE_BUSINESS_KEY, returnedProcessInstanceBusinessKey);
     Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID, returnedProcessDefinitionId);
+    Assert.assertEquals(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY, returnedProcessDefinitionKey);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_START_TIME.toString(), returnedStartTime);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_END_TIME.toString(), returnedEndTime);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_DURATION_MILLIS, returnedDurationInMillis);
@@ -356,6 +380,7 @@ public abstract class AbstractHistoricProcessInstanceRestServiceQueryTest extend
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_START_ACTIVITY_ID, returnedStartActivityId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_DELETE_REASON, returnedDeleteReason);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_SUPER_PROCESS_INSTANCE_ID, returnedSuperProcessInstanceId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_SUPER_CASE_INSTANCE_ID, returnedSuperCaseInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_CASE_INSTANCE_ID, returnedCaseInstanceId);
   }
 
@@ -403,6 +428,8 @@ public abstract class AbstractHistoricProcessInstanceRestServiceQueryTest extend
     parameters.put("startedBy", "startedBySomeone");
     parameters.put("superProcessInstanceId", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_SUPER_PROCESS_INSTANCE_ID);
     parameters.put("subProcessInstanceId", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_SUB_PROCESS_INSTANCE_ID);
+    parameters.put("superCaseInstanceId", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_SUPER_CASE_INSTANCE_ID);
+    parameters.put("subCaseInstanceId", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_SUB_CASE_INSTANCE_ID);
     parameters.put("caseInstanceId", MockProvider.EXAMPLE_HISTORIC_PROCESS_INSTANCE_CASE_INSTANCE_ID);
 
     return parameters;
@@ -421,6 +448,8 @@ public abstract class AbstractHistoricProcessInstanceRestServiceQueryTest extend
     verify(mockedQuery).startedBy(stringQueryParameters.get("startedBy"));
     verify(mockedQuery).superProcessInstanceId(stringQueryParameters.get("superProcessInstanceId"));
     verify(mockedQuery).subProcessInstanceId(stringQueryParameters.get("subProcessInstanceId"));
+    verify(mockedQuery).superCaseInstanceId(stringQueryParameters.get("superCaseInstanceId"));
+    verify(mockedQuery).subCaseInstanceId(stringQueryParameters.get("subCaseInstanceId"));
     verify(mockedQuery).caseInstanceId(stringQueryParameters.get("caseInstanceId"));
 
     verify(mockedQuery).list();

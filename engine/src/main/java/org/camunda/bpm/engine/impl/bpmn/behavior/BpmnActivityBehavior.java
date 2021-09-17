@@ -22,8 +22,10 @@ import java.util.logging.Logger;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.Condition;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
+import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.PvmTransition;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityExecution;
+import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
 /**
  * Helper class for implementing BPMN 2.0 activities, offering convenience
@@ -98,15 +100,14 @@ public class BpmnActivityBehavior {
 
     if (transitionsToTake.size() == 1) {
 
-      execution.take(transitionsToTake.get(0));
+      execution.leaveActivityViaTransition(transitionsToTake.get(0));
 
     } else if (transitionsToTake.size() >= 1) {
 
-      execution.inactivate();
       if (reusableExecutions == null || reusableExecutions.isEmpty()) {
-        execution.takeAll(transitionsToTake, Arrays.asList(execution));
+        execution.leaveActivityViaTransitions(transitionsToTake, Arrays.asList(execution));
       } else {
-        execution.takeAll(transitionsToTake, reusableExecutions);
+        execution.leaveActivityViaTransitions(transitionsToTake, reusableExecutions);
       }
 
     } else {
@@ -114,7 +115,7 @@ public class BpmnActivityBehavior {
       if (defaultSequenceFlow != null) {
         PvmTransition defaultTransition = execution.getActivity().findOutgoingTransition(defaultSequenceFlow);
         if (defaultTransition != null) {
-          execution.take(defaultTransition);
+          execution.leaveActivityViaTransition(defaultTransition);
         } else {
           throw new ProcessEngineException("Default sequence flow '" + defaultSequenceFlow + "' could not be not found");
         }
@@ -125,7 +126,7 @@ public class BpmnActivityBehavior {
       } else {
 
         Object isForCompensation = execution.getActivity().getProperty(BpmnParse.PROPERTYNAME_IS_FOR_COMPENSATION);
-        if(isForCompensation != null && (Boolean) isForCompensation) {
+        if(isForCompensation != null && (Boolean) isForCompensation && isAncestorCompensationThrowing(execution)) {
 
           execution.endCompensation();
 
@@ -144,6 +145,17 @@ public class BpmnActivityBehavior {
 
       }
     }
+  }
+
+  protected boolean isAncestorCompensationThrowing(ActivityExecution execution) {
+    ActivityExecution parent = execution.getParent();
+    while (parent != null) {
+      if (((PvmExecutionImpl) parent).isCompensationThrowing()) {
+        return true;
+      }
+      parent = parent.getParent();
+    }
+    return false;
   }
 
 }

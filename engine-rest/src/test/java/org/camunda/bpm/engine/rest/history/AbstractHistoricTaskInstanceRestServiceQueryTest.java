@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 import javax.xml.registry.InvalidRequestException;
 
@@ -25,6 +26,7 @@ import org.camunda.bpm.engine.history.HistoricTaskInstanceQuery;
 import org.camunda.bpm.engine.impl.calendar.DateTimeUtil;
 import org.camunda.bpm.engine.rest.AbstractRestServiceTest;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
+import org.camunda.bpm.engine.rest.util.OrderingBuilder;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
@@ -325,6 +327,25 @@ public abstract class AbstractHistoricTaskInstanceRestServiceQueryTest extends A
   }
 
   @Test
+  public void testSecondarySortingAsPost() {
+    InOrder inOrder = Mockito.inOrder(mockedQuery);
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("sorting", OrderingBuilder.create()
+      .orderBy("owner").desc()
+      .orderBy("priority").asc()
+      .getJson());
+    given().contentType(POST_JSON_CONTENT_TYPE).body(json)
+      .header("accept", MediaType.APPLICATION_JSON)
+      .then().expect().statusCode(Status.OK.getStatusCode())
+      .when().post(HISTORIC_TASK_INSTANCE_RESOURCE_URL);
+
+    inOrder.verify(mockedQuery).orderByTaskOwner();
+    inOrder.verify(mockedQuery).desc();
+    inOrder.verify(mockedQuery).orderByTaskPriority();
+    inOrder.verify(mockedQuery).asc();
+  }
+
+  @Test
   public void testSuccessfulPagination() {
     int firstResult = 0;
     int maxResults = 10;
@@ -414,6 +435,7 @@ public abstract class AbstractHistoricTaskInstanceRestServiceQueryTest extends A
     Assert.assertNotNull("The returned historic task instance should not be null.", instances.get(0));
 
     String returnedId = from(content).getString("[0].id");
+    String returnedProcessDefinitionKey = from(content).getString("[0].processDefinitionKey");
     String returnedProcessDefinitionId = from(content).getString("[0].processDefinitionId");
     String returnedProcessInstanceId = from(content).getString("[0].processInstanceId");
     String returnedExecutionId = from(content).getString("[0].executionId");
@@ -431,6 +453,7 @@ public abstract class AbstractHistoricTaskInstanceRestServiceQueryTest extends A
     String returnedParentTaskId = from(content).getString("[0].parentTaskId");
     Date returnedDue = DateTimeUtil.parseDate(from(content).getString("[0].due"));
     Date returnedFollow = DateTimeUtil.parseDate(from(content).getString("[0].followUp"));
+    String returnedCaseDefinitionKey = from(content).getString("[0].caseDefinitionKey");
     String returnedCaseDefinitionId = from(content).getString("[0].caseDefinitionId");
     String returnedCaseInstanceId = from(content).getString("[0].caseInstanceId");
     String returnedCaseExecutionId = from(content).getString("[0].caseExecutionId");
@@ -440,6 +463,7 @@ public abstract class AbstractHistoricTaskInstanceRestServiceQueryTest extends A
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ACT_INST_ID, returnedActivityInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_EXEC_ID, returnedExecutionId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_DEF_ID, returnedProcessDefinitionId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_DEF_KEY, returnedProcessDefinitionKey);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_NAME, returnedName);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DESCRIPTION, returnedDescription);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DELETE_REASON, returnedDeleteReason);
@@ -453,6 +477,7 @@ public abstract class AbstractHistoricTaskInstanceRestServiceQueryTest extends A
     Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DUE_DATE), returnedDue);
     Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_FOLLOW_UP_DATE), returnedFollow);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PARENT_TASK_ID, returnedParentTaskId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_DEF_KEY, returnedCaseDefinitionKey);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_DEF_ID, returnedCaseDefinitionId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_INST_ID, returnedCaseInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_EXEC_ID, returnedCaseExecutionId);
@@ -478,6 +503,7 @@ public abstract class AbstractHistoricTaskInstanceRestServiceQueryTest extends A
     Assert.assertNotNull("The returned historic task instance should not be null.", instances.get(0));
 
     String returnedId = from(content).getString("[0].id");
+    String returnedProcessDefinitionKey = from(content).getString("[0].processDefinitionKey");
     String returnedProcessDefinitionId = from(content).getString("[0].processDefinitionId");
     String returnedProcessInstanceId = from(content).getString("[0].processInstanceId");
     String returnedExecutionId = from(content).getString("[0].executionId");
@@ -495,6 +521,7 @@ public abstract class AbstractHistoricTaskInstanceRestServiceQueryTest extends A
     String returnedParentTaskId = from(content).getString("[0].parentTaskId");
     Date returnedDue = DateTimeUtil.parseDate(from(content).getString("[0].due"));
     Date returnedFollow = DateTimeUtil.parseDate(from(content).getString("[0].followUp"));
+    String returnedCaseDefinitionKey = from(content).getString("[0].caseDefinitionKey");
     String returnedCaseDefinitionId = from(content).getString("[0].caseDefinitionId");
     String returnedCaseInstanceId = from(content).getString("[0].caseInstanceId");
     String returnedCaseExecutionId = from(content).getString("[0].caseExecutionId");
@@ -504,6 +531,7 @@ public abstract class AbstractHistoricTaskInstanceRestServiceQueryTest extends A
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_ACT_INST_ID, returnedActivityInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_EXEC_ID, returnedExecutionId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_DEF_ID, returnedProcessDefinitionId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PROC_DEF_KEY, returnedProcessDefinitionKey);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_NAME, returnedName);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DESCRIPTION, returnedDescription);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DELETE_REASON, returnedDeleteReason);
@@ -517,6 +545,7 @@ public abstract class AbstractHistoricTaskInstanceRestServiceQueryTest extends A
     Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_DUE_DATE), returnedDue);
     Assert.assertEquals(DateTimeUtil.parseDate(MockProvider.EXAMPLE_HISTORIC_TASK_INST_FOLLOW_UP_DATE), returnedFollow);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_PARENT_TASK_ID, returnedParentTaskId);
+    Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_DEF_KEY, returnedCaseDefinitionKey);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_DEF_ID, returnedCaseDefinitionId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_INST_ID, returnedCaseInstanceId);
     Assert.assertEquals(MockProvider.EXAMPLE_HISTORIC_TASK_INST_CASE_EXEC_ID, returnedCaseExecutionId);

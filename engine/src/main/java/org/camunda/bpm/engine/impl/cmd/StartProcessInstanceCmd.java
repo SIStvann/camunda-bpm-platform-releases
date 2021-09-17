@@ -22,6 +22,7 @@ import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
@@ -49,10 +50,10 @@ public class StartProcessInstanceCmd implements Command<ProcessInstance>, Serial
   }
 
   public ProcessInstance execute(CommandContext commandContext) {
-    DeploymentCache deploymentCache = Context
-      .getProcessEngineConfiguration()
-      .getDeploymentCache();
 
+    DeploymentCache deploymentCache = Context
+        .getProcessEngineConfiguration()
+        .getDeploymentCache();
     // Find the process definition
     ProcessDefinitionEntity processDefinition = null;
     if (processDefinitionId!=null) {
@@ -64,6 +65,10 @@ public class StartProcessInstanceCmd implements Command<ProcessInstance>, Serial
     } else {
       throw new ProcessEngineException("processDefinitionKey and processDefinitionId are null");
     }
+
+    // check authorization
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    authorizationManager.checkCreateProcessInstance(processDefinition);
 
     // Start the process instance
     ExecutionEntity processInstance = processDefinition.createProcessInstance(businessKey, caseInstanceId);

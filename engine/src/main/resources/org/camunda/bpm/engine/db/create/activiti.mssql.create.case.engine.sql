@@ -18,12 +18,14 @@ create table ACT_RU_CASE_EXECUTION (
     REV_ int,
     CASE_INST_ID_ nvarchar(64),
     SUPER_CASE_EXEC_ nvarchar(64),
+    SUPER_EXEC_ nvarchar(64),
     BUSINESS_KEY_ nvarchar(255),
     PARENT_ID_ nvarchar(64),
     CASE_DEF_ID_ nvarchar(64),
     ACT_ID_ nvarchar(255),
     PREV_STATE_ int,
     CURRENT_STATE_ int,
+    REQUIRED_ tinyint,
     primary key (ID_)
 );
 

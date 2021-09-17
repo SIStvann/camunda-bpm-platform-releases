@@ -13,18 +13,36 @@
 
 package org.camunda.bpm.engine.impl.persistence.entity;
 
-import java.util.*;
+import static org.camunda.bpm.engine.impl.jobexecutor.TimerEventJobHandler.JOB_HANDLER_CONFIG_PROPERTY_DELIMITER;
+import static org.camunda.bpm.engine.impl.jobexecutor.TimerEventJobHandler.JOB_HANDLER_CONFIG_PROPERTY_FOLLOW_UP_JOB_CREATED;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.camunda.bpm.engine.impl.Direction;
 import org.camunda.bpm.engine.impl.JobQueryImpl;
+import org.camunda.bpm.engine.impl.JobQueryProperty;
 import org.camunda.bpm.engine.impl.Page;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.cfg.TransactionListener;
 import org.camunda.bpm.engine.impl.cfg.TransactionState;
 import org.camunda.bpm.engine.impl.context.Context;
-import org.camunda.bpm.engine.impl.jobexecutor.*;
+import org.camunda.bpm.engine.impl.jobexecutor.ExclusiveJobAddedNotification;
+import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
+import org.camunda.bpm.engine.impl.jobexecutor.JobExecutorContext;
+import org.camunda.bpm.engine.impl.jobexecutor.MessageAddedNotification;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerCatchIntermediateEventJobHandler;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerExecuteNestedActivityJobHandler;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventJobHandler;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventSubprocessJobHandler;
 import org.camunda.bpm.engine.impl.persistence.AbstractManager;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.runtime.Job;
-
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 
 /**
@@ -32,6 +50,32 @@ import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
  * @author Daniel Meyer
  */
 public class JobManager extends AbstractManager {
+
+  public static QueryOrderingProperty JOB_TYPE_ORDERING_PROPERTY = new QueryOrderingProperty(null, JobQueryProperty.TYPE);
+  public static QueryOrderingProperty JOB_DUEDATE_ORDERING_PROPERTY = new QueryOrderingProperty(null, JobQueryProperty.DUEDATE);
+
+  static {
+    JOB_TYPE_ORDERING_PROPERTY.setDirection(Direction.DESCENDING);
+    JOB_DUEDATE_ORDERING_PROPERTY.setDirection(Direction.ASCENDING);
+  }
+
+  public void insertJob(JobEntity job) {
+    getDbEntityManager().insert(job);
+    getHistoricJobLogManager().fireJobCreatedEvent(job);
+  }
+
+  public void deleteJob(JobEntity job) {
+    deleteJob(job, true);
+  }
+
+  public void deleteJob(JobEntity job, boolean fireDeleteEvent) {
+    getDbEntityManager().delete(job);
+
+    if (fireDeleteEvent) {
+      getHistoricJobLogManager().fireJobDeletedEvent(job);
+    }
+
+  }
 
   public void send(MessageEntity message) {
     message.insert();
@@ -69,7 +113,7 @@ public class JobManager extends AbstractManager {
       Date currentTime = ClockUtil.getCurrentTime();
       job.setLockExpirationTime(new Date(currentTime.getTime() + jobExecutor.getLockTimeInMillis()));
       job.setLockOwner(jobExecutor.getLockOwner());
-      transactionListener = new ExclusiveJobAddedNotification(job.getId());
+      transactionListener = new ExclusiveJobAddedNotification(job.getId(), jobExecutorContext);
     } else {
       // notify job executor:
       transactionListener = new MessageAddedNotification(jobExecutor);
@@ -106,6 +150,18 @@ public class JobManager extends AbstractManager {
         params.put("deploymentIds", registeredDeployments);
       }
     }
+
+    List<QueryOrderingProperty> orderingProperties = new ArrayList<QueryOrderingProperty>();
+    if (Context.getProcessEngineConfiguration().isJobExecutorPreferTimerJobs()) {
+      orderingProperties.add(JOB_TYPE_ORDERING_PROPERTY);
+    }
+    if (Context.getProcessEngineConfiguration().isJobExecutorAcquireByDueDate()) {
+      orderingProperties.add(JOB_DUEDATE_ORDERING_PROPERTY);
+    }
+    params.put("orderingProperties", orderingProperties);
+    // don't apply default sorting
+    params.put("applyOrdering", !orderingProperties.isEmpty());
+
     return getDbEntityManager().selectList("selectNextJobsToExecute", params, page);
   }
 
@@ -141,8 +197,8 @@ public class JobManager extends AbstractManager {
 
   @SuppressWarnings("unchecked")
   public List<Job> findJobsByQueryCriteria(JobQueryImpl jobQuery, Page page) {
-    final String query = "selectJobByQueryCriteria";
-    return getDbEntityManager().selectList(query, jobQuery, page);
+    getAuthorizationManager().configureJobQuery(jobQuery);
+    return getDbEntityManager().selectList("selectJobByQueryCriteria", jobQuery, page);
   }
 
   @SuppressWarnings("unchecked")
@@ -150,10 +206,21 @@ public class JobManager extends AbstractManager {
     Map<String, String> params = new HashMap<String, String>();
     params.put("handlerType", jobHandlerType);
     params.put("handlerConfiguration", jobHandlerConfiguration);
+
+    if (TimerCatchIntermediateEventJobHandler.TYPE.equals(jobHandlerType)
+      || TimerExecuteNestedActivityJobHandler.TYPE.equals(jobHandlerType)
+      || TimerStartEventJobHandler.TYPE.equals(jobHandlerType)
+      || TimerStartEventSubprocessJobHandler.TYPE.equals(jobHandlerType)) {
+
+      String queryValue = jobHandlerConfiguration + JOB_HANDLER_CONFIG_PROPERTY_DELIMITER + JOB_HANDLER_CONFIG_PROPERTY_FOLLOW_UP_JOB_CREATED;
+      params.put("handlerConfigurationWithFollowUpJobCreatedProperty", queryValue);
+    }
+
     return getDbEntityManager().selectList("selectJobsByConfiguration", params);
   }
 
   public long findJobCountByQueryCriteria(JobQueryImpl jobQuery) {
+    getAuthorizationManager().configureJobQuery(jobQuery);
     return (Long) getDbEntityManager().selectOne("selectJobCountByQueryCriteria", jobQuery);
   }
 

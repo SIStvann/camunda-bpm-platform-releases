@@ -16,8 +16,10 @@ package org.camunda.bpm.engine.impl.cmd;
 import java.util.Map;
 
 import org.camunda.bpm.engine.impl.MessageCorrelationBuilderImpl;
+import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
@@ -35,6 +37,7 @@ public abstract class AbstractCorrelateMessageCmd implements Command<Void> {
   protected final Map<String, Object> correlationKeys;
   protected final Map<String, Object> processVariables;
   protected String processInstanceId;
+  protected boolean isExclusiveCorrelation = false;
 
   protected AbstractCorrelateMessageCmd(String messageName, String businessKey,
       Map<String, Object> correlationKeys, Map<String, Object> processVariables) {
@@ -55,10 +58,11 @@ public abstract class AbstractCorrelateMessageCmd implements Command<Void> {
     this.correlationKeys = messageCorrelationBuilderImpl.getCorrelationProcessInstanceVariables();
     this.businessKey = messageCorrelationBuilderImpl.getBusinessKey();
     this.processInstanceId = messageCorrelationBuilderImpl.getProcessInstanceId();
+    this.isExclusiveCorrelation = messageCorrelationBuilderImpl.isExclusiveCorrelation();
   }
 
   protected void triggerExecution(CommandContext commandContext, MessageCorrelationResult correlationResult) {
-    new MessageEventReceivedCmd(messageName, correlationResult.getExecutionEntity().getId(), processVariables).execute(commandContext);
+    new MessageEventReceivedCmd(messageName, correlationResult.getExecutionEntity().getId(), processVariables, isExclusiveCorrelation).execute(commandContext);
   }
 
   protected void instantiateProcess(CommandContext commandContext, MessageCorrelationResult correlationResult) {
@@ -66,6 +70,20 @@ public abstract class AbstractCorrelateMessageCmd implements Command<Void> {
     ActivityImpl messageStartEvent = processDefinitionEntity.findActivity(correlationResult.getStartEventActivityId());
     ExecutionEntity processInstance = processDefinitionEntity.createProcessInstance(businessKey, messageStartEvent);
     processInstance.start(processVariables);
+  }
+
+  protected void checkAuthorization(MessageCorrelationResult correlation) {
+    AuthorizationManager authorizationManager = Context.getCommandContext().getAuthorizationManager();
+
+    if (MessageCorrelationResult.TYPE_EXECUTION.equals(correlation.getResultType())) {
+      ExecutionEntity execution = correlation.getExecutionEntity();
+      authorizationManager.checkUpdateProcessInstanceById(execution.getProcessInstanceId());
+    }
+    else {
+      ProcessDefinitionEntity definition = correlation.getProcessDefinitionEntity();
+      authorizationManager.checkCreateProcessInstance(definition);
+    }
+
   }
 
 }

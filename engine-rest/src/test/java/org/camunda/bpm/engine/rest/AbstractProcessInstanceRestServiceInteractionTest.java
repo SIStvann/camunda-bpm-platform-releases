@@ -16,6 +16,7 @@ import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -32,6 +33,7 @@ import java.util.Map;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response.Status;
 
+import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.RuntimeServiceImpl;
 import org.camunda.bpm.engine.impl.core.variable.type.ObjectTypeImpl;
@@ -49,8 +51,10 @@ import org.camunda.bpm.engine.rest.helper.variable.EqualsNullValue;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsObjectValue;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsPrimitiveValue;
 import org.camunda.bpm.engine.rest.helper.variable.EqualsUntypedValue;
+import org.camunda.bpm.engine.rest.util.ModificationInstructionBuilder;
 import org.camunda.bpm.engine.rest.util.VariablesBuilder;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
+import org.camunda.bpm.engine.runtime.ProcessInstanceModificationInstantiationBuilder;
 import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
@@ -61,6 +65,7 @@ import org.codehaus.jackson.map.type.TypeFactory;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.InOrder;
 
 import com.jayway.restassured.http.ContentType;
 import com.jayway.restassured.response.Response;
@@ -77,6 +82,7 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
   private static final String EXAMPLE_PROCESS_INSTANCE_ID_WITH_NULL_VALUE_AS_VARIABLE = "aProcessInstanceWithNullValueAsVariable";
   protected static final String SINGLE_PROCESS_INSTANCE_SUSPENDED_URL = SINGLE_PROCESS_INSTANCE_URL + "/suspended";
   protected static final String PROCESS_INSTANCE_SUSPENDED_URL = PROCESS_INSTANCE_URL + "/suspended";
+  protected static final String PROCESS_INSTANCE_MODIFICATION_URL = SINGLE_PROCESS_INSTANCE_URL + "/modification";
 
   protected static final VariableMap EXAMPLE_OBJECT_VARIABLES = Variables.createVariables();
   static {
@@ -118,28 +124,34 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
         .body("processDefinitionId", equalTo(EXAMPLE_PROCESS_DEFINITION_ID))
         .body("executionIds", not(empty()))
         .body("executionIds[0]", equalTo(EXAMPLE_EXECUTION_ID))
+        .body("activityName", equalTo(EXAMPLE_ACTIVITY_NAME))
+        // "name" is deprecated and there for legacy reasons
         .body("name", equalTo(EXAMPLE_ACTIVITY_NAME))
         .body("childActivityInstances", not(empty()))
         .body("childActivityInstances[0].id", equalTo(CHILD_EXAMPLE_ACTIVITY_INSTANCE_ID))
         .body("childActivityInstances[0].parentActivityInstanceId", equalTo(CHILD_EXAMPLE_PARENT_ACTIVITY_INSTANCE_ID))
         .body("childActivityInstances[0].activityId", equalTo(CHILD_EXAMPLE_ACTIVITY_ID))
         .body("childActivityInstances[0].activityType", equalTo(CHILD_EXAMPLE_ACTIVITY_TYPE))
+        .body("childActivityInstances[0].activityName", equalTo(CHILD_EXAMPLE_ACTIVITY_NAME))
+        .body("childActivityInstances[0].name", equalTo(CHILD_EXAMPLE_ACTIVITY_NAME))
         .body("childActivityInstances[0].processInstanceId", equalTo(CHILD_EXAMPLE_PROCESS_INSTANCE_ID))
         .body("childActivityInstances[0].processDefinitionId", equalTo(CHILD_EXAMPLE_PROCESS_DEFINITION_ID))
         .body("childActivityInstances[0].executionIds", not(empty()))
         .body("childActivityInstances[0].childActivityInstances", empty())
         .body("childActivityInstances[0].childTransitionInstances", empty())
-        .body("childActivityInstances[0].name", equalTo(CHILD_EXAMPLE_ACTIVITY_NAME))
         .body("childTransitionInstances", not(empty()))
         .body("childTransitionInstances[0].id", equalTo(CHILD_EXAMPLE_ACTIVITY_INSTANCE_ID))
         .body("childTransitionInstances[0].parentActivityInstanceId", equalTo(CHILD_EXAMPLE_PARENT_ACTIVITY_INSTANCE_ID))
+        .body("childTransitionInstances[0].activityId", equalTo(CHILD_EXAMPLE_ACTIVITY_ID))
+        .body("childTransitionInstances[0].activityName", equalTo(CHILD_EXAMPLE_ACTIVITY_NAME))
+        .body("childTransitionInstances[0].activityType", equalTo(CHILD_EXAMPLE_ACTIVITY_TYPE))
         .body("childTransitionInstances[0].targetActivityId", equalTo(CHILD_EXAMPLE_ACTIVITY_ID))
         .body("childTransitionInstances[0].processInstanceId", equalTo(CHILD_EXAMPLE_PROCESS_INSTANCE_ID))
         .body("childTransitionInstances[0].processDefinitionId", equalTo(CHILD_EXAMPLE_PROCESS_DEFINITION_ID))
         .body("childTransitionInstances[0].executionId", equalTo(EXAMPLE_EXECUTION_ID))
         .when().get(PROCESS_INSTANCE_ACTIVIY_INSTANCES_URL);
 
-    Assert.assertEquals("Should return right number of properties", 10, response.jsonPath().getMap("").size());
+    Assert.assertEquals("Should return right number of properties", 11, response.jsonPath().getMap("").size());
   }
 
   @Test
@@ -162,6 +174,22 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
       .body("type", equalTo(InvalidRequestException.class.getSimpleName()))
       .body("message", equalTo("expected exception"))
       .when().get(PROCESS_INSTANCE_ACTIVIY_INSTANCES_URL);
+  }
+
+  @Test
+  public void testGetActivityInstanceTreeThrowsAuthorizationException() {
+    String message = "expected exception";
+    when(runtimeServiceMock.getActivityInstance(anyString())).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(PROCESS_INSTANCE_ACTIVIY_INSTANCES_URL);
   }
 
   @Test
@@ -277,6 +305,22 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
   }
 
   @Test
+  public void testGetVariablesThrowsAuthorizationException() {
+    String message = "expected exception";
+    when(runtimeServiceMock.getVariablesTyped(anyString(), anyBoolean())).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .get(PROCESS_INSTANCE_VARIABLES_URL);
+  }
+
+  @Test
   public void testGetSingleInstance() {
     ProcessInstance mockInstance = MockProvider.createMockInstance();
     ProcessInstanceQuery sampleInstanceQuery = mock(ProcessInstanceQuery.class);
@@ -326,6 +370,22 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
       .body("type", equalTo(InvalidRequestException.class.getSimpleName()))
       .body("message", equalTo("Process instance with id " + MockProvider.EXAMPLE_PROCESS_INSTANCE_ID + " does not exist"))
       .when().delete(SINGLE_PROCESS_INSTANCE_URL);
+  }
+
+  @Test
+  public void testDeleteProcessInstanceThrowsAuthorizationException() {
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(runtimeServiceMock).deleteProcessInstance(anyString(), anyString());
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .delete(SINGLE_PROCESS_INSTANCE_URL);
   }
 
   @Test
@@ -502,6 +562,29 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
   }
 
   @Test
+  public void testVariableModificationThrowsAuthorizationException() {
+    String variableKey = "aKey";
+    int variableValue = 123;
+    Map<String, Object> messageBodyJson = new HashMap<String, Object>();
+    Map<String, Object> modifications = VariablesBuilder.create().variable(variableKey, variableValue).getVariables();
+    messageBodyJson.put("modifications", modifications);
+
+    String message = "excpected exception";
+    doThrow(new AuthorizationException(message)).when(runtimeServiceMock).updateVariables(anyString(), anyMapOf(String.class, Object.class), anyCollectionOf(String.class));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(messageBodyJson)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .body("type", is(AuthorizationException.class.getSimpleName()))
+      .body("message", is(message))
+    .when()
+      .post(PROCESS_INSTANCE_VARIABLES_URL);
+  }
+
+  @Test
   public void testGetSingleVariable() {
     String variableKey = "aVariableKey";
     int variableValue = 123;
@@ -520,7 +603,7 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
   public void testNonExistingVariable() {
     String variableKey = "aVariableKey";
 
-    when(runtimeServiceMock.getVariable(eq(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID), eq(variableKey))).thenReturn(null);
+    when(runtimeServiceMock.getVariableTyped(eq(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID), eq(variableKey), anyBoolean())).thenReturn(null);
 
     given().pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID).pathParam("varId", variableKey)
       .then().expect().statusCode(Status.NOT_FOUND.getStatusCode())
@@ -529,6 +612,23 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
       .when().get(SINGLE_PROCESS_INSTANCE_VARIABLE_URL);
   }
 
+  @Test
+  public void testGetSingleVariableThrowsAuthorizationException() {
+    String variableKey = "aVariableKey";
+
+    String message = "excpected exception";
+    when(runtimeServiceMock.getVariableTyped(eq(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID), eq(variableKey), anyBoolean())).thenThrow(new AuthorizationException(message));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .body("type", is(AuthorizationException.class.getSimpleName()))
+      .body("message", is(message))
+    .when()
+      .get(SINGLE_PROCESS_INSTANCE_VARIABLE_URL);
+  }
 
   @Test
   public void testGetSingleLocalVariableData() {
@@ -900,6 +1000,29 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
   }
 
   @Test
+  public void testPutSingleVariableThrowsAuthorizationException() {
+    String variableKey = "aVariableKey";
+    String variableValue = "1abc";
+    String type = "String";
+    Map<String, Object> variableJson = VariablesBuilder.getVariableValueMap(variableValue, type);
+
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(runtimeServiceMock).setVariable(anyString(), anyString(), any());
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
+      .pathParam("varId", variableKey)
+      .contentType(ContentType.JSON)
+      .body(variableJson)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .put(SINGLE_PROCESS_INSTANCE_VARIABLE_URL);
+  }
+
+  @Test
   public void testPutSingleBinaryVariable() throws Exception {
     byte[] bytes = "someContent".getBytes();
 
@@ -933,6 +1056,27 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
 
     verify(runtimeServiceMock).setVariable(eq(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID), eq(variableKey),
         argThat(EqualsPrimitiveValue.bytesValue(bytes)));
+  }
+
+  @Test
+  public void testPutSingleBinaryVariableThrowsAuthorizationException() {
+    byte[] bytes = "someContent".getBytes();
+    String variableKey = "aVariableKey";
+
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(runtimeServiceMock).setVariable(anyString(), anyString(), any());
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
+      .pathParam("varId", variableKey)
+      .multiPart("data", "unspecified", bytes)
+    .expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .post(SINGLE_PROCESS_INSTANCE_BINARY_VARIABLE_URL);
   }
 
   @Test
@@ -1106,6 +1250,25 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
   }
 
   @Test
+  public void testDeleteVariableThrowsAuthorizationException() {
+    String variableKey = "aVariableKey";
+
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(runtimeServiceMock).removeVariable(anyString(), anyString());
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
+      .pathParam("varId", variableKey)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", is(AuthorizationException.class.getSimpleName()))
+      .body("message", is(message))
+    .when()
+      .delete(SINGLE_PROCESS_INSTANCE_VARIABLE_URL);
+  }
+
+  @Test
   public void testActivateInstance() {
     ProcessInstanceSuspensionStateDto dto = new ProcessInstanceSuspensionStateDto();
     dto.setSuspended(false);
@@ -1145,6 +1308,30 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
         .body("message", is(expectedMessage))
       .when()
         .put(SINGLE_PROCESS_INSTANCE_SUSPENDED_URL);
+  }
+
+  @Test
+  public void testActivateThrowsAuthorizationException() {
+    ProcessInstanceSuspensionStateDto dto = new ProcessInstanceSuspensionStateDto();
+    dto.setSuspended(false);
+
+    String message = "expectedMessage";
+
+    doThrow(new AuthorizationException(message))
+      .when(runtimeServiceMock)
+      .activateProcessInstanceById(eq(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(dto)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+    .put(SINGLE_PROCESS_INSTANCE_SUSPENDED_URL);
   }
 
   @Test
@@ -1212,6 +1399,30 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
   }
 
   @Test
+  public void testSuspendThrowsAuthorizationException() {
+    ProcessInstanceSuspensionStateDto dto = new ProcessInstanceSuspensionStateDto();
+    dto.setSuspended(true);
+
+    String message = "expectedMessage";
+
+    doThrow(new AuthorizationException(message))
+      .when(runtimeServiceMock)
+      .suspendProcessInstanceById(eq(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID));
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(dto)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+    .put(SINGLE_PROCESS_INSTANCE_SUSPENDED_URL);
+  }
+
+  @Test
   public void testActivateProcessInstanceByProcessDefinitionKey() {
     Map<String, Object> params = new HashMap<String, Object>();
     params.put("suspended", false);
@@ -1250,6 +1461,30 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
         .body("message", is(expectedException))
       .when()
         .put(PROCESS_INSTANCE_SUSPENDED_URL);
+  }
+
+  @Test
+  public void testActivateProcessInstanceByProcessDefinitionKeyThrowsAuthorizationException() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("suspended", false);
+    params.put("processDefinitionKey", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY);
+
+    String message = "expectedMessage";
+
+    doThrow(new AuthorizationException(message))
+      .when(runtimeServiceMock)
+      .activateProcessInstanceByProcessDefinitionKey(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY));
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(params)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+    .put(PROCESS_INSTANCE_SUSPENDED_URL);
   }
 
   @Test
@@ -1294,6 +1529,30 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
   }
 
   @Test
+  public void testSuspendProcessInstanceByProcessDefinitionKeyThrowsAuthorizationException() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("suspended", true);
+    params.put("processDefinitionKey", MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY);
+
+    String message = "expectedMessage";
+
+    doThrow(new AuthorizationException(message))
+      .when(runtimeServiceMock)
+      .suspendProcessInstanceByProcessDefinitionKey(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY));
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(params)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+    .put(PROCESS_INSTANCE_SUSPENDED_URL);
+  }
+
+  @Test
   public void testActivateProcessInstanceByProcessDefinitionId() {
     Map<String, Object> params = new HashMap<String, Object>();
     params.put("suspended", false);
@@ -1335,6 +1594,30 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
   }
 
   @Test
+  public void testActivateProcessInstanceByProcessDefinitionIdThrowsAuthorizationException() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("suspended", false);
+    params.put("processDefinitionId", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID);
+
+    String message = "expectedMessage";
+
+    doThrow(new AuthorizationException(message))
+      .when(runtimeServiceMock)
+      .activateProcessInstanceByProcessDefinitionId(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID));
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(params)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .put(PROCESS_INSTANCE_SUSPENDED_URL);
+  }
+
+  @Test
   public void testSuspendProcessInstanceByProcessDefinitionId() {
     Map<String, Object> params = new HashMap<String, Object>();
     params.put("suspended", true);
@@ -1373,6 +1656,30 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
         .body("message", is(expectedException))
       .when()
         .put(PROCESS_INSTANCE_SUSPENDED_URL);
+  }
+
+  @Test
+  public void testSuspendProcessInstanceByProcessDefinitionIdThrowsAuthorizationException() {
+    Map<String, Object> params = new HashMap<String, Object>();
+    params.put("suspended", true);
+    params.put("processDefinitionId", MockProvider.EXAMPLE_PROCESS_DEFINITION_ID);
+
+    String message = "expectedMessage";
+
+    doThrow(new AuthorizationException(message))
+      .when(runtimeServiceMock)
+      .suspendProcessInstanceByProcessDefinitionId(eq(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID));
+
+    given()
+      .contentType(ContentType.JSON)
+      .body(params)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .put(PROCESS_INSTANCE_SUSPENDED_URL);
   }
 
   @Test
@@ -1432,5 +1739,274 @@ public abstract class AbstractProcessInstanceRestServiceInteractionTest extends
         .body("message", is(message))
       .when()
         .put(PROCESS_INSTANCE_SUSPENDED_URL);
+  }
+
+  @Test
+  public void testProcessInstanceModification() {
+    ProcessInstanceModificationInstantiationBuilder mockModificationBuilder = setUpMockModificationBuilder();
+    when(runtimeServiceMock.createProcessInstanceModification(anyString())).thenReturn(mockModificationBuilder);
+
+    Map<String, Object> json = new HashMap<String, Object>();
+    json.put("skipCustomListeners", true);
+    json.put("skipIoMappings", true);
+
+    List<Map<String, Object>> instructions = new ArrayList<Map<String, Object>>();
+
+    instructions.add(ModificationInstructionBuilder.cancellation().activityId("activityId").getJson());
+    instructions.add(ModificationInstructionBuilder.cancellation().activityInstanceId("activityInstanceId").getJson());
+    instructions.add(ModificationInstructionBuilder.cancellation().transitionInstanceId("transitionInstanceId").getJson());
+    instructions.add(ModificationInstructionBuilder.startBefore().activityId("activityId").getJson());
+    instructions.add(ModificationInstructionBuilder.startBefore()
+        .activityId("activityId").ancestorActivityInstanceId("ancestorActivityInstanceId").getJson());
+    instructions.add(ModificationInstructionBuilder.startAfter().activityId("activityId").getJson());
+    instructions.add(ModificationInstructionBuilder.startAfter()
+        .activityId("activityId").ancestorActivityInstanceId("ancestorActivityInstanceId").getJson());
+    instructions.add(ModificationInstructionBuilder.startTransition().transitionId("transitionId").getJson());
+    instructions.add(ModificationInstructionBuilder.startTransition()
+        .transitionId("transitionId").ancestorActivityInstanceId("ancestorActivityInstanceId").getJson());
+
+    json.put("instructions", instructions);
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+      .expect()
+        .statusCode(Status.NO_CONTENT.getStatusCode())
+      .when()
+        .post(PROCESS_INSTANCE_MODIFICATION_URL);
+
+    verify(runtimeServiceMock).createProcessInstanceModification(eq(EXAMPLE_PROCESS_INSTANCE_ID));
+
+    InOrder inOrder = inOrder(mockModificationBuilder);
+    inOrder.verify(mockModificationBuilder).cancelAllForActivity("activityId");
+    inOrder.verify(mockModificationBuilder).cancelActivityInstance("activityInstanceId");
+    inOrder.verify(mockModificationBuilder).cancelTransitionInstance("transitionInstanceId");
+    inOrder.verify(mockModificationBuilder).startBeforeActivity("activityId");
+    inOrder.verify(mockModificationBuilder).startBeforeActivity("activityId", "ancestorActivityInstanceId");
+    inOrder.verify(mockModificationBuilder).startAfterActivity("activityId");
+    inOrder.verify(mockModificationBuilder).startAfterActivity("activityId", "ancestorActivityInstanceId");
+    inOrder.verify(mockModificationBuilder).startTransition("transitionId");
+    inOrder.verify(mockModificationBuilder).startTransition("transitionId", "ancestorActivityInstanceId");
+
+    inOrder.verify(mockModificationBuilder).execute(true, true);
+
+    inOrder.verifyNoMoreInteractions();
+  }
+
+  @Test
+  public void testProcessInstanceModificationWithVariables() {
+    ProcessInstanceModificationInstantiationBuilder mockModificationBuilder = setUpMockModificationBuilder();
+    when(runtimeServiceMock.createProcessInstanceModification(anyString())).thenReturn(mockModificationBuilder);
+
+    Map<String, Object> json = new HashMap<String, Object>();
+
+    List<Map<String, Object>> instructions = new ArrayList<Map<String, Object>>();
+
+    instructions.add(
+        ModificationInstructionBuilder.startBefore()
+          .activityId("activityId")
+          .variables(VariablesBuilder.create()
+              .variable("var", "value", "String", false)
+              .variable("varLocal", "valueLocal", "String", true)
+              .getVariables())
+          .getJson());
+    instructions.add(
+        ModificationInstructionBuilder.startAfter()
+          .activityId("activityId")
+          .variables(VariablesBuilder.create()
+              .variable("var", 52, "Integer", false)
+              .variable("varLocal", 74, "Integer", true)
+              .getVariables())
+          .getJson());
+
+    json.put("instructions", instructions);
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+      .expect()
+        .statusCode(Status.NO_CONTENT.getStatusCode())
+      .when()
+        .post(PROCESS_INSTANCE_MODIFICATION_URL);
+
+    verify(runtimeServiceMock).createProcessInstanceModification(eq(EXAMPLE_PROCESS_INSTANCE_ID));
+
+    InOrder inOrder = inOrder(mockModificationBuilder);
+    inOrder.verify(mockModificationBuilder).startBeforeActivity("activityId");
+
+    verify(mockModificationBuilder).setVariableLocal(eq("varLocal"), argThat(EqualsPrimitiveValue.stringValue("valueLocal")));
+    verify(mockModificationBuilder).setVariable(eq("var"), argThat(EqualsPrimitiveValue.stringValue("value")));
+
+    inOrder.verify(mockModificationBuilder).startAfterActivity("activityId");
+
+    verify(mockModificationBuilder).setVariable(eq("var"), argThat(EqualsPrimitiveValue.integerValue(52)));
+    verify(mockModificationBuilder).setVariableLocal(eq("varLocal"), argThat(EqualsPrimitiveValue.integerValue(74)));
+
+    inOrder.verify(mockModificationBuilder).execute(false, false);
+
+    inOrder.verifyNoMoreInteractions();
+  }
+
+  @Test
+  public void testInvalidModification() {
+    Map<String, Object> json = new HashMap<String, Object>();
+
+    // start before: missing activity id
+    List<Map<String, Object>> instructions = new ArrayList<Map<String, Object>>();
+    instructions.add(ModificationInstructionBuilder.startBefore().getJson());
+    json.put("instructions", instructions);
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+    .expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .body("type", is(InvalidRequestException.class.getSimpleName()))
+      .body("message", containsString("'activityId' must be set"))
+    .when()
+      .post(PROCESS_INSTANCE_MODIFICATION_URL);
+
+    // start after: missing ancestor activity instance id
+    instructions = new ArrayList<Map<String, Object>>();
+    instructions.add(ModificationInstructionBuilder.startAfter().getJson());
+    json.put("instructions", instructions);
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+    .expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .body("type", is(InvalidRequestException.class.getSimpleName()))
+      .body("message", containsString("'activityId' must be set"))
+    .when()
+      .post(PROCESS_INSTANCE_MODIFICATION_URL);
+
+    // start transition: missing ancestor activity instance id
+    instructions = new ArrayList<Map<String, Object>>();
+    instructions.add(ModificationInstructionBuilder.startTransition().getJson());
+    json.put("instructions", instructions);
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+    .expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .body("type", is(InvalidRequestException.class.getSimpleName()))
+      .body("message", containsString("'transitionId' must be set"))
+    .when()
+      .post(PROCESS_INSTANCE_MODIFICATION_URL);
+
+    // cancel: missing activity id and activity instance id
+    instructions = new ArrayList<Map<String, Object>>();
+    instructions.add(ModificationInstructionBuilder.cancellation().getJson());
+    json.put("instructions", instructions);
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+    .expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .body("type", is(InvalidRequestException.class.getSimpleName()))
+      .body("message", containsString("For instruction type 'cancel': exactly one, "
+          + "'activityId', 'activityInstanceId', or 'transitionInstanceId', is required"))
+    .when()
+      .post(PROCESS_INSTANCE_MODIFICATION_URL);
+
+    // cancel: both, activity id and activity instance id, set
+    instructions = new ArrayList<Map<String, Object>>();
+    instructions.add(ModificationInstructionBuilder.cancellation().activityId("anActivityId")
+        .activityInstanceId("anActivityInstanceId").getJson());
+    json.put("instructions", instructions);
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then()
+    .expect()
+      .statusCode(Status.BAD_REQUEST.getStatusCode())
+      .body("type", is(InvalidRequestException.class.getSimpleName()))
+      .body("message", containsString("For instruction type 'cancel': exactly one, "
+          + "'activityId', 'activityInstanceId', or 'transitionInstanceId', is required"))
+    .when()
+      .post(PROCESS_INSTANCE_MODIFICATION_URL);
+
+  }
+
+  @Test
+  public void testModifyProcessInstanceThrowsAuthorizationException() {
+    ProcessInstanceModificationInstantiationBuilder mockModificationBuilder = setUpMockModificationBuilder();
+    when(runtimeServiceMock.createProcessInstanceModification(anyString())).thenReturn(mockModificationBuilder);
+
+    String message = "expected exception";
+    doThrow(new AuthorizationException(message)).when(mockModificationBuilder).execute(anyBoolean(), anyBoolean());
+
+    Map<String, Object> json = new HashMap<String, Object>();
+
+    List<Map<String, Object>> instructions = new ArrayList<Map<String, Object>>();
+
+    instructions.add(
+        ModificationInstructionBuilder.startBefore()
+          .activityId("activityId")
+          .variables(VariablesBuilder.create()
+              .variable("var", "value", "String", false)
+              .variable("varLocal", "valueLocal", "String", true)
+              .getVariables())
+          .getJson());
+    instructions.add(
+        ModificationInstructionBuilder.startAfter()
+          .activityId("activityId")
+          .variables(VariablesBuilder.create()
+              .variable("var", 52, "Integer", false)
+              .variable("varLocal", 74, "Integer", true)
+              .getVariables())
+          .getJson());
+
+    json.put("instructions", instructions);
+
+    given()
+      .pathParam("id", EXAMPLE_PROCESS_INSTANCE_ID)
+      .contentType(ContentType.JSON)
+      .body(json)
+    .then().expect()
+      .statusCode(Status.FORBIDDEN.getStatusCode())
+      .contentType(ContentType.JSON)
+      .body("type", equalTo(AuthorizationException.class.getSimpleName()))
+      .body("message", equalTo(message))
+    .when()
+      .post(PROCESS_INSTANCE_MODIFICATION_URL);
+  }
+
+
+  @SuppressWarnings("unchecked")
+  protected ProcessInstanceModificationInstantiationBuilder setUpMockModificationBuilder() {
+    ProcessInstanceModificationInstantiationBuilder mockModificationBuilder =
+        mock(ProcessInstanceModificationInstantiationBuilder.class);
+
+    when(mockModificationBuilder.cancelActivityInstance(anyString())).thenReturn(mockModificationBuilder);
+    when(mockModificationBuilder.cancelAllForActivity(anyString())).thenReturn(mockModificationBuilder);
+    when(mockModificationBuilder.startAfterActivity(anyString())).thenReturn(mockModificationBuilder);
+    when(mockModificationBuilder.startAfterActivity(anyString(), anyString())).thenReturn(mockModificationBuilder);
+    when(mockModificationBuilder.startBeforeActivity(anyString())).thenReturn(mockModificationBuilder);
+    when(mockModificationBuilder.startBeforeActivity(anyString(), anyString())).thenReturn(mockModificationBuilder);
+    when(mockModificationBuilder.startTransition(anyString())).thenReturn(mockModificationBuilder);
+    when(mockModificationBuilder.startTransition(anyString(), anyString())).thenReturn(mockModificationBuilder);
+    when(mockModificationBuilder.setVariables(any(Map.class))).thenReturn(mockModificationBuilder);
+    when(mockModificationBuilder.setVariablesLocal(any(Map.class))).thenReturn(mockModificationBuilder);
+
+    return mockModificationBuilder;
+
   }
 }

@@ -13,6 +13,8 @@
 
 package org.camunda.bpm.engine.impl.persistence;
 
+import java.util.concurrent.Callable;
+
 import org.camunda.bpm.engine.authorization.Permission;
 import org.camunda.bpm.engine.authorization.Resource;
 import org.camunda.bpm.engine.impl.AbstractQuery;
@@ -23,24 +25,33 @@ import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.DbEntity;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.db.sql.DbSqlSession;
+import org.camunda.bpm.engine.impl.identity.Authentication;
+import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.Session;
 import org.camunda.bpm.engine.impl.persistence.entity.AttachmentManager;
 import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayManager;
 import org.camunda.bpm.engine.impl.persistence.entity.DeploymentManager;
+import org.camunda.bpm.engine.impl.persistence.entity.EventSubscriptionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricActivityInstanceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricCaseActivityInstanceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricCaseInstanceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricDetailManager;
+import org.camunda.bpm.engine.impl.persistence.entity.HistoricIncidentManager;
+import org.camunda.bpm.engine.impl.persistence.entity.HistoricJobLogManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricProcessInstanceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceManager;
+import org.camunda.bpm.engine.impl.persistence.entity.HistoricVariableInstanceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.IdentityInfoManager;
 import org.camunda.bpm.engine.impl.persistence.entity.IdentityLinkManager;
+import org.camunda.bpm.engine.impl.persistence.entity.JobDefinitionManager;
+import org.camunda.bpm.engine.impl.persistence.entity.JobManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ResourceManager;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskManager;
+import org.camunda.bpm.engine.impl.persistence.entity.UserOperationLogManager;
 import org.camunda.bpm.engine.impl.persistence.entity.VariableInstanceManager;
 
 
@@ -125,6 +136,10 @@ public abstract class AbstractManager implements Session {
     return getSession(HistoricDetailManager.class);
   }
 
+  protected HistoricVariableInstanceManager getHistoricVariableInstanceManager() {
+    return getSession(HistoricVariableInstanceManager.class);
+  }
+
   protected HistoricActivityInstanceManager getHistoricActivityInstanceManager() {
     return getSession(HistoricActivityInstanceManager.class);
   }
@@ -135,6 +150,30 @@ public abstract class AbstractManager implements Session {
 
   protected HistoricTaskInstanceManager getHistoricTaskInstanceManager() {
     return getSession(HistoricTaskInstanceManager.class);
+  }
+
+  protected HistoricIncidentManager getHistoricIncidentManager() {
+    return getSession(HistoricIncidentManager.class);
+  }
+
+  protected HistoricJobLogManager getHistoricJobLogManager() {
+    return getSession(HistoricJobLogManager.class);
+  }
+
+  protected JobManager getJobManager() {
+    return getSession(JobManager.class);
+  }
+
+  protected JobDefinitionManager getJobDefinitionManager() {
+    return getSession(JobDefinitionManager.class);
+  }
+
+  protected UserOperationLogManager getUserOperationLogManager() {
+    return getSession(UserOperationLogManager.class);
+  }
+
+  protected EventSubscriptionManager getEventSubscriptionManager() {
+    return getSession(EventSubscriptionManager.class);
   }
 
   protected IdentityInfoManager getIdentityInfoManager() {
@@ -153,18 +192,29 @@ public abstract class AbstractManager implements Session {
 
   // authorizations ///////////////////////////////////////
 
+  protected CommandContext getCommandContext() {
+    return Context.getCommandContext();
+  }
+
+  protected AuthorizationManager getAuthorizationManager() {
+    return getSession(AuthorizationManager.class);
+  }
+
   protected void configureQuery(AbstractQuery<?,?> query, Resource resource) {
-    Context.getCommandContext()
-      .getAuthorizationManager()
-      .configureQuery(query, resource);
+    getAuthorizationManager().configureQuery(query, resource);
   }
 
   protected void checkAuthorization(Permission permission, Resource resource, String resourceId) {
-    Context.getCommandContext()
-      .getAuthorizationManager()
-      .checkAuthorization(permission, resource, resourceId);
+    getAuthorizationManager().checkAuthorization(permission, resource, resourceId);
   }
 
+  protected boolean isAuthorizationEnabled() {
+    return Context.getProcessEngineConfiguration().isAuthorizationEnabled();
+  }
+
+  protected Authentication getCurrentAuthentication() {
+    return Context.getCommandContext().getAuthentication();
+  }
 
   protected ResourceAuthorizationProvider getResourceAuthorizationProvider() {
     return Context.getProcessEngineConfiguration()
@@ -172,20 +222,38 @@ public abstract class AbstractManager implements Session {
   }
 
   protected void deleteAuthorizations(Resource resource, String resourceId) {
-    Context.getCommandContext()
-      .getAuthorizationManager()
-      .deleteAuthorizationsByResourceId(resource, resourceId);
+    getAuthorizationManager().deleteAuthorizationsByResourceId(resource, resourceId);
   }
 
-  protected void saveDefaultAuthorizations(final AuthorizationEntity[] authorizations) {
-    if(authorizations != null) {
-      Context.getCommandContext().runWithoutAuthentication(new Runnable() {
-        public void run() {
-          AuthorizationManager authorizationManager = Context.getCommandContext()
-              .getAuthorizationManager();
+  public void saveDefaultAuthorizations(final AuthorizationEntity[] authorizations) {
+    if(authorizations != null && authorizations.length > 0) {
+      Context.getCommandContext().runWithoutAuthorization(new Callable<Void>() {
+        public Void call() {
+          AuthorizationManager authorizationManager = getAuthorizationManager();
           for (AuthorizationEntity authorization : authorizations) {
-            authorizationManager.insert(authorization);
+
+            if(authorization.getId() == null) {
+              authorizationManager.insert(authorization);
+            } else {
+              authorizationManager.update(authorization);
+            }
+
           }
+          return null;
+        }
+      });
+    }
+  }
+
+  public void deleteDefaultAuthorizations(final AuthorizationEntity[] authorizations) {
+    if(authorizations != null && authorizations.length > 0) {
+      Context.getCommandContext().runWithoutAuthorization(new Callable<Void>() {
+        public Void call() {
+          AuthorizationManager authorizationManager = getAuthorizationManager();
+          for (AuthorizationEntity authorization : authorizations) {
+            authorizationManager.delete(authorization);
+          }
+          return null;
         }
       });
     }

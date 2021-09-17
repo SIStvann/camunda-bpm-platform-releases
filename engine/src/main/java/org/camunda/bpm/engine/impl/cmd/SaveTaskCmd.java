@@ -21,7 +21,9 @@ import org.camunda.bpm.engine.exception.NullValueException;
 import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
+import org.camunda.bpm.engine.management.Metrics;
 import org.camunda.bpm.engine.task.Task;
 
 /**
@@ -40,20 +42,30 @@ public class SaveTaskCmd implements Command<Void>, Serializable {
 	public Void execute(CommandContext commandContext) {
     ensureNotNull("task", task);
 
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    String operation;
+
     if (task.getRevision() == 0) {
 
       try {
+        authorizationManager.checkCreateTask();
         task.insert(null);
         commandContext.getHistoricTaskInstanceManager().createHistoricTask(task);
-        task.createHistoricTaskDetails(UserOperationLogEntry.OPERATION_TYPE_CREATE);
+        operation = UserOperationLogEntry.OPERATION_TYPE_CREATE;
+        task.executeMetrics(Metrics.ACTIVTY_INSTANCE_START);
       } catch (NullValueException e) {
         throw new NotValidException(e.getMessage(), e);
       }
 
+
     } else {
+      authorizationManager.checkUpdateTask(task);
       task.update();
-      task.createHistoricTaskDetails(UserOperationLogEntry.OPERATION_TYPE_UPDATE);
+      operation = UserOperationLogEntry.OPERATION_TYPE_UPDATE;
     }
+
+    task.fireAuthorizationProvider();
+    task.createHistoricTaskDetails(operation);
 
     return null;
   }

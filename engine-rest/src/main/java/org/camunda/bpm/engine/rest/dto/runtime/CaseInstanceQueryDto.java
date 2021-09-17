@@ -14,6 +14,7 @@ package org.camunda.bpm.engine.rest.dto.runtime;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response.Status;
@@ -26,7 +27,8 @@ import org.camunda.bpm.engine.rest.dto.converter.BooleanConverter;
 import org.camunda.bpm.engine.rest.dto.converter.VariableListConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.runtime.CaseInstanceQuery;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * @author Roman Smirnov
@@ -50,6 +52,10 @@ public class CaseInstanceQueryDto extends AbstractQueryDto<CaseInstanceQuery> {
   protected String businessKey;
   protected String caseDefinitionKey;
   protected String caseDefinitionId;
+  protected String superProcessInstance;
+  protected String subProcessInstance;
+  protected String superCaseInstance;
+  protected String subCaseInstance;
   protected Boolean active;
   protected Boolean completed;
   protected Boolean terminated;
@@ -81,6 +87,26 @@ public class CaseInstanceQueryDto extends AbstractQueryDto<CaseInstanceQuery> {
   @CamundaQueryParam("caseDefinitionId")
   public void setCaseDefinitionId(String caseDefinitionId) {
     this.caseDefinitionId = caseDefinitionId;
+  }
+
+  @CamundaQueryParam("superProcessInstance")
+  public void setSuperProcessInstance(String superProcessInstance) {
+    this.superProcessInstance = superProcessInstance;
+  }
+
+  @CamundaQueryParam("subProcessInstance")
+  public void setSubProcessInstance(String subProcessInstance) {
+    this.subProcessInstance = subProcessInstance;
+  }
+
+  @CamundaQueryParam("superCaseInstance")
+  public void setSuperCaseInstance(String superCaseInstance) {
+    this.superCaseInstance = superCaseInstance;
+  }
+
+  @CamundaQueryParam("subCaseInstance")
+  public void setSubCaseInstance(String subCaseInstance) {
+    this.subCaseInstance = subCaseInstance;
   }
 
   @CamundaQueryParam(value = "active", converter = BooleanConverter.class)
@@ -127,6 +153,18 @@ public class CaseInstanceQueryDto extends AbstractQueryDto<CaseInstanceQuery> {
     if (caseDefinitionId != null) {
       query.caseDefinitionId(caseDefinitionId);
     }
+    if (superProcessInstance != null) {
+      query.superProcessInstanceId(superProcessInstance);
+    }
+    if (subProcessInstance != null) {
+      query.subProcessInstanceId(subProcessInstance);
+    }
+    if (superCaseInstance != null) {
+      query.superCaseInstanceId(superCaseInstance);
+    }
+    if (subCaseInstance != null) {
+      query.subCaseInstanceId(subCaseInstance);
+    }
     if (active != null && active == true) {
       query.active();
     }
@@ -166,23 +204,13 @@ public class CaseInstanceQueryDto extends AbstractQueryDto<CaseInstanceQuery> {
   }
 
   @Override
-  protected void applySortingOptions(CaseInstanceQuery query) {
-    if (sortBy != null) {
-      if (sortBy.equals(SORT_BY_INSTANCE_ID_VALUE)) {
-        query.orderByCaseInstanceId();
-      } else if (sortBy.equals(SORT_BY_DEFINITION_KEY_VALUE)) {
-        query.orderByCaseDefinitionKey();
-      } else if (sortBy.equals(SORT_BY_DEFINITION_ID_VALUE)) {
-        query.orderByCaseDefinitionId();
-      }
-    }
-
-    if (sortOrder != null) {
-      if (sortOrder.equals(SORT_ORDER_ASC_VALUE)) {
-        query.asc();
-      } else if (sortOrder.equals(SORT_ORDER_DESC_VALUE)) {
-        query.desc();
-      }
+  protected void applySortBy(CaseInstanceQuery query, String sortBy, Map<String, Object> parameters, ProcessEngine engine) {
+    if (sortBy.equals(SORT_BY_INSTANCE_ID_VALUE)) {
+      query.orderByCaseInstanceId();
+    } else if (sortBy.equals(SORT_BY_DEFINITION_KEY_VALUE)) {
+      query.orderByCaseDefinitionKey();
+    } else if (sortBy.equals(SORT_BY_DEFINITION_ID_VALUE)) {
+      query.orderByCaseDefinitionId();
     }
   }
 

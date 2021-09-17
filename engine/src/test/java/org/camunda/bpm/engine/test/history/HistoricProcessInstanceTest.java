@@ -330,13 +330,13 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
     assertEquals(1, historyService.createHistoricProcessInstanceQuery().orderByProcessDefinitionId().desc().count());
     assertEquals(1, historyService.createHistoricProcessInstanceQuery().orderByProcessInstanceBusinessKey().desc().count());
   }
-  
-  @Deployment(resources = {"org/camunda/bpm/engine/test/api/runtime/superProcess.bpmn20.xml", 
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/runtime/superProcess.bpmn20.xml",
       "org/camunda/bpm/engine/test/api/runtime/subProcess.bpmn20.xml"})
   public void testHistoricProcessInstanceSubProcess() {
-    ProcessInstance superPi = runtimeService.startProcessInstanceByKey("subProcessQueryTest");    
+    ProcessInstance superPi = runtimeService.startProcessInstanceByKey("subProcessQueryTest");
     ProcessInstance subPi = runtimeService.createProcessInstanceQuery().superProcessInstanceId(superPi.getProcessInstanceId()).singleResult();
-    
+
     HistoricProcessInstance historicProcessInstance = historyService.createHistoricProcessInstanceQuery().subProcessInstanceId(subPi.getProcessInstanceId()).singleResult();
     assertNotNull(historicProcessInstance);
     assertEquals(historicProcessInstance.getId(), superPi.getId());
@@ -638,7 +638,7 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
     assertEquals(caseInstanceId, secondInstance.getCaseInstanceId());
 
   }
- 
+
   @Deployment(resources = "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml")
   public void testStartByIdWithCaseInstanceId() {
     String processDefinitionId = repositoryService
@@ -673,4 +673,172 @@ public class HistoricProcessInstanceTest extends PluggableProcessEngineTestCase 
     assertEquals(caseInstanceId, secondInstance.getCaseInstanceId());
 
   }
+
+  @Deployment
+  public void testEndTimeAndEndActivity() {
+    // given
+    String processInstanceId = runtimeService.startProcessInstanceByKey("process").getId();
+
+    String taskId = taskService
+        .createTaskQuery()
+        .taskDefinitionKey("userTask2")
+        .singleResult()
+        .getId();
+
+    HistoricProcessInstanceQuery query = historyService.createHistoricProcessInstanceQuery();
+
+    // when (1)
+    taskService.complete(taskId);
+
+    // then (1)
+    HistoricProcessInstance historicProcessInstance = query.singleResult();
+
+    assertNull(historicProcessInstance.getEndActivityId());
+    assertNull(historicProcessInstance.getEndTime());
+
+    // when (2)
+    runtimeService.deleteProcessInstance(processInstanceId, null);
+
+    // then (2)
+    historicProcessInstance = query.singleResult();
+
+    assertNull(historicProcessInstance.getEndActivityId());
+    assertNotNull(historicProcessInstance.getEndTime());
+  }
+
+  @Deployment(resources = {
+      "org/camunda/bpm/engine/test/api/cmmn/oneProcessTaskCase.cmmn",
+      "org/camunda/bpm/engine/test/api/runtime/oneTaskProcess.bpmn20.xml"
+  })
+  public void testQueryBySuperCaseInstanceId() {
+    String superCaseInstanceId = caseService.createCaseInstanceByKey("oneProcessTaskCase").getId();
+
+    String processTaskId = caseService
+        .createCaseExecutionQuery()
+        .activityId("PI_ProcessTask_1")
+        .singleResult()
+        .getId();
+
+    caseService.manuallyStartCaseExecution(processTaskId);
+
+    HistoricProcessInstanceQuery query = historyService
+        .createHistoricProcessInstanceQuery()
+        .superCaseInstanceId(superCaseInstanceId);
+
+    assertEquals(1, query.list().size());
+    assertEquals(1, query.count());
+
+    HistoricProcessInstance subProcessInstance = query.singleResult();
+    assertNotNull(subProcessInstance);
+    assertEquals(superCaseInstanceId, subProcessInstance.getSuperCaseInstanceId());
+    assertNull(subProcessInstance.getSuperProcessInstanceId());
+  }
+
+  public void testQueryByInvalidSuperCaseInstanceId() {
+    HistoricProcessInstanceQuery query = historyService.createHistoricProcessInstanceQuery();
+
+    query.superCaseInstanceId("invalid");
+
+    assertEquals(0, query.count());
+    assertEquals(0, query.list().size());
+
+    query.caseInstanceId(null);
+
+    assertEquals(0, query.count());
+    assertEquals(0, query.list().size());
+  }
+
+  @Deployment(resources = {
+      "org/camunda/bpm/engine/test/api/runtime/superProcessWithCaseCallActivity.bpmn20.xml",
+      "org/camunda/bpm/engine/test/api/cmmn/oneTaskCase.cmmn" })
+  public void testQueryBySubCaseInstanceId() {
+    String superProcessInstanceId = runtimeService.startProcessInstanceByKey("subProcessQueryTest").getId();
+
+    String subCaseInstanceId = caseService
+        .createCaseInstanceQuery()
+        .superProcessInstanceId(superProcessInstanceId)
+        .singleResult()
+        .getId();
+
+    HistoricProcessInstanceQuery query = historyService
+        .createHistoricProcessInstanceQuery()
+        .subCaseInstanceId(subCaseInstanceId);
+
+    assertEquals(1, query.list().size());
+    assertEquals(1, query.count());
+
+    HistoricProcessInstance superProcessInstance = query.singleResult();
+    assertNotNull(superProcessInstance);
+    assertEquals(superProcessInstanceId, superProcessInstance.getId());
+    assertNull(superProcessInstance.getSuperCaseInstanceId());
+    assertNull(superProcessInstance.getSuperProcessInstanceId());
+  }
+
+  public void testQueryByInvalidSubCaseInstanceId() {
+    HistoricProcessInstanceQuery query = historyService.createHistoricProcessInstanceQuery();
+
+    query.subCaseInstanceId("invalid");
+
+    assertEquals(0, query.count());
+    assertEquals(0, query.list().size());
+
+    query.caseInstanceId(null);
+
+    assertEquals(0, query.count());
+    assertEquals(0, query.list().size());
+  }
+
+  @Deployment(resources = {
+      "org/camunda/bpm/engine/test/api/cmmn/oneProcessTaskCase.cmmn",
+      "org/camunda/bpm/engine/test/api/runtime/oneTaskProcess.bpmn20.xml"
+  })
+  public void testSuperCaseInstanceIdProperty() {
+    String superCaseInstanceId = caseService.createCaseInstanceByKey("oneProcessTaskCase").getId();
+
+    String processTaskId = caseService
+        .createCaseExecutionQuery()
+        .activityId("PI_ProcessTask_1")
+        .singleResult()
+        .getId();
+
+    caseService.manuallyStartCaseExecution(processTaskId);
+
+    HistoricProcessInstance instance = historyService
+        .createHistoricProcessInstanceQuery()
+        .singleResult();
+
+    assertNotNull(instance);
+    assertEquals(superCaseInstanceId, instance.getSuperCaseInstanceId());
+
+    String taskId = taskService
+        .createTaskQuery()
+        .singleResult()
+        .getId();
+    taskService.complete(taskId);
+
+    instance = historyService
+        .createHistoricProcessInstanceQuery()
+        .singleResult();
+
+    assertNotNull(instance);
+    assertEquals(superCaseInstanceId, instance.getSuperCaseInstanceId());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/api/oneTaskProcess.bpmn20.xml")
+  public void testProcessDefinitionKeyProperty() {
+    // given
+    String key = "oneTaskProcess";
+    String processInstanceId = runtimeService.startProcessInstanceByKey(key).getId();
+
+    // when
+    HistoricProcessInstance instance = historyService
+        .createHistoricProcessInstanceQuery()
+        .processInstanceId(processInstanceId)
+        .singleResult();
+
+    // then
+    assertNotNull(instance.getProcessDefinitionKey());
+    assertEquals(key, instance.getProcessDefinitionKey());
+  }
+
 }

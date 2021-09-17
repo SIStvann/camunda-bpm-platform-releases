@@ -12,6 +12,8 @@
  */
 package org.camunda.bpm.engine.impl.jobexecutor;
 
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -20,14 +22,12 @@ import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
 
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
-
 
 /**
  * @author Tom Baeyens
  * @author Joram Barrez
  */
-public class TimerExecuteNestedActivityJobHandler implements JobHandler {
+public class TimerExecuteNestedActivityJobHandler extends TimerEventJobHandler {
 
   private static Logger log = Logger.getLogger(TimerExecuteNestedActivityJobHandler.class.getName());
 
@@ -38,13 +38,14 @@ public class TimerExecuteNestedActivityJobHandler implements JobHandler {
   }
 
   public void execute(String configuration, ExecutionEntity execution, CommandContext commandContext) {
-    ActivityImpl borderEventActivity = execution.getProcessDefinition().findActivity(configuration);
+    String activityId = getKey(configuration);
+    ActivityImpl activity = execution.getProcessDefinition().findActivity(activityId);
 
-    ensureNotNull("Error while firing timer: border event activity " + configuration + " not found", "borderEventActivity", borderEventActivity);
+    ensureNotNull("Error while firing timer: boundary event activity " + configuration + " not found", "boundary event activity", activity);
 
     try {
 
-      execution.executeActivity(borderEventActivity);
+      execution.executeEventHandlerActivity(activity);
 
     } catch (RuntimeException e) {
       log.log(Level.SEVERE, "exception during timer execution", e);

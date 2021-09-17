@@ -12,10 +12,12 @@
  */
 package org.camunda.bpm.engine.impl.scripting;
 
+import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.delegate.VariableScope;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.core.variable.mapping.IoParameter;
 import org.camunda.bpm.engine.impl.core.variable.mapping.value.ParameterValueProvider;
-import org.camunda.bpm.engine.impl.core.variable.scope.AbstractVariableScope;
+import org.camunda.bpm.engine.impl.delegate.ScriptInvocation;
 
 /**
  * Makes it possible to use scripts in {@link IoParameter} mappings.
@@ -31,10 +33,20 @@ public class ScriptValueProvider implements ParameterValueProvider {
     this.script = script;
   }
 
-  public Object getValue(AbstractVariableScope variableScope) {
-    return Context.getProcessEngineConfiguration()
-      .getScriptingEnvironment()
-      .execute(script, variableScope);
+  public Object getValue(VariableScope variableScope) {
+    ScriptInvocation invocation = new ScriptInvocation(script, variableScope);
+    try {
+      Context
+        .getProcessEngineConfiguration()
+        .getDelegateInterceptor()
+        .handleInvocation(invocation);
+    } catch (RuntimeException e) {
+      throw e;
+    } catch (Exception e) {
+      throw new ProcessEngineException(e);
+    }
+
+    return invocation.getInvocationResult();
   }
 
   public ExecutableScript getScript() {

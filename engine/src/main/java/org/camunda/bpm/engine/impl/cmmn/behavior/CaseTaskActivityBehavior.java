@@ -12,13 +12,13 @@
  */
 package org.camunda.bpm.engine.impl.cmmn.behavior;
 
+import static org.camunda.bpm.engine.impl.util.CallableElementUtil.getCaseDefinitionToCall;
+
 import java.util.Map;
 
 import org.camunda.bpm.engine.impl.cmmn.execution.CmmnActivityExecution;
 import org.camunda.bpm.engine.impl.cmmn.execution.CmmnCaseInstance;
 import org.camunda.bpm.engine.impl.cmmn.model.CmmnCaseDefinition;
-import org.camunda.bpm.engine.impl.context.Context;
-import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
 
 /**
  * @author Roman Smirnov
@@ -27,26 +27,8 @@ import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
 public class CaseTaskActivityBehavior extends ProcessOrCaseTaskActivityBehavior {
 
   protected void triggerCallableElement(CmmnActivityExecution execution, Map<String, Object> variables, String businessKey) {
-    String caseDefinitionKey = getDefinitionKey(execution);
-
-    DeploymentCache deploymentCache = Context
-      .getProcessEngineConfiguration()
-      .getDeploymentCache();
-
-    CmmnCaseDefinition caseDefinition = null;
-    if (isLatestBinding()) {
-      caseDefinition = deploymentCache.findDeployedLatestCaseDefinitionByKey(caseDefinitionKey);
-
-    } else if (isDeploymentBinding()) {
-      String deploymentId = getDeploymentId(execution);
-      caseDefinition = deploymentCache.findDeployedCaseDefinitionByDeploymentAndKey(deploymentId, caseDefinitionKey);
-
-    } else if (isVersionBinding()) {
-      Integer version = getVersion(execution);
-      caseDefinition = deploymentCache.findDeployedCaseDefinitionByKeyAndVersion(caseDefinitionKey, version);
-    }
-
-    CmmnCaseInstance caseInstance = execution.createSubCaseInstance(caseDefinition, businessKey);
+    CmmnCaseDefinition definition = getCaseDefinitionToCall(execution, getCallableElement());
+    CmmnCaseInstance caseInstance = execution.createSubCaseInstance(definition, businessKey);
     caseInstance.create(variables);
   }
 

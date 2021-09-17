@@ -13,12 +13,19 @@
 package org.camunda.bpm.engine.impl.pvm.delegate;
 
 import java.util.List;
+import java.util.Map;
 
 import org.camunda.bpm.engine.delegate.DelegateExecution;
+import org.camunda.bpm.engine.impl.cmmn.execution.CmmnCaseInstance;
+import org.camunda.bpm.engine.impl.cmmn.model.CmmnCaseDefinition;
 import org.camunda.bpm.engine.impl.pvm.PvmActivity;
 import org.camunda.bpm.engine.impl.pvm.PvmProcessDefinition;
 import org.camunda.bpm.engine.impl.pvm.PvmProcessInstance;
+import org.camunda.bpm.engine.impl.pvm.PvmScope;
 import org.camunda.bpm.engine.impl.pvm.PvmTransition;
+import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
+import org.camunda.bpm.engine.impl.pvm.process.TransitionImpl;
+import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
 /**
  * @author Tom Baeyens
@@ -48,12 +55,6 @@ public interface ActivityExecution extends DelegateExecution {
 
   /** return the Id of the parent activity instance currently executed by this execution */
   String getParentActivityInstanceId();
-
-  /**
-   * leaves the current activity by taking the given transition.
-   */
-  void take(PvmTransition transition);
-
 
   /* Execution management */
 
@@ -93,6 +94,27 @@ public interface ActivityExecution extends DelegateExecution {
    * @param caseInstanceId the case instance id of the process instance
    */
   PvmProcessInstance createSubProcessInstance(PvmProcessDefinition processDefinition, String businessKey, String caseInstanceId);
+
+  /**
+   * <p>Creates a new sub case instance.</p>
+   *
+   * <p><code>This</code> execution will be the super execution of the
+   * created sub case instance.</p>
+   *
+   * @param caseDefinition The {@link CmmnCaseDefinition} of the sub case instance.
+   */
+  CmmnCaseInstance createSubCaseInstance(CmmnCaseDefinition caseDefinition);
+
+  /**
+   * <p>Creates a new sub case instance.</p>
+   *
+   * <p><code>This</code> execution will be the super execution of the
+   * created sub case instance.</p>
+   *
+   * @param caseDefinition The {@link CmmnCaseDefinition} of the sub case instance.
+   * @param businessKey The businessKey to be set on sub case instance.
+   */
+  CmmnCaseInstance createSubCaseInstance(CmmnCaseDefinition caseDefinition, String businessKey);
 
   /**
    * returns the parent of this execution, or null if there no parent.
@@ -170,11 +192,6 @@ public interface ActivityExecution extends DelegateExecution {
   boolean isCompleteScope();
 
   /**
-   * Returns whether this execution has been canceled.
-   */
-  boolean isCanceled();
-
-  /**
    * Retrieves all executions which are concurrent and inactive at the given activity.
    */
   List<ActivityExecution> findInactiveConcurrentExecutions(PvmActivity activity);
@@ -183,7 +200,9 @@ public interface ActivityExecution extends DelegateExecution {
    * Takes the given outgoing transitions, and potentially reusing
    * the given list of executions that were previously joined.
    */
-  void takeAll(List<PvmTransition> outgoingTransitions, List<? extends ActivityExecution> joinedExecutions);
+  void leaveActivityViaTransitions(List<PvmTransition> outgoingTransitions, List<? extends ActivityExecution> joinedExecutions);
+
+  void leaveActivityViaTransition(PvmTransition outgoingTransition);
 
   /**
    * Executes the {@link ActivityBehavior} associated with the given activity.
@@ -194,17 +213,35 @@ public interface ActivityExecution extends DelegateExecution {
    * Called when an execution is interrupted. This will remove all associated entities
    * such as event subscriptions, jobs, ...
    */
-  void interruptScope(String reason);
+  void interrupt(String reason);
 
   /** An activity which is to be started next. */
   PvmActivity getNextActivity();
 
+
   void remove();
+  void destroy();
 
   void signal(String string, Object signalData);
 
-  void cancelScope(String string);
+  void setActivity(PvmActivity activity);
 
-  void setActivity(PvmActivity cancelBoundaryEvent);
+  boolean tryPruneLastConcurrentChild();
+
+  void forceUpdate();
+
+  TransitionImpl getTransition();
+
+  /**
+   * Assumption: the current execution is active and executing an activity ({@link #getActivity()} is not null).
+   *
+   * For a given target scope, this method returns the scope execution.
+   *
+   * @param targetScope scope activity or process definition for which the scope execution should be found
+   * @return
+   */
+  public ActivityExecution findExecutionForFlowScope(PvmScope targetScope);
+
+  public Map<ScopeImpl, PvmExecutionImpl> createActivityExecutionMapping();
 
 }

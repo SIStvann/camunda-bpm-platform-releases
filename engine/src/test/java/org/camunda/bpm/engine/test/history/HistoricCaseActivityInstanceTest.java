@@ -36,7 +36,10 @@ import java.util.List;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricCaseActivityInstance;
 import org.camunda.bpm.engine.history.HistoricCaseActivityInstanceQuery;
+import org.camunda.bpm.engine.history.HistoricCaseInstance;
 import org.camunda.bpm.engine.impl.AbstractQuery;
+import org.camunda.bpm.engine.impl.Direction;
+import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.cmmn.execution.CaseExecutionState;
 import org.camunda.bpm.engine.impl.history.event.HistoricCaseActivityInstanceEventEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.HistoricCaseActivityInstanceEntity;
@@ -643,6 +646,75 @@ public class HistoricCaseActivityInstanceTest extends CmmnProcessEngineTestCase 
     assertNotNull(caseInstance);
   }
 
+  @Deployment(resources = "org/camunda/bpm/engine/test/cmmn/required/RequiredRuleTest.testVariableBasedRule.cmmn")
+  public void testRequiredRuleEvaluatesToTrue() {
+    caseService.createCaseInstanceByKey("case", Collections.<String, Object>singletonMap("required", true));
+
+    HistoricCaseActivityInstance task = historyService
+        .createHistoricCaseActivityInstanceQuery()
+        .caseActivityId("PI_HumanTask_1")
+        .singleResult();
+
+    assertNotNull(task);
+    assertTrue(task.isRequired());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/cmmn/required/RequiredRuleTest.testVariableBasedRule.cmmn")
+  public void testRequiredRuleEvaluatesToFalse() {
+    caseService.createCaseInstanceByKey("case", Collections.<String, Object>singletonMap("required", false));
+
+    HistoricCaseActivityInstance task = historyService
+        .createHistoricCaseActivityInstanceQuery()
+        .caseActivityId("PI_HumanTask_1")
+        .singleResult();
+
+    assertNotNull(task);
+    assertFalse(task.isRequired());
+  }
+
+  @Deployment(resources = "org/camunda/bpm/engine/test/cmmn/required/RequiredRuleTest.testVariableBasedRule.cmmn")
+  public void testQueryByRequired() {
+    caseService.createCaseInstanceByKey("case", Collections.<String, Object>singletonMap("required", true));
+
+    HistoricCaseActivityInstanceQuery query = historyService
+        .createHistoricCaseActivityInstanceQuery()
+        .required();
+
+    assertEquals(1, query.count());
+    assertEquals(1, query.list().size());
+
+    HistoricCaseActivityInstance activityInstance = query.singleResult();
+    assertNotNull(activityInstance);
+    assertTrue(activityInstance.isRequired());
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/cmmn/stage/AutoCompleteTest.testCasePlanModel.cmmn"})
+  public void testAutoCompleteEnabled() {
+    String caseInstanceId = createCaseInstanceByKey("case").getId();
+
+    HistoricCaseInstance caseInstance = historyService
+        .createHistoricCaseInstanceQuery()
+        .caseInstanceId(caseInstanceId)
+        .singleResult();
+    assertNotNull(caseInstance);
+    assertTrue(caseInstance.isCompleted());
+
+    HistoricCaseActivityInstanceQuery query = historyService.createHistoricCaseActivityInstanceQuery();
+
+    HistoricCaseActivityInstance humanTask1 = query.caseActivityId("PI_HumanTask_1").singleResult();
+    assertNotNull(humanTask1);
+    assertTrue(humanTask1.isEnabled());
+    assertNull(humanTask1.getEndTime());
+    assertNull(humanTask1.getDurationInMillis());
+
+
+    HistoricCaseActivityInstance humanTask2 = query.caseActivityId("PI_HumanTask_2").singleResult();
+    assertNotNull(humanTask2);
+    assertTrue(humanTask2.isEnabled());
+    assertNull(humanTask2.getEndTime());
+    assertNull(humanTask2.getDurationInMillis());
+  }
+
   protected HistoricCaseActivityInstanceQuery historicQuery() {
     return historyService.createHistoricCaseActivityInstanceQuery();
   }
@@ -756,8 +828,8 @@ public class HistoricCaseActivityInstanceTest extends CmmnProcessEngineTestCase 
   protected void assertQuerySorting(String property, Query<?, ?> query, Comparable... items) {
     AbstractQuery<?, ?> queryImpl = (AbstractQuery<?, ?>) query;
 
-    // save order property to later reverse ordering
-    QueryProperty orderProperty = queryImpl.getOrderProperty();
+    // save order properties to later reverse ordering
+    List<QueryOrderingProperty> orderProperties = queryImpl.getOrderingProperties();
 
     List<? extends Comparable> sortedList = Arrays.asList(items);
     Collections.sort(sortedList);
@@ -772,13 +844,14 @@ public class HistoricCaseActivityInstanceTest extends CmmnProcessEngineTestCase 
     assertThat(instances, contains(matchers.toArray(new Matcher[matchers.size()])));
 
     // reverse ordering
-    queryImpl.setOrderBy(null);
-    queryImpl.orderBy(orderProperty);
+    for (QueryOrderingProperty orderingProperty : orderProperties) {
+      orderingProperty.setDirection(Direction.DESCENDING);
+    }
 
     // reverse matchers
     Collections.reverse(matchers);
 
-    instances = query.desc().list();
+    instances = query.list();
     assertEquals(sortedList.size(), instances.size());
     assertThat(instances, contains(matchers.toArray(new Matcher[matchers.size()])));
   }

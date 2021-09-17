@@ -50,6 +50,8 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
   protected String incidentMessage;
   protected String incidentMessageLike;
   protected String caseInstanceId;
+  protected String superCaseInstanceId;
+  protected String subCaseInstanceId;
 
   // Unused, see dynamic query
   protected String activityId;
@@ -119,18 +121,32 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
     return this;
   }
 
+  public ProcessInstanceQuery superCaseInstanceId(String superCaseInstanceId) {
+    ensureNotNull("superCaseInstanceId", superCaseInstanceId);
+    this.superCaseInstanceId = superCaseInstanceId;
+    return this;
+  }
+
+  public ProcessInstanceQuery subCaseInstanceId(String subCaseInstanceId) {
+    ensureNotNull("subCaseInstanceId", subCaseInstanceId);
+    this.subCaseInstanceId = subCaseInstanceId;
+    return this;
+  }
+
   public ProcessInstanceQuery orderByProcessInstanceId() {
-    this.orderProperty = ProcessInstanceQueryProperty.PROCESS_INSTANCE_ID;
+    orderBy(ProcessInstanceQueryProperty.PROCESS_INSTANCE_ID);
     return this;
   }
 
   public ProcessInstanceQuery orderByProcessDefinitionId() {
-    this.orderProperty = ProcessInstanceQueryProperty.PROCESS_DEFINITION_ID;
+    orderBy(new QueryOrderingProperty(QueryOrderingProperty.RELATION_PROCESS_DEFINITION,
+        ProcessInstanceQueryProperty.PROCESS_DEFINITION_ID));
     return this;
   }
 
   public ProcessInstanceQuery orderByProcessDefinitionKey() {
-    this.orderProperty = ProcessInstanceQueryProperty.PROCESS_DEFINITION_KEY;
+    orderBy(new QueryOrderingProperty(QueryOrderingProperty.RELATION_PROCESS_DEFINITION,
+        ProcessInstanceQueryProperty.PROCESS_DEFINITION_KEY));
     return this;
   }
 
@@ -258,6 +274,14 @@ public class ProcessInstanceQueryImpl extends AbstractVariableQueryImpl<ProcessI
 
   public String getCaseInstanceId() {
     return caseInstanceId;
+  }
+
+  public String getSuperCaseInstanceId() {
+    return superCaseInstanceId;
+  }
+
+  public String getSubCaseInstanceId() {
+    return subCaseInstanceId;
   }
 
 }

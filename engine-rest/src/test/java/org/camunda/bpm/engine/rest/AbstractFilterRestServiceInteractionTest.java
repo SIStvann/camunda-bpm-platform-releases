@@ -20,14 +20,36 @@ import static org.camunda.bpm.engine.authorization.Permissions.DELETE;
 import static org.camunda.bpm.engine.authorization.Permissions.READ;
 import static org.camunda.bpm.engine.authorization.Permissions.UPDATE;
 import static org.camunda.bpm.engine.authorization.Resources.FILTER;
+import static org.camunda.bpm.engine.rest.dto.AbstractQueryDto.SORT_ORDER_ASC_VALUE;
+import static org.camunda.bpm.engine.rest.dto.AbstractQueryDto.SORT_ORDER_DESC_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_ASSIGNEE_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_CASE_EXECUTION_ID_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_CASE_EXECUTION_VARIABLE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_CASE_INSTANCE_ID_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_CASE_INSTANCE_VARIABLE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_CREATE_TIME_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_DESCRIPTION_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_DUE_DATE_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_EXECUTION_ID_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_EXECUTION_VARIABLE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_FOLLOW_UP_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_ID_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_NAME_CASE_INSENSITIVE_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_NAME_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_PRIORITY_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_PROCESS_INSTANCE_ID_VALUE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_PROCESS_VARIABLE;
+import static org.camunda.bpm.engine.rest.dto.task.TaskQueryDto.SORT_BY_TASK_VARIABLE;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.EXAMPLE_FILTER_ID;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.mockFilter;
 import static org.camunda.bpm.engine.rest.helper.MockProvider.mockVariableInstance;
 import static org.camunda.bpm.engine.rest.helper.TaskQueryMatcher.hasName;
 import static org.camunda.bpm.engine.variable.Variables.stringValue;
 import static org.fest.assertions.Assertions.assertThat;
+import static org.hamcrest.CoreMatchers.hasItems;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
@@ -68,6 +90,7 @@ import org.camunda.bpm.engine.impl.identity.Authentication;
 import org.camunda.bpm.engine.impl.persistence.entity.FilterEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
 import org.camunda.bpm.engine.query.Query;
+import org.camunda.bpm.engine.rest.dto.VariableValueDto;
 import org.camunda.bpm.engine.rest.dto.task.TaskQueryDto;
 import org.camunda.bpm.engine.rest.helper.MockProvider;
 import org.camunda.bpm.engine.rest.helper.MockTaskBuilder;
@@ -75,6 +98,7 @@ import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.runtime.VariableInstanceQuery;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
+import org.camunda.bpm.engine.variable.type.ValueType;
 import org.camunda.bpm.engine.variable.value.TypedValue;
 import org.junit.Before;
 import org.junit.Test;
@@ -131,7 +155,7 @@ public abstract class AbstractFilterRestServiceInteractionTest extends AbstractR
     when(filterServiceMock.getFilter(eq(EXAMPLE_FILTER_ID))).thenReturn(filterMock);
     when(filterServiceMock.getFilter(eq(MockProvider.NON_EXISTING_ID))).thenReturn(null);
 
-    List mockTasks = Collections.singletonList(new TaskEntity());
+    List<Object> mockTasks = Collections.<Object>singletonList(new TaskEntity());
 
     when(filterServiceMock.singleResult(eq(EXAMPLE_FILTER_ID)))
       .thenReturn(mockTasks.get(0));
@@ -215,6 +239,90 @@ public abstract class AbstractFilterRestServiceInteractionTest extends AbstractR
   }
 
   @Test
+  public void testGetFilterWithTaskQuery() {
+    TaskQueryImpl query = mock(TaskQueryImpl.class);
+    when(query.getAssignee()).thenReturn(MockProvider.EXAMPLE_TASK_ASSIGNEE_NAME);
+    when(query.getAssigneeLike()).thenReturn(MockProvider.EXAMPLE_TASK_ASSIGNEE_NAME);
+    when(query.getCaseDefinitionId()).thenReturn(MockProvider.EXAMPLE_CASE_DEFINITION_ID);
+    when(query.getCaseDefinitionKey()).thenReturn(MockProvider.EXAMPLE_CASE_DEFINITION_KEY);
+    when(query.getCaseDefinitionName()).thenReturn(MockProvider.EXAMPLE_CASE_DEFINITION_NAME);
+    when(query.getCaseDefinitionNameLike()).thenReturn(MockProvider.EXAMPLE_CASE_DEFINITION_NAME_LIKE);
+    when(query.getCaseExecutionId()).thenReturn(MockProvider.EXAMPLE_CASE_EXECUTION_ID);
+    when(query.getCaseInstanceBusinessKey()).thenReturn(MockProvider.EXAMPLE_CASE_INSTANCE_BUSINESS_KEY);
+    when(query.getCaseInstanceBusinessKeyLike()).thenReturn(MockProvider.EXAMPLE_CASE_INSTANCE_BUSINESS_KEY_LIKE);
+    when(query.getCaseInstanceId()).thenReturn(MockProvider.EXAMPLE_CASE_INSTANCE_ID);
+    when(query.getCandidateUser()).thenReturn(MockProvider.EXAMPLE_USER_ID);
+    when(query.getCandidateGroup()).thenReturn(MockProvider.EXAMPLE_GROUP_ID);
+    when(query.getProcessInstanceBusinessKey()).thenReturn(MockProvider.EXAMPLE_PROCESS_INSTANCE_BUSINESS_KEY);
+    when(query.getProcessInstanceBusinessKeyLike()).thenReturn(MockProvider.EXAMPLE_PROCESS_INSTANCE_BUSINESS_KEY_LIKE);
+    when(query.getProcessDefinitionKey()).thenReturn(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY);
+    when(query.getProcessDefinitionKeys()).thenReturn(new String[]{MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY, MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY});
+    when(query.getProcessDefinitionId()).thenReturn(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID);
+    when(query.getExecutionId()).thenReturn(MockProvider.EXAMPLE_EXECUTION_ID);
+    when(query.getProcessDefinitionName()).thenReturn(MockProvider.EXAMPLE_PROCESS_DEFINITION_NAME);
+    when(query.getProcessDefinitionNameLike()).thenReturn(MockProvider.EXAMPLE_PROCESS_DEFINITION_NAME_LIKE);
+    when(query.getProcessInstanceId()).thenReturn(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID);
+    when(query.getKey()).thenReturn(MockProvider.EXAMPLE_TASK_DEFINITION_KEY);
+    when(query.getKeys()).thenReturn(new String[]{MockProvider.EXAMPLE_TASK_DEFINITION_KEY, MockProvider.EXAMPLE_TASK_DEFINITION_KEY});
+    when(query.getKeyLike()).thenReturn(MockProvider.EXAMPLE_TASK_DEFINITION_KEY);
+    when(query.getDescription()).thenReturn(MockProvider.EXAMPLE_TASK_DESCRIPTION);
+    when(query.getDescriptionLike()).thenReturn(MockProvider.EXAMPLE_TASK_DESCRIPTION);
+    when(query.getInvolvedUser()).thenReturn(MockProvider.EXAMPLE_USER_ID);
+    when(query.getPriority()).thenReturn(1);
+    when(query.getMaxPriority()).thenReturn(2);
+    when(query.getMinPriority()).thenReturn(3);
+    when(query.getName()).thenReturn(MockProvider.EXAMPLE_TASK_NAME);
+    when(query.getNameLike()).thenReturn(MockProvider.EXAMPLE_TASK_NAME);
+    when(query.getOwner()).thenReturn(MockProvider.EXAMPLE_TASK_OWNER);
+    when(query.getParentTaskId()).thenReturn(MockProvider.EXAMPLE_TASK_PARENT_TASK_ID);
+
+    filterMock = MockProvider.createMockFilter(EXAMPLE_FILTER_ID, query);
+    when(filterServiceMock.getFilter(EXAMPLE_FILTER_ID)).thenReturn(filterMock);
+
+    given()
+      .pathParam("id", MockProvider.EXAMPLE_FILTER_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .body("query.assignee", equalTo(MockProvider.EXAMPLE_TASK_ASSIGNEE_NAME))
+      .body("query.assigneeLike", equalTo(MockProvider.EXAMPLE_TASK_ASSIGNEE_NAME))
+      .body("query.caseDefinitionId", equalTo(MockProvider.EXAMPLE_CASE_DEFINITION_ID))
+      .body("query.caseDefinitionKey", equalTo(MockProvider.EXAMPLE_CASE_DEFINITION_KEY))
+      .body("query.caseDefinitionName", equalTo(MockProvider.EXAMPLE_CASE_DEFINITION_NAME))
+      .body("query.caseDefinitionNameLike", equalTo(MockProvider.EXAMPLE_CASE_DEFINITION_NAME_LIKE))
+      .body("query.caseExecutionId", equalTo(MockProvider.EXAMPLE_CASE_EXECUTION_ID))
+      .body("query.caseInstanceBusinessKey", equalTo(MockProvider.EXAMPLE_CASE_INSTANCE_BUSINESS_KEY))
+      .body("query.caseInstanceBusinessKeyLike", equalTo(MockProvider.EXAMPLE_CASE_INSTANCE_BUSINESS_KEY_LIKE))
+      .body("query.caseInstanceId", equalTo(MockProvider.EXAMPLE_CASE_INSTANCE_ID))
+      .body("query.candidateUser", equalTo(MockProvider.EXAMPLE_USER_ID))
+      .body("query.candidateGroup", equalTo(MockProvider.EXAMPLE_GROUP_ID))
+      .body("query.processInstanceBusinessKey", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_BUSINESS_KEY))
+      .body("query.processInstanceBusinessKeyLike", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_BUSINESS_KEY_LIKE))
+      .body("query.processDefinitionKey", equalTo(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY))
+      .body("query.processDefinitionKeyIn", hasItems(MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY, MockProvider.EXAMPLE_PROCESS_DEFINITION_KEY))
+      .body("query.processDefinitionId", equalTo(MockProvider.EXAMPLE_PROCESS_DEFINITION_ID))
+      .body("query.executionId", equalTo(MockProvider.EXAMPLE_EXECUTION_ID))
+      .body("query.processDefinitionName", equalTo(MockProvider.EXAMPLE_PROCESS_DEFINITION_NAME))
+      .body("query.processDefinitionNameLike", equalTo(MockProvider.EXAMPLE_PROCESS_DEFINITION_NAME_LIKE))
+      .body("query.processInstanceId", equalTo(MockProvider.EXAMPLE_PROCESS_INSTANCE_ID))
+      .body("query.taskDefinitionKey", equalTo(MockProvider.EXAMPLE_TASK_DEFINITION_KEY))
+      .body("query.taskDefinitionKeyIn", hasItems(MockProvider.EXAMPLE_TASK_DEFINITION_KEY, MockProvider.EXAMPLE_TASK_DEFINITION_KEY))
+      .body("query.taskDefinitionKeyLike", equalTo(MockProvider.EXAMPLE_TASK_DEFINITION_KEY))
+      .body("query.description", equalTo(MockProvider.EXAMPLE_TASK_DESCRIPTION))
+      .body("query.descriptionLike", equalTo(MockProvider.EXAMPLE_TASK_DESCRIPTION))
+      .body("query.involvedUser", equalTo(MockProvider.EXAMPLE_USER_ID))
+      .body("query.priority", equalTo(1))
+      .body("query.maxPriority", equalTo(2))
+      .body("query.minPriority", equalTo(3))
+      .body("query.name", equalTo(MockProvider.EXAMPLE_TASK_NAME))
+      .body("query.nameLike", equalTo(MockProvider.EXAMPLE_TASK_NAME))
+      .body("query.owner", equalTo(MockProvider.EXAMPLE_TASK_OWNER))
+      .body("query.parentTaskId", equalTo(MockProvider.EXAMPLE_TASK_PARENT_TASK_ID))
+    .when()
+      .get(SINGLE_FILTER_URL);
+
+  }
+
+  @Test
   public void testGetFilterWithCandidateGroupQuery() {
     TaskQueryImpl query = new TaskQueryImpl();
     query.taskCandidateGroup("abc");
@@ -227,6 +335,7 @@ public abstract class AbstractFilterRestServiceInteractionTest extends AbstractR
       .statusCode(Status.OK.getStatusCode())
       .body("query.candidateGroup", equalTo("abc"))
       .body("query.containsKey('candidateGroups')", is(false))
+      .body("query.containsKey('includeAssignedTasks')", is(false))
     .when()
       .get(SINGLE_FILTER_URL);
   }
@@ -244,8 +353,240 @@ public abstract class AbstractFilterRestServiceInteractionTest extends AbstractR
       .statusCode(Status.OK.getStatusCode())
       .body("query.candidateUser", equalTo("abc"))
       .body("query.containsKey('candidateGroups')", is(false))
+      .body("query.containsKey('includeAssignedTasks')", is(false))
   .when()
       .get(SINGLE_FILTER_URL);
+  }
+
+  @Test
+  public void testGetFilterWithCandidateIncludeAssignedTasks() {
+    TaskQueryImpl query = new TaskQueryImpl();
+    query.taskCandidateUser("abc").includeAssignedTasks();
+    Filter filter = new FilterEntity("Task").setName("test").setQuery(query);
+    when(filterServiceMock.getFilter(EXAMPLE_FILTER_ID)).thenReturn(filter);
+
+    given()
+      .pathParam("id", EXAMPLE_FILTER_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .body("query.candidateUser", equalTo("abc"))
+      .body("query.containsKey('candidateGroups')", is(false))
+      .body("query.includeAssignedTasks", is(true))
+    .when()
+      .get(SINGLE_FILTER_URL);
+  }
+
+  @Test
+  public void testGetFilterWithoutSorting() {
+    TaskQuery query = new TaskQueryImpl();
+    Filter filter = new FilterEntity("Task").setName("test").setQuery(query);
+    when(filterServiceMock.getFilter(EXAMPLE_FILTER_ID)).thenReturn(filter);
+
+    given()
+      .pathParam("id", EXAMPLE_FILTER_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+      .body("query.sorting", isEmptyOrNullString())
+    .when()
+      .get(SINGLE_FILTER_URL);
+  }
+
+  @Test
+  public void testGetFilterWithSingleSorting() {
+    TaskQuery query = new TaskQueryImpl()
+      .orderByTaskName().desc();
+
+    Filter filter = new FilterEntity("Task").setName("test").setQuery(query);
+    when(filterServiceMock.getFilter(EXAMPLE_FILTER_ID)).thenReturn(filter);
+
+    Response response = given()
+      .pathParam("id", EXAMPLE_FILTER_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(SINGLE_FILTER_URL);
+
+    // validate sorting content
+    String content = response.asString();
+    List<Map<String, Object>> sortings = from(content).getJsonObject("query.sorting");
+    assertThat(sortings).hasSize(1);
+    assertSorting(sortings.get(0), SORT_BY_NAME_VALUE, SORT_ORDER_DESC_VALUE);
+  }
+
+  @Test
+  public void testGetFilterWithMultipleSorting() {
+    TaskQuery query = new TaskQueryImpl()
+      .orderByDueDate().asc()
+      .orderByCaseExecutionId().desc();
+
+    Filter filter = new FilterEntity("Task").setName("test").setQuery(query);
+    when(filterServiceMock.getFilter(EXAMPLE_FILTER_ID)).thenReturn(filter);
+
+    Response response = given()
+      .pathParam("id", EXAMPLE_FILTER_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(SINGLE_FILTER_URL);
+
+    // validate sorting content
+    String content = response.asString();
+    List<Map<String, Object>> sortings = from(content).getJsonObject("query.sorting");
+    assertThat(sortings).hasSize(2);
+    assertSorting(sortings.get(0), SORT_BY_DUE_DATE_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(1), SORT_BY_CASE_EXECUTION_ID_VALUE, SORT_ORDER_DESC_VALUE);
+  }
+
+  @Test
+  public void testGetFilterWithAllPropertiesSorting() {
+    TaskQuery query = new TaskQueryImpl()
+      .orderByProcessInstanceId().asc()
+      .orderByCaseInstanceId().asc()
+      .orderByDueDate().asc()
+      .orderByFollowUpDate().asc()
+      .orderByExecutionId().asc()
+      .orderByCaseExecutionId().asc()
+      .orderByTaskAssignee().asc()
+      .orderByTaskCreateTime().asc()
+      .orderByTaskDescription().asc()
+      .orderByTaskId().asc()
+      .orderByTaskName().asc()
+      .orderByTaskNameCaseInsensitive().asc()
+      .orderByTaskPriority().asc();
+
+    Filter filter = new FilterEntity("Task").setName("test").setQuery(query);
+    when(filterServiceMock.getFilter(EXAMPLE_FILTER_ID)).thenReturn(filter);
+
+    Response response = given()
+      .pathParam("id", EXAMPLE_FILTER_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(SINGLE_FILTER_URL);
+
+    // validate sorting content
+    String content = response.asString();
+    List<Map<String, Object>> sortings = from(content).getJsonObject("query.sorting");
+    assertThat(sortings).hasSize(13);
+    assertSorting(sortings.get(0), SORT_BY_PROCESS_INSTANCE_ID_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(1), SORT_BY_CASE_INSTANCE_ID_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(2), SORT_BY_DUE_DATE_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(3), SORT_BY_FOLLOW_UP_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(4), SORT_BY_EXECUTION_ID_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(5), SORT_BY_CASE_EXECUTION_ID_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(6), SORT_BY_ASSIGNEE_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(7), SORT_BY_CREATE_TIME_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(8), SORT_BY_DESCRIPTION_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(9), SORT_BY_ID_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(10), SORT_BY_NAME_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(11), SORT_BY_NAME_CASE_INSENSITIVE_VALUE, SORT_ORDER_ASC_VALUE);
+    assertSorting(sortings.get(12), SORT_BY_PRIORITY_VALUE, SORT_ORDER_ASC_VALUE);
+  }
+
+  @Test
+  public void testGetFilterWithVariableTypeSorting() {
+    TaskQuery query = new TaskQueryImpl()
+      .orderByExecutionVariable("foo", ValueType.STRING).asc()
+      .orderByProcessVariable("foo", ValueType.STRING).asc()
+      .orderByTaskVariable("foo", ValueType.STRING).asc()
+      .orderByCaseExecutionVariable("foo", ValueType.STRING).asc()
+      .orderByCaseInstanceVariable("foo", ValueType.STRING).asc();
+
+    Filter filter = new FilterEntity("Task").setName("test").setQuery(query);
+    when(filterServiceMock.getFilter(EXAMPLE_FILTER_ID)).thenReturn(filter);
+
+    Response response = given()
+      .pathParam("id", EXAMPLE_FILTER_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(SINGLE_FILTER_URL);
+
+    // validate sorting content
+    String content = response.asString();
+    List<Map<String, Object>> sortings = from(content).getJsonObject("query.sorting");
+    assertThat(sortings).hasSize(5);
+    assertSorting(sortings.get(0), SORT_BY_EXECUTION_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.STRING);
+    assertSorting(sortings.get(1), SORT_BY_PROCESS_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.STRING);
+    assertSorting(sortings.get(2), SORT_BY_TASK_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.STRING);
+    assertSorting(sortings.get(3), SORT_BY_CASE_EXECUTION_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.STRING);
+    assertSorting(sortings.get(4), SORT_BY_CASE_INSTANCE_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.STRING);
+  }
+
+  @Test
+  public void testGetFilterWithVariableValueTypeSorting() {
+    TaskQuery query = new TaskQueryImpl()
+      .orderByExecutionVariable("foo", ValueType.STRING).asc()
+      .orderByExecutionVariable("foo", ValueType.INTEGER).asc()
+      .orderByExecutionVariable("foo", ValueType.SHORT).asc()
+      .orderByExecutionVariable("foo", ValueType.DATE).asc()
+      .orderByExecutionVariable("foo", ValueType.BOOLEAN).asc()
+      .orderByExecutionVariable("foo", ValueType.LONG).asc()
+      .orderByExecutionVariable("foo", ValueType.DOUBLE).asc();
+
+    Filter filter = new FilterEntity("Task").setName("test").setQuery(query);
+    when(filterServiceMock.getFilter(EXAMPLE_FILTER_ID)).thenReturn(filter);
+
+    Response response = given()
+      .pathParam("id", EXAMPLE_FILTER_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(SINGLE_FILTER_URL);
+
+    // validate sorting content
+    String content = response.asString();
+    List<Map<String, Object>> sortings = from(content).getJsonObject("query.sorting");
+    assertThat(sortings).hasSize(7);
+    assertSorting(sortings.get(0), SORT_BY_EXECUTION_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.STRING);
+    assertSorting(sortings.get(1), SORT_BY_EXECUTION_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.INTEGER);
+    assertSorting(sortings.get(2), SORT_BY_EXECUTION_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.SHORT);
+    assertSorting(sortings.get(3), SORT_BY_EXECUTION_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.DATE);
+    assertSorting(sortings.get(4), SORT_BY_EXECUTION_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.BOOLEAN);
+    assertSorting(sortings.get(5), SORT_BY_EXECUTION_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.LONG);
+    assertSorting(sortings.get(6), SORT_BY_EXECUTION_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.DOUBLE);
+  }
+
+  @Test
+  public void testGetFilterWithVariableSortOrderSorting() {
+    TaskQuery query = new TaskQueryImpl()
+      .orderByExecutionVariable("foo", ValueType.STRING).asc()
+      .orderByExecutionVariable("foo", ValueType.STRING).desc();
+
+    Filter filter = new FilterEntity("Task").setName("test").setQuery(query);
+    when(filterServiceMock.getFilter(EXAMPLE_FILTER_ID)).thenReturn(filter);
+
+    Response response = given()
+      .pathParam("id", EXAMPLE_FILTER_ID)
+    .then().expect()
+      .statusCode(Status.OK.getStatusCode())
+    .when()
+      .get(SINGLE_FILTER_URL);
+
+    // validate sorting content
+    String content = response.asString();
+    List<Map<String, Object>> sortings = from(content).getJsonObject("query.sorting");
+    assertThat(sortings).hasSize(2);
+    assertSorting(sortings.get(0), SORT_BY_EXECUTION_VARIABLE, SORT_ORDER_ASC_VALUE, "foo", ValueType.STRING);
+    assertSorting(sortings.get(1), SORT_BY_EXECUTION_VARIABLE, SORT_ORDER_DESC_VALUE, "foo", ValueType.STRING);
+  }
+
+  protected void assertSorting(Map<String, Object> sorting, String sortBy, String sortOrder) {
+    assertSorting(sorting, sortBy, sortOrder, null, null);
+  }
+
+  @SuppressWarnings("unchecked")
+  protected void assertSorting(Map<String, Object> sorting, String sortBy, String sortOrder, String parametersVariable, ValueType parametersType) {
+    assertThat(sorting.get("sortBy")).isEqualTo(sortBy);
+    assertThat(sorting.get("sortOrder")).isEqualTo(sortOrder);
+    if (parametersVariable == null) {
+      assertThat(sorting.containsKey("parameters")).isFalse();
+    }
+    else {
+      Map<String, Object> parameters = (Map<String, Object>) sorting.get("parameters");
+      assertThat(parameters.get("variable")).isEqualTo(parametersVariable);
+      assertThat(parameters.get("type")).isEqualTo(VariableValueDto.toRestApiTypeName(parametersType.getName()));
+    }
   }
 
   @Test

@@ -12,8 +12,6 @@
  */
 package org.camunda.bpm.engine.impl.jobexecutor;
 
-import java.util.logging.Logger;
-
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
@@ -28,9 +26,7 @@ import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
  * @author Kristin Polenz
  *
  */
-public class TimerStartEventSubprocessJobHandler implements JobHandler {
-
-  private static Logger log = Logger.getLogger(TimerStartEventSubprocessJobHandler.class.getName());
+public class TimerStartEventSubprocessJobHandler extends TimerEventJobHandler {
 
   public static final String TYPE = "timer-start-event-subprocess";
 
@@ -39,12 +35,12 @@ public class TimerStartEventSubprocessJobHandler implements JobHandler {
   }
 
   public void execute(String configuration, ExecutionEntity execution, CommandContext commandContext) {
-
+    String activityId = getKey(configuration);
     ActivityImpl eventSubprocessActivity = execution.getProcessDefinition()
-      .findActivity(configuration);
+      .findActivity(activityId);
 
     if(eventSubprocessActivity != null) {
-      execution.executeActivity(eventSubprocessActivity);
+      execution.executeEventHandlerActivity(eventSubprocessActivity);
 
     } else {
       throw new ProcessEngineException("Error while triggering event subprocess using timer start event: cannot find activity with id '"+configuration+"'.");

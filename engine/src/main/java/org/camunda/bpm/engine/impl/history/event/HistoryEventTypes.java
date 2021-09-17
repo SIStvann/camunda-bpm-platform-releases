@@ -45,6 +45,8 @@ public enum HistoryEventTypes implements HistoryEventType {
   VARIABLE_INSTANCE_CREATE("variable-instance", "create"),
   /** fired when a variable instance is updated. */
   VARIABLE_INSTANCE_UPDATE("variable-instance", "update"),
+  /** fired when a variable instance is updated. */
+  VARIABLE_INSTANCE_UPDATE_DETAIL("variable-instance", "update-detail"),
   /** fired when a variable instance is deleted. */
   VARIABLE_INSTANCE_DELETE("variable-instance", "delete"),
 
@@ -70,7 +72,35 @@ public enum HistoryEventTypes implements HistoryEventType {
   /** fired when a case activity instance is updated. */
   CASE_ACTIVITY_INSTANCE_UPDATE("case-activity-instance", "update"),
   /** fired when a case instance is ended. */
-  CASE_ACTIVITY_INSTANCE_END("case-activity_instance", "end");
+  CASE_ACTIVITY_INSTANCE_END("case-activity_instance", "end"),
+
+  /**
+   * fired when a job is created.
+   *
+   * @since 7.3
+   */
+  JOB_CREATE("job", "create"),
+
+  /**
+   * fired when a job is failed.
+   *
+   * @since 7.3
+   */
+  JOB_FAIL("job", "fail"),
+
+  /**
+   * fired when a job is succeeded.
+   *
+   * @since 7.3
+   */
+  JOB_SUCCESS("job", "success"),
+
+  /**
+   * fired when a job is deleted.
+   *
+   * @since 7.3
+   */
+  JOB_DELETE("job", "delete");
 
   private HistoryEventTypes(String entityType, String eventName) {
     this.entityType = eventName;

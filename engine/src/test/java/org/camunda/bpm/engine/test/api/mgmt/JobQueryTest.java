@@ -33,6 +33,7 @@ import org.camunda.bpm.engine.impl.persistence.entity.JobManager;
 import org.camunda.bpm.engine.impl.persistence.entity.MessageEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TimerEntity;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
+import org.camunda.bpm.engine.impl.test.TestHelper;
 import org.camunda.bpm.engine.impl.util.ClockUtil;
 import org.camunda.bpm.engine.management.JobDefinition;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
@@ -119,7 +120,7 @@ public class JobQueryTest extends PluggableProcessEngineTestCase {
   @Override
   protected void tearDown() throws Exception {
     repositoryService.deleteDeployment(deploymentId, true);
-    commandExecutor.execute(new DeleteJobsCmd(messageId));
+    commandExecutor.execute(new DeleteJobsCmd(messageId, true));
     super.tearDown();
   }
 
@@ -211,6 +212,27 @@ public class JobQueryTest extends PluggableProcessEngineTestCase {
     } catch (ProcessEngineException e) {}
   }
 
+  @Deployment
+  public void testTimeCycleQueryByProcessDefinitionId() {
+    String processDefinitionId = repositoryService
+        .createProcessDefinitionQuery()
+        .processDefinitionKey("process")
+        .singleResult()
+        .getId();
+
+    JobQuery query = managementService.createJobQuery().processDefinitionId(processDefinitionId);
+
+    verifyQueryResults(query, 1);
+
+    String jobId = query.singleResult().getId();
+    managementService.executeJob(jobId);
+
+    verifyQueryResults(query, 1);
+
+    String anotherJobId = query.singleResult().getId();
+    assertFalse(jobId.equals(anotherJobId));
+  }
+
   public void testQueryByProcessDefinitionKey() {
     JobQuery query = managementService.createJobQuery().processDefinitionKey("timerOnTask");
     verifyQueryResults(query, 3);
@@ -224,6 +246,21 @@ public class JobQueryTest extends PluggableProcessEngineTestCase {
       managementService.createJobQuery().processDefinitionKey(null).list();
       fail();
     } catch (ProcessEngineException e) {}
+  }
+
+  @Deployment(resources = {"org/camunda/bpm/engine/test/api/mgmt/JobQueryTest.testTimeCycleQueryByProcessDefinitionId.bpmn20.xml"})
+  public void testTimeCycleQueryByProcessDefinitionKey() {
+    JobQuery query = managementService.createJobQuery().processDefinitionKey("process");
+
+    verifyQueryResults(query, 1);
+
+    String jobId = query.singleResult().getId();
+    managementService.executeJob(jobId);
+
+    verifyQueryResults(query, 1);
+
+    String anotherJobId = query.singleResult().getId();
+    assertFalse(jobId.equals(anotherJobId));
   }
 
   public void testQueryByRetriesLeft() {
@@ -417,6 +454,8 @@ public class JobQueryTest extends PluggableProcessEngineTestCase {
 
     managementService.suspendJobDefinitionByProcessDefinitionKey("timerOnTask", true);
     verifyQueryResults(query, 3);
+
+    TestHelper.clearOpLog(processEngineConfiguration);
   }
 
   //sorting //////////////////////////////////////////
@@ -602,6 +641,8 @@ public class JobQueryTest extends PluggableProcessEngineTestCase {
         public Void execute(CommandContext commandContext) {
 
           timerEntity.delete();
+
+          commandContext.getHistoricJobLogManager().deleteHistoricJobLogByJobId(timerEntity.getId());
 
           List<HistoricIncident> historicIncidents = Context
               .getProcessEngineConfiguration()

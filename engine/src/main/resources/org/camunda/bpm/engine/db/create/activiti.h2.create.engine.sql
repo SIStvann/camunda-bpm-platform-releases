@@ -52,6 +52,7 @@ create table ACT_RU_EXECUTION (
     IS_EVENT_SCOPE_ bit,
     SUSPENSION_STATE_ integer,
     CACHED_ENT_STATE_ integer,
+    SEQUENCE_COUNTER_ integer,
     primary key (ID_)
 );
 
@@ -76,6 +77,7 @@ create table ACT_RU_JOB (
     DEPLOYMENT_ID_ varchar(64),
     SUSPENSION_STATE_ integer,
     JOB_DEF_ID_ varchar(64),
+    SEQUENCE_COUNTER_ integer,
     primary key (ID_)
 );
 
@@ -157,6 +159,8 @@ create table ACT_RU_VARIABLE (
     TEXT_ varchar(4000),
     TEXT2_ varchar(4000),
     VAR_SCOPE_ varchar(64) not null,
+    SEQUENCE_COUNTER_ integer,
+    IS_CONCURRENT_LOCAL_ bit,
     primary key (ID_)
 );
 
@@ -195,7 +199,7 @@ create table ACT_RU_AUTHORIZATION (
   TYPE_ integer not null,
   GROUP_ID_ varchar(255),
   USER_ID_ varchar(255),
-  RESOURCE_TYPE_ varchar(255) not null,
+  RESOURCE_TYPE_ integer not null,
   RESOURCE_ID_ varchar(64),
   PERMS_ integer,
   primary key (ID_)
@@ -212,6 +216,13 @@ create table ACT_RU_FILTER (
   primary key (ID_)
 );
 
+create table ACT_RU_METER_LOG (
+  ID_ varchar(64) not null,
+  NAME_ varchar(64) not null,
+  VALUE_ long,
+  TIMESTAMP_ timestamp not null,
+  primary key (ID_)
+);
 
 create index ACT_IDX_EXEC_BUSKEY on ACT_RU_EXECUTION(BUSINESS_KEY_);
 create index ACT_IDX_TASK_CREATE on ACT_RU_TASK(CREATE_TIME_);
@@ -223,6 +234,7 @@ create index ACT_IDX_VARIABLE_TASK_ID on ACT_RU_VARIABLE(TASK_ID_);
 create index ACT_IDX_ATHRZ_PROCEDEF on ACT_RU_IDENTITYLINK(PROC_DEF_ID_);
 create index ACT_IDX_INC_CONFIGURATION on ACT_RU_INCIDENT(CONFIGURATION_);
 create index ACT_IDX_JOB_PROCINST on ACT_RU_JOB(PROCESS_INSTANCE_ID_);
+create index ACT_IDX_METER_LOG on ACT_RU_METER_LOG(NAME_,TIMESTAMP_);
 
 -- indexes for deadlock problems - https://app.camunda.com/jira/browse/CAM-2567 --
 create index ACT_IDX_INC_CAUSEINCID on ACT_RU_INCIDENT(CAUSE_INCIDENT_ID_);

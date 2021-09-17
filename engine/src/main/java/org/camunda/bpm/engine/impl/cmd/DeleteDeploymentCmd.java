@@ -12,16 +12,19 @@
  */
 package org.camunda.bpm.engine.impl.cmd;
 
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
 import java.io.Serializable;
 import java.util.Collections;
+import java.util.concurrent.Callable;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import org.camunda.bpm.engine.impl.cfg.TransactionState;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.deploy.DeleteDeploymentFailListener;
-
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 
 /**
  * @author Joram Barrez
@@ -44,8 +47,11 @@ public class DeleteDeploymentCmd implements Command<Void>, Serializable {
     this.skipCustomListeners = skipCustomListeners;
   }
 
-  public Void execute(CommandContext commandContext) {
+  public Void execute(final CommandContext commandContext) {
     ensureNotNull("deploymentId", deploymentId);
+
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    authorizationManager.checkDeleteDeployment(deploymentId);
 
     commandContext
       .getDeploymentManager()
@@ -54,7 +60,12 @@ public class DeleteDeploymentCmd implements Command<Void>, Serializable {
     DeleteDeploymentFailListener listener = new DeleteDeploymentFailListener(deploymentId);
 
     try {
-      new UnregisterDeploymentCmd(Collections.singleton(deploymentId)).execute(commandContext);
+      commandContext.runWithoutAuthorization(new Callable<Void>() {
+        public Void call() throws Exception {
+          new UnregisterDeploymentCmd(Collections.singleton(deploymentId)).execute(commandContext);
+          return null;
+        }
+      });
     } finally {
       try {
         commandContext.getTransactionContext().addTransactionListener(TransactionState.ROLLED_BACK, listener);

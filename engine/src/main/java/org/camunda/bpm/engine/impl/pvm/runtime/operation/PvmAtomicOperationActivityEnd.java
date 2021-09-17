@@ -13,21 +13,22 @@
 
 package org.camunda.bpm.engine.impl.pvm.runtime.operation;
 
-import java.util.List;
-
+import org.camunda.bpm.engine.ProcessEngineException;
+import org.camunda.bpm.engine.impl.pvm.PvmActivity;
+import org.camunda.bpm.engine.impl.pvm.PvmScope;
 import org.camunda.bpm.engine.impl.pvm.delegate.ActivityBehavior;
 import org.camunda.bpm.engine.impl.pvm.delegate.CompositeActivityBehavior;
-import org.camunda.bpm.engine.impl.pvm.process.ActivityImpl;
-import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
+import org.camunda.bpm.engine.impl.pvm.runtime.LegacyBehavior;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 
 /**
  * @author Tom Baeyens
  * @author Daniel Meyer
+ * @author Thorben Lindhauer
  */
 public class PvmAtomicOperationActivityEnd implements PvmAtomicOperation {
 
-  protected ScopeImpl getScope(PvmExecutionImpl execution) {
+  protected PvmScope getScope(PvmExecutionImpl execution) {
     return execution.getActivity();
   }
 
@@ -35,103 +36,75 @@ public class PvmAtomicOperationActivityEnd implements PvmAtomicOperation {
     return execution.getActivity().isAsyncAfter();
   }
 
-  @SuppressWarnings({"unchecked", "rawtypes"})
   public void execute(PvmExecutionImpl execution) {
+    // restore activity instance id
+    if (execution.getActivityInstanceId() == null) {
+      if (execution.isProcessInstanceExecution()) {
+        execution.setActivityInstanceId(execution.getId());
+      }
+      else {
+        execution.setActivityInstanceId(execution.getParentActivityInstanceId());
+      }
+    }
 
-    ActivityImpl activity = execution.getActivity();
-    ActivityImpl parentActivity = activity.getParentActivity();
+    PvmActivity activity = execution.getActivity();
 
-    // if the execution is a single path of execution inside the process definition scope
-    if ( (parentActivity!=null)
-         &&(!parentActivity.isScope())
-          ) {
-      execution.setActivity(parentActivity);
-      execution.performOperation(ACTIVITY_NOTIFY_LISTENER_END);
+    PvmExecutionImpl propagatingExecution = execution;
 
-    } else if (execution.isProcessInstanceExecution()) {
-      execution.performOperation(PROCESS_END);
-
-    } else if (execution.isScope()) {
-
-      ActivityBehavior parentActivityBehavior = (parentActivity!=null ? parentActivity.getActivityBehavior() : null);
-      if (parentActivityBehavior instanceof CompositeActivityBehavior) {
-        CompositeActivityBehavior compositeActivityBehavior = (CompositeActivityBehavior) parentActivity.getActivityBehavior();
-
-        if(activity.isScope() && activity.getOutgoingTransitions().isEmpty()) {
-          // there is no transition destroying the scope
-          PvmExecutionImpl parentScopeExecution = execution.getParent();
-          execution.destroy();
-          execution.remove();
-          parentScopeExecution.setActivity(parentActivity);
-          compositeActivityBehavior.lastExecutionEnded(parentScopeExecution);
-        } else {
-          execution.setActivity(parentActivity);
-          compositeActivityBehavior.lastExecutionEnded(execution);
-        }
-      } else {
-        // default destroy scope behavior
-        PvmExecutionImpl parentScopeExecution = execution.getParent();
+    if(execution.isScope() && activity.isScope()) {
+      if (!LegacyBehavior.destroySecondNonScope(execution)) {
         execution.destroy();
-        execution.remove();
-        // if we are a scope under the process instance
-        // and have no outgoing transitions: end the process instance here
-        if(activity.getParent() == activity.getProcessDefinition()
-                && activity.getOutgoingTransitions().isEmpty()) {
-          parentScopeExecution.setActivity(activity);
-          // we call end() because it sets isEnded on the execution
-          parentScopeExecution.performOperation(PROCESS_END);
-        } else {
-          parentScopeExecution.setActivity(parentActivity);
-          parentScopeExecution.performOperation(ACTIVITY_NOTIFY_LISTENER_END);
-        }
-      }
-
-    } else { // execution.isConcurrent() && !execution.isScope()
-
-      execution.remove();
-
-      // prune if necessary
-      PvmExecutionImpl concurrentRoot = execution.getParent();
-      if (concurrentRoot.getExecutions().size()==1) {
-        PvmExecutionImpl lastConcurrent = concurrentRoot.getExecutions().get(0);
-        if (!lastConcurrent.isScope()) {
-          concurrentRoot.setActivity(lastConcurrent.getActivity());
-          lastConcurrent.setReplacedBy(concurrentRoot);
-
-          // Move children of lastConcurrent one level up
-          if (lastConcurrent.getExecutions().size() > 0) {
-            concurrentRoot.getExecutions().clear();
-            for (PvmExecutionImpl childExecution : lastConcurrent.getExecutions()) {
-              ((List)concurrentRoot.getExecutions()).add(childExecution); // casting ... damn generics
-              childExecution.setParent(concurrentRoot);
-            }
-            lastConcurrent.getExecutions().clear();
-          }
-
-          // Copy execution-local variables of lastConcurrent
-          concurrentRoot.setVariablesLocal(lastConcurrent.getVariablesLocal());
-
-          // Make sure parent execution is re-activated when the last concurrent child execution is active
-          if (!concurrentRoot.isActive() && lastConcurrent.isActive()) {
-            concurrentRoot.setActive(true);
-          }
-
-          lastConcurrent.remove();
-        } else {
-          lastConcurrent.setConcurrent(false);
+        if(!execution.isConcurrent()) {
+          execution.remove();
+          propagatingExecution = execution.getParent();
+          propagatingExecution.setActivity(execution.getActivity());
         }
       }
     }
-  }
 
-  protected boolean isExecutionAloneInParent(PvmExecutionImpl execution) {
-    ScopeImpl parentScope = execution.getActivity().getParent();
-    for (PvmExecutionImpl other: execution.getParent().getExecutions()) {
-      if (other!=execution && parentScope.contains(other.getActivity())) {
-        return false;
+    propagatingExecution = LegacyBehavior.determinePropagatingExecutionOnEnd(propagatingExecution);
+    PvmScope flowScope = activity.getFlowScope();
+
+    // 1. flow scope = Process Definition
+    if(flowScope == activity.getProcessDefinition()) {
+
+      // 1.1 concurrent execution => end + tryPrune()
+      if(propagatingExecution.isConcurrent()) {
+        propagatingExecution.remove();
+        propagatingExecution.getParent().tryPruneLastConcurrentChild();
+        propagatingExecution.getParent().forceUpdate();
+      }
+      else {
+        // 1.2 Process End
+        if (!propagatingExecution.isPreserveScope()) {
+          propagatingExecution.performOperation(PROCESS_END);
+        }
       }
     }
-    return true;
+    else {
+      // 2. flowScope != process definition
+      PvmActivity flowScopeActivity = (PvmActivity) flowScope;
+
+      ActivityBehavior activityBehavior = flowScopeActivity.getActivityBehavior();
+      if (activityBehavior instanceof CompositeActivityBehavior) {
+        CompositeActivityBehavior compositeActivityBehavior = (CompositeActivityBehavior) activityBehavior;
+        // 2.1 Concurrent execution => composite behavior.concurrentExecutionEnded()
+        if(propagatingExecution.isConcurrent() && !LegacyBehavior.isConcurrentScope(propagatingExecution)) {
+          compositeActivityBehavior.concurrentChildExecutionEnded(propagatingExecution.getParent(), propagatingExecution);
+        }
+        else {
+          // 2.2 Scope Execution => composite behavior.complete()
+          propagatingExecution.setActivity(flowScopeActivity);
+          compositeActivityBehavior.complete(propagatingExecution);
+        }
+
+      }
+      else {
+        // activity behavior is not composite => this is unexpected
+        throw new ProcessEngineException("Expected behavior of composite scope "+activity
+            +" to be a CompositeActivityBehavior but got "+activityBehavior);
+      }
+    }
   }
 
   public String getCanonicalName() {

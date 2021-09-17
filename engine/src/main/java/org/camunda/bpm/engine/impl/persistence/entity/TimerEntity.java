@@ -13,14 +13,17 @@
 package org.camunda.bpm.engine.impl.persistence.entity;
 
 import java.util.Date;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 import org.camunda.bpm.engine.impl.calendar.BusinessCalendar;
 import org.camunda.bpm.engine.impl.calendar.CycleBusinessCalendar;
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
+import org.camunda.bpm.engine.impl.cfg.TransactionState;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
+import org.camunda.bpm.engine.impl.jobexecutor.RepeatingFailedJobListener;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerDeclarationImpl;
+import org.camunda.bpm.engine.impl.jobexecutor.TimerEventJobHandler;
 
 
 /**
@@ -28,9 +31,9 @@ import org.camunda.bpm.engine.impl.jobexecutor.TimerDeclarationImpl;
  */
 public class TimerEntity extends JobEntity {
 
-  private static final long serialVersionUID = 1L;
+  public static final String TYPE = "timer";
 
-  private static Logger log = Logger.getLogger(TimerEntity.class.getName());
+  private static final long serialVersionUID = 1L;
 
   protected String repeat;
 
@@ -41,7 +44,7 @@ public class TimerEntity extends JobEntity {
     repeat = timerDeclaration.getRepeat();
   }
 
-  private TimerEntity(TimerEntity te) {
+  protected TimerEntity(TimerEntity te) {
     jobHandlerConfiguration = te.jobHandlerConfiguration;
     jobHandlerType = te.jobHandlerType;
     isExclusive = te.isExclusive;
@@ -52,35 +55,50 @@ public class TimerEntity extends JobEntity {
     jobDefinitionId = te.jobDefinitionId;
     suspensionState = te.suspensionState;
     deploymentId = te.deploymentId;
+    processDefinitionId = te.processDefinitionId;
+    processDefinitionKey = te.processDefinitionKey;
   }
 
-  @Override
-  public void execute(CommandContext commandContext) {
+  protected void preExecute(CommandContext commandContext) {
+    if (repeat != null && !TimerEventJobHandler.isFollowUpJobCreated(getJobHandlerConfiguration())) {
+      // this timer is a repeating timer and
+      // a follow up timer job has not been scheduled yet
 
-    super.execute(commandContext);
+      Date newDueDate = calculateRepeat();
 
-    if (repeat == null) {
+      if (newDueDate != null) {
+        // the listener is added to the transaction as SYNC on ROLLABCK,
+        // when it is necessary to schedule a new timer job invocation.
+        // If the transaction does not rollback, it is ignored.
+        ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
+        CommandExecutor commandExecutor = processEngineConfiguration.getCommandExecutorTxRequiresNew();
+        RepeatingFailedJobListener listener = createRepeatingFailedJobListener(commandExecutor);
 
-      if (log.isLoggable(Level.FINE)) {
-        log.fine("Timer " + getId() + " fired. Deleting timer.");
-      }
-      delete(true);
-    } else {
-      delete(true);
-      Date newTimer = calculateRepeat();
-      if (newTimer != null) {
-        TimerEntity te = new TimerEntity(this);
-        te.setDuedate(newTimer);
-        Context
-            .getCommandContext()
-            .getJobManager()
-            .schedule(te);
+        commandContext.getTransactionContext().addTransactionListener(
+            TransactionState.ROLLED_BACK,
+            listener);
+
+        // create a new timer job
+        createNewTimerJob(newDueDate);
       }
     }
-
   }
 
-  private Date calculateRepeat() {
+  protected RepeatingFailedJobListener createRepeatingFailedJobListener(CommandExecutor commandExecutor) {
+    return new RepeatingFailedJobListener(commandExecutor, getId());
+  }
+
+  public void createNewTimerJob(Date dueDate) {
+    // create new timer job
+    TimerEntity newTimer = new TimerEntity(this);
+    newTimer.setDuedate(dueDate);
+    Context
+      .getCommandContext()
+      .getJobManager()
+      .schedule(newTimer);
+  }
+
+  public Date calculateRepeat() {
     BusinessCalendar businessCalendar = Context
         .getProcessEngineConfiguration()
         .getBusinessCalendarManager()
@@ -94,6 +112,10 @@ public class TimerEntity extends JobEntity {
 
   public void setRepeat(String repeat) {
     this.repeat = repeat;
+  }
+
+  public String getType() {
+    return TYPE;
   }
 
   @Override
@@ -117,4 +139,5 @@ public class TimerEntity extends JobEntity {
            + ", deploymentId=" + deploymentId
            + "]";
   }
+
 }

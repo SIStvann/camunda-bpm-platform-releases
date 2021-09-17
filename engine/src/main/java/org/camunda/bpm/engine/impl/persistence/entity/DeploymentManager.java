@@ -15,9 +15,11 @@ package org.camunda.bpm.engine.impl.persistence.entity;
 
 import java.util.List;
 
+import org.camunda.bpm.engine.authorization.Resources;
 import org.camunda.bpm.engine.impl.DeploymentQueryImpl;
 import org.camunda.bpm.engine.impl.Page;
-import org.camunda.bpm.engine.impl.ProcessDefinitionQueryImpl;
+import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
+import org.camunda.bpm.engine.impl.cfg.auth.ResourceAuthorizationProvider;
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.event.MessageEventHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventJobHandler;
@@ -35,6 +37,7 @@ public class DeploymentManager extends AbstractManager {
 
   public void insertDeployment(DeploymentEntity deployment) {
     getDbEntityManager().insert(deployment);
+    createDefaultAuthorizations(deployment);
 
     for (ResourceEntity resource : deployment.getResources().values()) {
       resource.setDeploymentId(deployment.getId());
@@ -61,8 +64,7 @@ public class DeploymentManager extends AbstractManager {
         String processDefinitionId = processDefinition.getId();
 
         getProcessInstanceManager()
-          .deleteProcessInstancesByProcessDefinition(processDefinitionId, "deleted deployment", cascade, skipCustomListeners);
-
+          .deleteProcessInstancesByProcessDefinition(processDefinitionId, "deleted deployment", true, skipCustomListeners);
       }
     }
 
@@ -72,13 +74,9 @@ public class DeploymentManager extends AbstractManager {
       getIdentityLinkManager().deleteIdentityLinksByProcDef(processDefinitionId);
 
       // remove timer start events:
-      List<Job> timerStartJobs = Context.getCommandContext()
-        .getJobManager()
-        .findJobsByConfiguration(TimerStartEventJobHandler.TYPE, processDefinition.getKey());
+      List<Job> timerStartJobs = getJobManager().findJobsByConfiguration(TimerStartEventJobHandler.TYPE, processDefinition.getKey());
 
-      ProcessDefinitionEntity latestVersion = Context.getCommandContext()
-        .getProcessDefinitionManager()
-        .findLatestProcessDefinitionByKey(processDefinition.getKey());
+      ProcessDefinitionEntity latestVersion = getProcessDefinitionManager().findLatestProcessDefinitionByKey(processDefinition.getKey());
 
       // delete timer start event jobs only if this is the latest version of the process definition.
       if(latestVersion != null && latestVersion.getId().equals(processDefinition.getId())) {
@@ -89,22 +87,20 @@ public class DeploymentManager extends AbstractManager {
 
       if (cascade) {
         // remove historic incidents which are not referenced to a process instance
-        Context
-          .getCommandContext()
-          .getHistoricIncidentManager()
-          .deleteHistoricIncidentsByProcessDefinitionId(processDefinitionId);
+        getHistoricIncidentManager().deleteHistoricIncidentsByProcessDefinitionId(processDefinitionId);
 
         // remove historic op log entries which are not related to a process instance
-        Context
-          .getCommandContext()
-          .getOperationLogManager()
-          .deleteOperationLogEntriesByProcessDefinitionId(processDefinitionId);
+        getUserOperationLogManager().deleteOperationLogEntriesByProcessDefinitionId(processDefinitionId);
       }
     }
 
+    if (cascade) {
+      // delete historic job logs (for example for timer start event jobs)
+      getHistoricJobLogManager().deleteHistoricJobLogsByDeploymentId(deploymentId);
+    }
+
     // delete process definitions from db
-    getProcessDefinitionManager()
-      .deleteProcessDefinitionsByDeploymentId(deploymentId);
+    getProcessDefinitionManager().deleteProcessDefinitionsByDeploymentId(deploymentId);
 
     for (ProcessDefinition processDefinition : processDefinitions) {
       String processDefinitionId = processDefinition.getId();
@@ -116,58 +112,57 @@ public class DeploymentManager extends AbstractManager {
         .removeProcessDefinition(processDefinitionId);
 
       // remove message event subscriptions:
-      List<EventSubscriptionEntity> findEventSubscriptionsByConfiguration = Context
-        .getCommandContext()
-        .getEventSubscriptionManager()
+      List<EventSubscriptionEntity> findEventSubscriptionsByConfiguration = getEventSubscriptionManager()
         .findEventSubscriptionsByConfiguration(MessageEventHandler.EVENT_HANDLER_TYPE, processDefinition.getId());
+
       for (EventSubscriptionEntity eventSubscriptionEntity : findEventSubscriptionsByConfiguration) {
         eventSubscriptionEntity.delete();
       }
 
       // delete job definitions
-      Context.getCommandContext()
-        .getJobDefinitionManager()
-        .deleteJobDefinitionsByProcessDefinitionId(processDefinition.getId());
+      getJobDefinitionManager().deleteJobDefinitionsByProcessDefinitionId(processDefinition.getId());
 
     }
 
     deleteCaseDeployment(deploymentId, cascade);
 
-    getResourceManager()
-      .deleteResourcesByDeploymentId(deploymentId);
+    getResourceManager().deleteResourcesByDeploymentId(deploymentId);
 
+    deleteAuthorizations(Resources.DEPLOYMENT, deploymentId);
     getDbEntityManager().delete(DeploymentEntity.class, "deleteDeployment", deploymentId);
   }
 
   protected void deleteCaseDeployment(String deploymentId, boolean cascade) {
-    List<CaseDefinition> caseDefinitions = getCaseDefinitionManager().findCaseDefinitionByDeploymentId(deploymentId);
+    ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
+    if (processEngineConfiguration.isCmmnEnabled()) {
+      List<CaseDefinition> caseDefinitions = getCaseDefinitionManager().findCaseDefinitionByDeploymentId(deploymentId);
 
-    if (cascade) {
+      if (cascade) {
 
-      // delete case instances
-      for (CaseDefinition caseDefinition: caseDefinitions) {
-        String caseDefinitionId = caseDefinition.getId();
+        // delete case instances
+        for (CaseDefinition caseDefinition: caseDefinitions) {
+          String caseDefinitionId = caseDefinition.getId();
 
-        getCaseInstanceManager()
-          .deleteCaseInstancesByCaseDefinition(caseDefinitionId, "deleted deployment", cascade);
+          getCaseInstanceManager()
+            .deleteCaseInstancesByCaseDefinition(caseDefinitionId, "deleted deployment", true);
 
+        }
+      }
+
+      // delete case definitions from db
+      getCaseDefinitionManager()
+        .deleteCaseDefinitionsByDeploymentId(deploymentId);
+
+      for (CaseDefinition caseDefinition : caseDefinitions) {
+        String processDefinitionId = caseDefinition.getId();
+
+        // remove case definitions from cache:
+        Context
+          .getProcessEngineConfiguration()
+          .getDeploymentCache()
+          .removeCaseDefinition(processDefinitionId);
       }
     }
-
-    // delete case definitions from db
-    getCaseDefinitionManager()
-      .deleteCaseDefinitionsByDeploymentId(deploymentId);
-
-    for (CaseDefinition caseDefinition : caseDefinitions) {
-      String processDefinitionId = caseDefinition.getId();
-
-      // remove case definitions from cache:
-      Context
-        .getProcessEngineConfiguration()
-        .getDeploymentCache()
-        .removeCaseDefinition(processDefinitionId);
-    }
-
   }
 
 
@@ -184,13 +179,14 @@ public class DeploymentManager extends AbstractManager {
   }
 
   public long findDeploymentCountByQueryCriteria(DeploymentQueryImpl deploymentQuery) {
+    getAuthorizationManager().configureDeploymentQuery(deploymentQuery);
     return (Long) getDbEntityManager().selectOne("selectDeploymentCountByQueryCriteria", deploymentQuery);
   }
 
   @SuppressWarnings("unchecked")
   public List<Deployment> findDeploymentsByQueryCriteria(DeploymentQueryImpl deploymentQuery, Page page) {
-    final String query = "selectDeploymentsByQueryCriteria";
-    return getDbEntityManager().selectList(query, deploymentQuery, page);
+    getAuthorizationManager().configureDeploymentQuery(deploymentQuery);
+    return getDbEntityManager().selectList("selectDeploymentsByQueryCriteria", deploymentQuery, page);
   }
 
   @SuppressWarnings("unchecked")
@@ -202,6 +198,16 @@ public class DeploymentManager extends AbstractManager {
   }
 
   public void flush() {
+  }
+
+  // helper /////////////////////////////////////////////////
+
+  protected void createDefaultAuthorizations(DeploymentEntity deployment) {
+    if(isAuthorizationEnabled()) {
+      ResourceAuthorizationProvider provider = getResourceAuthorizationProvider();
+      AuthorizationEntity[] authorizations = provider.newDeployment(deployment);
+      saveDefaultAuthorizations(authorizations);
+    }
   }
 
 }

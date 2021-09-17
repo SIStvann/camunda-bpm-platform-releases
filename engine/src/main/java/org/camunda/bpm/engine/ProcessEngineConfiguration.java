@@ -17,10 +17,10 @@ import java.io.InputStream;
 
 import javax.sql.DataSource;
 
+import org.camunda.bpm.engine.delegate.JavaDelegate;
 import org.camunda.bpm.engine.impl.cfg.BeansConfigurationHelper;
 import org.camunda.bpm.engine.impl.cfg.StandaloneInMemProcessEngineConfiguration;
 import org.camunda.bpm.engine.impl.cfg.StandaloneProcessEngineConfiguration;
-import org.camunda.bpm.engine.impl.history.HistoryLevel;
 import org.camunda.bpm.engine.impl.persistence.entity.JobEntity;
 import org.camunda.bpm.engine.variable.type.ValueTypeResolver;
 
@@ -131,6 +131,14 @@ public abstract class ProcessEngineConfiguration {
   protected String history = HISTORY_AUDIT;
   protected boolean jobExecutorActivate;
   protected boolean jobExecutorDeploymentAware = false;
+  protected boolean jobExecutorPreferTimerJobs = false;
+  protected boolean jobExecutorAcquireByDueDate = false;
+
+  /**
+   * The flag will be used inside the method "JobManager#send()". It will be used to decide whether to notify the
+   * job executor that a new job has been created. It will be used for performance improvement, so that the new job could
+   * be executed in some situations immediately.
+   */
   protected boolean hintJobExecutor = true;
 
   protected String mailServerHost = "localhost";
@@ -172,6 +180,20 @@ public abstract class ProcessEngineConfiguration {
    * The default value is false.
    */
   protected boolean authorizationEnabled = false;
+
+  /**
+   * <p>The following flag <code>authorizationEnabledForCustomCode</code> will
+   * only be taken into account iff <code>authorizationEnabled</code> is set
+   * <code>true</code>.</p>
+   *
+   * <p>If the value of the flag <code>authorizationEnabledForCustomCode</code>
+   * is set <code>true</code> then an authorization check will be performed by
+   * executing commands inside custom code (e.g. inside {@link JavaDelegate}).</p>
+   *
+   * <p>The default value is <code>false</code>.</p>
+   *
+   */
+  protected boolean authorizationEnabledForCustomCode = false;
 
   protected ValueTypeResolver valueTypeResolver;
 
@@ -457,6 +479,24 @@ public abstract class ProcessEngineConfiguration {
     return this;
   }
 
+  public boolean isJobExecutorAcquireByDueDate() {
+    return jobExecutorAcquireByDueDate;
+  }
+
+  public ProcessEngineConfiguration setJobExecutorAcquireByDueDate(boolean jobExecutorAcquireByDueDate) {
+    this.jobExecutorAcquireByDueDate = jobExecutorAcquireByDueDate;
+    return this;
+  }
+
+  public boolean isJobExecutorPreferTimerJobs() {
+    return jobExecutorPreferTimerJobs;
+  }
+
+  public ProcessEngineConfiguration setJobExecutorPreferTimerJobs(boolean jobExecutorPreferTimerJobs) {
+    this.jobExecutorPreferTimerJobs = jobExecutorPreferTimerJobs;
+    return this;
+  }
+
   public boolean isHintJobExecutor() {
     return hintJobExecutor;
   }
@@ -536,6 +576,15 @@ public abstract class ProcessEngineConfiguration {
     return this;
   }
 
+  public boolean isAuthorizationEnabledForCustomCode() {
+    return authorizationEnabledForCustomCode;
+  }
+
+  public ProcessEngineConfiguration setAuthorizationEnabledForCustomCode(boolean authorizationEnabledForCustomCode) {
+    this.authorizationEnabledForCustomCode = authorizationEnabledForCustomCode;
+    return this;
+  }
+
   public int getDefaultNumberOfRetries() {
     return defaultNumberOfRetries;
   }
@@ -552,5 +601,4 @@ public abstract class ProcessEngineConfiguration {
     this.valueTypeResolver = valueTypeResolver;
     return this;
   }
-
 }

@@ -13,6 +13,7 @@
 package org.camunda.bpm.engine.rest.dto.history;
 
 import java.util.Date;
+import java.util.Map;
 
 import javax.ws.rs.core.MultivaluedMap;
 
@@ -21,7 +22,8 @@ import org.camunda.bpm.engine.history.UserOperationLogQuery;
 import org.camunda.bpm.engine.rest.dto.AbstractQueryDto;
 import org.camunda.bpm.engine.rest.dto.CamundaQueryParam;
 import org.camunda.bpm.engine.rest.dto.converter.DateConverter;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * @author Danny Gräf
@@ -38,6 +40,8 @@ public class UserOperationLogQueryDto extends AbstractQueryDto<UserOperationLogQ
   protected String caseInstanceId;
   protected String caseExecutionId;
   protected String taskId;
+  protected String jobId;
+  protected String jobDefinitionId;
   protected String userId;
   protected String operationId;
   protected String operationType;
@@ -86,6 +90,12 @@ public class UserOperationLogQueryDto extends AbstractQueryDto<UserOperationLogQ
     if (taskId != null) {
       query.taskId(taskId);
     }
+    if (jobId != null) {
+      query.jobId(jobId);
+    }
+    if (jobDefinitionId != null) {
+      query.jobDefinitionId(jobDefinitionId);
+    }
     if (userId != null) {
       query.userId(userId);
     }
@@ -110,15 +120,9 @@ public class UserOperationLogQueryDto extends AbstractQueryDto<UserOperationLogQ
   }
 
   @Override
-  protected void applySortingOptions(UserOperationLogQuery query) {
+  protected void applySortBy(UserOperationLogQuery query, String sortBy, Map<String, Object> parameters, ProcessEngine engine) {
     if (TIMESTAMP.equals(sortBy)) {
       query.orderByTimestamp();
-    }
-    if (SORT_ORDER_ASC_VALUE.equals(sortOrder)) {
-      query.asc();
-    }
-    if (SORT_ORDER_DESC_VALUE.equals(sortOrder)) {
-      query.desc();
     }
   }
 
@@ -160,6 +164,16 @@ public class UserOperationLogQueryDto extends AbstractQueryDto<UserOperationLogQ
   @CamundaQueryParam("taskId")
   public void setTaskId(String taskId) {
     this.taskId = taskId;
+  }
+
+  @CamundaQueryParam("jobId")
+  public void setJobId(String jobId) {
+    this.jobId = jobId;
+  }
+
+  @CamundaQueryParam("jobDefinitionId")
+  public void setJobDefinitionId(String jobDefinitionId) {
+    this.jobDefinitionId = jobDefinitionId;
   }
 
   @CamundaQueryParam("userId")

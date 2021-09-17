@@ -12,9 +12,9 @@
  */
 package org.camunda.bpm.engine.rest.dto.history;
 
-import java.util.Date;
-
 import org.camunda.bpm.engine.history.HistoricCaseInstance;
+
+import java.util.Date;
 
 public class HistoricCaseInstanceDto {
 
@@ -26,6 +26,7 @@ public class HistoricCaseInstanceDto {
   protected Long durationInMillis;
   protected String createUserId;
   protected String superCaseInstanceId;
+  protected String superProcessInstanceId;
   protected Boolean active;
   protected Boolean completed;
   protected Boolean terminated;
@@ -63,6 +64,10 @@ public class HistoricCaseInstanceDto {
     return superCaseInstanceId;
   }
 
+  public String getSuperProcessInstanceId() {
+    return superProcessInstanceId;
+  }
+
   public Boolean getActive() {
     return active;
   }
@@ -91,6 +96,7 @@ public class HistoricCaseInstanceDto {
     dto.durationInMillis = historicCaseInstance.getDurationInMillis();
     dto.createUserId = historicCaseInstance.getCreateUserId();
     dto.superCaseInstanceId = historicCaseInstance.getSuperCaseInstanceId();
+    dto.superProcessInstanceId = historicCaseInstance.getSuperProcessInstanceId();
     dto.active = historicCaseInstance.isActive();
     dto.completed = historicCaseInstance.isCompleted();
     dto.terminated = historicCaseInstance.isTerminated();

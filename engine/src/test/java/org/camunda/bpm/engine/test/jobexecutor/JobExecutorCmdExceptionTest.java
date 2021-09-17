@@ -6,6 +6,7 @@ package org.camunda.bpm.engine.test.jobexecutor;
 import java.util.List;
 
 import org.camunda.bpm.engine.history.HistoricIncident;
+import org.camunda.bpm.engine.history.HistoricJobLog;
 import org.camunda.bpm.engine.impl.cmd.DeleteJobCmd;
 import org.camunda.bpm.engine.impl.db.DbEntity;
 import org.camunda.bpm.engine.impl.interceptor.Command;
@@ -166,6 +167,7 @@ public class JobExecutorCmdExceptionTest extends PluggableProcessEngineTestCase 
 
         for (Job job : jobs) {
           new DeleteJobCmd(job.getId()).execute(commandContext);
+          commandContext.getHistoricJobLogManager().deleteHistoricJobLogByJobId(job.getId());
         }
 
         List<HistoricIncident> historicIncidents = processEngineConfiguration
@@ -177,6 +179,17 @@ public class JobExecutorCmdExceptionTest extends PluggableProcessEngineTestCase 
           commandContext
             .getDbEntityManager()
             .delete((DbEntity) historicIncident);
+        }
+
+        List<HistoricJobLog> historicJobLogs = processEngineConfiguration
+            .getHistoryService()
+            .createHistoricJobLogQuery()
+            .list();
+
+        for (HistoricJobLog historicJobLog : historicJobLogs) {
+          commandContext
+            .getHistoricJobLogManager()
+            .deleteHistoricJobLogById(historicJobLog.getId());
         }
 
         return null;

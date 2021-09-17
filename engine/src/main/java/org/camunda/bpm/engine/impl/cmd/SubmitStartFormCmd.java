@@ -22,8 +22,11 @@ import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.form.FormPropertyHelper;
 import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
+import org.camunda.bpm.engine.impl.pvm.runtime.ProcessInstanceStartContext;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
@@ -50,12 +53,12 @@ public class SubmitStartFormCmd implements Command<ProcessInstance>, Serializabl
   @Override
   public ProcessInstance execute(CommandContext commandContext) {
     ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
-
-    ProcessDefinitionEntity processDefinition = processEngineConfiguration
-      .getDeploymentCache()
-      .findDeployedProcessDefinitionById(processDefinitionId);
-
+    DeploymentCache deploymentCache = processEngineConfiguration.getDeploymentCache();
+    ProcessDefinitionEntity processDefinition = deploymentCache.findDeployedProcessDefinitionById(processDefinitionId);
     ensureNotNull("No process definition found for id = '" + processDefinitionId + "'", "processDefinition", processDefinition);
+
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    authorizationManager.checkCreateProcessInstance(processDefinition);
 
     ExecutionEntity processInstance = null;
     if (businessKey != null) {
@@ -68,6 +71,8 @@ public class SubmitStartFormCmd implements Command<ProcessInstance>, Serializabl
     // since they are lost after the async continuation otherwise
     // see CAM-2828
     if (processDefinition.getInitial().isAsyncBefore()) {
+      // avoid firing history events
+      processInstance.setStartContext(new ProcessInstanceStartContext(processInstance.getActivity()));
       FormPropertyHelper.initFormPropertiesOnScope(variables, processInstance);
       processInstance.start();
 

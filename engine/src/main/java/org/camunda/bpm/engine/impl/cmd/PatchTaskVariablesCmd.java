@@ -12,12 +12,11 @@
  */
 package org.camunda.bpm.engine.impl.cmd;
 
-import java.io.Serializable;
 import java.util.Collection;
 import java.util.Map;
 
-import org.camunda.bpm.engine.impl.interceptor.Command;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
 
 /**
  * Patches task variables: First, applies modifications to existing variables and then deletes
@@ -26,27 +25,24 @@ import org.camunda.bpm.engine.impl.interceptor.CommandContext;
  * @author kristin.polenz@camunda.com
  *
  */
-public class PatchTaskVariablesCmd implements Command<Void>, Serializable {
+public class PatchTaskVariablesCmd extends AbstractPatchVariablesCmd {
 
   private static final long serialVersionUID = 1L;
 
-  protected String taskId;
-  protected Map<String, ? extends Object> modifications;
-  protected Collection<String> deletions;
-  protected boolean isLocal;
-
   public PatchTaskVariablesCmd(String taskId, Map<String, ? extends Object> modifications, Collection<String> deletions, boolean isLocal) {
-    this.modifications = modifications;
-    this.deletions = deletions;
-    this.taskId = taskId;
-    this.isLocal = isLocal;
+    super(taskId, modifications, deletions, isLocal);
   }
 
-  @Override
-  public Void execute(CommandContext commandContext) {
-    new SetTaskVariablesCmd(taskId, modifications, isLocal).execute(commandContext);
-    new RemoveTaskVariablesCmd(taskId, deletions, isLocal).execute(commandContext);
-    return null;
+  protected AbstractSetVariableCmd getSetVariableCmd() {
+    return new SetTaskVariablesCmd(entityId, variables, isLocal);
   }
 
+  protected AbstractRemoveVariableCmd getRemoveVariableCmd() {
+    return new RemoveTaskVariablesCmd(entityId, deletions, isLocal);
+  }
+
+  public void logVariableOperation(CommandContext commandContext) {
+    commandContext.getOperationLogManager().logVariableOperation(getLogEntryOperation(), null, entityId,
+      PropertyChange.EMPTY_CHANGE);
+  }
 }

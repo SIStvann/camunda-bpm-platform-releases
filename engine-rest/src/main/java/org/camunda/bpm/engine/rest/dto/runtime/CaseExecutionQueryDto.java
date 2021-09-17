@@ -14,6 +14,7 @@ package org.camunda.bpm.engine.rest.dto.runtime;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response.Status;
@@ -26,7 +27,8 @@ import org.camunda.bpm.engine.rest.dto.converter.BooleanConverter;
 import org.camunda.bpm.engine.rest.dto.converter.VariableListConverter;
 import org.camunda.bpm.engine.rest.exception.InvalidRequestException;
 import org.camunda.bpm.engine.runtime.CaseExecutionQuery;
-import org.codehaus.jackson.map.ObjectMapper;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * @author Roman Smirnov
@@ -52,6 +54,7 @@ public class CaseExecutionQueryDto extends AbstractQueryDto<CaseExecutionQuery> 
   protected String caseInstanceId;
   protected String businessKey;
   protected String activityId;
+  protected Boolean required;
   protected Boolean enabled;
   protected Boolean active;
   protected Boolean disabled;
@@ -94,6 +97,11 @@ public class CaseExecutionQueryDto extends AbstractQueryDto<CaseExecutionQuery> 
   @CamundaQueryParam("activityId")
   public void setActivityId(String activityId) {
     this.activityId = activityId;
+  }
+
+  @CamundaQueryParam(value="required", converter = BooleanConverter.class)
+  public void setRequired(Boolean required) {
+    this.required = required;
   }
 
   @CamundaQueryParam(value="enabled", converter = BooleanConverter.class)
@@ -155,6 +163,10 @@ public class CaseExecutionQueryDto extends AbstractQueryDto<CaseExecutionQuery> 
 
     if (activityId != null) {
       query.activityId(activityId);
+    }
+
+    if (required != null && required == true) {
+      query.required();
     }
 
     if (active != null && active == true) {
@@ -226,23 +238,13 @@ public class CaseExecutionQueryDto extends AbstractQueryDto<CaseExecutionQuery> 
     }
   }
 
-  protected void applySortingOptions(CaseExecutionQuery query) {
-    if (sortBy != null) {
-      if (sortBy.equals(SORT_BY_EXECUTION_ID_VALUE)) {
-        query.orderByCaseExecutionId();
-      } else if (sortBy.equals(SORT_BY_DEFINITION_KEY_VALUE)) {
-        query.orderByCaseDefinitionKey();
-      } else if (sortBy.equals(SORT_BY_DEFINITION_ID_VALUE)) {
-        query.orderByCaseDefinitionId();
-      }
-    }
-
-    if (sortOrder != null) {
-      if (sortOrder.equals(SORT_ORDER_ASC_VALUE)) {
-        query.asc();
-      } else if (sortOrder.equals(SORT_ORDER_DESC_VALUE)) {
-        query.desc();
-      }
+  protected void applySortBy(CaseExecutionQuery query, String sortBy, Map<String, Object> parameters, ProcessEngine engine) {
+    if (sortBy.equals(SORT_BY_EXECUTION_ID_VALUE)) {
+      query.orderByCaseExecutionId();
+    } else if (sortBy.equals(SORT_BY_DEFINITION_KEY_VALUE)) {
+      query.orderByCaseDefinitionKey();
+    } else if (sortBy.equals(SORT_BY_DEFINITION_ID_VALUE)) {
+      query.orderByCaseDefinitionId();
     }
   }
 

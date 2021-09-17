@@ -25,6 +25,7 @@ import java.util.Set;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.identity.Group;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.db.PermissionCheck;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
@@ -33,6 +34,7 @@ import org.camunda.bpm.engine.impl.variable.serializer.VariableSerializers;
 import org.camunda.bpm.engine.task.DelegationState;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
+import org.camunda.bpm.engine.variable.type.ValueType;
 
 /**
  * @author Joram Barrez
@@ -60,6 +62,7 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   protected String candidateUser;
   protected String candidateGroup;
   protected List<String> candidateGroups;
+  protected Boolean includeAssignedTasks;
   protected String processInstanceId;
   protected String executionId;
   protected String[] activityInstanceIdIn;
@@ -68,11 +71,14 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   protected Date createTimeAfter;
   protected String key;
   protected String keyLike;
+  protected String[] taskDefinitionKeys;
   protected String processDefinitionKey;
+  protected String[] processDefinitionKeys;
   protected String processDefinitionId;
   protected String processDefinitionName;
   protected String processDefinitionNameLike;
   protected String processInstanceBusinessKey;
+  protected String[] processInstanceBusinessKeys;
   protected String processInstanceBusinessKeyLike;
   protected List<TaskQueryVariableValue> variables = new ArrayList<TaskQueryVariableValue>();
   protected Date dueDate;
@@ -86,6 +92,7 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   protected SuspensionState suspensionState;
   protected boolean initializeFormKeys = false;
   protected boolean taskNameCaseInsensitive = false;
+  protected String parentTaskId;
 
   // case management /////////////////////////////
   protected String caseDefinitionKey;
@@ -97,6 +104,8 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
   protected String caseInstanceBusinessKeyLike;
   protected String caseExecutionId;
 
+  // its a workaround to check authorization for standalone tasks
+  protected List<PermissionCheck> taskPermissionChecks = new ArrayList<PermissionCheck>();
 
   public TaskQueryImpl() {
   }
@@ -313,6 +322,22 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     return this;
   }
 
+  public TaskQuery includeAssignedTasks() {
+    if (candidateUser == null && candidateGroup == null && candidateGroups == null
+        && !expressions.containsKey("taskCandidateUser") && !expressions.containsKey("taskCandidateGroup")
+        && !expressions.containsKey("taskCandidateGroupIn")) {
+      throw new ProcessEngineException("Invalid query usage: candidateUser, candidateGroup, candidateGroupIn has to be called before 'includeAssignedTasks'.");
+    }
+
+    includeAssignedTasks = true;
+    return this;
+  }
+
+  public TaskQuery includeAssignedTasksInternal() {
+    includeAssignedTasks = true;
+    return this;
+  }
+
   public TaskQueryImpl processInstanceId(String processInstanceId) {
     this.processInstanceId = processInstanceId;
     return this;
@@ -320,6 +345,11 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
 
   public TaskQueryImpl processInstanceBusinessKey(String processInstanceBusinessKey) {
     this.processInstanceBusinessKey = processInstanceBusinessKey;
+    return this;
+  }
+
+  public TaskQuery processInstanceBusinessKeyIn(String... processInstanceBusinessKeys) {
+    this.processInstanceBusinessKeys = processInstanceBusinessKeys;
     return this;
   }
 
@@ -378,6 +408,16 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
 
   public TaskQuery taskDefinitionKeyLike(String keyLike) {
     this.keyLike = keyLike;
+    return this;
+  }
+
+  public TaskQuery taskDefinitionKeyIn(String... taskDefinitionKeys) {
+  	this.taskDefinitionKeys = taskDefinitionKeys;
+  	return this;
+  }
+
+  public TaskQuery taskParentTaskId(String taskParentTaskId) {
+    this.parentTaskId = taskParentTaskId;
     return this;
   }
 
@@ -536,6 +576,11 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
 
   public TaskQuery processDefinitionKey(String processDefinitionKey) {
     this.processDefinitionKey = processDefinitionKey;
+    return this;
+  }
+
+  public TaskQuery processDefinitionKeyIn(String... processDefinitionKeys) {
+    this.processDefinitionKeys = processDefinitionKeys;
     return this;
   }
 
@@ -793,6 +838,46 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     return orderBy(TaskQueryProperty.FOLLOW_UP_DATE);
   }
 
+  public TaskQuery orderByProcessVariable(String variableName, ValueType valueType) {
+    ensureNotNull("variableName", variableName);
+    ensureNotNull("valueType", valueType);
+
+    orderBy(VariableOrderProperty.forProcessInstanceVariable(variableName, valueType));
+    return this;
+  }
+
+  public TaskQuery orderByExecutionVariable(String variableName, ValueType valueType) {
+    ensureNotNull("variableName", variableName);
+    ensureNotNull("valueType", valueType);
+
+    orderBy(VariableOrderProperty.forExecutionVariable(variableName, valueType));
+    return this;
+  }
+
+  public TaskQuery orderByTaskVariable(String variableName, ValueType valueType) {
+    ensureNotNull("variableName", variableName);
+    ensureNotNull("valueType", valueType);
+
+    orderBy(VariableOrderProperty.forTaskVariable(variableName, valueType));
+    return this;
+  }
+
+  public TaskQuery orderByCaseExecutionVariable(String variableName, ValueType valueType) {
+    ensureNotNull("variableName", variableName);
+    ensureNotNull("valueType", valueType);
+
+    orderBy(VariableOrderProperty.forCaseExecutionVariable(variableName, valueType));
+    return this;
+  }
+
+  public TaskQuery orderByCaseInstanceVariable(String variableName, ValueType valueType) {
+    ensureNotNull("variableName", variableName);
+    ensureNotNull("valueType", valueType);
+
+    orderBy(VariableOrderProperty.forCaseInstanceVariable(variableName, valueType));
+    return this;
+  }
+
   //results ////////////////////////////////////////////////////////////////
 
   public List<Task> executeList(CommandContext commandContext, Page page) {
@@ -879,6 +964,14 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     return candidateGroup;
   }
 
+  public boolean isIncludeAssignedTasks() {
+    return includeAssignedTasks != null ? includeAssignedTasks : false;
+  }
+
+  public Boolean isIncludeAssignedTasksInternal() {
+    return includeAssignedTasks;
+  }
+
   public String getProcessInstanceId() {
     return processInstanceId;
   }
@@ -931,8 +1024,16 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     return key;
   }
 
+  public String[] getKeys() {
+    return taskDefinitionKeys;
+  }
+
   public String getKeyLike() {
     return keyLike;
+  }
+
+  public String getParentTaskId() {
+    return parentTaskId;
   }
 
   public List<TaskQueryVariableValue> getVariables() {
@@ -941,6 +1042,10 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
 
   public String getProcessDefinitionKey() {
     return processDefinitionKey;
+  }
+
+  public String[] getProcessDefinitionKeys() {
+    return processDefinitionKeys;
   }
 
   public String getProcessDefinitionId() {
@@ -957,6 +1062,10 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
 
   public String getProcessInstanceBusinessKey() {
     return processInstanceBusinessKey;
+  }
+
+  public String[] getProcessInstanceBusinessKeys() {
+    return processInstanceBusinessKeys;
   }
 
   public String getProcessInstanceBusinessKeyLike() {
@@ -1211,11 +1320,32 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
       extendedQuery.taskDefinitionKeyLike(this.getKeyLike());
     }
 
+    if (extendingQuery.getKeys() != null) {
+      extendedQuery.taskDefinitionKeyIn(extendingQuery.getKeys());
+    }
+    else if (this.getKeys() != null) {
+      extendedQuery.taskDefinitionKeyIn(this.getKeys());
+    }
+
+    if (extendingQuery.getParentTaskId() != null) {
+      extendedQuery.taskParentTaskId(extendingQuery.getParentTaskId());
+    }
+    else if (this.getParentTaskId() != null) {
+      extendedQuery.taskParentTaskId(this.getParentTaskId());
+    }
+
     if (extendingQuery.getProcessDefinitionKey() != null) {
       extendedQuery.processDefinitionKey(extendingQuery.getProcessDefinitionKey());
     }
     else if (this.getProcessDefinitionKey() != null) {
       extendedQuery.processDefinitionKey(this.getProcessDefinitionKey());
+    }
+
+    if (extendingQuery.getProcessDefinitionKeys() != null) {
+      extendedQuery.processDefinitionKeyIn(extendingQuery.getProcessDefinitionKeys());
+    }
+    else if (this.getProcessDefinitionKeys() != null) {
+      extendedQuery.processDefinitionKeyIn(this.getProcessDefinitionKeys());
     }
 
     if (extendingQuery.getProcessDefinitionId() != null) {
@@ -1390,6 +1520,12 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     // merge expressions
     mergeExpressions(extendedQuery, extendingQuery);
 
+    // include assigned tasks has to be set after expression as it asserts on already set
+    // candidate properties which could be expressions
+    if (extendingQuery.isIncludeAssignedTasks() || this.isIncludeAssignedTasks()) {
+      extendedQuery.includeAssignedTasks();
+    }
+
     mergeOrdering(extendedQuery, extendingQuery);
 
     return extendedQuery;
@@ -1454,4 +1590,17 @@ public class TaskQueryImpl extends AbstractQuery<TaskQuery, Task> implements Tas
     return followUpNullAccepted;
   }
 
+  // getter/setter for authorization check
+
+  public List<PermissionCheck> getTaskPermissionChecks() {
+    return taskPermissionChecks;
+  }
+
+  public void setTaskPermissionChecks(List<PermissionCheck> taskPermissionChecks) {
+    this.taskPermissionChecks = taskPermissionChecks;
+  }
+
+  public void addTaskPermissionCheck(PermissionCheck permissionCheck) {
+    taskPermissionChecks.add(permissionCheck);
+  }
 }

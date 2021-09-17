@@ -16,6 +16,8 @@ package org.camunda.bpm.engine.test.bpmn.multiinstance;
 import static org.camunda.bpm.engine.test.bpmn.event.error.ThrowErrorDelegate.leaveExecution;
 import static org.camunda.bpm.engine.test.bpmn.event.error.ThrowErrorDelegate.throwError;
 import static org.camunda.bpm.engine.test.bpmn.event.error.ThrowErrorDelegate.throwException;
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.assertThat;
+import static org.camunda.bpm.engine.test.util.ActivityInstanceAssert.describeActivityInstanceTree;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,6 +44,7 @@ import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.task.TaskQuery;
 import org.camunda.bpm.engine.test.Deployment;
 import org.camunda.bpm.engine.test.bpmn.event.error.ThrowErrorDelegate;
+import org.camunda.bpm.engine.test.util.ActivityInstanceAssert;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
 
@@ -59,28 +62,28 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
     String procId = processInstance.getId();
 
     // now there is now 1 activity instance below the pi:
-    ActivityInstance[] childInstances = runtimeService.getActivityInstance(processInstance.getId()).getChildActivityInstances();
-    assertEquals(1, childInstances.length);
-    ActivityInstance firstActInstance = childInstances[0];
-    assertEquals(processInstance.getId(), firstActInstance.getParentActivityInstanceId());
+    ActivityInstance tree = runtimeService.getActivityInstance(processInstance.getId());
+    ActivityInstance expectedTree = describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+      .beginMiBody("miTasks")
+        .activity("miTasks")
+    .done();
+    assertThat(tree).hasStructure(expectedTree);
 
     Task task = taskService.createTaskQuery().singleResult();
     assertEquals("My Task", task.getName());
     assertEquals("kermit_0", task.getAssignee());
     taskService.complete(task.getId());
 
-    childInstances = runtimeService.getActivityInstance(processInstance.getId()).getChildActivityInstances();
-    assertEquals(1, childInstances.length);
-    assertFalse(childInstances[0].getId().equals(firstActInstance.getId()));
+    tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(expectedTree);
 
     task = taskService.createTaskQuery().singleResult();
     assertEquals("My Task", task.getName());
     assertEquals("kermit_1", task.getAssignee());
     taskService.complete(task.getId());
 
-    childInstances = runtimeService.getActivityInstance(processInstance.getId()).getChildActivityInstances();
-    assertEquals(1, childInstances.length);
-    assertFalse(childInstances[0].getId().equals(firstActInstance.getId()));
+    tree = runtimeService.getActivityInstance(processInstance.getId());
+    assertThat(tree).hasStructure(expectedTree);
 
     task = taskService.createTaskQuery().singleResult();
     assertEquals("My Task", task.getName());
@@ -158,7 +161,7 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
   }
 
   @Deployment
-  public void FAILING_testSequentialMITasksExecutionListener() {
+  public void testSequentialMITasksExecutionListener() {
     RecordInvocationListener.reset();
 
     Map<String, Object> vars = new HashMap<String, Object>();
@@ -182,7 +185,7 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
   }
 
   @Deployment
-  public void FAILING_testParallelMITasksExecutionListener() {
+  public void testParallelMITasksExecutionListener() {
     RecordInvocationListener.reset();
 
     Map<String, Object> vars = new HashMap<String, Object>();
@@ -215,9 +218,8 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
       Task task = taskService.createTaskQuery().taskAssignee("kermit").singleResult();
       assertEquals("My Task", task.getName());
       ActivityInstance processInstance = runtimeService.getActivityInstance(procId);
-      List<ActivityInstance> instancesForActivitiyId = getInstancesForActivitiyId(processInstance, "miTasks");
+      List<ActivityInstance> instancesForActivitiyId = getInstancesForActivityId(processInstance, "miTasks");
       assertEquals(1, instancesForActivitiyId.size());
-      ActivityInstance userTaskActInst = instancesForActivitiyId.get(0);
       taskService.complete(task.getId());
     }
 
@@ -236,20 +238,36 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
     assertEquals("My Task 2", tasks.get(2).getName());
 
     ActivityInstance processInstance = runtimeService.getActivityInstance(procId);
-    assertEquals(3, processInstance.getChildActivityInstances().length);
+    assertEquals(3, processInstance.getActivityInstances("miTasks").length);
 
     taskService.complete(tasks.get(0).getId());
 
     processInstance = runtimeService.getActivityInstance(procId);
 
-    assertEquals(2, processInstance.getChildActivityInstances().length);
+    assertEquals(2, processInstance.getActivityInstances("miTasks").length);
 
     taskService.complete(tasks.get(1).getId());
 
     processInstance = runtimeService.getActivityInstance(procId);
-    assertEquals(1, processInstance.getChildActivityInstances().length);
+    assertEquals(1, processInstance.getActivityInstances("miTasks").length);
 
     taskService.complete(tasks.get(2).getId());
+    assertProcessEnded(procId);
+  }
+
+  @Deployment
+  public void testParallelReceiveTasks() {
+    ProcessInstance procInst = runtimeService.startProcessInstanceByKey("miParallelReceiveTasks");
+    String procId = procInst.getId();
+
+    assertEquals(3, runtimeService.createEventSubscriptionQuery().count());
+
+    List<Execution> receiveTaskExecutions = runtimeService
+        .createExecutionQuery().activityId("miTasks").list();
+
+    for (Execution execution : receiveTaskExecutions) {
+      runtimeService.messageEventReceived("message", execution.getId());
+    }
     assertProcessEnded(procId);
   }
 
@@ -270,6 +288,11 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
         assertEquals("kermit_"+i, hi.getAssignee());
       }
 
+      HistoricActivityInstance multiInstanceBodyInstance = historyService.createHistoricActivityInstanceQuery()
+          .activityId("miTasks#multiInstanceBody").singleResult();
+      assertNotNull(multiInstanceBodyInstance);
+      assertEquals(pi.getId(), multiInstanceBodyInstance.getParentActivityInstanceId());
+
       List<HistoricActivityInstance> historicActivityInstances = historyService.createHistoricActivityInstanceQuery().activityType("userTask").list();
       assertEquals(3, historicActivityInstances.size());
       for (HistoricActivityInstance hai : historicActivityInstances) {
@@ -277,7 +300,7 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
         assertNotNull(hai.getEndTime());
         assertNotNull(hai.getAssignee());
         assertEquals("userTask", hai.getActivityType());
-        assertEquals(pi.getId(), hai.getParentActivityInstanceId());
+        assertEquals(multiInstanceBodyInstance.getId(), hai.getParentActivityInstanceId());
         assertNotNull(hai.getTaskId());
       }
     }
@@ -345,10 +368,13 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
     assertEquals(0, taskService.createTaskQuery().count());
     assertProcessEnded(procId);
     if (processEngineConfiguration.getHistoryLevel().getId() > ProcessEngineConfigurationImpl.HISTORYLEVEL_NONE) {
-      List<HistoricActivityInstance> activities = historyService.createHistoricActivityInstanceQuery().processInstanceId(procId).orderByActivityId().asc().list();
+      List<HistoricActivityInstance> activities = historyService
+          .createHistoricActivityInstanceQuery()
+          .processInstanceId(procId)
+          .orderByActivityId()
+          .asc().list();
       assertEquals(3, activities.size());
-      // note that the multiple instance task is mentioned in the history once
-      assertEquals("miTasks", activities.get(0).getActivityId());
+      assertEquals("miTasks#multiInstanceBody", activities.get(0).getActivityId());
       assertEquals("theEnd", activities.get(1).getActivityId());
       assertEquals("theStart", activities.get(2).getActivityId());
     }
@@ -480,12 +506,6 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
   @Deployment
   public void testSequentialSubProcess() {
     String procId = runtimeService.startProcessInstanceByKey("miSequentialSubprocess").getId();
-
-//    ActivityInstance processInstance = runtimeService.getProcessInstance(procId);
-//    assertEquals(1, processInstance.getChildInstances().size());
-//    for (ActivityInstance subProcessInstance : processInstance.getChildInstances()) {
-//      assertEquals(2, subProcessInstance.getChildInstances().size());
-//    }
 
     TaskQuery query = taskService.createTaskQuery().orderByTaskName().asc();
     for (int i=0; i<4; i++) {
@@ -716,7 +736,9 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
     assertEquals(4, tasks.size());
 
     // get activities of a single subprocess
-    ActivityInstance[] taskActivities = runtimeService.getActivityInstance(procId).getChildActivityInstances()[0].getChildActivityInstances();
+    ActivityInstance[] taskActivities = runtimeService.getActivityInstance(procId)
+      .getActivityInstances("miSubProcess")[0]
+      .getChildActivityInstances();
 
     for (ActivityInstance taskActivity : taskActivities) {
       Task task = taskService.createTaskQuery().activityInstanceIdIn(taskActivity.getId()).singleResult();
@@ -1129,8 +1151,6 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
 
     taskService.complete(tasks.get(0).getId());
 
-    List<ProcessInstance> processInstances = runtimeService.createProcessInstanceQuery().processDefinitionKey("process").list();
-    assertEquals(0, processInstances.size());
     assertProcessEnded(processInstance.getId());
   }
 
@@ -1154,6 +1174,38 @@ public class MultiInstanceTest extends PluggableProcessEngineTestCase {
     List<ProcessInstance> processInstances = runtimeService.createProcessInstanceQuery().processDefinitionKey("miNestedMultiInstanceTasks").list();
     assertEquals(0, processInstances.size());
     assertProcessEnded(processInstance.getId());
+  }
+
+  @Deployment(resources = { "org/camunda/bpm/engine/test/bpmn/multiinstance/MultiInstanceTest.testNestedMultiInstanceTasks.bpmn20.xml"})
+  public void testNestedMultiInstanceTasksActivityInstance() {
+    List<String> processes = Arrays.asList("process A", "process B");
+    List<String> assignees = Arrays.asList("kermit", "gonzo");
+    Map<String, Object> variableMap = new HashMap<String, Object>();
+    variableMap.put("subProcesses", processes);
+    variableMap.put("assignees", assignees);
+
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("miNestedMultiInstanceTasks", variableMap);
+
+    ActivityInstance activityInstance = runtimeService.getActivityInstance(processInstance.getId());
+    ActivityInstanceAssert.assertThat(activityInstance)
+    .hasStructure(
+        ActivityInstanceAssert
+        .describeActivityInstanceTree(processInstance.getProcessDefinitionId())
+        .beginMiBody("subprocess1")
+          .beginScope("subprocess1")
+            .beginMiBody("miTasks")
+              .activity("miTasks")
+              .activity("miTasks")
+            .endScope()
+          .endScope()
+          .beginScope("subprocess1")
+            .beginMiBody("miTasks")
+              .activity("miTasks")
+              .activity("miTasks")
+            .endScope()
+          .endScope()
+        .done());
+
   }
 
 

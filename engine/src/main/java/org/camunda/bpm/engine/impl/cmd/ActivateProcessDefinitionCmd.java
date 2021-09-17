@@ -14,6 +14,7 @@ package org.camunda.bpm.engine.impl.cmd;
 
 import java.util.Date;
 
+import org.camunda.bpm.engine.history.UserOperationLogEntry;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerActivateProcessDefinitionHandler;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.SuspensionState;
@@ -35,7 +36,7 @@ public class ActivateProcessDefinitionCmd extends AbstractSetProcessDefinitionSt
     super(processDefinitionId, processDefinitionKey, includeProcessInstances, executionDate);
   }
 
-  protected SuspensionState getProcessDefinitionSuspensionState() {
+  protected SuspensionState getNewSuspensionState() {
     return SuspensionState.ACTIVE;
   }
 
@@ -47,8 +48,12 @@ public class ActivateProcessDefinitionCmd extends AbstractSetProcessDefinitionSt
     return new ActivateJobDefinitionCmd(null, processDefinitionId, processDefinitionKey, false, null);
   }
 
-  protected AbstractSetProcessInstanceStateCmd getSetProcessInstanceStateCmd() {
+  protected ActivateProcessInstanceCmd getNextCommand() {
     return new ActivateProcessInstanceCmd(null, processDefinitionId, processDefinitionKey);
+  }
+
+  protected String getLogEntryOperation() {
+    return UserOperationLogEntry.OPERATION_TYPE_ACTIVATE_PROCESS_DEFINITION;
   }
 
 }

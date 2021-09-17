@@ -1,9 +1,9 @@
 /* Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  *      http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -13,49 +13,46 @@
 
 package org.camunda.bpm.engine.impl.cmd;
 
-import java.io.Serializable;
-import java.util.Map;
-import org.camunda.bpm.engine.impl.interceptor.Command;
-import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
-
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
+import java.util.Map;
+
+import org.camunda.bpm.engine.impl.core.variable.scope.AbstractVariableScope;
+import org.camunda.bpm.engine.impl.persistence.entity.AuthorizationManager;
+import org.camunda.bpm.engine.impl.persistence.entity.PropertyChange;
+import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
 
 
 /**
  * @author Tom Baeyens
  * @author Joram Barrez
  */
-public class SetTaskVariablesCmd implements Command<Object>, Serializable {
+public class SetTaskVariablesCmd extends AbstractSetVariableCmd {
 
   private static final long serialVersionUID = 1L;
 
-  protected Map<String, ? extends Object> variables;
-  protected boolean isLocal;
-  protected String taskId;
-  
   public SetTaskVariablesCmd(String taskId, Map<String, ? extends Object> variables, boolean isLocal) {
-    this.taskId = taskId;
-    this.variables = variables;
-    this.isLocal = isLocal;
+    super(taskId, variables, isLocal);
   }
-  
-  public Object execute(CommandContext commandContext) {
-    ensureNotNull("taskId", taskId);
 
-    TaskEntity task = commandContext
+  protected TaskEntity getEntity() {
+    ensureNotNull("taskId", entityId);
+
+    TaskEntity task =  commandContext
       .getTaskManager()
-      .findTaskById(taskId);
+      .findTaskById(entityId);
 
-    ensureNotNull("Cannot find task with id " + taskId, "task", task);
+    ensureNotNull("task " + entityId + " doesn't exist", "task", task);
 
-    if (isLocal) {
-      task.setVariablesLocal(variables);
-    } else {
-      task.setVariables(variables);
-    }
+    AuthorizationManager authorizationManager = commandContext.getAuthorizationManager();
+    authorizationManager.checkUpdateTask(task);
 
-    return null;
+    return task;
   }
-  
+
+  protected void logVariableOperation(AbstractVariableScope scope) {
+    TaskEntity task = (TaskEntity) scope;
+    commandContext.getOperationLogManager().logVariableOperation(getLogEntryOperation(), task,
+      PropertyChange.EMPTY_CHANGE);
+  }
 }

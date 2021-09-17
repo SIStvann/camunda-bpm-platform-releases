@@ -12,29 +12,11 @@
  */
 package org.camunda.bpm.engine.rest.impl;
 
-import java.net.URI;
+import org.camunda.bpm.engine.rest.*;
+import org.camunda.bpm.engine.rest.history.HistoryRestService;
 
 import javax.ws.rs.Path;
-
-import org.camunda.bpm.engine.rest.AuthorizationRestService;
-import org.camunda.bpm.engine.rest.CaseDefinitionRestService;
-import org.camunda.bpm.engine.rest.CaseExecutionRestService;
-import org.camunda.bpm.engine.rest.CaseInstanceRestService;
-import org.camunda.bpm.engine.rest.DeploymentRestService;
-import org.camunda.bpm.engine.rest.ExecutionRestService;
-import org.camunda.bpm.engine.rest.FilterRestService;
-import org.camunda.bpm.engine.rest.GroupRestService;
-import org.camunda.bpm.engine.rest.IdentityRestService;
-import org.camunda.bpm.engine.rest.IncidentRestService;
-import org.camunda.bpm.engine.rest.JobDefinitionRestService;
-import org.camunda.bpm.engine.rest.JobRestService;
-import org.camunda.bpm.engine.rest.MessageRestService;
-import org.camunda.bpm.engine.rest.ProcessDefinitionRestService;
-import org.camunda.bpm.engine.rest.ProcessInstanceRestService;
-import org.camunda.bpm.engine.rest.TaskRestService;
-import org.camunda.bpm.engine.rest.UserRestService;
-import org.camunda.bpm.engine.rest.VariableInstanceRestService;
-import org.camunda.bpm.engine.rest.history.HistoryRestService;
+import java.net.URI;
 
 @Path(DefaultProcessEngineRestServiceImpl.PATH)
 public class DefaultProcessEngineRestServiceImpl extends AbstractProcessEngineRestServiceImpl {
@@ -134,6 +116,11 @@ public class DefaultProcessEngineRestServiceImpl extends AbstractProcessEngineRe
   @Path(FilterRestService.PATH)
   public FilterRestService getFilterRestService() {
     return super.getFilterRestService(null);
+  }
+
+  @Path(MetricsRestService.PATH)
+  public MetricsRestService getMetricsRestService() {
+    return super.getMetricsRestService(null);
   }
 
   @Override
