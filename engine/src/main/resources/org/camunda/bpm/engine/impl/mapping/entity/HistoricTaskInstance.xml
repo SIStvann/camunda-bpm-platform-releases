@@ -26,6 +26,7 @@
         PROC_DEF_ID_,
         PROC_INST_ID_,
         EXECUTION_ID_,
+        ACT_INST_ID_,
         NAME_,
         PARENT_TASK_ID_,
         DESCRIPTION_,
@@ -37,12 +38,14 @@
         DELETE_REASON_,
         TASK_DEF_KEY_,
         PRIORITY_,
-        DUE_DATE_
+        DUE_DATE_,
+        FOLLOW_UP_DATE_
       ) values (
         #{id ,jdbcType=VARCHAR},
         #{processDefinitionId, jdbcType=VARCHAR},
         #{processInstanceId, jdbcType=VARCHAR},
         #{executionId, jdbcType=VARCHAR},
+        #{activityInstanceId, jdbcType=VARCHAR},
         #{name ,jdbcType=VARCHAR},
         #{parentTaskId ,jdbcType=VARCHAR},
         #{description ,jdbcType=VARCHAR},
@@ -54,96 +57,14 @@
         #{deleteReason ,jdbcType=VARCHAR},
         #{taskDefinitionKey ,jdbcType=VARCHAR},
         #{priority, jdbcType=INTEGER},
-        #{dueDate, jdbcType=TIMESTAMP}
+        #{dueDate, jdbcType=TIMESTAMP},
+        #{followUpDate, jdbcType=TIMESTAMP}
       )
   </insert>
 
   <!-- HISTORIC TASK INSTANCE UPDATE -->
   
   <update id="updateHistoricTaskInstanceEvent" parameterType="org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity">
-    update ${prefix}ACT_HI_TASKINST HTI set
-      EXECUTION_ID_ = #{executionId, jdbcType=VARCHAR},
-      NAME_ = #{name, jdbcType=VARCHAR},
-      PARENT_TASK_ID_ = #{parentTaskId, jdbcType=VARCHAR},
-      DESCRIPTION_ = #{description, jdbcType=VARCHAR},
-      OWNER_ = #{owner, jdbcType=VARCHAR},
-      ASSIGNEE_ = #{assignee, jdbcType=VARCHAR},
-      DELETE_REASON_ = #{deleteReason ,jdbcType=VARCHAR},
-      TASK_DEF_KEY_ = #{taskDefinitionKey ,jdbcType=VARCHAR},
-      PRIORITY_ = #{priority, jdbcType=INTEGER},
-      DUE_DATE_ = #{dueDate, jdbcType=TIMESTAMP}
-      
-      <if test="endTime!=null">
-        , END_TIME_ = #{endTime, jdbcType=TIMESTAMP}                          
-        <if test="startTime!=null">
-            , DURATION_ = #{duration, jdbcType=TIMESTAMP}
-        </if>
-        <if test="startTime == null">
-            , DURATION_ = ${dateDiff1} #{endTime, jdbcType=TIMESTAMP} ${dateDiff2} HTI.START_TIME_ ${dateDiff3}
-        </if>
-      </if>
-             
-    where ID_ = #{id}
-  </update>
-  
-  <update id="updateHistoricTaskInstanceEvent_postgres" parameterType="org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity">
-    update ${prefix}ACT_HI_TASKINST HTI set
-      EXECUTION_ID_ = #{executionId, jdbcType=VARCHAR},
-      NAME_ = #{name, jdbcType=VARCHAR},
-      PARENT_TASK_ID_ = #{parentTaskId, jdbcType=VARCHAR},
-      DESCRIPTION_ = #{description, jdbcType=VARCHAR},
-      OWNER_ = #{owner, jdbcType=VARCHAR},
-      ASSIGNEE_ = #{assignee, jdbcType=VARCHAR},
-      DELETE_REASON_ = #{deleteReason ,jdbcType=VARCHAR},
-      TASK_DEF_KEY_ = #{taskDefinitionKey ,jdbcType=VARCHAR},
-      PRIORITY_ = #{priority, jdbcType=INTEGER},
-      DUE_DATE_ = #{dueDate, jdbcType=TIMESTAMP}
-      
-      <if test="endTime!=null">
-        , END_TIME_ = #{endTime, jdbcType=TIMESTAMP}                          
-        <if test="startTime!=null">
-            , DURATION_ = #{duration, jdbcType=TIMESTAMP}
-        </if>
-        <if test="startTime == null">
-            , DURATION_ = ${dateDiff1} #{endTime, jdbcType=TIMESTAMP} ${dateDiff2} HTI.START_TIME_ ${dateDiff3}
-        </if>
-      </if>
-             
-    where ID_ = #{id};
-    <if test="endTime!=null &amp;&amp; startTime == null">
-      UPDATE ${prefix}ACT_HI_TASKINST HTI set
-        DURATION_ = ${dateDiff1} HTI.END_TIME_ ${dateDiff2} HTI.START_TIME_ ${dateDiff3}
-      WHERE ID_ = #{id};
-    </if>
-  </update>
-
-  <update id="updateHistoricTaskInstanceEvent_nativeDateDiff" parameterType="org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity">
-    update ${prefix}ACT_HI_TASKINST HTI set
-      EXECUTION_ID_ = #{executionId, jdbcType=VARCHAR},
-      NAME_ = #{name, jdbcType=VARCHAR},
-      PARENT_TASK_ID_ = #{parentTaskId, jdbcType=VARCHAR},
-      DESCRIPTION_ = #{description, jdbcType=VARCHAR},
-      OWNER_ = #{owner, jdbcType=VARCHAR},
-      ASSIGNEE_ = #{assignee, jdbcType=VARCHAR},
-      DELETE_REASON_ = #{deleteReason ,jdbcType=VARCHAR},
-      TASK_DEF_KEY_ = #{taskDefinitionKey ,jdbcType=VARCHAR},
-      PRIORITY_ = #{priority, jdbcType=INTEGER},
-      DUE_DATE_ = #{dueDate, jdbcType=TIMESTAMP}
-      
-      <if test="endTime!=null">
-        , END_TIME_ = #{endTime, jdbcType=TIMESTAMP}                          
-        <if test="startTime!=null">
-            , DURATION_ = #{duration, jdbcType=TIMESTAMP}
-        </if>
-        <if test="startTime == null">
-            , DURATION_ = ${dateDiff1} HTI.START_TIME_ ${dateDiff2} #{endTime, jdbcType=TIMESTAMP} ${dateDiff3}
-        </if>
-      </if>
-             
-    where ID_ = #{id}
-  </update>
-  
-  <update id="updateHistoricTaskInstanceEvent_mssql" parameterType="org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity">
     update ${prefix}ACT_HI_TASKINST set
       EXECUTION_ID_ = #{executionId, jdbcType=VARCHAR},
       NAME_ = #{name, jdbcType=VARCHAR},
@@ -154,50 +75,23 @@
       DELETE_REASON_ = #{deleteReason ,jdbcType=VARCHAR},
       TASK_DEF_KEY_ = #{taskDefinitionKey ,jdbcType=VARCHAR},
       PRIORITY_ = #{priority, jdbcType=INTEGER},
-      DUE_DATE_ = #{dueDate, jdbcType=TIMESTAMP}
-      
+      DUE_DATE_ = #{dueDate, jdbcType=TIMESTAMP},
+      FOLLOW_UP_DATE_ = #{followUpDate, jdbcType=TIMESTAMP}
       <if test="endTime!=null">
-        , END_TIME_ = #{endTime, jdbcType=TIMESTAMP}                          
-        <if test="startTime!=null">
-            , DURATION_ = #{duration, jdbcType=TIMESTAMP}
-        </if>
-        <if test="startTime == null">  
-            , DURATION_ = DATEDIFF(ms, HTI.START_TIME_, #{endTime, jdbcType=TIMESTAMP})
-        </if>
-      </if>
-    FROM 
-      ${prefix}ACT_HI_TASKINST HTI             
-    where 
-      ID_ = #{id}
-  </update>
-   
-  <update id="updateHistoricTaskInstanceEvent_db2" parameterType="org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity">
-    update ${prefix}ACT_HI_TASKINST HTI set
-      EXECUTION_ID_ = #{executionId, jdbcType=VARCHAR},
-      NAME_ = #{name, jdbcType=VARCHAR},
-      PARENT_TASK_ID_ = #{parentTaskId, jdbcType=VARCHAR},
-      DESCRIPTION_ = #{description, jdbcType=VARCHAR},
-      OWNER_ = #{owner, jdbcType=VARCHAR},
-      ASSIGNEE_ = #{assignee, jdbcType=VARCHAR},
-      DELETE_REASON_ = #{deleteReason ,jdbcType=VARCHAR},
-      TASK_DEF_KEY_ = #{taskDefinitionKey ,jdbcType=VARCHAR},
-      PRIORITY_ = #{priority, jdbcType=INTEGER},
-      DUE_DATE_ = #{dueDate, jdbcType=TIMESTAMP}
-      
-      <if test="endTime!=null">
-        , END_TIME_ = #{endTime, jdbcType=TIMESTAMP}                          
-        <if test="startTime!=null">
-            , DURATION_ = #{duration, jdbcType=TIMESTAMP}
-        </if>
-        <if test="startTime == null">
-          , DURATION_ = ((DAYS(CAST(#{endTime, jdbcType=TIMESTAMP} AS TIMESTAMP)) - DAYS(HTI.START_TIME_)) * 86400000)
-            + ((MIDNIGHT_SECONDS(CAST(#{endTime, jdbcType=TIMESTAMP} AS TIMESTAMP)) - MIDNIGHT_SECONDS(HTI.START_TIME_)) * 1000)
-        </if>
-      </if>      
+        , END_TIME_ = #{endTime, jdbcType=TIMESTAMP}
+        , DURATION_ = #{durationInMillis, jdbcType=BIGINT}
+      </if>  
              
-    where ID_ = #{id}
-    </update>
+    where ID_ = #{id, jdbcType=VARCHAR}
+  </update>
   
+  <!-- HISTORIC TASK INSTANCE SELECT -->
+  
+  <select id="selectHistoricTaskInstanceEvent" parameterType="java.lang.String" resultMap="historicTaskInstanceResultMap">
+    select HTI.START_TIME_ from ${prefix}ACT_HI_TASKINST HTI              
+    where HTI.ID_ = #{id, jdbcType=VARCHAR}
+  </select>
+    
   <!-- HISTORIC TASK INSTANCE DELETE -->
   
   <delete id="deleteHistoricTaskInstance" parameterType="org.camunda.bpm.engine.impl.persistence.entity.HistoricTaskInstanceEntity">
@@ -211,6 +105,7 @@
     <result property="processDefinitionId" column="PROC_DEF_ID_" jdbcType="VARCHAR" />
     <result property="processInstanceId" column="PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="executionId" column="EXECUTION_ID_" jdbcType="VARCHAR" />
+    <result property="activityInstanceId" column="ACT_INST_ID_" jdbcType="VARCHAR" />
     <result property="name" column="NAME_" jdbcType="VARCHAR" />
     <result property="parentTaskId" column="PARENT_TASK_ID_" jdbcType="VARCHAR" />
     <result property="description" column="DESCRIPTION_" jdbcType="VARCHAR" />
@@ -223,6 +118,7 @@
     <result property="taskDefinitionKey" column="TASK_DEF_KEY_" jdbcType="VARCHAR" />
     <result property="priority" column="PRIORITY_" jdbcType="INTEGER" />
     <result property="dueDate" column="DUE_DATE_" jdbcType="TIMESTAMP" />
+    <result property="followUpDate" column="FOLLOW_UP_DATE_" jdbcType="TIMESTAMP" />
   </resultMap>
 
   <!-- HISTORIC TASK INSTANCE SELECT -->
@@ -280,6 +176,13 @@
       <if test="executionId != null">
         and RES.EXECUTION_ID_ = #{executionId}
       </if>
+      <if test="activityInstanceIds != null &amp;&amp; activityInstanceIds.length > 0">
+        and RES.ACT_INST_ID_ in
+        <foreach item="item" index="index" collection="activityInstanceIds"
+                 open="(" separator="," close=")">
+          #{item}
+        </foreach>
+      </if>
       <if test="taskName != null">
         and RES.NAME_ = #{taskName}
       </if>
@@ -336,6 +239,21 @@
       </if>
       <if test="dueAfter != null">
         and RES.DUE_DATE_ &gt; #{dueAfter}
+      </if>
+      <if test="dueDate != null || dueBefore != null || dueAfter != null">
+        and RES.DUE_DATE_ is not null
+      </if>
+      <if test="followUpDate != null">
+        and RES.FOLLOW_UP_DATE_ = #{followUpDate}
+      </if>
+      <if test="followUpBefore != null">
+        and RES.FOLLOW_UP_DATE_ &lt; #{followUpBefore}
+      </if>
+      <if test="followUpAfter != null">
+        and RES.FOLLOW_UP_DATE_ &gt; #{followUpAfter}
+      </if>
+      <if test="followUpDate != null || followUpBefore != null || followUpAfter != null">
+        and RES.FOLLOW_UP_DATE_ is not null
       </if>
       <foreach collection="variables" index="index" item="var">
         and exists (

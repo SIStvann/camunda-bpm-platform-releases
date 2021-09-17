@@ -12,13 +12,14 @@
  */
 package org.camunda.bpm.container.impl.tomcat.deployment;
 
-import java.io.File;
-import java.net.MalformedURLException;
-import java.net.URL;
-
 import org.camunda.bpm.container.impl.jmx.deployment.AbstractParseBpmPlatformXmlStep;
 import org.camunda.bpm.container.impl.jmx.kernel.MBeanDeploymentOperation;
 import org.camunda.bpm.engine.ProcessEngineException;
+
+import java.io.File;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.logging.Level;
 
 /**
  * <p>This deployment operation step is responsible for parsing and attaching the bpm-platform.xml file on tomcat.</p>
@@ -26,30 +27,43 @@ import org.camunda.bpm.engine.ProcessEngineException;
  * <p>We assume that the bpm-platform.xml file is located under <code>$CATALINA_HOME/conf/bpm-platform.xml</code>.</p>
  * 
  * @author Daniel Meyer
+ * @author Christian Lipphardt
  *
  */
 public class TomcatParseBpmPlatformXmlStep extends AbstractParseBpmPlatformXmlStep {
 
+  public static final String CATALINA_BASE = "catalina.base";
+  public static final String CATALINA_HOME = "catalina.home";
+
   protected URL getBpmPlatformXmlStream(MBeanDeploymentOperation operationcontext) {
-    
-    // read file from CATALINA_HOME directory.
-    String catalinaHome = System.getProperty("catalina.home");
-    String bpmPlatformFileLocation = catalinaHome + File.separator + "conf" + File.separator + "bpm-platform.xml";
-    
-    File bpmPlatformFile = new File(bpmPlatformFileLocation);
-    
-    if(bpmPlatformFile.exists()) {
-      try {
-        return bpmPlatformFile.toURI().toURL();
-        
-      } catch (MalformedURLException e) {
-        throw new ProcessEngineException("Cannot construct URL for "+bpmPlatformFile, e);
-        
+    URL fileLocation = lookupBpmPlatformXml();
+
+    if (fileLocation == null) {
+      fileLocation = lookupBpmPlatformXmlFromCatalinaConfDirectory();
+    }
+
+    return fileLocation;
+  }
+
+  public URL lookupBpmPlatformXmlFromCatalinaConfDirectory() {
+    // read file from CATALINA_BASE if set, otherwise CATALINA_HOME directory.
+    String catalinaHome = System.getProperty(CATALINA_BASE);
+    if (catalinaHome == null) {
+      catalinaHome = System.getProperty(CATALINA_HOME);
+    }
+
+    String bpmPlatformFileLocation = catalinaHome + File.separator + "conf" + File.separator + BPM_PLATFORM_XML_FILE;
+
+    try {
+      URL fileLocation = checkValidFileLocation(bpmPlatformFileLocation);
+
+      if (fileLocation != null) {
+        LOGGER.log(Level.INFO, "Found camunda bpm platform configuration in CATALINA_BASE/CATALINA_HOME conf directory [" + bpmPlatformFileLocation + "] at " + fileLocation.toString());
       }
-      
-    } else {
-      throw new ProcessEngineException(bpmPlatformFileLocation + " does not exist. This file is necessary for deploying the camunda BPM platform");
-      
+
+      return fileLocation;
+    } catch (MalformedURLException e) {
+      throw new ProcessEngineException("'" + bpmPlatformFileLocation + "' is not a valid camunda bpm platform configuration resource location.", e);
     }
   }
 

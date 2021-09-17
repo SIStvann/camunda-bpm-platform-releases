@@ -17,7 +17,7 @@ import java.util.Date;
 /**
  * @author Marcel Wieczorek
  */
-public class HistoricTaskInstanceEventEntity extends HistoryEvent {
+public class HistoricTaskInstanceEventEntity extends HistoricScopeInstanceEvent {
 
   private static final long serialVersionUID = 1L;
 
@@ -27,43 +27,14 @@ public class HistoricTaskInstanceEventEntity extends HistoryEvent {
   protected String name;
   protected String description;
   protected Date dueDate;
+  protected Date followUpDate;
   protected int priority;
   protected String parentTaskId;
   protected String deleteReason;
   protected String taskDefinitionKey;
-  protected Long durationInMillis;
-  protected Date startTime;
-  protected Date endTime;
+  protected String activityInstanceId;
 
   // getters and setters //////////////////////////////////////////////////////
-
-  public Long getDurationInMillis() {
-    if(endTime != null) {
-      return endTime.getTime() - startTime.getTime();
-    } else {
-      return durationInMillis;
-    }
-  }
-
-  public void setDurationInMillis(Long durationInMillis) {
-    this.durationInMillis = durationInMillis;
-  }
-
-  public Date getStartTime() {
-    return startTime;
-  }
-
-  public void setStartTime(Date startTime) {
-    this.startTime = startTime;
-  }
-
-  public Date getEndTime() {
-    return endTime;
-  }
-
-  public void setEndTime(Date endTime) {
-    this.endTime = endTime;
-  }
 
   public String getDeleteReason() {
     return deleteReason;
@@ -109,6 +80,14 @@ public class HistoricTaskInstanceEventEntity extends HistoryEvent {
     this.dueDate = dueDate;
   }
 
+  public Date getFollowUpDate() {
+    return followUpDate;
+  }
+
+  public void setFollowUpDate(Date followUpDate) {
+    this.followUpDate = followUpDate;
+  }
+
   public int getPriority() {
     return priority;
   }
@@ -145,8 +124,12 @@ public class HistoricTaskInstanceEventEntity extends HistoryEvent {
     this.taskDefinitionKey = taskDefinitionKey;
   }
 
-  public Long getDurationRaw() {
-    return durationInMillis;
+  public String getActivityInstanceId() {
+    return activityInstanceId;
+  }
+
+  public void setActivityInstanceId(String activityInstanceId) {
+    this.activityInstanceId = activityInstanceId;
   }
 
   @Override
@@ -158,6 +141,7 @@ public class HistoricTaskInstanceEventEntity extends HistoryEvent {
            + ", name=" + name
            + ", description=" + description
            + ", dueDate=" + dueDate
+           + ", followUpDate=" + followUpDate
            + ", priority=" + priority
            + ", parentTaskId=" + parentTaskId
            + ", deleteReason=" + deleteReason
@@ -170,6 +154,7 @@ public class HistoricTaskInstanceEventEntity extends HistoryEvent {
            + ", executionId=" + executionId
            + ", processDefinitionId=" + processDefinitionId
            + ", processInstanceId=" + processInstanceId
+           + ", activityInstanceId=" + activityInstanceId
            + "]";
   }
 }

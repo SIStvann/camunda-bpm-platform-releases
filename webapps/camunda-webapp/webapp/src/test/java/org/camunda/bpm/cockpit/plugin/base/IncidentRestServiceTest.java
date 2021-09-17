@@ -32,11 +32,9 @@ import org.junit.Test;
  * @author roman.smirnov
  */
 public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
-  
+
   private ProcessEngine processEngine;
   private RuntimeService runtimeService;
-  private JobExecutorHelper helper;
-
   private IncidentRestService resource;
 
   @Before
@@ -45,13 +43,11 @@ public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
 
     processEngine = getProcessEngine();
 
-    helper = new JobExecutorHelper(processEngine);
-
     runtimeService = processEngine.getRuntimeService();
 
     resource = new IncidentRestService(processEngine.getName());
   }
-   
+
   @Test
   @Deployment(resources = {
     "processes/failing-process.bpmn"
@@ -59,20 +55,20 @@ public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
   public void testQueryByProcessInstanceId() {
     ProcessInstance processInstance1 = runtimeService.startProcessInstanceByKey("FailingProcess");
     runtimeService.startProcessInstanceByKey("FailingProcess");
-    
-    helper.waitForJobExecutorToProcessAllJobs(15000);
+
+    executeAvailableJobs();
 
     String[] processInstanceIds= {processInstance1.getId()};
-    
+
     IncidentQueryDto queryParameter = new IncidentQueryDto();
     queryParameter.setProcessInstanceIdIn(processInstanceIds);
 
     List<IncidentDto> result = resource.queryIncidents(queryParameter, null, null);
     assertThat(result).isNotEmpty();
     assertThat(result).hasSize(1);
-    
+
     IncidentDto incident = result.get(0);
-    
+
     assertThat(incident.getId()).isNotNull();
     assertThat(incident.getIncidentType()).isEqualTo(FailedJobIncidentHandler.INCIDENT_HANDLER_TYPE);
     assertThat(incident.getIncidentMessage()).isEqualTo("I am failing!");
@@ -91,9 +87,9 @@ public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
     assertThat(incident.getRootCauseIncidentProcessDefinitionId()).isEqualTo(processInstance1.getProcessDefinitionId());
     assertThat(incident.getRootCauseIncidentActivityId()).isEqualTo("ServiceTask_1");
     assertThat(incident.getRootCauseIncidentConfiguration()).isNotNull();
-    assertThat(incident.getRootCauseIncidentMessage()).isEqualTo("I am failing!");    
+    assertThat(incident.getRootCauseIncidentMessage()).isEqualTo("I am failing!");
   }
-  
+
   @Test
   @Deployment(resources = {
     "processes/failing-process.bpmn"
@@ -102,10 +98,10 @@ public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
     ProcessInstance processInstance1 = runtimeService.startProcessInstanceByKey("FailingProcess");
     ProcessInstance processInstance2 = runtimeService.startProcessInstanceByKey("FailingProcess");
 
-    helper.waitForJobExecutorToProcessAllJobs(15000);
+    executeAvailableJobs();
 
     String[] processInstanceIds= {processInstance1.getId(), processInstance2.getId()};
-    
+
     IncidentQueryDto queryParameter = new IncidentQueryDto();
     queryParameter.setProcessInstanceIdIn(processInstanceIds);
 
@@ -113,27 +109,27 @@ public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
     assertThat(result).isNotEmpty();
     assertThat(result).hasSize(2);
   }
-  
+
   @Test
   @Deployment(resources = {
     "processes/process-with-two-parallel-failing-services.bpmn"
   })
   public void testQueryByActivityId() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("processWithTwoParallelFailingServices");
-    
-    helper.waitForJobExecutorToProcessAllJobs(15000);
+
+    executeAvailableJobs();
 
     String[] activityIds= {"theServiceTask1"};
-    
+
     IncidentQueryDto queryParameter = new IncidentQueryDto();
     queryParameter.setActivityIdIn(activityIds);
 
     List<IncidentDto> result = resource.queryIncidents(queryParameter, null, null);
     assertThat(result).isNotEmpty();
     assertThat(result).hasSize(1);
-    
+
     IncidentDto incident = result.get(0);
-    
+
     assertThat(incident.getId()).isNotNull();
     assertThat(incident.getIncidentType()).isEqualTo(FailedJobIncidentHandler.INCIDENT_HANDLER_TYPE);
     assertThat(incident.getIncidentMessage()).isEqualTo("I am failing!");
@@ -152,20 +148,20 @@ public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
     assertThat(incident.getRootCauseIncidentProcessDefinitionId()).isEqualTo(processInstance.getProcessDefinitionId());
     assertThat(incident.getRootCauseIncidentActivityId()).isEqualTo("theServiceTask1");
     assertThat(incident.getRootCauseIncidentConfiguration()).isNotNull();
-    assertThat(incident.getRootCauseIncidentMessage()).isEqualTo("I am failing!");  
+    assertThat(incident.getRootCauseIncidentMessage()).isEqualTo("I am failing!");
   }
-  
+
   @Test
   @Deployment(resources = {
     "processes/process-with-two-parallel-failing-services.bpmn"
   })
   public void testQueryByActivityIds() {
     runtimeService.startProcessInstanceByKey("processWithTwoParallelFailingServices");
-    
-    helper.waitForJobExecutorToProcessAllJobs(15000);
+
+    executeAvailableJobs();
 
     String[] activityIds= {"theServiceTask1", "theServiceTask2"};
-    
+
     IncidentQueryDto queryParameter = new IncidentQueryDto();
     queryParameter.setActivityIdIn(activityIds);
 
@@ -173,19 +169,19 @@ public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
     assertThat(result).isNotEmpty();
     assertThat(result).hasSize(2);
   }
-  
+
   @Test
   @Deployment(resources = {
     "processes/failing-process.bpmn"
   })
   public void testQueryByProcessInstanceIdAndActivityId() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("FailingProcess");
-    
-    helper.waitForJobExecutorToProcessAllJobs(15000);
+
+    executeAvailableJobs();
 
     String[] processInstanceIds= {processInstance.getId()};
     String[] activityIds= {"ServiceTask_1"};
-    
+
     IncidentQueryDto queryParameter = new IncidentQueryDto();
     queryParameter.setProcessInstanceIdIn(processInstanceIds);
     queryParameter.setActivityIdIn(activityIds);
@@ -194,7 +190,7 @@ public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
     assertThat(result).isNotEmpty();
     assertThat(result).hasSize(1);
   }
-  
+
   @Test
   @Deployment(resources = {
     "processes/failing-process.bpmn",
@@ -203,21 +199,21 @@ public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
   public void testQueryByProcessInstanceIdAndActivityId_ShouldReturnEmptyList() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("FailingProcess");
     runtimeService.startProcessInstanceByKey("processWithTwoParallelFailingServices");
-    
-    helper.waitForJobExecutorToProcessAllJobs(15000);
+
+    executeAvailableJobs();
 
     String[] processInstanceIds= {processInstance.getId()};
-    String[] activityIds= {"theServiceTask1"}; // is an activity id in "processWithTwoParallelFailingServices" 
-    
+    String[] activityIds= {"theServiceTask1"}; // is an activity id in "processWithTwoParallelFailingServices"
+
     IncidentQueryDto queryParameter = new IncidentQueryDto();
     queryParameter.setProcessInstanceIdIn(processInstanceIds);
     queryParameter.setActivityIdIn(activityIds);
 
     List<IncidentDto> result = resource.queryIncidents(queryParameter, null, null);
-    
+
     assertThat(result).isEmpty();
   }
-  
+
   @Test
   @Deployment(resources = {
     "processes/failing-process.bpmn",
@@ -226,23 +222,23 @@ public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
   })
   public void testQueryWithNestedIncidents() {
     ProcessInstance processInstance1 = runtimeService.startProcessInstanceByKey("NestedCallActivity");
-    
-    helper.waitForJobExecutorToProcessAllJobs(15000);
-    
+
+    executeAvailableJobs();
+
     ProcessInstance processInstance2 = runtimeService.createProcessInstanceQuery().processDefinitionKey("CallActivity").singleResult();
     ProcessInstance processInstance3 = runtimeService.createProcessInstanceQuery().processDefinitionKey("FailingProcess").singleResult();
 
     String[] processInstanceIds= {processInstance1.getId()};
-    
+
     IncidentQueryDto queryParameter = new IncidentQueryDto();
     queryParameter.setProcessInstanceIdIn(processInstanceIds);
 
     List<IncidentDto> result = resource.queryIncidents(queryParameter, null, null);
     assertThat(result).isNotEmpty();
     assertThat(result).hasSize(1);
-    
+
     IncidentDto incident = result.get(0);
-    
+
     assertThat(incident.getId()).isNotNull();
     assertThat(incident.getIncidentType()).isEqualTo(FailedJobIncidentHandler.INCIDENT_HANDLER_TYPE);
     assertThat(incident.getIncidentMessage()).isNull();
@@ -252,43 +248,43 @@ public class IncidentRestServiceTest extends AbstractCockpitPluginTest {
     assertThat(incident.getProcessDefinitionId()).isEqualTo(processInstance1.getProcessDefinitionId());
     assertThat(incident.getExecutionId()).isNotNull();
     assertThat(incident.getConfiguration()).isNull();
-    
+
     assertThat(incident.getCauseIncidentId()).isNotEqualTo(incident.getId());
     assertThat(incident.getCauseIncidentProcessInstanceId()).isEqualTo(processInstance2.getId());
     assertThat(incident.getCauseIncidentProcessDefinitionId()).isEqualTo(processInstance2.getProcessDefinitionId());
     assertThat(incident.getCauseIncidentActivityId()).isEqualTo("CallActivity_1");
-    
+
     assertThat(incident.getRootCauseIncidentId()).isNotEqualTo(incident.getId());
     assertThat(incident.getRootCauseIncidentProcessInstanceId()).isEqualTo(processInstance3.getId());
     assertThat(incident.getRootCauseIncidentProcessDefinitionId()).isEqualTo(processInstance3.getProcessDefinitionId());
     assertThat(incident.getRootCauseIncidentActivityId()).isEqualTo("ServiceTask_1");
     assertThat(incident.getRootCauseIncidentConfiguration()).isNotNull();
-    assertThat(incident.getRootCauseIncidentMessage()).isEqualTo("I am failing!");  
+    assertThat(incident.getRootCauseIncidentMessage()).isEqualTo("I am failing!");
   }
-  
+
   @Test
   @Deployment(resources = {
     "processes/process-with-two-parallel-failing-services.bpmn"
   })
   public void testQueryPaginiation() {
     runtimeService.startProcessInstanceByKey("processWithTwoParallelFailingServices");
-    
-    helper.waitForJobExecutorToProcessAllJobs(15000);
+
+    executeAvailableJobs();
 
     IncidentQueryDto queryParameter = new IncidentQueryDto();
 
     List<IncidentDto> result = resource.queryIncidents(queryParameter, 0, 2);
     assertThat(result).isNotEmpty();
     assertThat(result).hasSize(2);
-    
+
     result = resource.queryIncidents(queryParameter, 2, 1);
     assertThat(result).isNotEmpty();
     assertThat(result).hasSize(1);
-    
+
     result = resource.queryIncidents(queryParameter, 4, null);
     assertThat(result).isNotEmpty();
     assertThat(result).hasSize(6);
-    
+
     result = resource.queryIncidents(queryParameter, null, 4);
     assertThat(result).isNotEmpty();
     assertThat(result).hasSize(4);

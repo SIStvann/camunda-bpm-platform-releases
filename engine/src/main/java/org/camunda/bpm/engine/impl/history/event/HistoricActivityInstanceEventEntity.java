@@ -12,16 +12,18 @@
  */
 package org.camunda.bpm.engine.impl.history.event;
 
-import java.util.Date;
+import org.camunda.bpm.engine.impl.persistence.entity.ActivityInstanceState;
+
 
 /**
  * <p>{@link HistoryEvent} implementation for events that happen in an activity.</p>
  *
  * @author Daniel Meyer
  * @author Marcel Wieczorek
+ * @author roman.smirnov
  *
  */
-public class HistoricActivityInstanceEventEntity extends HistoryEvent {
+public class HistoricActivityInstanceEventEntity extends HistoricScopeInstanceEvent {
 
   private static final long serialVersionUID = 1L;
 
@@ -37,6 +39,9 @@ public class HistoricActivityInstanceEventEntity extends HistoryEvent {
   /** the id of this activity instance */
   protected String activityInstanceId;
 
+  /** the state of this activity instance */
+  protected int activityInstanceState;
+
   /** the id of the parent activity instance */
   protected String parentActivityInstanceId;
 
@@ -46,42 +51,11 @@ public class HistoricActivityInstanceEventEntity extends HistoryEvent {
   protected String taskId;
   protected String taskAssignee;
 
-  protected Long durationInMillis;
-  protected Date startTime;
-  protected Date endTime;
 
   // getters and setters //////////////////////////////////////////////////////
 
-  public Date getEndTime() {
-    return endTime;
-  }
-
-  public void setEndTime(Date endTime) {
-    this.endTime = endTime;
-  }
-
-  public Date getStartTime() {
-    return startTime;
-  }
-
-  public void setStartTime(Date startTime) {
-    this.startTime = startTime;
-  }
-
   public String getAssignee() {
     return taskAssignee;
-  }
-
-  public Long getDurationInMillis() {
-    if(endTime != null) {
-        return endTime.getTime() - startTime.getTime();
-    } else {
-      return durationInMillis;
-    }
-  }
-
-  public void setDurationInMillis(Long durationInMillis) {
-    this.durationInMillis = durationInMillis;
   }
 
   public String getActivityId() {
@@ -148,8 +122,20 @@ public class HistoricActivityInstanceEventEntity extends HistoryEvent {
     this.taskAssignee = taskAssignee;
   }
 
-  public Long getDurationRaw() {
-    return durationInMillis;
+  public void setActivityInstanceState(int activityInstanceState) {
+    this.activityInstanceState = activityInstanceState;
+  }
+
+  public int getActivityInstanceState() {
+    return activityInstanceState;
+  }
+
+  public boolean isCompleteScope() {
+    return ActivityInstanceState.SCOPE_COMPLETE.getStateCode() == activityInstanceState;
+  }
+
+  public boolean isCanceled() {
+    return ActivityInstanceState.CANCELED.getStateCode() == activityInstanceState;
   }
 
   @Override
@@ -159,6 +145,7 @@ public class HistoricActivityInstanceEventEntity extends HistoryEvent {
            + ", activityName=" + activityName
            + ", activityType=" + activityType
            + ", activityInstanceId=" + activityInstanceId
+           + ", activityInstanceState=" + activityInstanceState
            + ", parentActivityInstanceId=" + parentActivityInstanceId
            + ", calledProcessInstanceId=" + calledProcessInstanceId
            + ", taskId=" + taskId
