@@ -47,6 +47,7 @@ public abstract class EventSubscriptionEntity implements EventSubscription, DbEn
   protected String activityId;
   protected String configuration;
   protected Date created;
+  protected String tenantId;
 
   // runtime state /////////////////////////////
   protected ExecutionEntity execution;
@@ -64,6 +65,7 @@ public abstract class EventSubscriptionEntity implements EventSubscription, DbEn
     setExecution(executionEntity);
     setActivity(execution.getActivity());
     this.processInstanceId = executionEntity.getProcessInstanceId();
+    this.tenantId = executionEntity.getTenantId();
   }
 
   // processing /////////////////////////////
@@ -135,6 +137,8 @@ public abstract class EventSubscriptionEntity implements EventSubscription, DbEn
     HashMap<String, Object> persistentState = new HashMap<String, Object>();
     persistentState.put("executionId", executionId);
     persistentState.put("configuration", configuration);
+    persistentState.put("activityId", activityId);
+    persistentState.put("eventName", eventName);
     return persistentState;
   }
 
@@ -150,9 +154,15 @@ public abstract class EventSubscriptionEntity implements EventSubscription, DbEn
   }
 
   public void setExecution(ExecutionEntity execution) {
-    this.execution = execution;
     if(execution != null) {
+      this.execution = execution;
       this.executionId = execution.getId();
+      addToExecution();
+    }
+    else {
+      removeFromExecution();
+      this.executionId = null;
+      this.execution = null;
     }
   }
 
@@ -260,6 +270,7 @@ public abstract class EventSubscriptionEntity implements EventSubscription, DbEn
 
   public void setActivityId(String activityId) {
     this.activityId = activityId;
+    this.activity = null;
   }
 
   public Date getCreated() {
@@ -268,6 +279,14 @@ public abstract class EventSubscriptionEntity implements EventSubscription, DbEn
 
   public void setCreated(Date created) {
     this.created = created;
+  }
+
+  public String getTenantId() {
+    return tenantId;
+  }
+
+  public void setTenantId(String tenantId) {
+    this.tenantId = tenantId;
   }
 
   @Override
@@ -304,6 +323,7 @@ public abstract class EventSubscriptionEntity implements EventSubscription, DbEn
            + ", executionId=" + executionId
            + ", processInstanceId=" + processInstanceId
            + ", activityId=" + activityId
+           + ", tenantId=" + tenantId
            + ", configuration=" + configuration
            + ", revision=" + revision
            + ", created=" + created

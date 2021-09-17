@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
+import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.exception.cmmn.CaseDefinitionNotFoundException;
 import org.camunda.bpm.engine.exception.dmn.DecisionDefinitionNotFoundException;
 import org.camunda.bpm.engine.impl.ProcessDefinitionQueryImpl;
@@ -88,11 +89,19 @@ public class DeploymentCache {
         .getProcessDefinitionManager()
         .findLatestProcessDefinitionById(processDefinitionId);
     }
+
     ensureNotNull("no deployed process definition found with id '" + processDefinitionId + "'", "processDefinition", processDefinition);
     processDefinition = resolveProcessDefinition(processDefinition);
     return processDefinition;
   }
 
+  /**
+   * @return the latest version of the process definition with the given key (from any tenant)
+   *
+   * @throws ProcessEngineException if more than one tenant has a process definition with the given key
+   *
+   * @see #findDeployedLatestProcessDefinitionByKeyAndTenantId(String, String)
+   */
   public ProcessDefinitionEntity findDeployedLatestProcessDefinitionByKey(String processDefinitionKey) {
     ProcessDefinitionEntity processDefinition = Context
       .getCommandContext()
@@ -103,16 +112,30 @@ public class DeploymentCache {
     return processDefinition;
   }
 
-  public ProcessDefinitionEntity findDeployedProcessDefinitionByKeyAndVersion(final String processDefinitionKey, final Integer processDefinitionVersion) {
+  /**
+   * @return the latest version of the process definition with the given key and tenant id
+   */
+  public ProcessDefinitionEntity findDeployedLatestProcessDefinitionByKeyAndTenantId(String processDefinitionKey, String tenantId) {
+    ProcessDefinitionEntity processDefinition = Context
+        .getCommandContext()
+        .getProcessDefinitionManager()
+        .findLatestProcessDefinitionByKeyAndTenantId(processDefinitionKey, tenantId);
+    ensureNotNull("no processes deployed with key '" + processDefinitionKey + "' and tenant-id '" + tenantId + "'", "processDefinition", processDefinition);
+    processDefinition = resolveProcessDefinition(processDefinition);
+    return processDefinition;
+  }
+
+  public ProcessDefinitionEntity findDeployedProcessDefinitionByKeyVersionAndTenantId(final String processDefinitionKey, final Integer processDefinitionVersion, final String tenantId) {
     final CommandContext commandContext = Context.getCommandContext();
     ProcessDefinitionEntity processDefinition = commandContext.runWithoutAuthorization(new Callable<ProcessDefinitionEntity>() {
       public ProcessDefinitionEntity call() throws Exception {
         return (ProcessDefinitionEntity) commandContext
           .getProcessDefinitionManager()
-          .findProcessDefinitionByKeyAndVersion(processDefinitionKey, processDefinitionVersion);
+          .findProcessDefinitionByKeyVersionAndTenantId(processDefinitionKey, processDefinitionVersion, tenantId);
       }
     });
-    ensureNotNull("no processes deployed with key = '" + processDefinitionKey + "' and version = '" + processDefinitionVersion + "'", "processDefinition", processDefinition);
+    ensureNotNull("no processes deployed with key = '" + processDefinitionKey + "', version = '" + processDefinitionVersion
+        + "' and tenant-id = '" + tenantId + "'", "processDefinition", processDefinition);
     processDefinition = resolveProcessDefinition(processDefinition);
     return processDefinition;
   }
@@ -229,6 +252,13 @@ public class DeploymentCache {
     return caseDefinition;
   }
 
+  /**
+   * @return the latest version of the case definition with the given key (from any tenant)
+   *
+   * @throws ProcessEngineException if more than one tenant has a case definition with the given key
+   *
+   * @see #findDeployedLatestCaseDefinitionByKeyAndTenantId(String, String)
+   */
   public CaseDefinitionEntity findDeployedLatestCaseDefinitionByKey(String caseDefinitionKey) {
     ensureNotNull("Invalid case definition key", "caseDefinitionKey", caseDefinitionKey);
 
@@ -245,14 +275,34 @@ public class DeploymentCache {
     return caseDefinition;
   }
 
-  public CaseDefinitionEntity findDeployedCaseDefinitionByKeyAndVersion(String caseDefinitionKey, Integer caseDefinitionVersion) {
+  /**
+   * @return the latest version of the case definition with the given key and tenant id
+   */
+  public CaseDefinitionEntity findDeployedLatestCaseDefinitionByKeyAndTenantId(String caseDefinitionKey, String tenantId) {
+    ensureNotNull("Invalid case definition key", "caseDefinitionKey", caseDefinitionKey);
+
+    // load case definition by key from db
+    CaseDefinitionEntity caseDefinition = Context
+      .getCommandContext()
+      .getCaseDefinitionManager()
+      .findLatestCaseDefinitionByKeyAndTenantId(caseDefinitionKey, tenantId);
+
+    ensureNotNull(CaseDefinitionNotFoundException.class, "no case definition deployed with key '" + caseDefinitionKey + "' and tenant-id '" + tenantId + "'", "caseDefinition", caseDefinition);
+
+    caseDefinition = resolveCaseDefinition(caseDefinition);
+
+    return caseDefinition;
+  }
+
+  public CaseDefinitionEntity findDeployedCaseDefinitionByKeyVersionAndTenantId(String caseDefinitionKey, Integer caseDefinitionVersion, String tenantId) {
 
     CaseDefinitionEntity caseDefinition = Context
       .getCommandContext()
       .getCaseDefinitionManager()
-      .findCaseDefinitionByKeyAndVersion(caseDefinitionKey, caseDefinitionVersion);
+      .findCaseDefinitionByKeyVersionAndTenantId(caseDefinitionKey, caseDefinitionVersion, tenantId);
 
-    ensureNotNull(CaseDefinitionNotFoundException.class, "no case definition deployed with key = '" + caseDefinitionKey + "' and version = '" + caseDefinitionVersion + "'", "caseDefinition", caseDefinition);
+    ensureNotNull(CaseDefinitionNotFoundException.class, "no case definition deployed with key = '" + caseDefinitionKey + "', version = '" + caseDefinitionVersion + "'"
+        + " and tenant-id = '" + tenantId + "'", "caseDefinition", caseDefinition);
     caseDefinition = resolveCaseDefinition(caseDefinition);
 
     return caseDefinition;
@@ -382,7 +432,7 @@ public class DeploymentCache {
   }
 
   public DecisionDefinition findDeployedLatestDecisionDefinitionByKey(String decisionDefinitionKey) {
-    ensureNotNull("Invalid decision definition key", "caseDefinitionKey", decisionDefinitionKey);
+    ensureNotNull("Invalid decision definition key", "decisionDefinitionKey", decisionDefinitionKey);
 
     DecisionDefinitionEntity decisionDefinition = Context
       .getCommandContext()
@@ -390,6 +440,21 @@ public class DeploymentCache {
       .findLatestDecisionDefinitionByKey(decisionDefinitionKey);
 
     ensureNotNull(DecisionDefinitionNotFoundException.class, "no decision definition deployed with key '" + decisionDefinitionKey + "'", "decisionDefinition", decisionDefinition);
+
+    decisionDefinition = resolveDecisionDefinition(decisionDefinition);
+
+    return decisionDefinition;
+  }
+
+  public DecisionDefinition findDeployedLatestDecisionDefinitionByKeyAndTenantId(String decisionDefinitionKey, String tenantId) {
+    ensureNotNull("Invalid decision definition key", "decisionDefinitionKey", decisionDefinitionKey);
+
+    DecisionDefinitionEntity decisionDefinition = Context
+      .getCommandContext()
+      .getDecisionDefinitionManager()
+      .findLatestDecisionDefinitionByKeyAndTenantId(decisionDefinitionKey, tenantId);
+
+    ensureNotNull(DecisionDefinitionNotFoundException.class, "no decision definition deployed with key '" + decisionDefinitionKey + "' and tenant-id '" + tenantId + "'", "decisionDefinition", decisionDefinition);
 
     decisionDefinition = resolveDecisionDefinition(decisionDefinition);
 
@@ -415,6 +480,18 @@ public class DeploymentCache {
       .findDecisionDefinitionByKeyAndVersion(decisionDefinitionKey, decisionDefinitionVersion);
 
     ensureNotNull(DecisionDefinitionNotFoundException.class, "no decision definition deployed with key = '" + decisionDefinitionKey + "' and version = '" + decisionDefinitionVersion + "'", "decisionDefinition", decisionDefinition);
+    decisionDefinition = resolveDecisionDefinition(decisionDefinition);
+
+    return decisionDefinition;
+  }
+
+  public DecisionDefinition findDeployedDecisionDefinitionByKeyVersionAndTenantId(String decisionDefinitionKey, Integer decisionDefinitionVersion, String tenantId) {
+    DecisionDefinitionEntity decisionDefinition = Context
+      .getCommandContext()
+      .getDecisionDefinitionManager()
+      .findDecisionDefinitionByKeyVersionAndTenantId(decisionDefinitionKey, decisionDefinitionVersion, tenantId);
+
+    ensureNotNull(DecisionDefinitionNotFoundException.class, "no decision definition deployed with key = '" + decisionDefinitionKey + "', version = '" + decisionDefinitionVersion + "' and tenant-id '" + tenantId + "'", "decisionDefinition", decisionDefinition);
     decisionDefinition = resolveDecisionDefinition(decisionDefinition);
 
     return decisionDefinition;

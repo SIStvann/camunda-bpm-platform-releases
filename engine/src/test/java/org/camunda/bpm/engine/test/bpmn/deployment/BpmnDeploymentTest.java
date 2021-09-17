@@ -256,9 +256,7 @@ public class BpmnDeploymentTest extends PluggableProcessEngineTestCase {
     List<org.camunda.bpm.engine.repository.Deployment> deploymentList = repositoryService.createDeploymentQuery().list();
     assertEquals(2, deploymentList.size());
 
-    for (org.camunda.bpm.engine.repository.Deployment deployment : deploymentList) {
-      repositoryService.deleteDeployment(deployment.getId());
-    }
+    deleteDeployments(deploymentList);
   }
 
   public void testDiagramCreationDisabled() {
@@ -267,6 +265,7 @@ public class BpmnDeploymentTest extends PluggableProcessEngineTestCase {
     // Graphical information is not yet exposed publicly, so we need to do some plumbing
     CommandExecutor commandExecutor = processEngineConfiguration.getCommandExecutorTxRequired();
     ProcessDefinitionEntity processDefinitionEntity = commandExecutor.execute(new Command<ProcessDefinitionEntity>() {
+      @Override
       public ProcessDefinitionEntity execute(CommandContext commandContext) {
         return Context.getProcessEngineConfiguration()
                       .getDeploymentCache()
@@ -353,4 +352,9 @@ public class BpmnDeploymentTest extends PluggableProcessEngineTestCase {
     assertEquals(deploymentId, resource.getDeploymentId());
   }
 
+  private void deleteDeployments(List<org.camunda.bpm.engine.repository.Deployment> deploymentList) {
+    for (org.camunda.bpm.engine.repository.Deployment deployment : deploymentList) {
+      repositoryService.deleteDeployment(deployment.getId());
+    }
+  }
 }

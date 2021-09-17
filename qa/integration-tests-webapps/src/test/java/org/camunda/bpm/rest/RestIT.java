@@ -9,6 +9,7 @@ import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import javax.ws.rs.core.MediaType;
@@ -19,6 +20,7 @@ import java.util.Map;
 import java.util.logging.Logger;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class RestIT extends AbstractWebappIntegrationTest {
@@ -42,6 +44,12 @@ public class RestIT extends AbstractWebappIntegrationTest {
 
   protected String getApplicationContextPath() {
     return "engine-rest/";
+  }
+
+  @BeforeClass
+  public static void setup() throws InterruptedException {
+    // just wait some seconds before starting because of Wildfly / Cargo race conditions
+    Thread.sleep(5 * 1000);
   }
 
   @Test
@@ -73,7 +81,7 @@ public class RestIT extends AbstractWebappIntegrationTest {
 
     JSONArray definitionsJson = response.getEntity(JSONArray.class);
     // invoice example
-    assertEquals(1, definitionsJson.length());
+    assertEquals(2, definitionsJson.length());
 
     JSONObject definitionJson = definitionsJson.getJSONObject(0);
 
@@ -81,8 +89,17 @@ public class RestIT extends AbstractWebappIntegrationTest {
     assertEquals("http://www.omg.org/spec/BPMN/20100524/MODEL", definitionJson.getString("category"));
     assertEquals("Invoice Receipt", definitionJson.getString("name"));
     Assert.assertTrue(definitionJson.isNull("description"));
-    Assert.assertTrue(definitionJson.getString("resource").contains("invoice.bpmn"));
-    Assert.assertFalse(definitionJson.getBoolean("suspended"));
+    Assert.assertTrue(definitionJson.getString("resource").contains("invoice.v1.bpmn"));
+    assertFalse(definitionJson.getBoolean("suspended"));
+
+    definitionJson = definitionsJson.getJSONObject(1);
+
+    assertEquals("invoice", definitionJson.getString("key"));
+    assertEquals("http://www.omg.org/spec/BPMN/20100524/MODEL", definitionJson.getString("category"));
+    assertEquals("Invoice Receipt", definitionJson.getString("name"));
+    Assert.assertTrue(definitionJson.isNull("description"));
+    Assert.assertTrue(definitionJson.getString("resource").contains("invoice.v2.bpmn"));
+    assertFalse(definitionJson.getBoolean("suspended"));
 
     response.close();
 
@@ -99,7 +116,7 @@ public class RestIT extends AbstractWebappIntegrationTest {
     assertEquals(200, response.getStatus());
 
     JSONArray definitionsJson = response.getEntity(JSONArray.class);
-    assertEquals(3, definitionsJson.length());
+    assertEquals(6, definitionsJson.length());
 
     response.close();
   }
@@ -197,8 +214,31 @@ public class RestIT extends AbstractWebappIntegrationTest {
 
     assertEquals(200, response.getStatus());
     // invoice example instance
-    assertEquals(1, instancesJson.length());
+    assertEquals(2, instancesJson.length());
 
+  }
+
+  @Test
+  public void testComplexObjectJacksonSerialization() throws JSONException {
+    WebResource resource = client.resource(APP_BASE_PATH + PROCESS_DEFINITION_PATH + "/statistics");
+    ClientResponse response = resource.queryParam("incidents", "true").accept(MediaType.APPLICATION_JSON).get(ClientResponse.class);
+
+    JSONArray definitionStatistics = response.getEntity(JSONArray.class);
+    response.close();
+
+    assertEquals(200, response.getStatus());
+    // invoice example instance
+    assertEquals(2, definitionStatistics.length());
+
+    // check that definition is also serialized
+    for (int i = 0; i < definitionStatistics.length(); i++) {
+      JSONObject definitionStatistic = definitionStatistics.getJSONObject(i);
+      assertEquals("org.camunda.bpm.engine.rest.dto.repository.ProcessDefinitionStatisticsResultDto", definitionStatistic.getString("@class"));
+      assertEquals(0, definitionStatistic.getJSONArray("incidents").length());
+      JSONObject definition = definitionStatistic.getJSONObject("definition");
+      assertEquals("Invoice Receipt", definition.getString("name"));
+      assertFalse(definition.getBoolean("suspended"));
+    }
   }
 
   protected JSONObject getFirstTask() throws JSONException {

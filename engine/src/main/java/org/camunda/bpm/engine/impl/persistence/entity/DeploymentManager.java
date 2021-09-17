@@ -37,6 +37,7 @@ import org.camunda.bpm.engine.runtime.Job;
 
 /**
  * @author Tom Baeyens
+ * @author Deivarayan Azhagappan
  */
 public class DeploymentManager extends AbstractManager {
 
@@ -79,9 +80,10 @@ public class DeploymentManager extends AbstractManager {
       getIdentityLinkManager().deleteIdentityLinksByProcDef(processDefinitionId);
 
       // remove timer start events:
-      List<JobEntity> timerStartJobs = getJobManager().findJobsByConfiguration(TimerStartEventJobHandler.TYPE, processDefinition.getKey());
+      List<JobEntity> timerStartJobs = getJobManager().findJobsByConfiguration(TimerStartEventJobHandler.TYPE, processDefinition.getKey(), processDefinition.getTenantId());
 
-      ProcessDefinitionEntity latestVersion = getProcessDefinitionManager().findLatestProcessDefinitionByKey(processDefinition.getKey());
+      ProcessDefinitionEntity latestVersion = getProcessDefinitionManager()
+          .findLatestProcessDefinitionByKeyAndTenantId(processDefinition.getKey(), processDefinition.getTenantId());
 
       // delete timer start event jobs only if this is the latest version of the process definition.
       if(latestVersion != null && latestVersion.getId().equals(processDefinition.getId())) {
@@ -93,6 +95,9 @@ public class DeploymentManager extends AbstractManager {
       if (cascade) {
         // remove historic incidents which are not referenced to a process instance
         getHistoricIncidentManager().deleteHistoricIncidentsByProcessDefinitionId(processDefinitionId);
+
+        // remove historic identity links which are not reference to a process instance
+        getHistoricIdentityLinkManager().deleteHistoricIdentityLinksLogByProcessDefinitionId(processDefinitionId);
 
         // remove historic job log entries not related to a process instance
         getHistoricJobLogManager().deleteHistoricJobLogsByProcessDefinitionId(processDefinitionId);
@@ -143,6 +148,7 @@ public class DeploymentManager extends AbstractManager {
 
     deleteAuthorizations(Resources.DEPLOYMENT, deploymentId);
     getDbEntityManager().delete(DeploymentEntity.class, "deleteDeployment", deploymentId);
+
   }
 
   protected void deleteCaseDeployment(String deploymentId, boolean cascade) {
@@ -226,13 +232,13 @@ public class DeploymentManager extends AbstractManager {
   }
 
   public long findDeploymentCountByQueryCriteria(DeploymentQueryImpl deploymentQuery) {
-    getAuthorizationManager().configureDeploymentQuery(deploymentQuery);
+    configureQuery(deploymentQuery);
     return (Long) getDbEntityManager().selectOne("selectDeploymentCountByQueryCriteria", deploymentQuery);
   }
 
   @SuppressWarnings("unchecked")
   public List<Deployment> findDeploymentsByQueryCriteria(DeploymentQueryImpl deploymentQuery, Page page) {
-    getAuthorizationManager().configureDeploymentQuery(deploymentQuery);
+    configureQuery(deploymentQuery);
     return getDbEntityManager().selectList("selectDeploymentsByQueryCriteria", deploymentQuery, page);
   }
 
@@ -257,6 +263,11 @@ public class DeploymentManager extends AbstractManager {
       AuthorizationEntity[] authorizations = provider.newDeployment(deployment);
       saveDefaultAuthorizations(authorizations);
     }
+  }
+
+  protected void configureQuery(DeploymentQueryImpl query) {
+    getAuthorizationManager().configureDeploymentQuery(query);
+    getTenantManager().configureQuery(query);
   }
 
 }

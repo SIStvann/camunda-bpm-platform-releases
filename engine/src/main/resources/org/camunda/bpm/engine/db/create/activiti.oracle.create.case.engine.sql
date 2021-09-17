@@ -10,6 +10,7 @@ create table ACT_RE_CASE_DEF (
     DEPLOYMENT_ID_ NVARCHAR2(64),
     RESOURCE_NAME_ NVARCHAR2(2000),
     DGRM_RESOURCE_NAME_ NVARCHAR2(2000),
+    TENANT_ID_ NVARCHAR2(64),
     primary key (ID_)
 );
 
@@ -28,6 +29,7 @@ create table ACT_RU_CASE_EXECUTION (
     PREV_STATE_ INTEGER,
     CURRENT_STATE_ INTEGER,
     REQUIRED_ NUMBER(1,0) CHECK (REQUIRED_ IN (1,0)),
+    TENANT_ID_ NVARCHAR2(64),
     primary key (ID_)
 );
 
@@ -44,13 +46,9 @@ create table ACT_RU_CASE_SENTRY_PART (
     STANDARD_EVENT_ NVARCHAR2(255),
     SOURCE_ NVARCHAR2(255),
     SATISFIED_ NUMBER(1,0) CHECK (SATISFIED_ IN (1,0)),
+    TENANT_ID_ NVARCHAR2(64),
     primary key (ID_)
 );
-
--- create unique constraint on ACT_RE_CASE_DEF --
-alter table ACT_RE_CASE_DEF
-    add constraint ACT_UNIQ_CASE_DEF
-    unique (KEY_,VERSION_);
 
 -- create index on business key --
 create index ACT_IDX_CASE_EXEC_BUSKEY on ACT_RU_CASE_EXECUTION(BUSINESS_KEY_);
@@ -112,3 +110,6 @@ alter table ACT_RU_CASE_SENTRY_PART
     add constraint ACT_FK_CASE_SENTRY_CASE_EXEC
     foreign key (CASE_EXEC_ID_)
     references ACT_RU_CASE_EXECUTION(ID_);
+    
+create index ACT_IDX_CASE_DEF_TENANT_ID on ACT_RE_CASE_DEF(TENANT_ID_);
+create index ACT_IDX_CASE_EXEC_TENANT_ID on ACT_RU_CASE_EXECUTION(TENANT_ID_);

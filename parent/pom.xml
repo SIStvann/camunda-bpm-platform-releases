@@ -4,7 +4,7 @@
   <parent>
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-bom</artifactId>
-    <version>7.4.0</version>
+    <version>7.5.0</version>
     <relativePath>../bom</relativePath>
   </parent>
 
@@ -31,23 +31,26 @@
     <!-- application servers -->
     <version.jboss.as>7.2.0.Final</version.jboss.as>
     <version.wildfly>8.2.1.Final</version.wildfly>
+    <version.wildfly10>10.0.0.Final</version.wildfly10>
+    <version.wildfly10.core>2.0.10.Final</version.wildfly10.core>
     <version.glassfish>3.1.2</version.glassfish>
     <version.tomcat>8.0.24</version.tomcat>
 
-    <version.arquillian>1.0.0.Final</version.arquillian>
-    <version.arquillian.drone>1.0.0.Final</version.arquillian.drone>
-    <version.shrinkwrap.resolvers>2.0.0</version.shrinkwrap.resolvers>
+    <version.arquillian>1.1.10.Final</version.arquillian>
+    <version.shrinkwrap.resolvers>2.2.2</version.shrinkwrap.resolvers>
     <version.selenium>2.45.0</version.selenium>
 
     <version.jboss-javaee-spec>3.0.2.Final</version.jboss-javaee-spec>
 
     <version.java.wildfly>1.7</version.java.wildfly>
+    <version.java.wildfly10>1.8</version.java.wildfly10>
 
 
     <!-- OSGi bundles properties -->
     <camunda.artifact />
     <camunda.osgi.import.camunda.spin.version>version="[$(version;==;${camunda.spin.version.clean}),$(version;=+;${camunda.spin.version.clean}))"</camunda.osgi.import.camunda.spin.version>
     <camunda.osgi.import.camunda.connect.version>version="[$(version;==;${camunda.connect.version.clean}),$(version;=+;${camunda.connect.version.clean}))"</camunda.osgi.import.camunda.connect.version>
+    <camunda.osgi.import.camunda.commons.version>version="[$(version;==;${camunda.commons.version.clean}),$(version;=+;${camunda.commons.version.clean}))"</camunda.osgi.import.camunda.commons.version>
     <camunda.osgi.import.camunda.version>version="[$(version;==;${camunda.osgi.version.clean}),$(version;=+;${camunda.osgi.version.clean}))"</camunda.osgi.import.camunda.version>
     <camunda.osgi.import.strict.version>version="[$(version;===;${camunda.osgi.version.clean}),$(version;==+;${camunda.osgi.version.clean}))"</camunda.osgi.import.strict.version>
     <camunda.osgi.import.default.version>[$(version;==;$(@)),$(version;+;$(@)))</camunda.osgi.import.default.version>
@@ -380,6 +383,12 @@
         <version>1.0.2.Final</version>
       </dependency>
 
+      <dependency>
+        <groupId>org.jboss.spec.javax.ws.rs</groupId>
+        <artifactId>jboss-jaxrs-api_1.1_spec</artifactId>
+        <version>1.0.1.Final</version>
+      </dependency>
+
       <!-- licensing dependencies -->
       <dependency>
         <groupId>org.bouncycastle</groupId>
@@ -407,10 +416,17 @@
         <groupId>org.jboss.resteasy</groupId>
         <artifactId>resteasy-jaxrs</artifactId>
         <version>${version.resteasy}</version>
+        <!-- The exclusion is there because we don't need the Resteasy client
+          API in the Rest API test suite and assembly; in case you need to remove
+          the exclusion here, please make sure to add it in the REST API projects -->
         <exclusions>
           <exclusion>
             <artifactId>httpclient</artifactId>
             <groupId>org.apache.httpcomponents</groupId>
+          </exclusion>
+          <exclusion>
+            <groupId>commons-httpclient</groupId>
+            <artifactId>commons-httpclient</artifactId>
           </exclusion>
         </exclusions>
       </dependency>
@@ -464,10 +480,11 @@
           <artifactId>maven-surefire-plugin</artifactId>
           <version>2.16</version>
           <configuration>
+            <runOrder>hourly</runOrder>
             <systemPropertyVariables>
               <myWorkingDir>${project.build.directory}</myWorkingDir>
             </systemPropertyVariables>
-            <argLine>-XX:MaxPermSize=128m</argLine>
+            <argLine>-XX:MaxPermSize=160m -Xmx512m</argLine>
           </configuration>
         </plugin>
         <plugin>
@@ -550,6 +567,7 @@
             <camunda.osgi.version.clean>${project.version}</camunda.osgi.version.clean>
             <camunda.connect.version.clean>${version.camunda.connect}</camunda.connect.version.clean>
             <camunda.spin.version.clean>${version.camunda.spin}</camunda.spin.version.clean>
+            <camunda.commons.version.clean>${version.camunda.commons}</camunda.commons.version.clean>
            </versions>
           </configuration>
         </plugin>

@@ -12,20 +12,17 @@
  */
 package org.camunda.bpm.identity.impl.ldap;
 
-import org.camunda.bpm.engine.authorization.Permission;
-import org.camunda.bpm.engine.authorization.Resource;
-import org.camunda.bpm.engine.identity.Group;
-import org.camunda.bpm.engine.identity.GroupQuery;
-import org.camunda.bpm.engine.identity.User;
-import org.camunda.bpm.engine.identity.UserQuery;
-import org.camunda.bpm.engine.impl.AbstractQuery;
-import org.camunda.bpm.engine.impl.UserQueryImpl;
-import org.camunda.bpm.engine.impl.UserQueryProperty;
-import org.camunda.bpm.engine.impl.identity.IdentityProviderException;
-import org.camunda.bpm.engine.impl.identity.ReadOnlyIdentityProvider;
-import org.camunda.bpm.engine.impl.interceptor.CommandContext;
-import org.camunda.bpm.engine.impl.persistence.entity.GroupEntity;
-import org.camunda.bpm.engine.impl.persistence.entity.UserEntity;
+import static org.camunda.bpm.engine.authorization.Permissions.READ;
+import static org.camunda.bpm.engine.authorization.Resources.GROUP;
+import static org.camunda.bpm.engine.authorization.Resources.USER;
+
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Hashtable;
+import java.util.List;
+import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import javax.naming.AuthenticationException;
 import javax.naming.Context;
@@ -38,17 +35,23 @@ import javax.naming.ldap.Control;
 import javax.naming.ldap.InitialLdapContext;
 import javax.naming.ldap.LdapContext;
 import javax.naming.ldap.SortControl;
-import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.Hashtable;
-import java.util.List;
-import java.util.Map;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
-import static org.camunda.bpm.engine.authorization.Permissions.READ;
-import static org.camunda.bpm.engine.authorization.Resources.GROUP;
-import static org.camunda.bpm.engine.authorization.Resources.USER;
+import org.camunda.bpm.engine.authorization.Permission;
+import org.camunda.bpm.engine.authorization.Resource;
+import org.camunda.bpm.engine.identity.Group;
+import org.camunda.bpm.engine.identity.GroupQuery;
+import org.camunda.bpm.engine.identity.Tenant;
+import org.camunda.bpm.engine.identity.TenantQuery;
+import org.camunda.bpm.engine.identity.User;
+import org.camunda.bpm.engine.identity.UserQuery;
+import org.camunda.bpm.engine.impl.AbstractQuery;
+import org.camunda.bpm.engine.impl.UserQueryImpl;
+import org.camunda.bpm.engine.impl.UserQueryProperty;
+import org.camunda.bpm.engine.impl.identity.IdentityProviderException;
+import org.camunda.bpm.engine.impl.identity.ReadOnlyIdentityProvider;
+import org.camunda.bpm.engine.impl.interceptor.CommandContext;
+import org.camunda.bpm.engine.impl.persistence.entity.GroupEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.UserEntity;
 
 /**
  * <p>LDAP {@link ReadOnlyIdentityProvider}.</p>
@@ -229,14 +232,16 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
       while (enumeration.hasMoreElements() && userList.size() < query.getMaxResults()) {
         SearchResult result = enumeration.nextElement();
 
-        if(resultCount >= query.getFirstResult()) {
-          UserEntity user = transformUser(result);
-          if(isAuthenticatedUser(user) || isAuthorized(READ, USER, user.getId())) {
+        UserEntity user = transformUser(result);
+
+        if(isAuthenticatedUser(user) || isAuthorized(READ, USER, user.getId())) {
+
+          if(resultCount >= query.getFirstResult()) {
             userList.add(user);
           }
-        }
 
-        resultCount ++;
+          resultCount ++;
+        }
       }
 
       return userList;
@@ -384,14 +389,17 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
       while (enumeration.hasMoreElements() && groupList.size() < query.getMaxResults()) {
         SearchResult result = enumeration.nextElement();
 
-        if(resultCount >= query.getFirstResult()) {
-          GroupEntity group = transformGroup(result);
-          if(isAuthorized(READ, GROUP, group.getId())) {
+        GroupEntity group = transformGroup(result);
+
+        if(isAuthorized(READ, GROUP, group.getId())) {
+
+          if(resultCount >= query.getFirstResult()) {
             groupList.add(group);
           }
+
+          resultCount ++;
         }
 
-        resultCount ++;
       }
 
       return groupList;
@@ -568,7 +576,7 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
   }
 
   protected boolean isAuthorized(Permission permission, Resource resource, String resourceId) {
-    return org.camunda.bpm.engine.impl.context.Context.getCommandContext()
+    return !ldapConfiguration.isAuthorizationCheckEnabled() || org.camunda.bpm.engine.impl.context.Context.getCommandContext()
       .getAuthorizationManager()
       .isAuthorized(permission, resource, resourceId);
   }
@@ -599,5 +607,21 @@ public class LdapIdentityProviderSession implements ReadOnlyIdentityProvider {
         }
     }
     return sb.toString();
+  }
+
+  @Override
+  public TenantQuery createTenantQuery() {
+    return new LdapTenantQuery(org.camunda.bpm.engine.impl.context.Context.getProcessEngineConfiguration().getCommandExecutorTxRequired());
+  }
+
+  @Override
+  public TenantQuery createTenantQuery(CommandContext commandContext) {
+    return new LdapTenantQuery();
+  }
+
+  @Override
+  public Tenant findTenantById(String id) {
+    // since multi-tenancy is not supported for the LDAP plugin, always return null
+    return null;
   }
 }

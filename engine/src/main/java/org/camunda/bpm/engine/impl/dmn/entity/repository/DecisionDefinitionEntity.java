@@ -37,6 +37,7 @@ public class DecisionDefinitionEntity extends DmnDecisionTableImpl implements De
   protected String deploymentId;
   protected String resourceName;
   protected String diagramResourceName;
+  protected String tenantId;
 
   // firstVersion is true, when version == 1 or when
   // this definition does not have any previous definitions
@@ -67,10 +68,12 @@ public class DecisionDefinitionEntity extends DmnDecisionTableImpl implements De
     return revision + 1;
   }
 
+  @Override
   public String getName() {
     return name;
   }
 
+  @Override
   public void setName(String name) {
     this.name = name;
   }
@@ -83,10 +86,12 @@ public class DecisionDefinitionEntity extends DmnDecisionTableImpl implements De
     this.category = category;
   }
 
+  @Override
   public String getKey() {
     return key;
   }
 
+  @Override
   public void setKey(String key) {
     this.key = key;
   }
@@ -122,6 +127,14 @@ public class DecisionDefinitionEntity extends DmnDecisionTableImpl implements De
 
   public void setDiagramResourceName(String diagramResourceName) {
     this.diagramResourceName = diagramResourceName;
+  }
+
+  public String getTenantId() {
+    return tenantId;
+  }
+
+  public void setTenantId(String tenantId) {
+    this.tenantId = tenantId;
   }
 
   public Object getPersistentState() {
@@ -193,7 +206,7 @@ public class DecisionDefinitionEntity extends DmnDecisionTableImpl implements De
       previousDecisionDefinitionId = Context
           .getCommandContext()
           .getDecisionDefinitionManager()
-          .findPreviousDecisionDefinitionIdByKeyAndVersion(key, version);
+          .findPreviousDecisionDefinitionId(key, version, tenantId);
 
       if (previousDecisionDefinitionId == null) {
         firstVersion = true;
@@ -210,6 +223,7 @@ public class DecisionDefinitionEntity extends DmnDecisionTableImpl implements De
       ", key='" + key + '\'' +
       ", version=" + version +
       ", deploymentId='" + deploymentId + '\'' +
+      ", tenantId='" + tenantId + '\'' +
       '}';
   }
 

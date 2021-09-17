@@ -29,8 +29,8 @@ import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.runtime.VariableInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
-import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener;
-import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener.RecordedEvent;
+import org.camunda.bpm.engine.test.bpmn.executionlistener.RecorderExecutionListener;
+import org.camunda.bpm.engine.test.bpmn.executionlistener.RecorderExecutionListener.RecordedEvent;
 import org.camunda.bpm.engine.variable.Variables;
 
 /**
@@ -297,16 +297,6 @@ public class ProcessInstantiationAtActivitiesTest extends PluggableProcessEngine
       fail("exception expected");
     } catch (ProcessEngineException e) {
       // happy path
-    }
-  }
-
-  @Deployment(resources = EXCLUSIVE_GATEWAY_PROCESS)
-  public void testStartProcessInstanceWithoutInstantiationInstruction() {
-    try {
-      runtimeService.createProcessInstanceByKey("exclusiveGateway").execute();
-      fail("exception expected; at least one modification instruction required");
-    } catch (ProcessEngineException e) {
-      assertTextPresent("At least one instantiation instruction required", e.getMessage());
     }
   }
 

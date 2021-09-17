@@ -13,6 +13,8 @@
 
 package org.camunda.bpm.engine.impl.history.event;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,9 +27,9 @@ import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionOutputInstance;
 import org.camunda.bpm.engine.impl.HistoricDecisionInstanceQueryImpl;
 import org.camunda.bpm.engine.impl.Page;
+import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
 import org.camunda.bpm.engine.impl.persistence.AbstractHistoricManager;
 import org.camunda.bpm.engine.impl.variable.serializer.AbstractTypedValueSerializer;
-import org.camunda.bpm.engine.variable.type.ValueType;
 
 /**
  * Data base operations for {@link HistoricDecisionInstanceEntity}.
@@ -57,7 +59,7 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
 
   @SuppressWarnings("unchecked")
   protected List<HistoricDecisionInstanceEntity> findHistoricDecisionInstancesByDecisionDefinitionId(String decisionDefinitionId) {
-    return getDbEntityManager().selectList("selectHistoricDecisionInstancesByDecisionDefinitionId", decisionDefinitionId);
+    return getDbEntityManager().selectList("selectHistoricDecisionInstancesByDecisionDefinitionId", configureParameterizedQuery(decisionDefinitionId));
   }
 
   protected void deleteHistoricDecisionInputInstancesByDecisionInstanceIds(Set<String> decisionInstanceIds) {
@@ -105,7 +107,7 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
 
  public List<HistoricDecisionInstance> findHistoricDecisionInstancesByQueryCriteria(HistoricDecisionInstanceQueryImpl query, Page page) {
     if (isHistoryEnabled()) {
-      getAuthorizationManager().configureHistoricDecisionInstanceQuery(query);
+      configureQuery(query);
 
       @SuppressWarnings("unchecked")
       List<HistoricDecisionInstance> decisionInstances = getDbEntityManager().selectList("selectHistoricDecisionInstancesByQueryCriteria", query, page);
@@ -131,6 +133,7 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
 
   protected void appendHistoricDecisionInputInstances(Map<String, HistoricDecisionInstanceEntity> decisionInstancesById, HistoricDecisionInstanceQueryImpl query) {
     List<HistoricDecisionInputInstanceEntity> decisionInputInstances = findHistoricDecisionInputInstancesByDecisionInstanceIds(decisionInstancesById.keySet());
+    initializeInputInstances(decisionInstancesById.values());
 
     for (HistoricDecisionInputInstanceEntity decisionInputInstance : decisionInputInstances) {
 
@@ -141,6 +144,12 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
       if (!isBinaryValue(decisionInputInstance) || query.isByteArrayFetchingEnabled()) {
         fetchVariableValue(decisionInputInstance, query.isCustomObjectDeserializationEnabled());
       }
+    }
+  }
+
+  protected void initializeInputInstances(Collection<HistoricDecisionInstanceEntity> decisionInstances) {
+    for (HistoricDecisionInstanceEntity decisionInstance : decisionInstances) {
+      decisionInstance.setInputs(new ArrayList<HistoricDecisionInputInstance>());
     }
   }
 
@@ -162,10 +171,12 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
     }
   }
 
-  protected void appendHistoricDecisionOutputInstances(Map<String, HistoricDecisionInstanceEntity> decisionInstancesById, HistoricDecisionInstanceQueryImpl query) {
-    List<HistoricDecisionOutputInstanceEntity> decisionInputInstances = findHistoricDecisionOutputInstancesByDecisionInstanceIds(decisionInstancesById.keySet());
 
-    for (HistoricDecisionOutputInstanceEntity decisionOutputInstance : decisionInputInstances) {
+  protected void appendHistoricDecisionOutputInstances(Map<String, HistoricDecisionInstanceEntity> decisionInstancesById, HistoricDecisionInstanceQueryImpl query) {
+    List<HistoricDecisionOutputInstanceEntity> decisionOutputInstances = findHistoricDecisionOutputInstancesByDecisionInstanceIds(decisionInstancesById.keySet());
+    initializeOutputInstances(decisionInstancesById.values());
+
+    for (HistoricDecisionOutputInstanceEntity decisionOutputInstance : decisionOutputInstances) {
 
       HistoricDecisionInstanceEntity historicDecisionInstance = decisionInstancesById.get(decisionOutputInstance.getDecisionInstanceId());
       historicDecisionInstance.addOutput(decisionOutputInstance);
@@ -174,6 +185,12 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
       if(!isBinaryValue(decisionOutputInstance) || query.isByteArrayFetchingEnabled()) {
         fetchVariableValue(decisionOutputInstance, query.isCustomObjectDeserializationEnabled());
       }
+    }
+  }
+
+  protected void initializeOutputInstances(Collection<HistoricDecisionInstanceEntity> decisionInstances) {
+    for (HistoricDecisionInstanceEntity decisionInstance : decisionInstances) {
+      decisionInstance.setOutputs(new ArrayList<HistoricDecisionOutputInstance>());
     }
   }
 
@@ -197,7 +214,7 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
 
   public long findHistoricDecisionInstanceCountByQueryCriteria(HistoricDecisionInstanceQueryImpl query) {
     if (isHistoryEnabled()) {
-      getAuthorizationManager().configureHistoricDecisionInstanceQuery(query);
+      configureQuery(query);
       return (Long) getDbEntityManager().selectOne("selectHistoricDecisionInstanceCountByQueryCriteria", query);
     } else {
       return 0;
@@ -212,4 +229,14 @@ public class HistoricDecisionInstanceManager extends AbstractHistoricManager {
   public long findHistoricDecisionInstanceCountByNativeQuery(Map<String, Object> parameterMap) {
     return (Long) getDbEntityManager().selectOne("selectHistoricDecisionInstanceCountByNativeQuery", parameterMap);
   }
+
+  protected void configureQuery(HistoricDecisionInstanceQueryImpl query) {
+    getAuthorizationManager().configureHistoricDecisionInstanceQuery(query);
+    getTenantManager().configureQuery(query);
+  }
+
+  protected ListQueryParameterObject configureParameterizedQuery(Object parameter) {
+    return getTenantManager().configureQuery(parameter);
+  }
+
 }

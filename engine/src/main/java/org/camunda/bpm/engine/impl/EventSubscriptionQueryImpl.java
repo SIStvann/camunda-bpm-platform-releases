@@ -40,6 +40,10 @@ public class EventSubscriptionQueryImpl
   protected String processInstanceId;
   protected String activityId;
 
+  protected boolean isTenantIdSet = false;
+  protected String[] tenantIds;
+  protected boolean includeEventSubscriptionsWithoutTenantId = false;
+
   public EventSubscriptionQueryImpl() {
   }
 
@@ -77,6 +81,24 @@ public class EventSubscriptionQueryImpl
     return this;
   }
 
+  public EventSubscriptionQuery tenantIdIn(String... tenantIds) {
+    ensureNotNull("tenantIds", (Object[]) tenantIds);
+    this.tenantIds = tenantIds;
+    isTenantIdSet = true;
+    return this;
+  }
+
+  public EventSubscriptionQuery withoutTenantId() {
+    isTenantIdSet = true;
+    this.tenantIds = null;
+    return this;
+  }
+
+  public EventSubscriptionQuery includeEventSubscriptionsWithoutTenantId() {
+    this.includeEventSubscriptionsWithoutTenantId  = true;
+    return this;
+  }
+
   public EventSubscriptionQueryImpl eventType(String eventType) {
     ensureNotNull("event type", eventType);
     this.eventType = eventType;
@@ -87,8 +109,13 @@ public class EventSubscriptionQueryImpl
     return orderBy(EventSubscriptionQueryProperty.CREATED);
   }
 
+  public EventSubscriptionQuery orderByTenantId() {
+    return orderBy(EventSubscriptionQueryProperty.TENANT_ID);
+  }
+
   //results //////////////////////////////////////////
 
+  @Override
   public long executeCount(CommandContext commandContext) {
     checkQueryOk();
     return commandContext
@@ -96,6 +123,7 @@ public class EventSubscriptionQueryImpl
       .findEventSubscriptionCountByQueryCriteria(this);
   }
 
+  @Override
   public List<EventSubscription> executeList(CommandContext commandContext, Page page) {
     checkQueryOk();
     return commandContext

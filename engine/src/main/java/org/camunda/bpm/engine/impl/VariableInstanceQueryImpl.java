@@ -16,9 +16,8 @@ import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 import java.io.Serializable;
 import java.util.List;
+
 import org.camunda.bpm.engine.impl.cmd.CommandLogger;
-import org.camunda.bpm.engine.impl.db.CompositePermissionCheck;
-import org.camunda.bpm.engine.impl.db.PermissionCheck;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 import org.camunda.bpm.engine.impl.persistence.entity.VariableInstanceEntity;
@@ -47,12 +46,10 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
   protected String[] taskIds;
   protected String[] variableScopeIds;
   protected String[] activityInstanceIds;
+  protected String[] tenantIds;
 
   protected boolean isByteArrayFetchingEnabled = true;
   protected boolean isCustomObjectDeserializationEnabled = true;
-
-  // its a workaround to check authorization for variable instances associated with a standalone tasks
-  protected CompositePermissionCheck taskPermissionChecks = new CompositePermissionCheck();
 
   public VariableInstanceQueryImpl() { }
 
@@ -126,6 +123,12 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
     return this;
   }
 
+  public VariableInstanceQuery tenantIdIn(String... tenantIds) {
+    ensureNotNull("tenantIds", (Object[]) tenantIds);
+    this.tenantIds = tenantIds;
+    return this;
+  }
+
   // ordering ////////////////////////////////////////////////////
 
   public VariableInstanceQuery orderByVariableName() {
@@ -143,6 +146,11 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
     return this;
   }
 
+  public VariableInstanceQuery orderByTenantId() {
+    orderBy(VariableInstanceQueryProperty.TENANT_ID);
+    return this;
+  }
+
   @Override
   protected boolean hasExcludingConditions() {
     return super.hasExcludingConditions() || CompareUtil.elementIsNotContainedInArray(variableName, variableNames);
@@ -150,6 +158,7 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
 
   // results ////////////////////////////////////////////////////
 
+  @Override
   public long executeCount(CommandContext commandContext) {
     checkQueryOk();
     ensureVariablesInitialized();
@@ -158,6 +167,7 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
       .findVariableInstanceCountByQueryCriteria(this);
   }
 
+  @Override
   public List<VariableInstance> executeList(CommandContext commandContext, Page page) {
     checkQueryOk();
     ensureVariablesInitialized();
@@ -239,19 +249,4 @@ public class VariableInstanceQueryImpl extends AbstractVariableQueryImpl<Variabl
   public String[] getActivityInstanceIds() {
     return activityInstanceIds;
   }
-
-  // getter/setter for authorization check
-
-  public CompositePermissionCheck getTaskPermissionChecks() {
-    return taskPermissionChecks;
-  }
-
-  public void setTaskPermissionChecks(List<PermissionCheck> taskPermissionChecks) {
-    this.taskPermissionChecks.setAtomicChecks(taskPermissionChecks);
-  }
-
-  public void addTaskPermissionCheck(PermissionCheck permissionCheck) {
-    taskPermissionChecks.addAtomicCheck(permissionCheck);
-  }
-
 }

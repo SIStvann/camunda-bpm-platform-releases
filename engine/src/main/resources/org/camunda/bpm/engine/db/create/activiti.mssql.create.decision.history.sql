@@ -14,39 +14,43 @@ create table ACT_HI_DECINST (
     ACT_ID_ nvarchar(255),
     EVAL_TIME_ datetime2 not null,
     COLLECT_VALUE_ double precision,
+    USER_ID_ nvarchar(255),
+    TENANT_ID_ nvarchar(64),
     primary key (ID_)
 );
 
 -- create history decision input table --
 create table ACT_HI_DEC_IN (
     ID_ nvarchar(64) NOT NULL,
-    DEC_INST_ID_ nvarchar(64) NOT NULL,      
+    DEC_INST_ID_ nvarchar(64) NOT NULL,
     CLAUSE_ID_ nvarchar(64) NOT NULL,
     CLAUSE_NAME_ nvarchar(255),
-    VAR_TYPE_ nvarchar(100),               
+    VAR_TYPE_ nvarchar(100),
     BYTEARRAY_ID_ nvarchar(64),
     DOUBLE_ double precision,
     LONG_ numeric(19,0),
     TEXT_ nvarchar(4000),
-    TEXT2_ nvarchar(4000),    
+    TEXT2_ nvarchar(4000),
+    TENANT_ID_ nvarchar(64),
     primary key (ID_)
 );
 
 -- create history decision output table --
 create table ACT_HI_DEC_OUT (
     ID_ nvarchar(64) NOT NULL,
-    DEC_INST_ID_ nvarchar(64) NOT NULL,         
+    DEC_INST_ID_ nvarchar(64) NOT NULL,
     CLAUSE_ID_ nvarchar(64) NOT NULL,
     CLAUSE_NAME_ nvarchar(255),
     RULE_ID_ nvarchar(64) NOT NULL,
     RULE_ORDER_ int,
     VAR_NAME_ nvarchar(255),
-    VAR_TYPE_ nvarchar(100),               
+    VAR_TYPE_ nvarchar(100),
     BYTEARRAY_ID_ nvarchar(64),
     DOUBLE_ double precision,
     LONG_ numeric(19,0),
     TEXT_ nvarchar(4000),
     TEXT2_ nvarchar(4000),
+    TENANT_ID_ nvarchar(64),
     primary key (ID_)
 );
 
@@ -58,6 +62,7 @@ create index ACT_IDX_HI_DEC_INST_CI on ACT_HI_DECINST(CASE_INST_ID_);
 create index ACT_IDX_HI_DEC_INST_ACT on ACT_HI_DECINST(ACT_ID_);
 create index ACT_IDX_HI_DEC_INST_ACT_INST on ACT_HI_DECINST(ACT_INST_ID_);
 create index ACT_IDX_HI_DEC_INST_TIME on ACT_HI_DECINST(EVAL_TIME_);
+create index ACT_IDX_HI_DEC_INST_TENANT_ID on ACT_HI_DECINST(TENANT_ID_);
 
 create index ACT_IDX_HI_DEC_IN_INST on ACT_HI_DEC_IN(DEC_INST_ID_);
 create index ACT_IDX_HI_DEC_IN_CLAUSE on ACT_HI_DEC_IN(DEC_INST_ID_, CLAUSE_ID_);

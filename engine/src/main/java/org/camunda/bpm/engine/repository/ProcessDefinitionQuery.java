@@ -74,15 +74,26 @@ public interface ProcessDefinitionQuery extends Query<ProcessDefinitionQuery, Pr
   ProcessDefinitionQuery processDefinitionVersion(Integer processDefinitionVersion);
 
   /**
-   * Only select the process definitions which are the latest deployed
-   * (ie. which have the highest version number for the given key).
+   * <p>
+   * Only select the process definitions which are the latest deployed (ie.
+   * which have the highest version number for the given key).
+   * </p>
    *
-   * Can only be used in combinatioin with {@link #processDefinitionKey(String)} of {@link #processDefinitionKeyLike(String)}.
-   * Can also be used without any other criteria (ie. query.latest().list()), which
-   * will then give all the latest versions of all the deployed process definitions.
+   * <p>
+   * Can only be used in combination with {@link #processDefinitionKey(String)}
+   * of {@link #processDefinitionKeyLike(String)}. Can also be used without any
+   * other criteria (ie. query.latest().list()), which will then give all the
+   * latest versions of all the deployed process definitions.
+   * </p>
    *
-   * @throws ProcessEngineException if used in combination with  {@link #groupId(string)}, {@link #processDefinitionVersion(int)}
-   *                           or {@link #deploymentId(String)}
+   * <p>For multi-tenancy: select the latest deployed process definitions for each
+   * tenant. If a process definition is deployed for multiple tenants then all
+   * process definitions are selected.</p>
+   *
+   * @throws ProcessEngineException
+   *           if used in combination with {@link #groupId(string)},
+   *           {@link #processDefinitionVersion(int)} or
+   *           {@link #deploymentId(String)}
    */
   ProcessDefinitionQuery latestVersion();
 
@@ -127,6 +138,16 @@ public interface ProcessDefinitionQuery extends Query<ProcessDefinitionQuery, Pr
    */
   ProcessDefinitionQuery incidentMessageLike(String incidentMessageLike);
 
+  /**
+   * Only selects process definitions with a specific version tag
+   */
+  ProcessDefinitionQuery versionTag(String versionTag);
+
+  /**
+   * Only selects process definitions with a version tag like the given
+   */
+  ProcessDefinitionQuery versionTagLike(String versionTagLike);
+
   // Support for event subscriptions /////////////////////////////////////
 
   /**
@@ -140,6 +161,18 @@ public interface ProcessDefinitionQuery extends Query<ProcessDefinitionQuery, Pr
    * with the messageName.
    */
   ProcessDefinitionQuery messageEventSubscriptionName(String messageName);
+
+  /** Only select process definitions with one of the given tenant ids. */
+  ProcessDefinitionQuery tenantIdIn(String... tenantIds);
+
+  /** Only select process definitions which have no tenant id. */
+  ProcessDefinitionQuery withoutTenantId();
+
+  /**
+   * Select process definitions which have no tenant id. Can be used in
+   * combination with {@link #tenantIdIn(String...)}.
+   */
+  ProcessDefinitionQuery includeProcessDefinitionsWithoutTenantId();
 
   // ordering ////////////////////////////////////////////////////////////
 
@@ -160,5 +193,18 @@ public interface ProcessDefinitionQuery extends Query<ProcessDefinitionQuery, Pr
 
   /** Order by deployment id (needs to be followed by {@link #asc()} or {@link #desc()}). */
   ProcessDefinitionQuery orderByDeploymentId();
+
+  /** Order by tenant id (needs to be followed by {@link #asc()} or {@link #desc()}).
+   * Note that the ordering of process instances without tenant id is database-specific. */
+  ProcessDefinitionQuery orderByTenantId();
+
+  /**
+   * Order by version tag (needs to be followed by {@link #asc()} or {@link #desc()}).
+   *
+   * <strong>Note:</strong> sorting by versionTag is a string based sort.
+   * There is no interpretation of the version which can lead to a sorting like:
+   * v0.1.0 v0.10.0 v0.2.0.
+   */
+  ProcessDefinitionQuery orderByVersionTag();
 
 }

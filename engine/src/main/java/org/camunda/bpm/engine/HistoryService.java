@@ -16,6 +16,7 @@ package org.camunda.bpm.engine;
 
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resources;
+import org.camunda.bpm.engine.batch.history.HistoricBatchQuery;
 import org.camunda.bpm.engine.history.HistoricActivityInstance;
 import org.camunda.bpm.engine.history.HistoricActivityInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricActivityStatisticsQuery;
@@ -27,12 +28,14 @@ import org.camunda.bpm.engine.history.HistoricDecisionInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricDetail;
 import org.camunda.bpm.engine.history.HistoricDetailQuery;
+import org.camunda.bpm.engine.history.HistoricIdentityLinkLogQuery;
 import org.camunda.bpm.engine.history.HistoricIncident;
 import org.camunda.bpm.engine.history.HistoricIncidentQuery;
 import org.camunda.bpm.engine.history.HistoricJobLog;
 import org.camunda.bpm.engine.history.HistoricJobLogQuery;
 import org.camunda.bpm.engine.history.HistoricProcessInstance;
 import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
+import org.camunda.bpm.engine.history.HistoricProcessInstanceReport;
 import org.camunda.bpm.engine.history.HistoricTaskInstance;
 import org.camunda.bpm.engine.history.HistoricTaskInstanceQuery;
 import org.camunda.bpm.engine.history.HistoricVariableInstance;
@@ -84,6 +87,9 @@ public interface HistoryService {
 
   /** Creates a new programmatic query to search for {@link HistoricIncident historic incidents}. */
   HistoricIncidentQuery createHistoricIncidentQuery();
+
+  /** Creates a new programmatic query to search for {@link HistoricIdentityLinkLog historic identity links}. */
+  HistoricIdentityLinkLogQuery createHistoricIdentityLinkLogQuery();
 
   /** Creates a new programmatic query to search for {@link HistoricCaseInstance}s. */
   HistoricCaseInstanceQuery createHistoricCaseInstanceQuery();
@@ -196,5 +202,29 @@ public interface HistoryService {
    * @since 7.3
    */
   String getHistoricJobLogExceptionStacktrace(String historicJobLogId);
+
+  /**
+   * Creates a new programmatic query to create a historic process instance report.
+   *
+   * @since 7.5
+   */
+  HistoricProcessInstanceReport createHistoricProcessInstanceReport();
+
+  /**
+   * Creates a query to search for {@link org.camunda.bpm.engine.batch.history.HistoricBatch} instances.
+   *
+   * @since 7.5
+   */
+  HistoricBatchQuery createHistoricBatchQuery();
+
+  /**
+   * Deletes a historic batch instance. All corresponding historic job logs are deleted as well;
+   *
+   * @since 7.5
+   *
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#DELETE} permission on {@link Resources#BATCH}
+   */
+  void deleteHistoricBatch(String id);
 
 }

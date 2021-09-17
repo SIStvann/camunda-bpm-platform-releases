@@ -191,6 +191,12 @@ public interface ExecutionQuery extends Query<ExecutionQuery, Execution>{
    */
   ExecutionQuery incidentMessageLike(String incidentMessageLike);
 
+   /** Only selects executions with one of the given tenant ids. */
+  ExecutionQuery tenantIdIn(String... tenantIds);
+
+  /** Only selects executions which have no tenant id. */
+  ExecutionQuery withoutTenantId();
+
   //ordering //////////////////////////////////////////////////////////////
 
   /** Order by id (needs to be followed by {@link #asc()} or {@link #desc()}). */
@@ -201,5 +207,9 @@ public interface ExecutionQuery extends Query<ExecutionQuery, Execution>{
 
   /** Order by process definition id (needs to be followed by {@link #asc()} or {@link #desc()}). */
   ExecutionQuery orderByProcessDefinitionId();
+
+  /** Order by tenant id (needs to be followed by {@link #asc()} or {@link #desc()}).
+   * Note that the ordering of executions without tenant id is database-specific. */
+  ExecutionQuery orderByTenantId();
 
 }

@@ -12,15 +12,16 @@
  */
 package org.camunda.bpm.engine.impl;
 
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+
 import java.util.List;
+
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricIncident;
 import org.camunda.bpm.engine.history.HistoricIncidentQuery;
 import org.camunda.bpm.engine.history.IncidentState;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
-
-import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 /**
  * @author Roman Smirnov
@@ -41,6 +42,8 @@ public class HistoricIncidentQueryImpl extends AbstractVariableQueryImpl<Histori
   protected String rootCauseIncidentId;
   protected String configuration;
   protected IncidentState incidentState;
+  protected String[] tenantIds;
+  protected String[] jobDefinitionIds;
 
   public HistoricIncidentQueryImpl() {
   }
@@ -103,9 +106,21 @@ public class HistoricIncidentQueryImpl extends AbstractVariableQueryImpl<Histori
     return this;
   }
 
+  public HistoricIncidentQuery tenantIdIn(String... tenantIds) {
+    ensureNotNull("tenantIds", (Object[]) tenantIds);
+    this.tenantIds = tenantIds;
+    return this;
+  }
+
   public HistoricIncidentQuery configuration(String configuration) {
     ensureNotNull("configuration", configuration);
     this.configuration = configuration;
+    return this;
+  }
+
+  public HistoricIncidentQuery jobDefinitionIdIn(String... jobDefinitionIds) {
+    ensureNotNull("jobDefinitionIds", (Object[]) jobDefinitionIds);
+    this.jobDefinitionIds = jobDefinitionIds;
     return this;
   }
 
@@ -188,6 +203,10 @@ public class HistoricIncidentQueryImpl extends AbstractVariableQueryImpl<Histori
   public HistoricIncidentQuery orderByConfiguration() {
     orderBy(HistoricIncidentQueryProperty.CONFIGURATION);
     return this;
+  }
+
+  public HistoricIncidentQuery orderByTenantId() {
+    return orderBy(HistoricIncidentQueryProperty.TENANT_ID);
   }
 
   // results ////////////////////////////////////////////////////

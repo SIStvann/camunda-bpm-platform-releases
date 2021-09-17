@@ -28,9 +28,11 @@ import org.camunda.bpm.engine.impl.cmmn.transformer.CmmnTransformerLogger;
 import org.camunda.bpm.engine.impl.core.CoreLogger;
 import org.camunda.bpm.engine.impl.db.EnginePersistenceLogger;
 import org.camunda.bpm.engine.impl.dmn.DecisionLogger;
+import org.camunda.bpm.engine.impl.externaltask.ExternalTaskLogger;
 import org.camunda.bpm.engine.impl.interceptor.ContextLogger;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutorLogger;
 import org.camunda.bpm.engine.impl.metrics.MetricsLogger;
+import org.camunda.bpm.engine.impl.migration.MigrationLogger;
 import org.camunda.bpm.engine.impl.plugin.AdministratorAuthorizationPluginLogger;
 import org.camunda.bpm.engine.impl.pvm.PvmLogger;
 import org.camunda.bpm.engine.impl.scripting.ScriptLogger;
@@ -114,6 +116,12 @@ public class ProcessEngineLogger extends BaseLogger {
   public static final DecisionLogger DECISION_LOGGER = BaseLogger.createLogger(
       DecisionLogger.class, PROJECT_CODE, "org.camunda.bpm.engine.dmn", "22");
 
+  public static final MigrationLogger MIGRATION_LOGGER = BaseLogger.createLogger(
+      MigrationLogger.class, PROJECT_CODE, "org.camunda.bpm.engine.migration", "23");
+  
+  public static final ExternalTaskLogger EXTERNAL_TASK_LOGGER = BaseLogger.createLogger(
+    ExternalTaskLogger.class, PROJECT_CODE, "org.camunda.bpm.engine.externaltask", "24");
+
   public void processEngineCreated(String name) {
     logInfo("001", "Process Engine {} created.", name);
   }
@@ -138,6 +146,10 @@ public class ProcessEngineLogger extends BaseLogger {
 
   public void exceptionWhileClosingProcessEngine(String string, Exception e) {
     logError("006", "Exception while closing process engine {}", string, e);
+  }
+
+  public void processEngineClosed(String name) {
+    logInfo("007", "Process Engine {} closed", name);
   }
 
 }

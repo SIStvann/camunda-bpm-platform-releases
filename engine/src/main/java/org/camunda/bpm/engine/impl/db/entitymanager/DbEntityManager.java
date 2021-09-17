@@ -28,10 +28,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-
-
-
-
+import org.camunda.bpm.engine.impl.AbstractReport;
 import org.camunda.bpm.engine.impl.DeploymentQueryImpl;
 import org.camunda.bpm.engine.impl.ExecutionQueryImpl;
 import org.camunda.bpm.engine.impl.GroupQueryImpl;
@@ -145,9 +142,13 @@ public class DbEntityManager implements Session, EntityLoadListener {
   public List selectList(String statement, Object parameter, Page page) {
     if(page!=null) {
       return selectList(statement, parameter, page.getFirstResult(), page.getMaxResults());
-    }else {
+    } else {
       return selectList(statement, parameter, 0, Integer.MAX_VALUE);
     }
+  }
+
+  public List selectList(String statement, AbstractReport reportQuery) {
+    return selectListWithRawParameter(statement, reportQuery, 0, Integer.MAX_VALUE);
   }
 
   public List selectList(String statement, ListQueryParameterObject parameter, Page page) {
@@ -213,7 +214,7 @@ public class DbEntityManager implements Session, EntityLoadListener {
   }
 
   protected List filterLoadedObjects(List<Object> loadedObjects) {
-    if (loadedObjects.isEmpty()) {
+    if (loadedObjects.isEmpty() || loadedObjects.get(0) == null) {
       return loadedObjects;
     }
     if (! (DbEntity.class.isAssignableFrom(loadedObjects.get(0).getClass()))) {
@@ -343,7 +344,10 @@ public class DbEntityManager implements Session, EntityLoadListener {
   }
 
   protected void flushCachedEntity(CachedDbEntity cachedDbEntity) {
+
     if(cachedDbEntity.getEntityState() == TRANSIENT) {
+      // latest state of references in cache is relevant when determining insertion order
+      cachedDbEntity.determineEntityReferences();
       // perform INSERT
       performEntityOperation(cachedDbEntity, INSERT);
       // mark PERSISTENT
@@ -376,6 +380,8 @@ public class DbEntityManager implements Session, EntityLoadListener {
     if(cachedDbEntity.getEntityState() == PERSISTENT) {
       // make a new copy
       cachedDbEntity.makeCopy();
+      // update cached references
+      cachedDbEntity.determineEntityReferences();
     }
   }
 
@@ -441,6 +447,7 @@ public class DbEntityManager implements Session, EntityLoadListener {
   protected void performEntityOperation(CachedDbEntity cachedDbEntity, DbOperationType type) {
     DbEntityOperation dbOperation = new DbEntityOperation();
     dbOperation.setEntity(cachedDbEntity.getEntity());
+    dbOperation.setFlushRelevantEntityReferences(cachedDbEntity.getFlushRelevantEntityReferences());
     dbOperation.setOperationType(type);
     dbOperationManager.addOperation(dbOperation);
   }

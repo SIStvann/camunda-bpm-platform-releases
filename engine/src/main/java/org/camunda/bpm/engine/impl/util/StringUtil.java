@@ -13,12 +13,22 @@
 
 package org.camunda.bpm.engine.impl.util;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Reader;
+import java.io.Writer;
 import java.nio.charset.Charset;
+import java.util.Collection;
+import java.util.Iterator;
 
 import org.camunda.bpm.engine.ProcessEngine;
 import org.camunda.bpm.engine.impl.ProcessEngineImpl;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.db.DbEntity;
+import org.camunda.bpm.engine.runtime.ProcessElementInstance;
 
 /**
  * @author Sebastian Menski
@@ -67,7 +77,6 @@ public final class StringUtil {
    * returned by {@link ProcessEngineConfigurationImpl#getDefaultCharset()}
    *
    * @param bytes the byte array
-   * @param processEngine the process engine
    * @return a string representing the bytes
    */
   public static String fromBytes(byte[] bytes) {
@@ -89,6 +98,22 @@ public final class StringUtil {
     Charset charset = processEngineConfiguration.getDefaultCharset();
     return new String(bytes, charset);
   }
+
+  public static Reader readerFromBytes(byte[] bytes) {
+    EnsureUtil.ensureActiveCommandContext("StringUtil.readerFromBytes");
+    ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
+    ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
+
+    return new InputStreamReader(inputStream, processEngineConfiguration.getDefaultCharset());
+  }
+
+  public static Writer writerForStream(OutputStream outStream) {
+    EnsureUtil.ensureActiveCommandContext("StringUtil.readerFromBytes");
+    ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
+
+    return new OutputStreamWriter(outStream, processEngineConfiguration.getDefaultCharset());
+  }
+
 
   /**
    * Gets the bytes from a string using the current process engine's default charset
@@ -113,6 +138,53 @@ public final class StringUtil {
     ProcessEngineConfigurationImpl processEngineConfiguration = ((ProcessEngineImpl) processEngine).getProcessEngineConfiguration();
     Charset charset = processEngineConfiguration.getDefaultCharset();
     return string.getBytes(charset);
+  }
+
+  public static String joinDbEntityIds(Collection<? extends DbEntity> dbEntities) {
+    return join(new StringIterator<DbEntity>(dbEntities.iterator()) {
+      public String next() {
+        return iterator.next().getId();
+      }
+    });
+  }
+
+  public static String joinProcessElementInstanceIds(Collection<? extends ProcessElementInstance> processElementInstances) {
+    final Iterator<? extends ProcessElementInstance> iterator = processElementInstances.iterator();
+    return join(new StringIterator<ProcessElementInstance>(iterator) {
+      public String next() {
+        return iterator.next().getId();
+      }
+    });
+  }
+
+  public static String join(Iterator<String> iterator) {
+    StringBuilder builder = new StringBuilder();
+
+    while (iterator.hasNext()) {
+      builder.append(iterator.next());
+      if (iterator.hasNext()) {
+        builder.append(", ");
+      }
+    }
+
+    return builder.toString();
+  }
+
+  public abstract static class StringIterator<T> implements Iterator<String> {
+
+    protected Iterator<? extends T> iterator;
+
+    public StringIterator(Iterator<? extends T> iterator) {
+      this.iterator = iterator;
+    }
+
+    public boolean hasNext() {
+      return iterator.hasNext();
+    }
+
+    public void remove() {
+      iterator.remove();
+    }
   }
 
 }

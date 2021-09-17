@@ -16,6 +16,7 @@ package org.camunda.bpm.engine.impl;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsEmptyString;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotContainsNull;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotEmpty;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 import java.util.Calendar;
 import java.util.Date;
@@ -44,6 +45,9 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   protected String businessKeyLike;
   protected boolean finished = false;
   protected boolean unfinished = false;
+  protected boolean withIncidents = false;
+  protected String incidentMessage;
+  protected String incidentMessageLike;
   protected String startedBy;
   protected String superProcessInstanceId;
   protected String subProcessInstanceId;
@@ -56,6 +60,7 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
   protected Date finishedAfter;
   protected String processDefinitionKey;
   protected Set<String> processInstanceIds;
+  protected String[] tenantIds;
 
   protected String caseInstanceId;
 
@@ -114,6 +119,26 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
 
   public HistoricProcessInstanceQuery unfinished() {
     this.unfinished = true;
+    return this;
+  }
+
+  public HistoricProcessInstanceQuery withIncidents() {
+    this.withIncidents = true;
+
+    return this;
+  }
+
+  public HistoricProcessInstanceQuery incidentMessage(String incidentMessage) {
+    ensureNotNull("incidentMessage", incidentMessage);
+    this.incidentMessage = incidentMessage;
+
+    return this;
+  }
+
+  public HistoricProcessInstanceQuery incidentMessageLike(String incidentMessageLike) {
+    ensureNotNull("incidentMessageLike", incidentMessageLike);
+    this.incidentMessageLike = incidentMessageLike;
+
     return this;
   }
 
@@ -176,6 +201,12 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
     return this;
   }
 
+  public HistoricProcessInstanceQuery tenantIdIn(String... tenantIds) {
+    ensureNotNull("tenantIds", (Object[]) tenantIds);
+    this.tenantIds = tenantIds;
+    return this;
+  }
+
   @Override
   protected boolean hasExcludingConditions() {
     return super.hasExcludingConditions()
@@ -208,6 +239,10 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
 
   public HistoricProcessInstanceQuery orderByProcessInstanceId() {
     return orderBy(HistoricProcessInstanceQueryProperty.PROCESS_INSTANCE_ID_);
+  }
+
+  public HistoricProcessInstanceQuery orderByTenantId() {
+    return orderBy(HistoricProcessInstanceQueryProperty.TENANT_ID);
   }
 
   public long executeCount(CommandContext commandContext) {
@@ -300,6 +335,14 @@ public class HistoricProcessInstanceQueryImpl extends AbstractVariableQueryImpl<
 
   public String getCaseInstanceId() {
     return caseInstanceId;
+  }
+
+  public String getIncidentMessage() {
+    return this.incidentMessage;
+  }
+
+  public String getIncidentMessageLike() {
+    return this.incidentMessageLike;
   }
 
   // below is deprecated and to be removed in 5.12

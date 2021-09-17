@@ -11,7 +11,7 @@
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-database-settings</artifactId>
     <relativePath>../database</relativePath>
-    <version>7.4.0</version>
+    <version>7.5.0</version>
   </parent>
 
   <properties>
@@ -20,9 +20,6 @@
     -->
     <!-- override mail port so subethawiser does not try to bind itself on port 25 -->
     <mail.server.port>5025</mail.server.port>
-
-    <!-- wildfly : uses the same properties as jboss -->
-    <wildfly.runtime.location>../wildfly-runtime/target/server/wildfly-${version.wildfly}/</wildfly.runtime.location>
 
     <!-- jboss -->
     <jboss.runtime.location>../jboss7-runtime/target/server/jboss-as-${version.jboss.as}/</jboss.runtime.location>
@@ -65,6 +62,11 @@
     <tomcat6.runtime.location>../tomcat-runtime/target/server/apache-tomcat-${version.tomcat}</tomcat6.runtime.location>
 
   </properties>
+
+  <modules>
+    <module>ensure-clean-db-plugin</module>
+  </modules>
+
   <profiles>
 
     <profile>
@@ -123,6 +125,18 @@
       <modules>
         <module>wildfly-runtime</module>
       </modules>
+    </profile>
+    <profile>
+      <id>wildfly8</id>
+      <properties>
+        <wildfly.runtime.location>../wildfly-runtime/target/server/wildfly-${version.wildfly}/</wildfly.runtime.location>
+      </properties>
+    </profile>
+    <profile>
+      <id>wildfly10</id>
+      <properties>
+        <wildfly.runtime.location>../wildfly-runtime/target/server/wildfly-${version.wildfly10}/</wildfly.runtime.location>
+      </properties>
     </profile>
 
     <profile>

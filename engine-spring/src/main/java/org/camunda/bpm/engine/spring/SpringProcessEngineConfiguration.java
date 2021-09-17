@@ -29,6 +29,7 @@ import org.camunda.bpm.engine.impl.cfg.StandaloneProcessEngineConfiguration;
 import org.camunda.bpm.engine.impl.interceptor.CommandContextInterceptor;
 import org.camunda.bpm.engine.impl.interceptor.CommandInterceptor;
 import org.camunda.bpm.engine.impl.interceptor.LogInterceptor;
+import org.camunda.bpm.engine.impl.interceptor.ProcessApplicationContextInterceptor;
 import org.camunda.bpm.engine.impl.variable.serializer.jpa.EntityManagerSession;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 import org.springframework.core.io.ByteArrayResource;
@@ -50,6 +51,7 @@ public class SpringProcessEngineConfiguration extends ProcessEngineConfiguration
   protected PlatformTransactionManager transactionManager;
   protected String deploymentName = "SpringAutoDeployment";
   protected Resource[] deploymentResources = new Resource[0];
+  protected String deploymentTenantId;
 
 
   public SpringProcessEngineConfiguration() {
@@ -70,6 +72,7 @@ public class SpringProcessEngineConfiguration extends ProcessEngineConfiguration
 
     List<CommandInterceptor> defaultCommandInterceptorsTxRequired = new ArrayList<CommandInterceptor>();
     defaultCommandInterceptorsTxRequired.add(new LogInterceptor());
+    defaultCommandInterceptorsTxRequired.add(new ProcessApplicationContextInterceptor(this));
     defaultCommandInterceptorsTxRequired.add(new SpringTransactionInterceptor(transactionManager, TransactionTemplate.PROPAGATION_REQUIRED));
     CommandContextInterceptor commandContextInterceptor = new CommandContextInterceptor(commandContextFactory, this);
     defaultCommandInterceptorsTxRequired.add(commandContextInterceptor);
@@ -79,6 +82,7 @@ public class SpringProcessEngineConfiguration extends ProcessEngineConfiguration
   protected Collection< ? extends CommandInterceptor> getDefaultCommandInterceptorsTxRequiresNew() {
     List<CommandInterceptor> defaultCommandInterceptorsTxRequiresNew = new ArrayList<CommandInterceptor>();
     defaultCommandInterceptorsTxRequiresNew.add(new LogInterceptor());
+    defaultCommandInterceptorsTxRequiresNew.add(new ProcessApplicationContextInterceptor(this));
     defaultCommandInterceptorsTxRequiresNew.add(new SpringTransactionInterceptor(transactionManager, TransactionTemplate.PROPAGATION_REQUIRES_NEW));
     CommandContextInterceptor commandContextInterceptor = new CommandContextInterceptor(commandContextFactory, this, true);
     defaultCommandInterceptorsTxRequiresNew.add(commandContextInterceptor);
@@ -108,7 +112,8 @@ public class SpringProcessEngineConfiguration extends ProcessEngineConfiguration
       DeploymentBuilder deploymentBuilder = repositoryService
         .createDeployment()
         .enableDuplicateFiltering(false)
-        .name(deploymentName);
+        .name(deploymentName)
+        .tenantId(deploymentTenantId);
 
       for (Resource resource : deploymentResources) {
         String resourceName = null;
@@ -177,5 +182,13 @@ public class SpringProcessEngineConfiguration extends ProcessEngineConfiguration
 
   public void setDeploymentResources(Resource[] deploymentResources) {
     this.deploymentResources = deploymentResources;
+  }
+
+  public String getDeploymentTenantId() {
+    return deploymentTenantId;
+  }
+
+  public void setDeploymentTenantId(String deploymentTenantId) {
+    this.deploymentTenantId = deploymentTenantId;
   }
 }

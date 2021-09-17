@@ -21,7 +21,9 @@
         CAUSE_INCIDENT_ID_,
         ROOT_CAUSE_INCIDENT_ID_,
         CONFIGURATION_,
-        INCIDENT_STATE_
+        INCIDENT_STATE_,
+        TENANT_ID_,
+        JOB_DEF_ID_
       ) values (
         #{id ,jdbcType=VARCHAR},
         #{processDefinitionKey, jdbcType=VARCHAR},
@@ -36,7 +38,9 @@
         #{causeIncidentId ,jdbcType=VARCHAR},
         #{rootCauseIncidentId ,jdbcType=VARCHAR},
         #{configuration, jdbcType=VARCHAR},
-        #{incidentState, jdbcType=INTEGER}
+        #{incidentState, jdbcType=INTEGER},
+        #{tenantId, jdbcType=VARCHAR},
+        #{jobDefinitionId, jdbcType=VARCHAR}
       )
   </insert>
 
@@ -46,8 +50,16 @@
     update
       ${prefix}ACT_HI_INCIDENT
     set
+      <!-- MySQL requires timestamps to always be part of the 
+      UPDATE statement or else it is going to update them to the current time -->
+      CREATE_TIME_ = #{createTime, jdbcType=TIMESTAMP},
       END_TIME_ = #{endTime, jdbcType=TIMESTAMP},
-      INCIDENT_STATE_ = #{incidentState, jdbcType=INTEGER}
+      INCIDENT_STATE_ = #{incidentState, jdbcType=INTEGER},
+      PROC_DEF_KEY_ = #{processDefinitionKey, jdbcType=VARCHAR},
+      PROC_DEF_ID_ = #{processDefinitionId, jdbcType=VARCHAR},
+      EXECUTION_ID_ = #{executionId, jdbcType=VARCHAR},
+      ACTIVITY_ID_ = #{activityId, jdbcType=VARCHAR},
+      JOB_DEF_ID_ = #{jobDefinitionId, jdbcType=VARCHAR}
     where
       ID_ = #{id, jdbcType=VARCHAR}
   </update>
@@ -64,6 +76,10 @@
 
   <delete id="deleteHistoricIncidentsByProcessDefinitionId">
     delete from ${prefix}ACT_HI_INCIDENT where PROC_DEF_ID_ = #{processDefinitionId} and PROC_INST_ID_ is null
+  </delete>
+
+  <delete id="deleteHistoricIncidentsByJobDefinitionId">
+    delete from ${prefix}ACT_HI_INCIDENT where JOB_DEF_ID_ = #{jobDefinitionId}
   </delete>
 
   <!-- HISTORIC INCIDENT RESULTMAP -->
@@ -83,6 +99,8 @@
     <result property="rootCauseIncidentId" column="ROOT_CAUSE_INCIDENT_ID_" jdbcType="VARCHAR" />
     <result property="configuration" column="CONFIGURATION_" jdbcType="VARCHAR" />
     <result property="incidentState" column="INCIDENT_STATE_" jdbcType="INTEGER" />
+    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
+    <result property="jobDefinitionId" column="JOB_DEF_ID_" jdbcType="VARCHAR" />
   </resultMap>
 
   <!-- HISTORIC INCIDENT SELECT -->
@@ -90,7 +108,7 @@
   <select id="selectHistoricIncidentByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricIncidentQueryImpl" resultMap="historicIncidentResultMap">
     <include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    select RES.* 
+    select RES.*
     ${limitBetween}
     <include refid="selectHistoricIncidentByQueryCriteriaSql"/>
     ${orderBy}
@@ -98,12 +116,25 @@
   </select>
 
   <select id="selectHistoricIncidentCountByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricIncidentQueryImpl" resultType="long">
-    select count(distinct RES.ID_)
+    select count(RES.ID_)
     <include refid="selectHistoricIncidentByQueryCriteriaSql"/>
   </select>
 
   <sql id="selectHistoricIncidentByQueryCriteriaSql">
     from ${prefix}ACT_HI_INCIDENT RES
+
+    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+      LEFT JOIN (
+        SELECT
+            SELF.PROC_DEF_KEY_ AS KEY_
+        FROM
+            (SELECT DISTINCT DKEYS.PROC_DEF_KEY_ from ${prefix}ACT_HI_INCIDENT DKEYS) SELF
+        WHERE
+            <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.querySingleAuthorizationCheck" />
+      ) AUTH
+      ON AUTH.KEY_ = RES.PROC_DEF_KEY_
+    </if>
+
     <where>
       <if test="id != null">
         RES.ID_ = #{id}
@@ -138,21 +169,27 @@
       <if test="incidentState != null">
         and RES.INCIDENT_STATE_ = #{incidentState.stateCode}
       </if>
-
-      <if test="isAuthorizationCheckEnabled &amp;&amp; authUserId != null">
-        AND
-          ( CASE
-
-            WHEN
-              <!-- incident exists in context of a process instance -->
-              RES.PROC_DEF_ID_ is not null
-            THEN
-              (<include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authorizationCheck" />)
-
-            ELSE
-              1
-          END ) = 1
+      <if test="tenantIds != null &amp;&amp; tenantIds.length > 0">
+        and RES.TENANT_ID_ in
+        <foreach item="tenantId" index="index" collection="tenantIds"
+                 open="(" separator="," close=")">
+          #{tenantId}
+        </foreach>
       </if>
+      <if test="jobDefinitionIds != null &amp;&amp; jobDefinitionIds.length > 0">
+        and RES.JOB_DEF_ID_ in
+        <foreach item="jobDefinitionId" index="index" collection="jobDefinitionIds"
+                 open="(" separator="," close=")">
+          #{jobDefinitionId}
+        </foreach>
+      </if>
+
+      <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+        <!-- incident exists in context of a process definition -->
+        and ((RES.PROC_DEF_ID_ is not null and AUTH.KEY_ is not null) or RES.PROC_DEF_ID_ is null)
+      </if>
+
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
 
     </where>
   </sql>

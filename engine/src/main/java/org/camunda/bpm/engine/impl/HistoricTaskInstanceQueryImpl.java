@@ -53,6 +53,10 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
   protected String taskAssignee;
   protected String taskAssigneeLike;
   protected String taskDefinitionKey;
+  protected String taskInvolvedUser;
+  protected String taskInvolvedGroup;
+  protected String taskHadCandidateUser;
+  protected String taskHadCandidateGroup;
   protected Integer taskPriority;
   protected boolean finished;
   protected boolean unfinished;
@@ -65,6 +69,7 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
   protected Date followUpDate;
   protected Date followUpBefore;
   protected Date followUpAfter;
+  protected String[] tenantIds;
 
   protected String caseDefinitionId;
   protected String caseDefinitionKey;
@@ -248,6 +253,26 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
     return this;
   }
 
+  public HistoricTaskInstanceQuery taskInvolvedUser(String userId){
+    this.taskInvolvedUser = userId;
+    return this;
+  }
+
+  public HistoricTaskInstanceQuery taskInvolvedGroup(String groupId){
+    this.taskInvolvedGroup = groupId;
+    return this;
+  }
+
+  public HistoricTaskInstanceQuery taskHadCandidateUser(String userId){
+    this.taskHadCandidateUser = userId;
+    return this;
+  }
+
+  public HistoricTaskInstanceQuery taskHadCandidateGroup(String groupId){
+    this.taskHadCandidateGroup = groupId;
+    return this;
+  }
+
   public HistoricTaskInstanceQuery processUnfinished() {
     this.processUnfinished = true;
     return this;
@@ -287,6 +312,12 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
 
   public HistoricTaskInstanceQuery taskFollowUpAfter(Date followUpAfter) {
     this.followUpAfter = followUpAfter;
+    return this;
+  }
+
+  public HistoricTaskInstanceQuery tenantIdIn(String... tenantIds) {
+    ensureNotNull("tenantIds", (Object[]) tenantIds);
+    this.tenantIds = tenantIds;
     return this;
   }
 
@@ -399,6 +430,10 @@ public class HistoricTaskInstanceQueryImpl extends AbstractQuery<HistoricTaskIns
   public HistoricTaskInstanceQuery orderByCaseExecutionId() {
     orderBy(HistoricTaskInstanceQueryProperty.CASE_EXECUTION_ID);
     return this;
+  }
+
+  public HistoricTaskInstanceQuery orderByTenantId() {
+    return orderBy(HistoricTaskInstanceQueryProperty.TENANT_ID);
   }
 
   // getters and setters //////////////////////////////////////////////////////

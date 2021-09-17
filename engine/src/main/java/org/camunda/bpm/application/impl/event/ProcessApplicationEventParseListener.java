@@ -25,6 +25,7 @@ import org.camunda.bpm.engine.impl.pvm.process.TransitionImpl;
 import org.camunda.bpm.engine.impl.task.TaskDefinition;
 import org.camunda.bpm.engine.impl.util.xml.Element;
 import org.camunda.bpm.engine.impl.variable.VariableDeclaration;
+import org.camunda.bpm.engine.repository.ProcessDefinition;
 
 /**
  *
@@ -36,11 +37,11 @@ public class ProcessApplicationEventParseListener implements BpmnParseListener {
   public final static ExecutionListener EXECUTION_LISTENER = new ProcessApplicationEventListenerDelegate();
   public final static TaskListener TASK_LISTENER = new ProcessApplicationEventListenerDelegate();
 
-  protected void addEndEventListener(ActivityImpl activity) {
+  protected void addEndEventListener(ScopeImpl activity) {
     activity.addExecutionListener(ExecutionListener.EVENTNAME_END, EXECUTION_LISTENER);
   }
 
-  protected void addStartEventListener(ActivityImpl activity) {
+  protected void addStartEventListener(ScopeImpl activity) {
     activity.addExecutionListener(ExecutionListener.EVENTNAME_START, EXECUTION_LISTENER);
   }
 
@@ -68,6 +69,8 @@ public class ProcessApplicationEventParseListener implements BpmnParseListener {
 
   @Override
   public void parseProcess(Element processElement, ProcessDefinitionEntity processDefinition) {
+    addStartEventListener(processDefinition);
+    addEndEventListener(processDefinition);
   }
 
   @Override
@@ -191,8 +194,7 @@ public class ProcessApplicationEventParseListener implements BpmnParseListener {
 
   @Override
   public void parseIntermediateTimerEventDefinition(Element timerEventDefinition, ActivityImpl timerActivity) {
-    addStartEventListener(timerActivity);
-    addEndEventListener(timerActivity);
+    // start and end event listener are set by parseIntermediateCatchEvent()
   }
 
   @Override
@@ -203,8 +205,7 @@ public class ProcessApplicationEventParseListener implements BpmnParseListener {
 
   @Override
   public void parseIntermediateSignalCatchEventDefinition(Element signalEventDefinition, ActivityImpl signalActivity) {
-    addStartEventListener(signalActivity);
-    addEndEventListener(signalActivity);
+    // start and end event listener are set by parseIntermediateCatchEvent()
   }
 
   @Override

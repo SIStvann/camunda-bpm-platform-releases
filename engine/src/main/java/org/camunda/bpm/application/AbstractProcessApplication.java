@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.concurrent.Callable;
+
 import javax.script.ScriptEngine;
 
 import org.camunda.bpm.application.impl.DefaultElResolverLookup;
@@ -30,6 +31,7 @@ import org.camunda.bpm.engine.impl.javax.el.BeanELResolver;
 import org.camunda.bpm.engine.impl.javax.el.ELResolver;
 import org.camunda.bpm.engine.impl.scripting.ExecutableScript;
 import org.camunda.bpm.engine.impl.util.ClassLoaderUtil;
+import org.camunda.bpm.engine.impl.variable.serializer.VariableSerializers;
 import org.camunda.bpm.engine.repository.DeploymentBuilder;
 
 
@@ -44,6 +46,8 @@ public abstract class AbstractProcessApplication implements ProcessApplicationIn
   protected ELResolver processApplicationElResolver;
   protected BeanELResolver processApplicationBeanElResolver;
   protected ProcessApplicationScriptEnvironment processApplicationScriptEnvironment;
+
+  protected VariableSerializers variableSerializers;
 
   protected boolean isDeployed = false;
 
@@ -83,7 +87,12 @@ public abstract class AbstractProcessApplication implements ProcessApplicationIn
     ProcessApplication annotation = processApplicationClass.getAnnotation(ProcessApplication.class);
     if(annotation != null) {
       name = annotation.value();
+
+      if (name == null || name.length() == 0) {
+        name = annotation.name();
+      }
     }
+
 
     if(name == null || name.length()==0) {
       name = autodetectProcessApplicationName();
@@ -100,7 +109,6 @@ public abstract class AbstractProcessApplication implements ProcessApplicationIn
 
   public <T> T execute(Callable<T> callable) throws ProcessApplicationExecutionException {
     ClassLoader originalClassloader = ClassLoaderUtil.getContextClassloader();
-
     ClassLoader processApplicationClassloader = getProcessApplicationClassloader();
 
     try {
@@ -115,7 +123,11 @@ public abstract class AbstractProcessApplication implements ProcessApplicationIn
     finally {
       ClassLoaderUtil.setContextClassloader(originalClassloader);
     }
+  }
 
+  public <T> T execute(Callable<T> callable, InvocationContext invocationContext) throws ProcessApplicationExecutionException {
+    // allows to hook into the invocation
+    return execute(callable);
   }
 
 
@@ -203,6 +215,14 @@ public abstract class AbstractProcessApplication implements ProcessApplicationIn
       }
     }
     return processApplicationScriptEnvironment;
+  }
+
+  public VariableSerializers getVariableSerializers() {
+    return variableSerializers;
+  }
+
+  public void setVariableSerializers(VariableSerializers variableSerializers) {
+    this.variableSerializers = variableSerializers;
   }
 
 }

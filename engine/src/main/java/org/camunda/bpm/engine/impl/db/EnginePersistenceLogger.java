@@ -16,12 +16,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import org.camunda.bpm.application.ProcessApplicationUnavailableException;
 import org.camunda.bpm.engine.AuthorizationException;
 import org.camunda.bpm.engine.BadUserRequestException;
 import org.camunda.bpm.engine.OptimisticLockingException;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.SuspendedEntityInteractionException;
 import org.camunda.bpm.engine.WrongDbException;
+import org.camunda.bpm.engine.authorization.Groups;
 import org.camunda.bpm.engine.exception.NotValidException;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.db.entitymanager.cache.CachedDbEntity;
@@ -270,7 +272,8 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
       "Could not remove {} definition with id '{}' from the cache. Reason: '{}'",
       modelName,
       id,
-      cause.getMessage()
+      cause.getMessage(),
+      cause
     );
   }
 
@@ -300,9 +303,9 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
       exceptionMessage("028", "Illegal value '{}' for userId for GLOBAL authorization. Must be '{}'", id, expected));
   }
 
-  public AuthorizationException notAMemberException(String id, String group) {
+  public AuthorizationException requiredCamundaAdminException() {
     return new AuthorizationException(
-      exceptionMessage("029", "The user with id '{}' is not a member of the group with id '{}'", id, group));
+      exceptionMessage("029", "Required authenticated group '{}'.", Groups.CAMUNDA_ADMIN));
   }
 
   public void createChildExecution(ExecutionEntity child, ExecutionEntity parent) {
@@ -391,10 +394,10 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
     return new ProcessEngineException(exceptionMessage("044", "Cannot update entity from an unrelated process definition"));
   }
 
-  public ProcessEngineException toManyProcessDefinitionsException(int count, String key, Integer version) {
+  public ProcessEngineException toManyProcessDefinitionsException(int count, String key, Integer version, String tenantId) {
     return new ProcessEngineException(exceptionMessage(
       "045",
-      "There are '{}' results for a process definition with key '{}' and version '{}'.",
+      "There are '{}' results for a process definition with key '{}', version '{}' and tenant-id '{}'.",
       count,
       key,
       version
@@ -457,7 +460,7 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
   public WrongDbException wrongDbVersionException(String version, String dbVersion) {
     return new WrongDbException(exceptionMessage(
       "055",
-      "Version mismatch: activiti library version is '{}' and db version is '{}'. " +
+      "Version mismatch: Camunda library version is '{}' and db version is '{}'. " +
       HINT_TEXT,
       version,
       dbVersion
@@ -475,7 +478,7 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
   public ProcessEngineException missingActivitiTablesException() {
     return new ProcessEngineException(exceptionMessage(
       "057",
-      "There are no activiti tables in the database." +
+      "There are no Camunda tables in the database. " +
         HINT_TEXT
     ));
   }
@@ -550,6 +553,46 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
 
   public void debugJobExecuted(JobEntity jobEntity) {
     logDebug(
-        "067", "Job executed, deleting it", jobEntity);
+        "069", "Job executed, deleting it", jobEntity);
   }
+
+  public ProcessEngineException multipleTenantsForProcessDefinitionKeyException(String processDefinitionKey) {
+    return new ProcessEngineException(exceptionMessage(
+        "070",
+        "Cannot resolve a unique process definition for key '{}' because it exists for multiple tenants.",
+        processDefinitionKey
+        ));
+  }
+
+  public ProcessEngineException cannotDeterminePaDataformats(ProcessApplicationUnavailableException e) {
+    return new ProcessEngineException(exceptionMessage(
+        "071","Cannot determine process application variable serializers. Context Process Application is unavailable."), e);
+  }
+
+  public ProcessEngineException cannotChangeTenantIdOfTask(String taskId, String currentTenantId, String tenantIdToSet) {
+    return new ProcessEngineException(exceptionMessage(
+        "072", "Cannot change tenantId of Task '{}'. Current tenant id '{}', Tenant id to set '{}'", taskId, currentTenantId, tenantIdToSet));
+  }
+
+  public ProcessEngineException cannotSetDifferentTenantIdOnSubtask(String parentTaskId, String tenantId, String tenantIdToSet) {
+    return new ProcessEngineException(exceptionMessage(
+        "073", "Cannot set different tenantId on subtask than on parent Task. Parent taskId: '{}', tenantId: '{}', tenant id to set '{}'", parentTaskId, tenantId, tenantIdToSet));
+  }
+
+  public ProcessEngineException multipleTenantsForDecisionDefinitionKeyException(String decisionDefinitionKey) {
+    return new ProcessEngineException(exceptionMessage(
+        "074",
+        "Cannot resolve a unique decision definition for key '{}' because it exists for multiple tenants.",
+        decisionDefinitionKey
+        ));
+  }
+
+  public ProcessEngineException multipleTenantsForCaseDefinitionKeyException(String caseDefinitionKey) {
+    return new ProcessEngineException(exceptionMessage(
+        "075",
+        "Cannot resolve a unique case definition for key '{}' because it exists for multiple tenants.",
+        caseDefinitionKey
+        ));
+  }
+
 }

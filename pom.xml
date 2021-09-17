@@ -11,7 +11,7 @@
 
   <groupId>org.camunda.bpm</groupId>
   <artifactId>camunda-root</artifactId>
-  <version>7.4.0</version>
+  <version>7.5.0</version>
   <packaging>pom</packaging>
   <name>camunda BPM - Root Pom</name>
 
@@ -55,6 +55,7 @@
         <module>distro/gf31</module>
         <module>distro/tomcat</module>
         <module>distro/sql-script</module>
+        <module>distro/webjar</module>
 
         <module>database</module>
         <module>parent</module>
@@ -141,6 +142,7 @@
       <modules>
         <module>javaee/ejb-client</module>
         <module>distro/wildfly</module>
+        <module>distro/wildfly10</module>
       </modules>
     </profile>
 
@@ -178,6 +180,8 @@
 
         <module>engine-plugins</module>
 
+        <module>distro/webjar</module>
+
         <module>database</module>
         <module>parent</module>
         <module>bom</module>
@@ -212,7 +216,7 @@
     <url>https://github.com/camunda/camunda-bpm-platform</url>
     <connection>scm:git:git@github.com:camunda/camunda-bpm-platform.git</connection>
     <developerConnection>scm:git:git@github.com:camunda/camunda-bpm-platform.git</developerConnection>
-    <tag>7.4.0</tag>
+    <tag>7.5.0</tag>
   </scm>
 
   <issueManagement>

@@ -1,24 +1,13 @@
 package org.camunda.bpm.integrationtest.util;
 
-import org.camunda.bpm.BpmPlatform;
 import org.jboss.shrinkwrap.api.spec.WebArchive;
 
 
-
 /**
- * 
+ *
  * @author christian.lipphardt
  */
 public class TestContainer {
-  
-  public final static String APP_NAME = "";
-  
-  public final static String PROCESS_ENGINE_SERVICE_JNDI_NAME = BpmPlatform.PROCESS_ENGINE_SERVICE_JNDI_NAME;
-  public final static String PROCESS_APPLICATION_SERVICE_JNDI_NAME = BpmPlatform.PROCESS_APPLICATION_SERVICE_JNDI_NAME;
-
-  public static String getAppName() {
-    return APP_NAME;
-  }
 
   public static void addContainerSpecificResources(WebArchive webArchive) {
     addContainerSpecificResourcesWithoutWeld(webArchive);
@@ -39,5 +28,16 @@ public class TestContainer {
   public static void addContainerSpecificProcessEngineConfigurationClass(WebArchive deployment) {
     // nothing to do
   }
-  
+
+  public static void addSpinJacksonJsonDataFormat(WebArchive webArchive) {
+    webArchive.addAsManifestResource("jboss-deployment-structure-spin-json.xml", "jboss-deployment-structure.xml");
+  }
+
+  public static void addJodaTimeJacksonModule(WebArchive webArchive) {
+    webArchive.addAsLibraries(DeploymentHelper.getJodaTimeModuleForServer("jboss"));
+  }
+
+  public static void addCommonLoggingDependency(WebArchive webArchive) {
+    webArchive.addAsManifestResource("jboss-deployment-structure-with-commons-logging.xml", "jboss-deployment-structure.xml");
+  }
 }

@@ -23,12 +23,15 @@ import org.camunda.bpm.engine.delegate.Expression;
 import org.camunda.bpm.engine.impl.AbstractDefinitionDeployer;
 import org.camunda.bpm.engine.impl.ProcessEngineLogger;
 import org.camunda.bpm.engine.impl.bpmn.diagram.ProcessDiagramGenerator;
+import org.camunda.bpm.engine.impl.bpmn.helper.BpmnProperties;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParse;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParseLogger;
 import org.camunda.bpm.engine.impl.bpmn.parser.BpmnParser;
 import org.camunda.bpm.engine.impl.bpmn.parser.EventSubscriptionDeclaration;
 import org.camunda.bpm.engine.impl.cmd.DeleteJobsCmd;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.core.model.Properties;
+import org.camunda.bpm.engine.impl.core.model.PropertyMapKey;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManager;
 import org.camunda.bpm.engine.impl.el.ExpressionManager;
 import org.camunda.bpm.engine.impl.event.MessageEventHandler;
@@ -72,10 +75,13 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
 
   public static final String[] BPMN_RESOURCE_SUFFIXES = new String[] { "bpmn20.xml", "bpmn" };
 
+  protected static final PropertyMapKey<String, List<JobDeclaration<?, ?>>> JOB_DECLARATIONS_PROPERTY =
+      new PropertyMapKey<String, List<JobDeclaration<?, ?>>>("JOB_DECLARATIONS_PROPERTY");
+
   protected ExpressionManager expressionManager;
   protected BpmnParser bpmnParser;
 
-  protected Map<String, List<JobDeclaration<?, ?>>> jobDeclarations = new HashMap<String, List<JobDeclaration<?, ?>>>();
+  /** <!> DON'T KEEP DEPLOYMENT-SPECIFIC STATE <!> **/
 
   @Override
   protected String[] getResourcesSuffixes() {
@@ -83,7 +89,7 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
   }
 
   @Override
-  protected List<ProcessDefinitionEntity> transformDefinitions(DeploymentEntity deployment, ResourceEntity resource) {
+  protected List<ProcessDefinitionEntity> transformDefinitions(DeploymentEntity deployment, ResourceEntity resource, Properties properties) {
     byte[] bytes = resource.getBytes();
     ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
 
@@ -99,7 +105,10 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
 
     bpmnParse.execute();
 
-    jobDeclarations.putAll(bpmnParse.getJobDeclarations());
+    if (!properties.contains(JOB_DECLARATIONS_PROPERTY)) {
+      properties.set(JOB_DECLARATIONS_PROPERTY, new HashMap<String, List<JobDeclaration<?, ?>>>());
+    }
+    properties.get(JOB_DECLARATIONS_PROPERTY).putAll(bpmnParse.getJobDeclarations());
 
     return bpmnParse.getProcessDefinitions();
   }
@@ -110,8 +119,8 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
   }
 
   @Override
-  protected ProcessDefinitionEntity findLatestDefinitionByKey(String definitionKey) {
-    return getProcessDefinitionManager().findLatestProcessDefinitionByKey(definitionKey);
+  protected ProcessDefinitionEntity findLatestDefinitionByKeyAndTenantId(String definitionKey, String tenantId) {
+    return getProcessDefinitionManager().findLatestProcessDefinitionByKeyAndTenantId(definitionKey, tenantId);
   }
 
   @Override
@@ -147,11 +156,12 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
   }
 
   @Override
-  protected void definitionAddedToDeploymentCache(DeploymentEntity deployment, ProcessDefinitionEntity definition) {
-    List<JobDeclaration<?, ?>> declarations = jobDeclarations.get(definition.getKey());
+  protected void definitionAddedToDeploymentCache(DeploymentEntity deployment, ProcessDefinitionEntity definition, Properties properties) {
+    List<JobDeclaration<?, ?>> declarations = properties.get(JOB_DECLARATIONS_PROPERTY).get(definition.getKey());
+
     updateJobDeclarations(declarations, definition, deployment.isNew());
 
-    ProcessDefinitionEntity latestDefinition = findLatestDefinitionByKey(definition.getKey());
+    ProcessDefinitionEntity latestDefinition = findLatestDefinitionByKeyAndTenantId(definition.getKey(), definition.getTenantId());
 
     if (deployment.isNew()) {
       adjustStartEventSubscriptions(definition, latestDefinition);
@@ -215,6 +225,7 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
     JobDefinitionEntity jobDefinitionEntity = new JobDefinitionEntity(jobDeclaration);
     jobDefinitionEntity.setProcessDefinitionId(processDefinition.getId());
     jobDefinitionEntity.setProcessDefinitionKey(processDefinition.getKey());
+    jobDefinitionEntity.setTenantId(processDefinition.getTenantId());
     jobDefinitionManager.insert(jobDefinitionEntity);
     jobDeclaration.setJobDefinitionId(jobDefinitionEntity.getId());
   }
@@ -245,7 +256,7 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
 
   protected void removeObsoleteTimers(ProcessDefinitionEntity processDefinition) {
     List<JobEntity> jobsToDelete = getJobManager()
-      .findJobsByConfiguration(TimerStartEventJobHandler.TYPE, processDefinition.getKey());
+      .findJobsByConfiguration(TimerStartEventJobHandler.TYPE, processDefinition.getKey(), processDefinition.getTenantId());
 
     for (JobEntity job :jobsToDelete) {
         new DeleteJobsCmd(job.getId()).execute(Context.getCommandContext());
@@ -273,14 +284,10 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
     }
   }
 
-  @SuppressWarnings("unchecked")
   protected void addEventSubscriptions(ProcessDefinitionEntity processDefinition) {
-    List<EventSubscriptionDeclaration> messageEventDefinitions = (List<EventSubscriptionDeclaration>) processDefinition
-        .getProperty(BpmnParse.PROPERTYNAME_EVENT_SUBSCRIPTION_DECLARATION);
-    if (messageEventDefinitions != null) {
-      for (EventSubscriptionDeclaration messageEventDefinition : messageEventDefinitions) {
-        addEventSubscription(processDefinition, messageEventDefinition);
-      }
+    Map<String, EventSubscriptionDeclaration> eventDefinitions = processDefinition.getProperties().get(BpmnProperties.EVENT_SUBSCRIPTION_DECLARATIONS);
+    for (EventSubscriptionDeclaration messageEventDefinition : eventDefinitions.values()) {
+      addEventSubscription(processDefinition, messageEventDefinition);
     }
   }
 
@@ -298,7 +305,9 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
 
   protected void addMessageEventSubscription(EventSubscriptionDeclaration messageEventDefinition, ProcessDefinitionEntity processDefinition) {
 
-    if(isSameMessageEventSubscriptionAlreadyPresent(messageEventDefinition)) {
+    String tenantId = processDefinition.getTenantId();
+
+    if(isSameMessageEventSubscriptionAlreadyPresent(messageEventDefinition, tenantId)) {
       throw LOG.messageEventSubscriptionWithSameNameExists(processDefinition.getResourceName(), messageEventDefinition.getEventName());
     }
 
@@ -306,14 +315,15 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
     newSubscription.setEventName(messageEventDefinition.getEventName());
     newSubscription.setActivityId(messageEventDefinition.getActivityId());
     newSubscription.setConfiguration(processDefinition.getId());
+    newSubscription.setTenantId(tenantId);
 
     newSubscription.insert();
   }
 
-  protected boolean isSameMessageEventSubscriptionAlreadyPresent(EventSubscriptionDeclaration eventSubscription) {
+  protected boolean isSameMessageEventSubscriptionAlreadyPresent(EventSubscriptionDeclaration eventSubscription, String tenantId) {
     // look for subscriptions for the same name in db:
     List<EventSubscriptionEntity> subscriptionsForSameMessageName = getEventSubscriptionManager()
-      .findEventSubscriptionsByName(MessageEventHandler.EVENT_HANDLER_TYPE, eventSubscription.getEventName());
+      .findEventSubscriptionsByNameAndTenantId(MessageEventHandler.EVENT_HANDLER_TYPE, eventSubscription.getEventName(), tenantId);
 
     // also look for subscriptions created in the session:
     List<MessageEventSubscriptionEntity> cachedSubscriptions = getDbEntityManager()
@@ -322,7 +332,9 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
     for (MessageEventSubscriptionEntity cachedSubscription : cachedSubscriptions) {
 
       if(eventSubscription.getEventName().equals(cachedSubscription.getEventName())
+        && hasTenantId(cachedSubscription, tenantId)
         && !subscriptionsForSameMessageName.contains(cachedSubscription)) {
+
         subscriptionsForSameMessageName.add(cachedSubscription);
       }
     }
@@ -334,6 +346,14 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
     subscriptionsForSameMessageName = filterSubscriptionsOfDifferentType(eventSubscription, subscriptionsForSameMessageName);
 
     return !subscriptionsForSameMessageName.isEmpty();
+  }
+
+  protected boolean hasTenantId(MessageEventSubscriptionEntity cachedSubscription, String tenantId) {
+    if(tenantId == null) {
+      return cachedSubscription.getTenantId() == null;
+    } else {
+      return tenantId.equals(cachedSubscription.getTenantId());
+    }
   }
 
   /**
@@ -380,6 +400,7 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
     newSubscription.setEventName(signalEventDefinition.getEventName());
     newSubscription.setActivityId(signalEventDefinition.getActivityId());
     newSubscription.setConfiguration(processDefinition.getId());
+    newSubscription.setTenantId(processDefinition.getTenantId());
 
     newSubscription.insert();
   }
@@ -401,7 +422,7 @@ public class BpmnDeployer extends AbstractDefinitionDeployer<ProcessDefinitionEn
           identityLink.setGroupId(expr.toString());
         }
         identityLink.setType(IdentityLinkType.CANDIDATE);
-        dbEntityManager.insert(identityLink);
+        identityLink.insert();
       }
     }
   }

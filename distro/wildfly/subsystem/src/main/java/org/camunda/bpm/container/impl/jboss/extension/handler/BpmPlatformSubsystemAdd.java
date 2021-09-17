@@ -15,16 +15,12 @@
  */
 package org.camunda.bpm.container.impl.jboss.extension.handler;
 
-import java.util.List;
-
-import org.camunda.bpm.container.impl.jboss.deployment.processor.ModuleDependencyProcessor;
-import org.camunda.bpm.container.impl.jboss.deployment.processor.ProcessApplicationDeploymentProcessor;
-import org.camunda.bpm.container.impl.jboss.deployment.processor.ProcessApplicationProcessor;
-import org.camunda.bpm.container.impl.jboss.deployment.processor.ProcessEngineStartProcessor;
-import org.camunda.bpm.container.impl.jboss.deployment.processor.ProcessesXmlProcessor;
+import org.camunda.bpm.container.impl.jboss.deployment.processor.*;
 import org.camunda.bpm.container.impl.jboss.extension.ModelConstants;
+import org.camunda.bpm.container.impl.jboss.service.MscBpmPlatformPlugins;
 import org.camunda.bpm.container.impl.jboss.service.MscRuntimeContainerDelegate;
 import org.camunda.bpm.container.impl.jboss.service.ServiceNames;
+import org.camunda.bpm.container.impl.plugin.BpmPlatformPlugins;
 import org.jboss.as.controller.AbstractBoottimeAddStepHandler;
 import org.jboss.as.controller.OperationContext;
 import org.jboss.as.controller.OperationFailedException;
@@ -36,23 +32,20 @@ import org.jboss.dmr.ModelNode;
 import org.jboss.msc.service.ServiceController;
 import org.jboss.msc.service.ServiceController.Mode;
 
+import java.util.List;
+
 
 /**
  * Provides the description and the implementation of the subsystem#add operation.
  *
  * @author Daniel Meyer
+ * @author Christian Lipphardt
  */
 public class BpmPlatformSubsystemAdd extends AbstractBoottimeAddStepHandler {
 
   public static final BpmPlatformSubsystemAdd INSTANCE = new BpmPlatformSubsystemAdd();
 
   private BpmPlatformSubsystemAdd() {
-  }
-
-  /** {@inheritDoc} */
-  @Override
-  protected void populateModel(ModelNode operation, ModelNode model) throws OperationFailedException {
-    model.get(ModelConstants.PROCESS_ENGINES);
   }
 
   /** {@inheritDoc} */
@@ -81,6 +74,18 @@ public class BpmPlatformSubsystemAdd extends AbstractBoottimeAddStepHandler {
             .install();
 
     newControllers.add(controller);
+
+    // discover and register bpm platform plugins
+    BpmPlatformPlugins plugins = BpmPlatformPlugins.load(getClass().getClassLoader());
+    MscBpmPlatformPlugins managedPlugins = new MscBpmPlatformPlugins(plugins);
+
+    ServiceController<BpmPlatformPlugins> serviceController = context.getServiceTarget()
+      .addService(ServiceNames.forBpmPlatformPlugins(), managedPlugins)
+      .addListener(verificationHandler)
+      .setInitialMode(Mode.ACTIVE)
+      .install();
+
+    newControllers.add(serviceController);
   }
 
 }

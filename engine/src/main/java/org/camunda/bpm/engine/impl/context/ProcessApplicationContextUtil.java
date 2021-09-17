@@ -9,6 +9,7 @@ import org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseExecutionEntity;
 import org.camunda.bpm.engine.impl.core.instance.CoreExecution;
 import org.camunda.bpm.engine.impl.persistence.entity.ExecutionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
 import org.camunda.bpm.engine.impl.repository.ResourceDefinitionEntity;
 import org.camunda.bpm.engine.impl.util.ClassLoaderUtil;
 
@@ -54,10 +55,22 @@ public class ProcessApplicationContextUtil {
     return processApplicationForDeployment;
   }
 
+  public static ProcessApplicationReference getTargetProcessApplication(TaskEntity task) {
+    if (task.getProcessDefinition() != null) {
+      return getTargetProcessApplication(task.getProcessDefinition());
+    }
+    else if (task.getCaseDefinition() != null) {
+      return getTargetProcessApplication(task.getCaseDefinition());
+    }
+    else {
+      return null;
+    }
+  }
+
   public static ProcessApplicationReference getTargetProcessApplication(ResourceDefinitionEntity definition) {
     ProcessApplicationReference reference = getTargetProcessApplication(definition.getDeploymentId());
 
-    if (reference == null) {
+    if (reference == null && areProcessApplicationsRegistered()) {
       ResourceDefinitionEntity previous = definition.getPreviousDefinition();
 
       // do it in a iterative way instead of recursive to avoid
@@ -86,6 +99,13 @@ public class ProcessApplicationContextUtil {
     ProcessApplicationReference processApplicationForDeployment = processApplicationManager.getProcessApplicationForDeployment(deploymentId);
 
     return processApplicationForDeployment;
+  }
+
+  public static boolean areProcessApplicationsRegistered() {
+    ProcessEngineConfigurationImpl processEngineConfiguration = Context.getProcessEngineConfiguration();
+    ProcessApplicationManager processApplicationManager = processEngineConfiguration.getProcessApplicationManager();
+
+    return processApplicationManager.hasRegistrations();
   }
 
   private static void loggContextSwitchDetails(ExecutionEntity execution) {

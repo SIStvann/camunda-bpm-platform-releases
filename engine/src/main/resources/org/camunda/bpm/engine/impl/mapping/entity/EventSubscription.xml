@@ -30,6 +30,7 @@
     <result property="activityId" column="ACTIVITY_ID_" jdbcType="VARCHAR" />
     <result property="configuration" column="CONFIGURATION_" jdbcType="VARCHAR" />
     <result property="created" column="CREATED_" jdbcType="TIMESTAMP" />
+    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR"/>
     <discriminator javaType="string" column="EVENT_TYPE_">
       <case value="message" resultMap="messageResultMap"/>
       <case value="signal" resultMap="signalResultMap"/>
@@ -50,7 +51,7 @@
   <select id="selectEventSubscriptionByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.EventSubscriptionQueryImpl" resultMap="eventSubscriptionResultMap">
   	<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    select RES.* 
+    select ${distinct} RES.* 
     ${limitBetween}
     <include refid="selectEventSubscriptionByQueryCriteriaSql"/>
     ${orderBy}
@@ -65,14 +66,25 @@
   <sql id="selectEventSubscriptionByQueryCriteriaSql">
     from ${prefix}ACT_RU_EVENT_SUBSCR RES
 
-    <if test="isAuthorizationCheckEnabled &amp;&amp; authUserId != null">
+    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
       left join ${prefix}ACT_RU_EXECUTION EXECUTION
-      on RES.EXECUTION_ID_ = EXECUTION.ID_
+      on EXECUTION.ID_ = RES.EXECUTION_ID_ 
+      
+      left join ${prefix}ACT_RE_PROCDEF EXEC_PROCDEF
+      on EXEC_PROCDEF.ID_ = EXECUTION.PROC_DEF_ID_
+      
+      left join ${prefix}ACT_RU_EXECUTION PROC_EXECUTION
+      on PROC_EXECUTION.ID_ = RES.PROC_INST_ID_
 
       left join ${prefix}ACT_RE_PROCDEF PROCDEF
-      on EXECUTION.PROC_DEF_ID_ = PROCDEF.ID_
+      on PROCDEF.ID_ = PROC_EXECUTION.PROC_DEF_ID_
+      
+      <if test="!authCheck.revokeAuthorizationCheckEnabled">    
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authCheckJoinWithoutOnClause" /> 
+        AUTH ON (AUTH.RESOURCE_ID_ in (RES.ID_, EXECUTION.ID_, PROCDEF.KEY_, PROC_EXECUTION.ID_, PROCDEF.KEY_, '*'))      
+      </if>
     </if>
-
+    
     <where>
       <if test="eventSubscriptionId != null">
         RES.ID_ = #{eventSubscriptionId}
@@ -92,8 +104,25 @@
       <if test="eventName != null">
         and RES.EVENT_NAME_ = #{eventName}
       </if>
+      <if test="isTenantIdSet">
+        <if test="tenantIds != null &amp;&amp; tenantIds.length > 0">
+          and ( RES.TENANT_ID_ in
+          <foreach item="tenantId" index="index" collection="tenantIds"
+                   open="(" separator="," close=")">
+            #{tenantId}
+          </foreach>
+          <if test="includeEventSubscriptionsWithoutTenantId">
+            or RES.TENANT_ID_ is null 
+          </if>
+          )
+        </if>
+        <if test="tenantIds == null">
+          and RES.TENANT_ID_ is null
+        </if>
+      </if>
 
       <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheck" />
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
 
     </where>
   </sql>
@@ -105,6 +134,33 @@
     where (EVENT_TYPE_ = 'signal')
       and (EVENT_NAME_ = #{parameter})
       and (EVT.EXECUTION_ID_ is null or EXC.SUSPENSION_STATE_ = 1)
+    <bind name="columnPrefix" value="'EVT.'"/>
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheckWithPrefix" />
+  </select>
+
+  <select id="selectSignalEventSubscriptionsByEventNameAndTenantId" resultMap="eventSubscriptionResultMap" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    select EVT.*
+    from ${prefix}ACT_RU_EVENT_SUBSCR EVT
+    left join ${prefix}ACT_RU_EXECUTION EXC on EVT.EXECUTION_ID_ = EXC.ID_
+    where (EVENT_TYPE_ = 'signal')
+      and (EVENT_NAME_ = #{parameter.eventName})
+      and (EVT.EXECUTION_ID_ is null or EXC.SUSPENSION_STATE_ = 1)
+      <if test="parameter.tenantId != null">
+        and EVT.TENANT_ID_ = #{parameter.tenantId}
+      </if>
+      <if test="parameter.tenantId == null">
+        and EVT.TENANT_ID_ is null
+      </if>
+  </select>
+
+  <select id="selectSignalEventSubscriptionsByEventNameAndTenantIdIncludeWithoutTenantId" resultMap="eventSubscriptionResultMap" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    select EVT.*
+    from ${prefix}ACT_RU_EVENT_SUBSCR EVT
+    left join ${prefix}ACT_RU_EXECUTION EXC on EVT.EXECUTION_ID_ = EXC.ID_
+    where (EVENT_TYPE_ = 'signal')
+      and (EVENT_NAME_ = #{parameter.eventName})
+      and (EVT.EXECUTION_ID_ is null or EXC.SUSPENSION_STATE_ = 1)
+      and (EVT.TENANT_ID_ = #{parameter.tenantId} or EVT.TENANT_ID_ is null)
   </select>
 
   <select id="selectSignalEventSubscriptionsByExecution" resultMap="eventSubscriptionResultMap" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
@@ -128,6 +184,11 @@
     where (EXECUTION_ID_ = #{parameter})
   </select>
 
+  <select id="selectEventSubscriptionsByProcessInstanceId"  resultMap="eventSubscriptionResultMap" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    select *
+    from ${prefix}ACT_RU_EVENT_SUBSCR
+    where (PROC_INST_ID_ = #{parameter})
+  </select>
 
   <select id="selectEventSubscriptionsByExecutionAndType" resultMap="eventSubscriptionResultMap" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
     select *
@@ -138,7 +199,7 @@
       ${constant.for.update}
     </if>
   </select>
-  
+
   <select id="selectEventSubscriptionsByExecutionAndType_mssql" resultMap="eventSubscriptionResultMap" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
     select *
     from ${prefix}ACT_RU_EVENT_SUBSCR 
@@ -164,11 +225,17 @@
     	and (CONFIGURATION_ = #{parameter.configuration})
   </select>
 
-  <select id="selectEventSubscriptionsByName" resultMap="eventSubscriptionResultMap" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+  <select id="selectEventSubscriptionsByNameAndTenantId" resultMap="eventSubscriptionResultMap" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
     select *
     from ${prefix}ACT_RU_EVENT_SUBSCR
     where (EVENT_TYPE_ = #{parameter.eventType})
     	and (EVENT_NAME_ = #{parameter.eventName})
+      <if test="parameter.tenantId != null">
+        and TENANT_ID_ = #{parameter.tenantId}  
+      </if>
+      <if test="parameter.tenantId == null">
+        and TENANT_ID_ is null 
+      </if>
   </select>
 
   <select id="selectEventSubscriptionsByNameAndExecution" resultMap="eventSubscriptionResultMap" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
@@ -181,7 +248,7 @@
       ${constant.for.update}
     </if>      
   </select>
-  
+
   <select id="selectEventSubscriptionsByNameAndExecution_mssql"  resultMap="eventSubscriptionResultMap" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
     select *
     from ${prefix}ACT_RU_EVENT_SUBSCR
@@ -192,13 +259,28 @@
       and (EVENT_NAME_ = #{parameter.eventName})
       and (EXECUTION_ID_ = #{parameter.executionId})
   </select>
-  
-  <select id="selectMessageStartEventSubscriptionByName" resultMap="eventSubscriptionResultMap" parameterType="string">
+
+  <select id="selectMessageStartEventSubscriptionByName" resultMap="eventSubscriptionResultMap" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject">
+    select *
+    from ${prefix}ACT_RU_EVENT_SUBSCR RES
+    where (EVENT_TYPE_ = 'message')
+        and (EVENT_NAME_ = #{parameter})
+        and EXECUTION_ID_ is null
+        <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
+  </select>
+
+  <select id="selectMessageStartEventSubscriptionByNameAndTenantId" resultMap="eventSubscriptionResultMap" parameterType="string">
     select *
     from ${prefix}ACT_RU_EVENT_SUBSCR
     where (EVENT_TYPE_ = 'message')
-    	and (EVENT_NAME_ = #{parameter})
-    	and EXECUTION_ID_ is null
+      and (EVENT_NAME_ = #{messageName})
+      and EXECUTION_ID_ is null
+      <if test="tenantId != null">
+        and TENANT_ID_ = #{tenantId}
+      </if>
+      <if test="tenantId == null">
+        and TENANT_ID_ is null
+      </if>
   </select>
 
   <!-- MESSAGE INSERT -->
@@ -213,6 +295,7 @@
            	ACTIVITY_ID_,
            	CONFIGURATION_,
            	CREATED_,
+            TENANT_ID_,
             REV_
     )
     values (#{id, jdbcType=VARCHAR},
@@ -223,6 +306,7 @@
             #{activityId, jdbcType=VARCHAR},
             #{configuration, jdbcType=VARCHAR},
             #{created, jdbcType=TIMESTAMP},
+            #{tenantId, jdbcType=VARCHAR},
             1
     )
   </insert>
@@ -256,6 +340,7 @@
            	ACTIVITY_ID_,
            	CONFIGURATION_,
            	CREATED_,
+            TENANT_ID_,
             REV_
     )
     values (#{id, jdbcType=VARCHAR},
@@ -266,6 +351,7 @@
             #{activityId, jdbcType=VARCHAR},
             #{configuration, jdbcType=VARCHAR},
             #{created, jdbcType=TIMESTAMP},
+            #{tenantId, jdbcType=VARCHAR},
             1
     )
   </insert>
@@ -299,7 +385,8 @@
            	PROC_INST_ID_,
            	ACTIVITY_ID_,
            	CONFIGURATION_,
-           	CREATED_
+           	CREATED_,
+            TENANT_ID_
     )
     values (#{id, jdbcType=VARCHAR},
             1,
@@ -309,7 +396,8 @@
             #{processInstanceId, jdbcType=VARCHAR},
             #{activityId, jdbcType=VARCHAR},
             #{configuration, jdbcType=VARCHAR},
-            #{created, jdbcType=TIMESTAMP}
+            #{created, jdbcType=TIMESTAMP},
+            #{tenantId, jdbcType=VARCHAR}
     )
   </insert>
 

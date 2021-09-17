@@ -19,11 +19,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.cfg.IdGenerator;
 import org.camunda.bpm.engine.impl.cfg.ProcessEngineConfigurationImpl;
 import org.camunda.bpm.engine.impl.cmd.CommandLogger;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.core.model.Properties;
 import org.camunda.bpm.engine.impl.interceptor.CommandContext;
 import org.camunda.bpm.engine.impl.persistence.deploy.Deployer;
 import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
@@ -34,6 +36,8 @@ import org.camunda.bpm.engine.impl.repository.ResourceDefinitionEntity;
 /**
  * {@link Deployer} responsible to parse resource files and create the proper entities.
  * This class is extended by specific resource deployers.
+ *
+ * Note: Implementations must be thread-safe. In particular they should not keep deployment-specific state.
  */
 public abstract class AbstractDefinitionDeployer<DefinitionEntity extends ResourceDefinitionEntity> implements Deployer {
 
@@ -53,17 +57,18 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
 
   public void deploy(DeploymentEntity deployment) {
     LOG.debugProcessingDeployment(deployment.getName());
-    List<DefinitionEntity> definitions = parseDefinitionResources(deployment);
+    Properties properties = new Properties();
+    List<DefinitionEntity> definitions = parseDefinitionResources(deployment, properties);
     ensureNoDuplicateDefinitionKeys(definitions);
-    postProcessDefinitions(deployment, definitions);
+    postProcessDefinitions(deployment, definitions, properties);
   }
 
-  protected List<DefinitionEntity> parseDefinitionResources(DeploymentEntity deployment) {
+  protected List<DefinitionEntity> parseDefinitionResources(DeploymentEntity deployment, Properties properties) {
     List<DefinitionEntity> definitions = new ArrayList<DefinitionEntity>();
     for (ResourceEntity resource : deployment.getResources().values()) {
       LOG.debugProcessingResource(resource.getName());
       if (isResourceHandled(resource)) {
-        definitions.addAll(transformResource(deployment, resource));
+        definitions.addAll(transformResource(deployment, resource, properties));
       }
     }
     return definitions;
@@ -86,9 +91,9 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
    */
   protected abstract String[] getResourcesSuffixes();
 
-  protected Collection<DefinitionEntity> transformResource(DeploymentEntity deployment, ResourceEntity resource) {
+  protected Collection<DefinitionEntity> transformResource(DeploymentEntity deployment, ResourceEntity resource, Properties properties) {
     String resourceName = resource.getName();
-    List<DefinitionEntity> definitions = transformDefinitions(deployment, resource);
+    List<DefinitionEntity> definitions = transformDefinitions(deployment, resource, properties);
 
     for (DefinitionEntity definition : definitions) {
       definition.setResourceName(resourceName);
@@ -110,7 +115,7 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
    * @param resource the resource to transform
    * @return a list of transformed definition entities
    */
-  protected abstract List<DefinitionEntity> transformDefinitions(DeploymentEntity deployment, ResourceEntity resource);
+  protected abstract List<DefinitionEntity> transformDefinitions(DeploymentEntity deployment, ResourceEntity resource, Properties properties);
 
   /**
    * Returns the default name of the image resource for a certain definition.
@@ -202,27 +207,28 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
     }
   }
 
-  protected void postProcessDefinitions(DeploymentEntity deployment, List<DefinitionEntity> definitions) {
+  protected void postProcessDefinitions(DeploymentEntity deployment, List<DefinitionEntity> definitions, Properties properties) {
     if (deployment.isNew()) {
       // if the deployment is new persist the new definitions
-      persistDefinitions(deployment, definitions);
+      persistDefinitions(deployment, definitions, properties);
     } else {
       // if the current deployment is not a new one,
       // then load the already existing definitions
-      loadDefinitions(deployment, definitions);
+      loadDefinitions(deployment, definitions, properties);
     }
   }
 
-  protected void persistDefinitions(DeploymentEntity deployment, List<DefinitionEntity> definitions) {
+  protected void persistDefinitions(DeploymentEntity deployment, List<DefinitionEntity> definitions, Properties properties) {
     for (DefinitionEntity definition : definitions) {
       String definitionKey = definition.getKey();
+      String tenantId = deployment.getTenantId();
 
-      DefinitionEntity latestDefinition = findLatestDefinitionByKey(definitionKey);
+      DefinitionEntity latestDefinition = findLatestDefinitionByKeyAndTenantId(definitionKey, tenantId);
 
       updateDefinitionByLatestDefinition(deployment, definition, latestDefinition);
 
       persistDefinition(definition);
-      registerDefinition(deployment, definition);
+      registerDefinition(deployment, definition, properties);
     }
   }
 
@@ -230,9 +236,10 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
     definition.setVersion(getNextVersion(deployment, definition, latestDefinition));
     definition.setId(generateDefinitionId(deployment, definition, latestDefinition));
     definition.setDeploymentId(deployment.getId());
+    definition.setTenantId(deployment.getTenantId());
   }
 
-  protected void loadDefinitions(DeploymentEntity deployment, List<DefinitionEntity> definitions) {
+  protected void loadDefinitions(DeploymentEntity deployment, List<DefinitionEntity> definitions, Properties properties) {
     for (DefinitionEntity definition : definitions) {
       String deploymentId = deployment.getId();
       String definitionKey = definition.getKey();
@@ -243,7 +250,7 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
 
       updateDefinitionByPersistedDefinition(deployment, definition, persistedDefinition);
 
-      registerDefinition(deployment, definition);
+      registerDefinition(deployment, definition, properties);
     }
   }
 
@@ -251,6 +258,7 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
     definition.setVersion(persistedDefinition.getVersion());
     definition.setId(persistedDefinition.getId());
     definition.setDeploymentId(deployment.getId());
+    definition.setTenantId(persistedDefinition.getTenantId());
   }
 
   /**
@@ -273,11 +281,11 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
   protected abstract DefinitionEntity findDefinitionByDeploymentAndKey(String deploymentId, String definitionKey);
 
   /**
-   * Find the last deployed definition entity by definition key.
-   * @param definitionKey the definition key
+   * Find the last deployed definition entity by definition key and tenant id.
+   *
    * @return the corresponding definition entity or null if non is found
    */
-  protected abstract DefinitionEntity findLatestDefinitionByKey(String definitionKey);
+  protected abstract DefinitionEntity findLatestDefinitionByKeyAndTenantId(String definitionKey, String tenantId);
 
   /**
    * Persist definition entity into the database.
@@ -285,13 +293,13 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
    */
   protected abstract void persistDefinition(DefinitionEntity definition);
 
-  protected void registerDefinition(DeploymentEntity deployment, DefinitionEntity definition) {
+  protected void registerDefinition(DeploymentEntity deployment, DefinitionEntity definition, Properties properties) {
     DeploymentCache deploymentCache = getDeploymentCache();
 
     // Add to cache
     addDefinitionToDeploymentCache(deploymentCache, definition);
 
-    definitionAddedToDeploymentCache(deployment, definition);
+    definitionAddedToDeploymentCache(deployment, definition, properties);
 
     // Add to deployment for further usage
     deployment.addDeployedArtifact(definition);
@@ -311,7 +319,7 @@ public abstract class AbstractDefinitionDeployer<DefinitionEntity extends Resour
    * @param deployment the deployment of the definition
    * @param definition the definition entity
    */
-  protected void definitionAddedToDeploymentCache(DeploymentEntity deployment, DefinitionEntity definition) {
+  protected void definitionAddedToDeploymentCache(DeploymentEntity deployment, DefinitionEntity definition, Properties properties) {
     // do nothing
   }
 

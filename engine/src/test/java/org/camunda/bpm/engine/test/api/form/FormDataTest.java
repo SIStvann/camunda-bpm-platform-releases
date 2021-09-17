@@ -18,15 +18,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.form.FormField;
 import org.camunda.bpm.engine.form.FormFieldValidationConstraint;
 import org.camunda.bpm.engine.form.TaskFormData;
 import org.camunda.bpm.engine.impl.form.type.EnumFormType;
+import org.camunda.bpm.engine.impl.form.validator.FormFieldValidationException;
+import org.camunda.bpm.engine.impl.form.validator.FormFieldValidatorException;
 import org.camunda.bpm.engine.impl.test.PluggableProcessEngineTestCase;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
+import org.junit.Ignore;
 
 /**
  * <p>Testcase verifying support for form matadata provided using
@@ -179,9 +181,10 @@ public class FormDataTest extends PluggableProcessEngineTestCase {
     assertEquals(formValues, runtimeService.getVariables(processInstance.getId()));
     runtimeService.deleteProcessInstance(processInstance.getId(), "test complete");
 
-    // invalid submit
     runtimeService.startProcessInstanceByKey("FormDataTest.testFormFieldSubmit");
     task = taskService.createTaskQuery().singleResult();
+    // invalid submit 1
+
     formValues = new HashMap<String, Object>();
     formValues.put("stringField", "1234");
     formValues.put("longField", 9L);
@@ -189,10 +192,42 @@ public class FormDataTest extends PluggableProcessEngineTestCase {
     try {
       formService.submitTaskForm(task.getId(), formValues);
       fail();
-    } catch(ProcessEngineException e) {
-      assertTrue(e.getMessage().contains("validation of minlength(5) failed"));
+    } catch (FormFieldValidatorException e) {
+      assertEquals(e.getName(), "minlength");
     }
 
+    // invalid submit 2
+    formValues = new HashMap<String, Object>();
+
+    formValues.put("customFieldWithValidationDetails", "C");
+    try {
+      formService.submitTaskForm(task.getId(), formValues);
+      fail();
+    } catch (FormFieldValidatorException e) {
+      assertEquals(e.getName(), "validator");
+      assertEquals(e.getId(), "customFieldWithValidationDetails");
+
+      assertTrue(e.getCause() instanceof FormFieldValidationException);
+
+      FormFieldValidationException exception = (FormFieldValidationException) e.getCause();
+      assertEquals(exception.getDetail(), "EXPIRED");
+    }
+
+  }
+
+  @Deployment
+  public void failTestDateFormProperty()
+  {
+    Map<String, Object> variables = new HashMap<String, Object>(1);
+
+    // if i uncomment the following line, everything works fine
+    // variables.put("myDate", new Date());
+
+    // start process instance
+    ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("date-form-property-test", variables);
+    Task task = taskService.createTaskQuery().processInstanceId(processInstance.getId()).singleResult();
+    //fails
+    formService.getTaskFormData(task.getId());
   }
 
 }

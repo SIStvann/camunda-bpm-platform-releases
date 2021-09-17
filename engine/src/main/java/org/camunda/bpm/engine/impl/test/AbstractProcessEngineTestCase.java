@@ -14,10 +14,13 @@
 package org.camunda.bpm.engine.impl.test;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.Callable;
+
 import org.apache.ibatis.logging.LogFactory;
 import org.camunda.bpm.engine.AuthorizationService;
 import org.camunda.bpm.engine.CaseService;
@@ -63,6 +66,8 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
   protected ProcessEngine processEngine;
 
   protected String deploymentId;
+  protected Set<String> deploymentIds = new HashSet<String>();
+
   protected Throwable exception;
 
   protected ProcessEngineConfigurationImpl processEngineConfiguration;
@@ -94,9 +99,14 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
 
     try {
 
-      deploymentId = TestHelper.annotationDeploymentSetUp(processEngine, getClass(), getName());
+      boolean hasRequiredHistoryLevel = TestHelper.annotationRequiredHistoryLevelCheck(processEngine, getClass(), getName());
+      // ignore test case when current history level is too low
+      if (hasRequiredHistoryLevel) {
 
-      super.runBare();
+        deploymentId = TestHelper.annotationDeploymentSetUp(processEngine, getClass(), getName());
+
+        super.runBare();
+      }
 
     }
     catch (AssertionFailedError e) {
@@ -112,9 +122,14 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
 
     }
     finally {
-      TestHelper.annotationDeploymentTearDown(processEngine, deploymentId, getClass(), getName());
+
       identityService.clearAuthentication();
-      TestHelper.assertAndEnsureCleanDbAndCache(processEngine);
+      processEngineConfiguration.setTenantCheckEnabled(true);
+
+      deleteDeployments();
+
+      // only fail if no test failure was recorded
+      TestHelper.assertAndEnsureCleanDbAndCache(processEngine, exception == null);
       ClockUtil.reset();
 
       // Can't do this in the teardown, as the teardown will be called as part
@@ -122,6 +137,19 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
       closeDownProcessEngine();
       clearServiceReferences();
     }
+  }
+
+  protected void deleteDeployments() {
+    if(deploymentId != null) {
+      deploymentIds.add(deploymentId);
+    }
+
+    for(String deploymentId : deploymentIds) {
+      TestHelper.annotationDeploymentTearDown(processEngine, deploymentId, getClass(), getName());
+    }
+
+    deploymentId = null;
+    deploymentIds.clear();
   }
 
   protected void initializeServices() {
@@ -379,15 +407,57 @@ public abstract class AbstractProcessEngineTestCase extends PvmTestCase {
     }
   }
 
-  public void deployment(BpmnModelInstance... bpmnModelInstances) {
+  protected String deployment(BpmnModelInstance... bpmnModelInstances) {
     DeploymentBuilder deploymentBuilder = repositoryService.createDeployment();
 
+    return deployment(deploymentBuilder, bpmnModelInstances);
+  }
+
+  protected String deployment(String... resources) {
+    DeploymentBuilder deploymentBuilder = repositoryService.createDeployment();
+
+    return deployment(deploymentBuilder, resources);
+  }
+
+  protected String deploymentForTenant(String tenantId, BpmnModelInstance... bpmnModelInstances) {
+    DeploymentBuilder deploymentBuilder = repositoryService.createDeployment().tenantId(tenantId);
+
+    return deployment(deploymentBuilder, bpmnModelInstances);
+  }
+
+  protected String deploymentForTenant(String tenantId, String... resources) {
+    DeploymentBuilder deploymentBuilder = repositoryService.createDeployment().tenantId(tenantId);
+
+    return deployment(deploymentBuilder, resources);
+  }
+
+  protected String deploymentForTenant(String tenantId, String classpathResource, BpmnModelInstance modelInstance) {
+    return deployment(repositoryService.createDeployment()
+        .tenantId(tenantId)
+        .addClasspathResource(classpathResource), modelInstance);
+  }
+
+  protected String deployment(DeploymentBuilder deploymentBuilder, BpmnModelInstance... bpmnModelInstances) {
     for (int i = 0; i < bpmnModelInstances.length; i++) {
       BpmnModelInstance bpmnModelInstance = bpmnModelInstances[i];
       deploymentBuilder.addModelInstance("testProcess-"+i+".bpmn", bpmnModelInstance);
     }
 
     deploymentId = deploymentBuilder.deploy().getId();
+    deploymentIds.add(deploymentId);
+
+    return deploymentId;
+  }
+
+  protected String deployment(DeploymentBuilder deploymentBuilder, String... resources) {
+    for (int i = 0; i < resources.length; i++) {
+      deploymentBuilder.addClasspathResource(resources[i]);
+    }
+
+    deploymentId = deploymentBuilder.deploy().getId();
+    deploymentIds.add(deploymentId);
+
+    return deploymentId;
   }
 
 }

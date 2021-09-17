@@ -14,50 +14,70 @@ package org.camunda.bpm.engine.impl.externaltask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
-import org.camunda.bpm.engine.externaltask.LockedExternalTask;
 import org.camunda.bpm.engine.externaltask.ExternalTaskQueryTopicBuilder;
+import org.camunda.bpm.engine.externaltask.LockedExternalTask;
+import org.camunda.bpm.engine.impl.cmd.FetchExternalTasksCmd;
+import org.camunda.bpm.engine.impl.interceptor.CommandExecutor;
 
 /**
  * @author Thorben Lindhauer
+ * @author Christopher Zell
  *
  */
 public class ExternalTaskQueryTopicBuilderImpl implements ExternalTaskQueryTopicBuilder {
 
-  protected TopicFetchInstruction instruction;
-  protected ExternalTaskQueryBuilderImpl queryBuilder;
+  protected CommandExecutor commandExecutor;
 
-  public ExternalTaskQueryTopicBuilderImpl(ExternalTaskQueryBuilderImpl queryBuilder, String topicName, long lockDuration) {
-    this.queryBuilder = queryBuilder;
-    this.instruction = new TopicFetchInstruction(topicName, lockDuration);
-  }
+  protected String workerId;
+  protected int maxTasks;
+  /**
+   * Indicates that priority is enabled.
+   */
+  protected boolean usePriority;
 
-  public ExternalTaskQueryTopicBuilder topic(String topicName, long lockDuration) {
-    submitInstruction();
-    return queryBuilder.topic(topicName, lockDuration);
+  protected Map<String, TopicFetchInstruction> instructions;
+
+  protected TopicFetchInstruction currentInstruction;
+
+  public ExternalTaskQueryTopicBuilderImpl(CommandExecutor commandExecutor, String workerId, int maxTasks, boolean usePriority) {
+    this.commandExecutor = commandExecutor;
+    this.workerId = workerId;
+    this.maxTasks = maxTasks;
+    this.usePriority = usePriority;
+    this.instructions = new HashMap<String, TopicFetchInstruction>();
   }
 
   public List<LockedExternalTask> execute() {
-    submitInstruction();
-    return queryBuilder.execute();
+    submitCurrentInstruction();
+    return commandExecutor.execute(new FetchExternalTasksCmd(workerId, maxTasks, instructions, usePriority));
+  }
+
+  public ExternalTaskQueryTopicBuilder topic(String topicName, long lockDuration) {
+    submitCurrentInstruction();
+    currentInstruction = new TopicFetchInstruction(topicName, lockDuration);
+    return this;
   }
 
   public ExternalTaskQueryTopicBuilder variables(String... variables) {
     // don't use plain Arrays.asList since this returns an instance of a different list class
     // that is private and may mess mybatis queries up
-    instruction.setVariablesToFetch(new ArrayList<String>(Arrays.asList(variables)));
+    currentInstruction.setVariablesToFetch(new ArrayList<String>(Arrays.asList(variables)));
     return this;
   }
 
   public ExternalTaskQueryTopicBuilder variables(List<String> variables) {
-    instruction.setVariablesToFetch(variables);
+    currentInstruction.setVariablesToFetch(variables);
     return this;
   }
 
-  protected void submitInstruction() {
-    queryBuilder.addInstruction(instruction);
+  protected void submitCurrentInstruction() {
+    if (currentInstruction != null) {
+      this.instructions.put(currentInstruction.getTopicName(), currentInstruction);
+    }
   }
-
 
 }

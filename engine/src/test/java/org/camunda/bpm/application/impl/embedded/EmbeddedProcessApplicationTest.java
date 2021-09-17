@@ -13,6 +13,7 @@
 package org.camunda.bpm.application.impl.embedded;
 
 import java.util.List;
+import java.util.Set;
 
 import org.camunda.bpm.BpmPlatform;
 import org.camunda.bpm.container.RuntimeContainerDelegate;
@@ -38,10 +39,12 @@ public class EmbeddedProcessApplicationTest extends PluggableProcessEngineTestCa
     defaultEngineRegistered = true;
   }
 
+  @Override
   protected void setUp() throws Exception {
     defaultEngineRegistered = false;
   }
 
+  @Override
   public void tearDown() {
     if (defaultEngineRegistered) {
       runtimeContainerDelegate.unregisterProcessEngine(processEngine);
@@ -153,6 +156,51 @@ public class EmbeddedProcessApplicationTest extends PluggableProcessEngineTestCa
 
     assertNotNull(deployment);
     assertEquals(ProcessApplicationDeployment.PROCESS_APPLICATION_DEPLOYMENT_SOURCE, deployment.getSource());
+
+    processApplication.undeploy();
+  }
+
+  public void testDeployProcessApplicationWithNameAttribute() {
+    TestApplicationWithCustomName pa = new TestApplicationWithCustomName();
+
+    pa.deploy();
+
+    Set<String> deployedPAs = runtimeContainerDelegate.getProcessApplicationService().getProcessApplicationNames();
+    assertEquals(1, deployedPAs.size());
+    assertTrue(deployedPAs.contains(TestApplicationWithCustomName.NAME));
+
+    pa.undeploy();
+  }
+
+  public void testDeployWithTenantIds() {
+    registerProcessEngine();
+
+    TestApplicationWithTenantId processApplication = new TestApplicationWithTenantId();
+    processApplication.deploy();
+
+    List<Deployment> deployments = repositoryService
+        .createDeploymentQuery()
+        .orderByTenantId()
+        .asc()
+        .list();
+
+    assertEquals(2, deployments.size());
+    assertEquals("tenant1", deployments.get(0).getTenantId());
+    assertEquals("tenant2", deployments.get(1).getTenantId());
+
+    processApplication.undeploy();
+  }
+
+  public void testDeployWithoutTenantId() {
+    registerProcessEngine();
+
+    TestApplicationWithResources processApplication = new TestApplicationWithResources();
+    processApplication.deploy();
+
+    Deployment deployment = repositoryService.createDeploymentQuery().singleResult();
+
+    assertNotNull(deployment);
+    assertNull(deployment.getTenantId());
 
     processApplication.undeploy();
   }

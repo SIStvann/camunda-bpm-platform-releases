@@ -12,6 +12,8 @@
  */
 package org.camunda.bpm.engine.impl.variable.serializer;
 
+import java.util.List;
+
 import org.camunda.bpm.engine.variable.value.TypedValue;
 
 /**
@@ -26,9 +28,17 @@ public interface VariableSerializers {
   /**
    * Selects the {@link TypedValueSerializer} which should be used for persisting a VariableValue.
    *
-   *
    * @param value the value to persist
+   * @param fallBackSerializerFactory a factory to build a fallback serializer in case no suiting serializer
+   *   can be determined. If this factory is not able to build serializer either, an exception is thrown. May be null
    * @return the VariableValueserializer selected for persisting the value or 'null' in case no serializer can be found
+   */
+  @SuppressWarnings("rawtypes")
+  public TypedValueSerializer findSerializerForValue(TypedValue value, VariableSerializerFactory fallBackSerializerFactory);
+
+  /**
+   * Same as calling {@link VariableSerializers#findSerializerForValue(TypedValue, VariableSerializerFactory)}
+   * with no fallback serializer factory.
    */
   @SuppressWarnings("rawtypes")
   public TypedValueSerializer findSerializerForValue(TypedValue value);
@@ -54,5 +64,16 @@ public interface VariableSerializers {
   public int getSerializerIndex(TypedValueSerializer<?> serializer);
 
   public int getSerializerIndexByName(String serializerName);
+
+  /**
+   * Merges two {@link VariableSerializers} instances into one. Implementations may apply
+   * different merging strategies.
+   */
+  public VariableSerializers join(VariableSerializers other);
+
+  /**
+   * Returns the serializers as a list in the order of their indices.
+   */
+  public List<TypedValueSerializer<?>> getSerializers();
 
 }

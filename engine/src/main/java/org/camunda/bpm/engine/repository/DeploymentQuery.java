@@ -45,7 +45,7 @@ public interface DeploymentQuery extends Query<DeploymentQuery, Deployment>{
   DeploymentQuery deploymentNameLike(String nameLike);
 
   /**
-   * Iff the given <code>source</code> is <code>null</code>,
+   * If the given <code>source</code> is <code>null</code>,
    * then deployments are returned where source is equal to null.
    * Otherwise only deployments with the given source are
    * selected.
@@ -58,6 +58,18 @@ public interface DeploymentQuery extends Query<DeploymentQuery, Deployment>{
   /** Only select deployments deployed after the given date */
   DeploymentQuery deploymentAfter(Date after);
 
+  /** Only select deployments with one of the given tenant ids. */
+  DeploymentQuery tenantIdIn(String... tenantIds);
+
+  /** Only select deployments which have no tenant id. */
+  DeploymentQuery withoutTenantId();
+
+  /**
+   * Select deployments which have no tenant id. Can be used in
+   * combination with {@link #tenantIdIn(String...)}.
+   */
+  DeploymentQuery includeDeploymentsWithoutTenantId();
+
   //sorting ////////////////////////////////////////////////////////
 
   /** Order by deployment id (needs to be followed by {@link #asc()} or {@link #desc()}). */
@@ -68,4 +80,9 @@ public interface DeploymentQuery extends Query<DeploymentQuery, Deployment>{
 
   /** Order by deployment time (needs to be followed by {@link #asc()} or {@link #desc()}). */
   DeploymentQuery orderByDeploymenTime();
+
+  /** Order by tenant id (needs to be followed by {@link #asc()} or {@link #desc()}).
+   * Note that the ordering of process instances without tenant id is database-specific. */
+  DeploymentQuery orderByTenantId();
+
 }

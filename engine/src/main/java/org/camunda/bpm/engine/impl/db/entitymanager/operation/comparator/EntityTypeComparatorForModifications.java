@@ -16,6 +16,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionEntity;
 import org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseExecutionEntity;
 import org.camunda.bpm.engine.impl.cmmn.entity.runtime.CaseSentryPartEntity;
@@ -36,9 +37,12 @@ import org.camunda.bpm.engine.impl.persistence.entity.ProcessDefinitionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ResourceEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.SignalEventSubscriptionEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TaskEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.TenantEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.TenantMembershipEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.TimerEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.UserEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.VariableInstanceEntity;
+import org.camunda.bpm.engine.management.JobDefinition;
 
 
 /**
@@ -68,16 +72,20 @@ public class EntityTypeComparatorForModifications implements Comparator<Class<?>
     typeOrder.put(TimerEntity.class, 1);
 
     typeOrder.put(MembershipEntity.class, 1);
+    typeOrder.put(TenantMembershipEntity.class, 1);
 
     typeOrder.put(CaseSentryPartEntity.class, 1);
 
     typeOrder.put(ExternalTaskEntity.class, 1);
+    typeOrder.put(Batch.class, 1);
 
     // 2
+    typeOrder.put(TenantEntity.class, 2);
     typeOrder.put(GroupEntity.class, 2);
     typeOrder.put(UserEntity.class, 2);
     typeOrder.put(ByteArrayEntity.class, 2);
     typeOrder.put(TaskEntity.class, 2);
+    typeOrder.put(JobDefinition.class, 2);
 
     // 3
     typeOrder.put(ExecutionEntity.class, 3);

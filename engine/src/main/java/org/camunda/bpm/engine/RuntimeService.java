@@ -18,7 +18,11 @@ import java.util.Map;
 
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resources;
+import org.camunda.bpm.engine.batch.Batch;
 import org.camunda.bpm.engine.delegate.ExecutionListener;
+import org.camunda.bpm.engine.migration.MigrationPlan;
+import org.camunda.bpm.engine.migration.MigrationPlanBuilder;
+import org.camunda.bpm.engine.migration.MigrationPlanExecutionBuilder;
 import org.camunda.bpm.engine.repository.Deployment;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
@@ -33,6 +37,9 @@ import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.runtime.ProcessInstanceModificationBuilder;
 import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
 import org.camunda.bpm.engine.runtime.ProcessInstantiationBuilder;
+import org.camunda.bpm.engine.runtime.SignalEventReceivedBuilder;
+import org.camunda.bpm.engine.runtime.UpdateProcessInstanceSuspensionStateBuilder;
+import org.camunda.bpm.engine.runtime.UpdateProcessInstanceSuspensionStateSelectBuilder;
 import org.camunda.bpm.engine.runtime.VariableInstanceQuery;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.value.SerializableValue;
@@ -1195,6 +1202,8 @@ public interface RuntimeService {
    * one process instance from the hierarchy will not suspend other
    * process instances from that hierarchy.</p>
    *
+   * <p>Note: for more complex suspend commands use {@link #updateProcessInstanceSuspensionState()}.</p>
+   *
    * @throws ProcessEngineException
    *          if no such processInstance can be found.
    * @throws AuthorizationException
@@ -1228,6 +1237,8 @@ public interface RuntimeService {
    * one process instance from the hierarchy will not suspend other
    * process instances from that hierarchy.</p>
    *
+   * <p>Note: for more complex suspend commands use {@link #updateProcessInstanceSuspensionState()}.</p>
+   *
    * @throws ProcessEngineException
    *          if no such processInstance can be found.
    * @throws AuthorizationException
@@ -1260,6 +1271,8 @@ public interface RuntimeService {
    * one process instance from the hierarchy will not suspend other
    * process instances from that hierarchy.</p>
    *
+   * <p>Note: for more complex suspend commands use {@link #updateProcessInstanceSuspensionState()}.</p>
+   *
    * @throws ProcessEngineException
    *          if no such processInstance can be found.
    * @throws AuthorizationException
@@ -1273,6 +1286,8 @@ public interface RuntimeService {
    * <p>If you have a process instance hierarchy, activating
    * one process instance from the hierarchy will not activate other
    * process instances from that hierarchy.</p>
+   *
+   * <p>Note: for more complex activate commands use {@link #updateProcessInstanceSuspensionState()}.</p>
    *
    * @throws ProcessEngineException
    *          if no such processInstance can be found.
@@ -1289,6 +1304,8 @@ public interface RuntimeService {
    * one process instance from the hierarchy will not activate other
    * process instances from that hierarchy.</p>
    *
+   * <p>Note: for more complex activate commands use {@link #updateProcessInstanceSuspensionState()}.</p>
+   *
    * @throws ProcessEngineException
    *          if the process definition id is null
    * @throws AuthorizationException
@@ -1303,12 +1320,25 @@ public interface RuntimeService {
    * one process instance from the hierarchy will not activate other
    * process instances from that hierarchy.</p>
    *
+   * <p>Note: for more complex activate commands use {@link #updateProcessInstanceSuspensionState()}.</p>
+   *
    * @throws ProcessEngineException
    *          if the process definition id is null
    * @throws AuthorizationException
    *          if the user has no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void activateProcessInstanceByProcessDefinitionKey(String processDefinitionKey);
+
+  /**
+   * Activate or suspend process instances using a fluent builder. Specify the
+   * instances by calling one of the <i>by</i> methods, like
+   * <i>byProcessInstanceId</i>. To update the suspension state call
+   * {@link UpdateProcessInstanceSuspensionStateBuilder#activate()} or
+   * {@link UpdateProcessInstanceSuspensionStateBuilder#suspend()}.
+   *
+   * @return the builder to update the suspension state
+   */
+  UpdateProcessInstanceSuspensionStateSelectBuilder updateProcessInstanceSuspensionState();
 
   // Events ////////////////////////////////////////////////////////////////////////
 
@@ -1397,6 +1427,16 @@ public interface RuntimeService {
    *          or no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void signalEventReceived(String signalName, String executionId, Map<String, Object> processVariables);
+
+  /**
+   * Notifies the process engine that a signal event has been received using a
+   * fluent builder.
+   *
+   * @param signalName
+   *          the name of the signal event
+   * @return the fluent builder to send the signal
+   */
+  SignalEventReceivedBuilder createSignalEvent(String signalName);
 
   /**
    * Notifies the process engine that a message event with name 'messageName' has
@@ -1640,19 +1680,59 @@ public interface RuntimeService {
   ProcessInstanceModificationBuilder createProcessInstanceModification(String processInstanceId);
 
   /**
-   * Starts a process instance at any set of activities in the process with the given id.
-   * Returns a fluent builder that can be used to specify instantiation instructions.
+   * Returns a fluent builder to start a new process instance in the exactly
+   * specified version of the process definition with the given id. The builder
+   * can be used to set further properties and specify instantiation
+   * instructions to start the instance at any set of activities in the process.
+   * If no instantiation instructions are set then the instance start at the
+   * default start activity.
    *
-   * @return the created process instance
+   * @param processDefinitionId
+   *          the id of the process definition, cannot be <code>null</code>.
+   *
+   * @return a builder to create a process instance of the definition
    */
   ProcessInstantiationBuilder createProcessInstanceById(String processDefinitionId);
 
   /**
-   * Starts a process instance at any set of activities in the process with the latest version
-   * of the given key. Returns a fluent builder that can be used to specify instantiation
-   * instructions.
+   * Returns a fluent builder to start a new process instance in the latest
+   * version of the process definition with the given key. The builder can be
+   * used to set further properties and specify instantiation instructions to
+   * start the instance at any set of activities in the process. If no
+   * instantiation instructions are set then the instance start at the default
+   * start activity.
    *
-   * @return the created process instance
+   * @param processDefinitionKey
+   *          the key of the process definition, cannot be <code>null</code>.
+   *
+   * @return a builder to create a process instance of the definition
    */
   ProcessInstantiationBuilder createProcessInstanceByKey(String processDefinitionKey);
+
+  /**
+   * Creates a migration plan to migrate process instance between different process definitions.
+   * Returns a fluent builder that can be used to specify migration instructions and build the plan.
+   *
+   * @param sourceProcessDefinitionId the process definition that instances are migrated from
+   * @param targetProcessDefinitionId the process definition that instances are migrated to
+   * @return a fluent builder
+   */
+  MigrationPlanBuilder createMigrationPlan(String sourceProcessDefinitionId, String targetProcessDefinitionId);
+
+  /**
+   * Executes a migration plan for a given list of process instances. The migration can
+   * either be executed synchronously or asynchronously. A synchronously migration
+   * blocks the caller until the migration was completed. The migration can only be
+   * successfully completed if all process instances can be migrated.
+   *
+   * If the migration is executed asynchronously a {@link Batch} is immediately returned.
+   * The migration is then executed as jobs from the process engine and the batch can
+   * be used to track the progress of the migration. The Batch splits the migration
+   * in smaller chunks which will be executed independently.
+   *
+   * @param migrationPlan the migration plan to executed
+   * @return a fluent builder
+   */
+  MigrationPlanExecutionBuilder newMigration(MigrationPlan migrationPlan);
+
 }

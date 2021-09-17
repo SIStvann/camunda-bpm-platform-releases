@@ -32,6 +32,7 @@ import org.camunda.bpm.engine.impl.QueryOrderingProperty;
 import org.camunda.bpm.engine.impl.cfg.TransactionListener;
 import org.camunda.bpm.engine.impl.cfg.TransactionState;
 import org.camunda.bpm.engine.impl.context.Context;
+import org.camunda.bpm.engine.impl.db.ListQueryParameterObject;
 import org.camunda.bpm.engine.impl.jobexecutor.ExclusiveJobAddedNotification;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutor;
 import org.camunda.bpm.engine.impl.jobexecutor.JobExecutorContext;
@@ -79,6 +80,13 @@ public class JobManager extends AbstractManager {
 
   }
 
+  public void insertAndHintJobExecutor(JobEntity jobEntity) {
+    jobEntity.insert();
+    if (Context.getProcessEngineConfiguration().isHintJobExecutor()) {
+      hintJobExecutor(jobEntity);
+    }
+  }
+
   public void send(MessageEntity message) {
     message.insert();
     if (Context.getProcessEngineConfiguration().isHintJobExecutor()) {
@@ -105,12 +113,17 @@ public class JobManager extends AbstractManager {
 
   protected void hintJobExecutor(JobEntity job) {
     JobExecutor jobExecutor = Context.getProcessEngineConfiguration().getJobExecutor();
+    if (!jobExecutor.isActive()) {
+      return;
+    }
+
     JobExecutorContext jobExecutorContext = Context.getJobExecutorContext();
     TransactionListener transactionListener = null;
     if(!job.isSuspended()
             && job.isExclusive()
             && jobExecutorContext != null
-            && jobExecutorContext.isExecutingExclusiveJob()) {
+            && jobExecutorContext.isExecutingExclusiveJob()
+            && areInSameProcessInstance(job, jobExecutorContext.getCurrentJob())) {
       // lock job & add to the queue of the current processor
       Date currentTime = ClockUtil.getCurrentTime();
       job.setLockExpirationTime(new Date(currentTime.getTime() + jobExecutor.getLockTimeInMillis()));
@@ -121,8 +134,19 @@ public class JobManager extends AbstractManager {
       transactionListener = new MessageAddedNotification(jobExecutor);
     }
     Context.getCommandContext()
-    .getTransactionContext()
-    .addTransactionListener(TransactionState.COMMITTED, transactionListener);
+      .getTransactionContext()
+      .addTransactionListener(TransactionState.COMMITTED, transactionListener);
+  }
+
+  protected boolean areInSameProcessInstance(JobEntity job1, JobEntity job2) {
+    if (job1 == null || job2 == null) {
+      return false;
+    }
+
+    String instance1 = job1.getProcessInstanceId();
+    String instance2 = job2.getProcessInstanceId();
+
+    return instance1 != null && instance1.equals(instance2);
   }
 
   public void cancelTimers(ExecutionEntity execution) {
@@ -182,6 +206,11 @@ public class JobManager extends AbstractManager {
   }
 
   @SuppressWarnings("unchecked")
+  public List<JobEntity> findJobsByJobDefinitionId(String jobDefinitionId) {
+    return getDbEntityManager().selectList("selectJobsByJobDefinitionId", jobDefinitionId);
+  }
+
+  @SuppressWarnings("unchecked")
   public List<JobEntity> findExclusiveJobsToExecute(String processInstanceId) {
     Map<String,Object> params = new HashMap<String, Object>();
     params.put("pid", processInstanceId);
@@ -203,15 +232,16 @@ public class JobManager extends AbstractManager {
 
   @SuppressWarnings("unchecked")
   public List<Job> findJobsByQueryCriteria(JobQueryImpl jobQuery, Page page) {
-    getAuthorizationManager().configureJobQuery(jobQuery);
+    configureQuery(jobQuery);
     return getDbEntityManager().selectList("selectJobByQueryCriteria", jobQuery, page);
   }
 
   @SuppressWarnings("unchecked")
-  public List<JobEntity> findJobsByConfiguration(String jobHandlerType, String jobHandlerConfiguration) {
+  public List<JobEntity> findJobsByConfiguration(String jobHandlerType, String jobHandlerConfiguration, String tenantId) {
     Map<String, String> params = new HashMap<String, String>();
     params.put("handlerType", jobHandlerType);
     params.put("handlerConfiguration", jobHandlerConfiguration);
+    params.put("tenantId", tenantId);
 
     if (TimerCatchIntermediateEventJobHandler.TYPE.equals(jobHandlerType)
       || TimerExecuteNestedActivityJobHandler.TYPE.equals(jobHandlerType)
@@ -226,7 +256,7 @@ public class JobManager extends AbstractManager {
   }
 
   public long findJobCountByQueryCriteria(JobQueryImpl jobQuery) {
-    getAuthorizationManager().configureJobQuery(jobQuery);
+    configureQuery(jobQuery);
     return (Long) getDbEntityManager().selectOne("selectJobCountByQueryCriteria", jobQuery);
   }
 
@@ -234,28 +264,28 @@ public class JobManager extends AbstractManager {
     Map<String, Object> parameters = new HashMap<String, Object>();
     parameters.put("jobId", jobId);
     parameters.put("suspensionState", suspensionState.getStateCode());
-    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", parameters);
+    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", configureParameterizedQuery(parameters));
   }
 
   public void updateJobSuspensionStateByJobDefinitionId(String jobDefinitionId, SuspensionState suspensionState) {
     Map<String, Object> parameters = new HashMap<String, Object>();
     parameters.put("jobDefinitionId", jobDefinitionId);
     parameters.put("suspensionState", suspensionState.getStateCode());
-    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", parameters);
+    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", configureParameterizedQuery(parameters));
   }
 
   public void updateJobSuspensionStateByProcessInstanceId(String processInstanceId, SuspensionState suspensionState) {
     Map<String, Object> parameters = new HashMap<String, Object>();
     parameters.put("processInstanceId", processInstanceId);
     parameters.put("suspensionState", suspensionState.getStateCode());
-    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", parameters);
+    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", configureParameterizedQuery(parameters));
   }
 
   public void updateJobSuspensionStateByProcessDefinitionId(String processDefinitionId, SuspensionState suspensionState) {
     Map<String, Object> parameters = new HashMap<String, Object>();
     parameters.put("processDefinitionId", processDefinitionId);
     parameters.put("suspensionState", suspensionState.getStateCode());
-    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", parameters);
+    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", configureParameterizedQuery(parameters));
   }
 
   public void updateStartTimerJobSuspensionStateByProcessDefinitionId(String processDefinitionId, SuspensionState suspensionState) {
@@ -263,22 +293,43 @@ public class JobManager extends AbstractManager {
     parameters.put("processDefinitionId", processDefinitionId);
     parameters.put("suspensionState", suspensionState.getStateCode());
     parameters.put("handlerType", TimerStartEventJobHandler.TYPE);
-    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", parameters);
+    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", configureParameterizedQuery(parameters));
   }
 
   public void updateJobSuspensionStateByProcessDefinitionKey(String processDefinitionKey, SuspensionState suspensionState) {
     Map<String, Object> parameters = new HashMap<String, Object>();
     parameters.put("processDefinitionKey", processDefinitionKey);
+    parameters.put("isProcessDefinitionTenantIdSet", false);
     parameters.put("suspensionState", suspensionState.getStateCode());
-    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", parameters);
+    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", configureParameterizedQuery(parameters));
+  }
+
+  public void updateJobSuspensionStateByProcessDefinitionKeyAndTenantId(String processDefinitionKey, String processDefinitionTenantId, SuspensionState suspensionState) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("processDefinitionKey", processDefinitionKey);
+    parameters.put("isProcessDefinitionTenantIdSet", true);
+    parameters.put("processDefinitionTenantId", processDefinitionTenantId);
+    parameters.put("suspensionState", suspensionState.getStateCode());
+    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", configureParameterizedQuery(parameters));
   }
 
   public void updateStartTimerJobSuspensionStateByProcessDefinitionKey(String processDefinitionKey, SuspensionState suspensionState) {
     Map<String, Object> parameters = new HashMap<String, Object>();
     parameters.put("processDefinitionKey", processDefinitionKey);
+    parameters.put("isProcessDefinitionTenantIdSet", false);
     parameters.put("suspensionState", suspensionState.getStateCode());
     parameters.put("handlerType", TimerStartEventJobHandler.TYPE);
-    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", parameters);
+    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", configureParameterizedQuery(parameters));
+  }
+
+  public void updateStartTimerJobSuspensionStateByProcessDefinitionKeyAndTenantId(String processDefinitionKey, String processDefinitionTenantId, SuspensionState suspensionState) {
+    Map<String, Object> parameters = new HashMap<String, Object>();
+    parameters.put("processDefinitionKey", processDefinitionKey);
+    parameters.put("isProcessDefinitionTenantIdSet", true);
+    parameters.put("processDefinitionTenantId", processDefinitionTenantId);
+    parameters.put("suspensionState", suspensionState.getStateCode());
+    parameters.put("handlerType", TimerStartEventJobHandler.TYPE);
+    getDbEntityManager().update(JobEntity.class, "updateJobSuspensionStateByParameters", configureParameterizedQuery(parameters));
   }
 
   public void updateFailedJobRetriesByJobDefinitionId(String jobDefinitionId, int retries) {
@@ -293,6 +344,15 @@ public class JobManager extends AbstractManager {
     parameters.put("jobDefinitionId", jobDefinitionId);
     parameters.put("priority", priority);
     getDbEntityManager().update(JobEntity.class, "updateJobPriorityByDefinitionId", parameters);
+  }
+
+  protected void configureQuery(JobQueryImpl query) {
+    getAuthorizationManager().configureJobQuery(query);
+    getTenantManager().configureQuery(query);
+  }
+
+  protected ListQueryParameterObject configureParameterizedQuery(Object parameter) {
+    return getTenantManager().configureQuery(parameter);
   }
 
 }

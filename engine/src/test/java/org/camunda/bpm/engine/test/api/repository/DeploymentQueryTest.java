@@ -32,7 +32,6 @@ import org.camunda.bpm.engine.repository.ProcessApplicationDeployment;
 public class DeploymentQueryTest extends PluggableProcessEngineTestCase {
 
   private String deploymentOneId;
-
   private String deploymentTwoId;
 
   @Override
@@ -116,10 +115,10 @@ public class DeploymentQueryTest extends PluggableProcessEngineTestCase {
     assertEquals(2, query.list().size());
     assertEquals(2, query.count());
 
-    try {
-      query.singleResult();
-      fail();
-    } catch (ProcessEngineException e) {}
+    query = repositoryService.createDeploymentQuery().deploymentNameLike("%one%");
+    assertEquals(1, query.list().size());
+    assertEquals(1, query.count());
+    assertEquals("org/camunda/bpm/engine/test/repository/one.bpmn20.xml", query.singleResult().getName());
   }
 
   public void testQueryByInvalidNameLike() {
@@ -239,20 +238,21 @@ public class DeploymentQueryTest extends PluggableProcessEngineTestCase {
     assertEquals("org/camunda/bpm/engine/test/repository/one.bpmn20.xml", deploymentOne.getName());
     assertEquals(deploymentOneId, deploymentOne.getId());
     assertEquals(ProcessApplicationDeployment.PROCESS_APPLICATION_DEPLOYMENT_SOURCE, deploymentOne.getSource());
+    assertNull(deploymentOne.getTenantId());
 
     Deployment deploymentTwo = deployments.get(1);
     assertEquals("org/camunda/bpm/engine/test/repository/two.bpmn20.xml", deploymentTwo.getName());
     assertEquals(deploymentTwoId, deploymentTwo.getId());
     assertNull(deploymentTwo.getSource());
+    assertNull(deploymentTwo.getTenantId());
+  }
 
-    deployments = repositoryService.createDeploymentQuery()
-      .deploymentNameLike("%one%")
-       .orderByDeploymentName()
-      .asc()
-      .list();
-
-    assertEquals("org/camunda/bpm/engine/test/repository/one.bpmn20.xml", deployments.get(0).getName());
-    assertEquals(1, deployments.size());
+  public void testQuerySorting() {
+    assertEquals(2, repositoryService.createDeploymentQuery()
+        .orderByDeploymentName()
+        .asc()
+        .list()
+        .size());
 
     assertEquals(2, repositoryService.createDeploymentQuery()
       .orderByDeploymentId()
@@ -265,7 +265,6 @@ public class DeploymentQueryTest extends PluggableProcessEngineTestCase {
       .asc()
       .list()
       .size());
-
   }
 
 }

@@ -42,6 +42,8 @@ public class CaseDefinitionEntity extends CmmnCaseDefinition implements CaseDefi
   protected String deploymentId;
   protected String resourceName;
   protected String diagramResourceName;
+  protected String tenantId;
+
   protected Map<String, TaskDefinition> taskDefinitions;
 
   // firstVersion is true, when version == 1 or when
@@ -122,6 +124,14 @@ public class CaseDefinitionEntity extends CmmnCaseDefinition implements CaseDefi
     this.taskDefinitions = taskDefinitions;
   }
 
+  public String getTenantId() {
+    return tenantId;
+  }
+
+  public void setTenantId(String tenantId) {
+    this.tenantId = tenantId;
+  }
+
   // previous case definition //////////////////////////////////////////////
 
   public CaseDefinitionEntity getPreviousDefinition() {
@@ -187,7 +197,7 @@ public class CaseDefinitionEntity extends CmmnCaseDefinition implements CaseDefi
       previousCaseDefinitionId = Context
           .getCommandContext()
           .getCaseDefinitionManager()
-          .findPreviousCaseDefinitionIdByKeyAndVersion(key, version);
+          .findPreviousCaseDefinitionId(key, version, tenantId);
 
       if (previousCaseDefinitionId == null) {
         firstVersion = true;
@@ -198,6 +208,11 @@ public class CaseDefinitionEntity extends CmmnCaseDefinition implements CaseDefi
   @Override
   protected CmmnExecution newCaseInstance() {
     CaseExecutionEntity caseInstance = new CaseExecutionEntity();
+
+    if (tenantId != null) {
+      caseInstance.setTenantId(tenantId);
+    }
+
     Context
         .getCommandContext()
         .getCaseExecutionManager()
@@ -209,6 +224,7 @@ public class CaseDefinitionEntity extends CmmnCaseDefinition implements CaseDefi
     return CaseDefinitionEntity.class;
   }
 
+  @Override
   public String toString() {
     return "CaseDefinitionEntity["+id+"]";
   }

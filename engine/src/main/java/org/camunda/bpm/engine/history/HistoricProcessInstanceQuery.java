@@ -68,7 +68,7 @@ public interface HistoricProcessInstanceQuery extends Query<HistoricProcessInsta
   /**
    * Only select historic process instances which had a business key like the given value.
    *
-   * @param processInstanceBusinessKey The string can include the wildcard character '%' to express
+   * @param processInstanceBusinessKeyLike The string can include the wildcard character '%' to express
    *    like-strategy: starts with (string%), ends with (%string) or contains (%string%).
    */
   HistoricProcessInstanceQuery processInstanceBusinessKeyLike(String processInstanceBusinessKeyLike);
@@ -78,6 +78,32 @@ public interface HistoricProcessInstanceQuery extends Query<HistoricProcessInsta
 
   /** Only select historic process instance that are not yet finished. */
   HistoricProcessInstanceQuery unfinished();
+
+  /**
+   * Only select historic process instances with incidents
+   *
+   * @return HistoricProcessInstanceQuery
+   */
+  HistoricProcessInstanceQuery withIncidents();
+
+  /**
+   * Only select historic process instances with the given incident message.
+   *
+   * @param incidentMessage Incidents Message for which the historic process instances should be selected
+   *
+   * @return HistoricProcessInstanceQuery
+   */
+  HistoricProcessInstanceQuery incidentMessage(String incidentMessage);
+
+  /**
+   * Only select historic process instances which had an incident message like the given value.
+   *
+   * @param incidentMessageLike The string can include the wildcard character '%' to express
+   *    like-strategy: starts with (string%), ends with (%string) or contains (%string%).
+   *
+   * @return HistoricProcessInstanceQuery
+   */
+  HistoricProcessInstanceQuery incidentMessageLike(String incidentMessageLike);
 
   /** Only select historic process instances which are associated with the given case instance id. */
   HistoricProcessInstanceQuery caseInstanceId(String caseInstanceId);
@@ -205,24 +231,35 @@ public interface HistoricProcessInstanceQuery extends Query<HistoricProcessInsta
    */
   HistoricProcessInstanceQuery subCaseInstanceId(String subCaseInstanceId);
 
-  // below is deprecated and should be removed in 5.12
+  /** Only select historic process instances with one of the given tenant ids. */
+  HistoricProcessInstanceQuery tenantIdIn(String... tenantIds);
+
+  /**
+   * Order by tenant id (needs to be followed by {@link #asc()} or {@link #desc()}).
+   * Note that the ordering of historic process instances without tenant id is database-specific.
+   */
+  HistoricProcessInstanceQuery orderByTenantId();
 
   /** Only select historic process instances that were started as of the provided
    * date. (Date will be adjusted to reflect midnight)
-   * @deprecated will be removed in 5.12, use {@link #startedAfter(Date)} and {@link #startedBefore(Date)} instead */
+   * @deprecated use {@link #startedAfter(Date)} and {@link #startedBefore(Date)} instead */
+  @Deprecated
   HistoricProcessInstanceQuery startDateBy(Date date);
 
   /** Only select historic process instances that were started on the provided date.
-   * @deprecated will be removed in 5.12, use {@link #startedAfter(Date)} and {@link #startedBefore(Date)} instead */
+   * @deprecated use {@link #startedAfter(Date)} and {@link #startedBefore(Date)} instead */
+  @Deprecated
   HistoricProcessInstanceQuery startDateOn(Date date);
 
   /** Only select historic process instances that were finished as of the
    * provided date. (Date will be adjusted to reflect one second before midnight)
-   * @deprecated will be removed in 5.12, use {@link #startedAfter(Date)} and {@link #startedBefore(Date)} instead */
+   * @deprecated use {@link #startedAfter(Date)} and {@link #startedBefore(Date)} instead */
+  @Deprecated
   HistoricProcessInstanceQuery finishDateBy(Date date);
 
   /** Only select historic process instances that were finished on provided date.
-   * @deprecated will be removed in 5.12, use {@link #startedAfter(Date)} and {@link #startedBefore(Date)} instead */
+   * @deprecated use {@link #startedAfter(Date)} and {@link #startedBefore(Date)} instead */
+  @Deprecated
   HistoricProcessInstanceQuery finishDateOn(Date date);
 
 }

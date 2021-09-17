@@ -33,6 +33,8 @@ import org.camunda.bpm.engine.repository.ProcessDefinitionQuery;
 import org.camunda.bpm.model.bpmn.BpmnModelInstance;
 import org.camunda.bpm.model.bpmn.instance.Documentation;
 import org.camunda.bpm.model.xml.instance.ModelElementInstance;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
+import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensurePositive;
 
 
 /**
@@ -68,6 +70,13 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
 
   protected String eventSubscriptionName;
   protected String eventSubscriptionType;
+
+  protected boolean isTenantIdSet = false;
+  protected String[] tenantIds;
+  protected boolean includeDefinitionsWithoutTenantId = false;
+
+  protected String versionTag;
+  protected String versionTagLike;
 
   public ProcessDefinitionQueryImpl() {
   }
@@ -212,6 +221,38 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
     return super.hasExcludingConditions() || CompareUtil.elementIsNotContainedInArray(id, ids);
   }
 
+  public ProcessDefinitionQueryImpl tenantIdIn(String... tenantIds) {
+    ensureNotNull("tenantIds", (Object[]) tenantIds);
+    this.tenantIds = tenantIds;
+    isTenantIdSet = true;
+    return this;
+  }
+
+  public ProcessDefinitionQuery withoutTenantId() {
+    isTenantIdSet = true;
+    this.tenantIds = null;
+    return this;
+  }
+
+  public ProcessDefinitionQuery includeProcessDefinitionsWithoutTenantId() {
+    this.includeDefinitionsWithoutTenantId  = true;
+    return this;
+  }
+
+  public ProcessDefinitionQuery versionTag(String versionTag) {
+    ensureNotNull("versionTag", versionTag);
+    this.versionTag = versionTag;
+
+    return this;
+  }
+
+  public ProcessDefinitionQuery versionTagLike(String versionTagLike) {
+    ensureNotNull("versionTagLike", versionTagLike);
+    this.versionTagLike = versionTagLike;
+
+    return this;
+  }
+
   //sorting ////////////////////////////////////////////
 
   public ProcessDefinitionQuery orderByDeploymentId() {
@@ -238,8 +279,17 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
     return orderBy(ProcessDefinitionQueryProperty.PROCESS_DEFINITION_NAME);
   }
 
+  public ProcessDefinitionQuery orderByTenantId() {
+    return orderBy(ProcessDefinitionQueryProperty.TENANT_ID);
+  }
+
+  public ProcessDefinitionQuery orderByVersionTag() {
+    return orderBy(ProcessDefinitionQueryProperty.VERSION_TAG);
+  }
+
   //results ////////////////////////////////////////////
 
+  @Override
   public long executeCount(CommandContext commandContext) {
     checkQueryOk();
     return commandContext
@@ -247,6 +297,7 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
       .findProcessDefinitionCountByQueryCriteria(this);
   }
 
+  @Override
   public List<ProcessDefinition> executeList(CommandContext commandContext, Page page) {
     checkQueryOk();
     List<ProcessDefinition> list = commandContext
@@ -276,6 +327,7 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
     return list;
   }
 
+  @Override
   public void checkQueryOk() {
     super.checkQueryOk();
 
@@ -346,6 +398,10 @@ public class ProcessDefinitionQueryImpl extends AbstractQuery<ProcessDefinitionQ
 
   public String getIncidentMessageLike() {
     return incidentMessageLike;
+  }
+
+  public String getVersionTag() {
+    return versionTag;
   }
 
   public ProcessDefinitionQueryImpl startableByUser(String userId) {

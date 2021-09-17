@@ -102,7 +102,7 @@ public class DecisionServiceTest extends PluggableProcessEngineTestCase {
       decisionService.evaluateDecisionTableById(null, null);
       fail("expect exception");
     } catch (NotValidException e) {
-      assertTextPresent("decision definition id is null", e.getMessage());
+      assertTextPresent("either decision definition id or key must be set", e.getMessage());
     }
   }
 
@@ -120,7 +120,7 @@ public class DecisionServiceTest extends PluggableProcessEngineTestCase {
       decisionService.evaluateDecisionTableByKey(null, null);
       fail("expect exception");
     } catch (NotValidException e) {
-      assertTextPresent("decision definition key is null", e.getMessage());
+      assertTextPresent("either decision definition id or key must be set", e.getMessage());
     }
   }
 

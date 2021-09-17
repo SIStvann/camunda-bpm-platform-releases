@@ -9,7 +9,7 @@
     <groupId>org.camunda.bpm</groupId>
     <artifactId>camunda-database-settings</artifactId>
     <relativePath>../database</relativePath>
-    <version>7.4.0</version>
+    <version>7.5.0</version>
   </parent>
 
   <dependencies>
@@ -44,12 +44,12 @@
         </exclusion>
       </exclusions>
     </dependency>
-    
+
     <dependency>
       <groupId>org.camunda.commons</groupId>
       <artifactId>camunda-commons-logging</artifactId>
     </dependency>
-    
+
     <dependency>
       <groupId>org.camunda.commons</groupId>
       <artifactId>camunda-commons-typed-values</artifactId>
@@ -79,6 +79,12 @@
       <artifactId>junit</artifactId>
       <scope>provided</scope>
     </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.apache.ant</groupId>
       <artifactId>ant</artifactId>
@@ -203,39 +209,45 @@
 
 
   <properties>
-      <test.includes />
-      <!-- without a special test profile we don't want to exclude anything, this expressions should never match -->
-      <test.excludes>$.</test.excludes>
-      <history.level>full</history.level>
-      <mail.server.port>5025</mail.server.port>
+    <test.includes />
+    <!-- without a special test profile we don't want to exclude anything, this expressions should never match -->
+    <test.excludes>$.</test.excludes>
+    <history.level>full</history.level>
+    <mail.server.port>5025</mail.server.port>
+    <authorizationCheckRevokes>auto</authorizationCheckRevokes>
 
-      <camunda.artifact>
-        org.camunda.bpm
-      </camunda.artifact>
-      <camunda.osgi.export.pkg>
-        ${camunda.artifact};${camunda.osgi.version};-noimport:=true,
-        ${camunda.artifact}.application.*;${camunda.osgi.version};-noimport:=true,
-        ${camunda.artifact}.container.*;${camunda.osgi.version};-noimport:=true,
-        ${camunda.artifact}.engine.*
-      </camunda.osgi.export.pkg>
-      <camunda.osgi.import.additional>
-          junit*;resolution:=optional,
-          org.junit*;resolution:=optional,
-          com.sun*;resolution:=optional,
-          javax.persistence*;resolution:=optional,
-          javax.servlet*;resolution:=optional,
-          javax.transaction*;resolution:=optional,
-          javax.ejb*;resolution:=optional,
-          javax.xml*;resolution:=optional,
-          javax.mail*;resolution:=optional,
-          org.apache.catalina*;resolution:=optional,
-          org.apache.commons.mail;resolution:=optional,
-          org.apache.tools.ant*;resolution:=optional,
-          org.apache.xerces*;resolution:=optional,
-          org.springframework*;resolution:=optional,
-          com.fasterxml*;resolution:=optional,
-          org.jboss.vfs*;resolution:=optional
-      </camunda.osgi.import.additional>
+    <camunda.artifact>
+      org.camunda.bpm
+    </camunda.artifact>
+    <camunda.osgi.export.pkg>
+      !${camunda.artifact}.engine.variable.*,
+      ${camunda.artifact};${camunda.osgi.version};-noimport:=true,
+      ${camunda.artifact}.application.*;${camunda.osgi.version};-noimport:=true,
+      ${camunda.artifact}.container.*;${camunda.osgi.version};-noimport:=true,
+      ${camunda.artifact}.engine.*;${camunda.osgi.version};-noimport:=true
+    </camunda.osgi.export.pkg>
+    <camunda.osgi.import.defaults>
+      org.camunda.bpm.engine.variable.*;${camunda.osgi.import.camunda.commons.version},
+      org.camunda.commons.*;${camunda.osgi.import.camunda.commons.version},
+    </camunda.osgi.import.defaults>
+    <camunda.osgi.import.additional>
+      junit*;resolution:=optional,
+      org.junit*;resolution:=optional,
+      com.sun*;resolution:=optional,
+      javax.persistence*;resolution:=optional,
+      javax.servlet*;resolution:=optional,
+      javax.transaction*;resolution:=optional,
+      javax.ejb*;resolution:=optional,
+      javax.xml*;resolution:=optional,
+      javax.mail*;resolution:=optional,
+      org.apache.catalina*;resolution:=optional,
+      org.apache.commons.mail;resolution:=optional,
+      org.apache.tools.ant*;resolution:=optional,
+      org.apache.xerces*;resolution:=optional,
+      org.springframework*;resolution:=optional,
+      com.fasterxml*;resolution:=optional,
+      org.jboss.vfs*;resolution:=optional
+    </camunda.osgi.import.additional>
   </properties>
 
   <build>
@@ -252,6 +264,7 @@
           <include>**/*camunda.cfg.xml</include>
           <include>**/camunda.cfg.db.xml</include>
           <include>**/camunda.cfg.plugins.xml</include>
+          <include>**/camunda.cfg.prefix.xml</include>
         </includes>
       </testResource>
     </testResources>
@@ -401,32 +414,6 @@
       <properties>
         <history.level>audit</history.level>
       </properties>
-      <build>
-        <plugins>
-          <plugin>
-            <artifactId>maven-surefire-plugin</artifactId>
-            <configuration>
-              <excludes>
-                <exclude>**/*TestCase.java</exclude>
-                <exclude>**/RepeatingServiceTaskTest.java</exclude>
-                <exclude>**/TaskEventsTest.java</exclude>
-                <exclude>**/UserOperationLog*.java</exclude>
-                <exclude>**/HistoricIncident*Test.java</exclude>
-                <exclude>**/HistoricJobLog*Test.java</exclude>
-                <exclude>**/ProcessInstanceModificationHistoryTest.java</exclude>
-                <exclude>**/ProcessInstantiationAtActivitiesHistoryTest.java</exclude>
-                <exclude>**/UserOperationLogAuthorizationTest.java</exclude>
-                <exclude>**/HistoricDetailAuthorizationTest.java</exclude>
-                <exclude>**/HistoricVariableInstanceAuthorizationTest.java</exclude>
-                <exclude>**/CompositeDbHistoryEventHandlerTest.java</exclude>
-                <exclude>**/CompositeHistoryEventHandlerTest.java</exclude>
-                <exclude>**/HistoricDecisionInstanceAuthorizationTest.java</exclude>
-                <exclude>**/HistoricDecisionInstanceTest.java</exclude>
-              </excludes>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
     </profile>
 
     <!--  check history activity -->
@@ -435,40 +422,6 @@
       <properties>
         <history.level>activity</history.level>
       </properties>
-      <build>
-        <plugins>
-          <plugin>
-            <artifactId>maven-surefire-plugin</artifactId>
-            <configuration>
-              <excludes>
-                <exclude>**/*TestCase.java</exclude>
-                <exclude>**/HistoricTaskInstanceUpdateTest.java</exclude> <!-- http://jira.codehaus.org/browse/ACT-485  -->
-                <exclude>**/Historic*InstanceTest.java</exclude>
-                <exclude>**/HistoricActivity*Test.java</exclude>
-                <exclude>**/HistoryServiceTest.java</exclude>
-                <exclude>**/RepeatingServiceTaskTest.java</exclude>
-                <exclude>**/TaskEventsTest.java</exclude>
-                <exclude>**/UserOperationLog*.java</exclude>
-                <exclude>**/HistoricIncident*Test.java</exclude>
-                <exclude>**/HistoricVariableDataFormatTest.java</exclude>
-                <exclude>**/HistoricVariableInstanceScopeTest.java</exclude>
-                <exclude>**/HistoricTaskInstanceQueryTest.java</exclude>
-                <exclude>**/HistoricJobLog*Test.java</exclude>
-                <exclude>**/ProcessInstanceModificationHistoryTest.java</exclude>
-                <exclude>**/ProcessInstantiationAtActivitiesHistoryTest.java</exclude>
-                <exclude>**/UserOperationLogAuthorizationTest.java</exclude>
-                <exclude>**/HistoricDetailAuthorizationTest.java</exclude>
-                <exclude>**/HistoricVariableInstanceAuthorizationTest.java</exclude>
-                <exclude>**/CompositeDbHistoryEventHandlerTest.java</exclude>
-                <exclude>**/CompositeHistoryEventHandlerTest.java</exclude>
-                <exclude>**/CompensateEventHistoryTest.java</exclude>
-                <exclude>**/HistoricDecisionInstanceAuthorizationTest.java</exclude>
-                <exclude>**/HistoricDecisionInstanceTest.java</exclude>
-              </excludes>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
     </profile>
 
     <!--  check history none -->
@@ -477,38 +430,13 @@
       <properties>
         <history.level>none</history.level>
       </properties>
-      <build>
-        <plugins>
-          <plugin>
-            <artifactId>maven-surefire-plugin</artifactId>
-            <configuration>
-              <excludes>
-                <exclude>**/*TestCase.java</exclude>
-                <exclude>**/HistoricTaskInstanceUpdateTest.java</exclude> <!-- http://jira.codehaus.org/browse/ACT-485  -->
-                <exclude>**/Historic*InstanceTest.java</exclude>
-                <exclude>**/HistoricActivity*Test.java</exclude>
-                <exclude>**/HistoryServiceTest.java</exclude>
-                <exclude>**/RepeatingServiceTaskTest.java</exclude>
-                <exclude>**/TaskEventsTest.java</exclude>
-                <exclude>**/UserOperationLog*.java</exclude>
-                <exclude>**/HistoricVariableInstanceScopeTest.java</exclude>
-                <exclude>**/HistoricIncident*Test.java</exclude>
-                <exclude>**/HistoricVariableDataFormatTest.java</exclude>
-                <exclude>**/Historic*QueryTest.java</exclude>
-                <exclude>**/HistoricJobLog*Test.java</exclude>
-                <exclude>**/ProcessInstanceModificationHistoryTest.java</exclude>
-                <exclude>**/ProcessInstantiationAtActivitiesHistoryTest.java</exclude>
-                <exclude>**/UserOperationLogAuthorizationTest.java</exclude>
-                <exclude>**/Historic*AuthorizationTest.java</exclude>
-                <exclude>**/DbDeadlockTest.java</exclude>
-                <exclude>**/CompositeDbHistoryEventHandlerTest.java</exclude>
-                <exclude>**/CompositeHistoryEventHandlerTest.java</exclude>
-                <exclude>**/CompensateEventHistoryTest.java</exclude>
-              </excludes>
-            </configuration>
-          </plugin>
-        </plugins>
-      </build>
+    </profile>
+
+    <profile>
+      <id>cfgAuthorizationCheckRevokesAlways</id>
+      <properties>
+        <authorizationCheckRevokes>always</authorizationCheckRevokes>
+      </properties>
     </profile>
 
     <profile>
@@ -638,9 +566,62 @@
               </execution>
             </executions>
           </plugin>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <argLine>-XX:MaxPermSize=192m -Xmx512m</argLine>
+            </configuration>
+          </plugin>
         </plugins>
       </build>
     </profile>
+
+    <!-- profile for running testsuite with database table prefix -->
+    <profile>
+      <id>db-table-prefix</id>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-antrun-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>database-test-create-schema</id>
+                <phase>process-test-classes</phase>
+                <goals>
+                  <goal>run</goal>
+                </goals>
+                <configuration>
+                  <target>
+                    <copy file="target/test-classes/camunda.cfg.prefix.xml" tofile="target/test-classes/camunda.cfg.xml" overwrite="true" />
+                  </target>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <excludes>
+                <exclude>**/*TestCase.java</exclude>
+                <!-- the test requires multiple process engines in parallel but
+                     the DbSchemaPrefixTestHelper will first drop the schema. So
+                     it cannot be used with this profile at the moment -->
+                <exclude>**/DeploymentAwareJobExecutorTest.java</exclude>
+                <!-- include after CAM-6041 was fixed -->
+                <exclude>**/ManagementServiceTest.java</exclude>
+                <exclude>**/ManagementAuthorizationTest.java</exclude>
+                <!-- this test drops the database an creates two schemas and
+                     it can be excluded for this test profile as it tests
+                     the same except for the whole unit test suite -->
+                <exclude>**/DatabaseTablePrefixTest.java</exclude>
+              </excludes>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
     <!-- test profiles -->
     <profile>
      <id>testBpmn</id>
@@ -652,6 +633,12 @@
      <id>testCmmn</id>
      <properties>
       <test.includes>cmmn</test.includes>
+     </properties>
+    </profile>
+    <profile>
+     <id>testDmn</id>
+     <properties>
+      <test.includes>dmn</test.includes>
      </properties>
     </profile>
     <profile>
@@ -670,6 +657,12 @@
      <id>testExceptCmmn</id>
      <properties>
       <test.excludes>cmmn</test.excludes>
+     </properties>
+    </profile>
+    <profile>
+     <id>testExceptDmn</id>
+     <properties>
+      <test.excludes>dmn</test.excludes>
      </properties>
     </profile>
     <profile>

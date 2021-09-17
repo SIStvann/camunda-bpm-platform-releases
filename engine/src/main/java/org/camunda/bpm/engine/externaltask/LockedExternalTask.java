@@ -96,4 +96,17 @@ public interface LockedExternalTask {
    */
   VariableMap getVariables();
 
+  /**
+   * @return the id of the tenant the task belongs to. Can be <code>null</code>
+   * if the task belongs to no single tenant.
+   */
+  String getTenantId();
+  
+  /**
+   * Returns the priority of the locked external task.
+   * The default priority is 0.
+   * @return the priority of the external task
+   */
+  long getPriority();
+
 }

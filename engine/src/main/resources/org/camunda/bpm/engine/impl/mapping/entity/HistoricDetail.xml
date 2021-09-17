@@ -34,7 +34,8 @@
       TIME_,
       NAME_,
       TEXT_,
-      SEQUENCE_COUNTER_
+      SEQUENCE_COUNTER_,
+      TENANT_ID_
     )
     values (
       #{id, jdbcType=VARCHAR},
@@ -48,7 +49,8 @@
       #{timestamp, jdbcType=TIMESTAMP},
       #{propertyId, jdbcType=VARCHAR},
       #{propertyValue, jdbcType=VARCHAR},
-      #{sequenceCounter, jdbcType=BIGINT}
+      #{sequenceCounter, jdbcType=BIGINT},
+      #{tenantId, jdbcType=VARCHAR}
     )
   </insert>
 
@@ -78,7 +80,8 @@
       LONG_,
       TEXT_,
       TEXT2_,
-      SEQUENCE_COUNTER_
+      SEQUENCE_COUNTER_,
+      TENANT_ID_
     )
     values (
       #{id, jdbcType=VARCHAR},
@@ -103,7 +106,8 @@
       #{longValue, jdbcType=BIGINT},
       #{textValue, jdbcType=VARCHAR},
       #{textValue2, jdbcType=VARCHAR},
-      #{sequenceCounter, jdbcType=BIGINT}
+      #{sequenceCounter, jdbcType=BIGINT},
+      #{tenantId, jdbcType=VARCHAR}
     )
   </insert>
 
@@ -132,6 +136,7 @@
     <result property="activityInstanceId" column="ACT_INST_ID_" jdbcType="VARCHAR" />
     <result property="taskId" column="TASK_ID_" jdbcType="VARCHAR" />
     <result property="sequenceCounter" column="SEQUENCE_COUNTER_" jdbcType="BIGINT" />
+    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
     <discriminator javaType="string" column="TYPE_">
       <case value="VariableUpdate" resultMap="historicVariableUpdateResultMap"/>
       <case value="FormProperty" resultMap="historicFormPropertyResultMap"/>
@@ -175,7 +180,7 @@
   <select id="selectHistoricDetailsByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricDetailQueryImpl" resultMap="historicDetailResultMap">
   	<include refid="org.camunda.bpm.engine.impl.persistence.entity.Commons.bindOrderBy"/>
     ${limitBefore}
-    select RES.* 
+    select RES.*
     ${limitBetween}
     <include refid="selectHistoricDetailsByQueryCriteriaSql"/>
     ${orderBy}
@@ -189,6 +194,19 @@
 
   <sql id="selectHistoricDetailsByQueryCriteriaSql">
     from ${prefix}ACT_HI_DETAIL RES
+
+    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+      LEFT JOIN (
+        SELECT
+            SELF.PROC_DEF_KEY_ AS KEY_
+        FROM
+            (SELECT DISTINCT DKEYS.PROC_DEF_KEY_ from ${prefix}ACT_HI_DETAIL DKEYS) SELF
+        WHERE
+            <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.querySingleAuthorizationCheck" />
+      ) AUTH
+      ON AUTH.KEY_ = RES.PROC_DEF_KEY_
+    </if>
+
     <where>
       <if test="detailId != null">
         RES.ID_ = #{detailId}
@@ -229,23 +247,19 @@
         and RES.TYPE_ = #{type}
       </if>
 
-      <if test="isAuthorizationCheckEnabled &amp;&amp; authUserId != null">
-        AND
-          ( CASE
-
-            WHEN
-              <!-- detail instance exists in context of a process instance -->
-              RES.EXECUTION_ID_ is not null
-            THEN
-              (<include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authorizationCheck" />)
-
-            ELSE
-              <!-- detail instance exists in context of a -->
-              <!-- (1) standalone task or -->
-              <!-- (2) case instance -->
-              1
-          END ) = 1
+      <if test="tenantIds != null &amp;&amp; tenantIds.length > 0">
+        and RES.TENANT_ID_ in
+        <foreach item="tenantId" index="index" collection="tenantIds"
+                 open="(" separator="," close=")">
+          #{tenantId}
+        </foreach>
       </if>
+
+      <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+        and ((RES.EXECUTION_ID_ is not null and AUTH.KEY_ is not null) or RES.EXECUTION_ID_ is null)
+      </if>
+
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
 
     </where>
   </sql>

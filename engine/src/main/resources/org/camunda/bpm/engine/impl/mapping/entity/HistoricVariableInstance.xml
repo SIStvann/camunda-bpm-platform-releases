@@ -28,6 +28,7 @@
       PROC_INST_ID_,
       EXECUTION_ID_,
       ACT_INST_ID_,
+      TENANT_ID_,
       CASE_DEF_KEY_,
       CASE_DEF_ID_,
       CASE_INST_ID_,
@@ -48,6 +49,7 @@
       #{processInstanceId, jdbcType=VARCHAR},
       #{executionId, jdbcType=VARCHAR},
       #{activityInstanceId, jdbcType=VARCHAR},
+      #{tenantId, jdbcType=VARCHAR},
       #{caseDefinitionKey, jdbcType=VARCHAR},
       #{caseDefinitionId, jdbcType=VARCHAR},
       #{caseInstanceId, jdbcType=VARCHAR},
@@ -71,6 +73,8 @@
       REV_ = #{revisionNext, jdbcType=INTEGER},
       VAR_TYPE_ = #{serializerName, jdbcType=VARCHAR},
       BYTEARRAY_ID_ = #{byteArrayId, jdbcType=VARCHAR},
+      PROC_DEF_ID_ = #{processDefinitionId, jdbcType=VARCHAR},
+      PROC_DEF_KEY_ = #{processDefinitionKey, jdbcType=VARCHAR},
       DOUBLE_ = #{doubleValue, jdbcType=DOUBLE},
       LONG_ = #{longValue, jdbcType=BIGINT},
       TEXT_ = #{textValue, jdbcType=VARCHAR},
@@ -97,6 +101,7 @@
     <result property="processInstanceId" column="PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="executionId" column="EXECUTION_ID_" jdbcType="VARCHAR" />
     <result property="activityInstanceId" column="ACT_INST_ID_" jdbcType="VARCHAR" />
+    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
     <result property="caseDefinitionKey" column="CASE_DEF_KEY_" jdbcType="VARCHAR" />
     <result property="caseDefinitionId" column="CASE_DEF_ID_" jdbcType="VARCHAR" />
     <result property="caseInstanceId" column="CASE_INST_ID_" jdbcType="VARCHAR" />
@@ -119,6 +124,7 @@
     <result property="processInstanceId" column="PROC_INST_ID_" jdbcType="VARCHAR" />
     <result property="executionId" column="EXECUTION_ID_" jdbcType="VARCHAR" />
     <result property="activityInstanceId" column="ACT_INST_ID_" jdbcType="VARCHAR" />
+    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR" />
     <result property="caseDefinitionKey" column="CASE_DEF_KEY_" jdbcType="VARCHAR" />
     <result property="caseDefinitionId" column="CASE_DEF_ID_" jdbcType="VARCHAR" />
     <result property="caseInstanceId" column="CASE_INST_ID_" jdbcType="VARCHAR" />
@@ -173,6 +179,19 @@
 
   <sql id="selectHistoricVariableInstanceByQueryCriteriaSql">
     from ${prefix}ACT_HI_VARINST RES
+
+    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+      LEFT JOIN (
+        SELECT
+            SELF.PROC_DEF_KEY_ AS KEY_
+        FROM
+            (SELECT DISTINCT DKEYS.PROC_DEF_KEY_ from ${prefix}ACT_HI_VARINST DKEYS) SELF
+        WHERE
+            <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.querySingleAuthorizationCheck" />
+      ) AUTH
+      ON AUTH.KEY_ = RES.PROC_DEF_KEY_
+    </if>
+
     <where>
       <if test="variableId != null">
         RES.ID_ = #{variableId}
@@ -226,6 +245,14 @@
         </foreach>
       </if>
 
+      <if test="tenantIds != null &amp;&amp; tenantIds.length > 0">
+        and RES.TENANT_ID_ in
+        <foreach item="tenantId" index="index" collection="tenantIds"
+                 open="(" separator="," close=")">
+          #{tenantId}
+        </foreach>
+      </if>
+
       <!-- PLEASE NOTE: If you change anything have a look into the Execution, the same query object is used there! -->
       <if test="queryVariableValue != null" >
         <bind name="varTypeField" value="'VAR_TYPE_'"/>
@@ -236,23 +263,11 @@
         </if>
       </if>
 
-      <if test="isAuthorizationCheckEnabled &amp;&amp; authUserId != null">
-        AND
-          ( CASE
-
-            WHEN
-              <!-- variable instance exists in context of a process instance -->
-              RES.EXECUTION_ID_ is not null
-            THEN
-              (<include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.authorizationCheck" />)
-
-            ELSE
-              <!-- variable instance exists in context of a -->
-              <!-- (1) standalone task or -->
-              <!-- (2) case instance -->
-              1
-          END ) = 1
+      <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+        and ((RES.EXECUTION_ID_ is not null and AUTH.KEY_ is not null) or RES.EXECUTION_ID_ is null)
       </if>
+
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
 
     </where>
   </sql>

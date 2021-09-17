@@ -6,6 +6,7 @@ drop index ACT_IDX_IDENT_LNK_GROUP;
 drop index ACT_IDX_VARIABLE_TASK_ID;
 drop index ACT_IDX_INC_CONFIGURATION;
 drop index ACT_IDX_JOB_PROCINST;
+drop index ACT_IDX_AUTH_GROUP_ID;
 
 alter table ACT_GE_BYTEARRAY 
     drop constraint ACT_FK_BYTEARR_DEPL;
@@ -51,9 +52,6 @@ alter table ACT_RU_JOB
     
 alter table ACT_RU_EVENT_SUBSCR
     drop constraint ACT_FK_EVENT_EXEC;
-
-alter table ACT_RE_PROCDEF
-    drop constraint ACT_UNIQ_PROCDEF;
     
 alter table ACT_RU_INCIDENT
     drop constraint ACT_FK_INC_EXE; 
@@ -70,6 +68,9 @@ alter table ACT_RU_INCIDENT
 alter table ACT_RU_INCIDENT
     drop constraint ACT_FK_INC_RCAUSE; 
 
+alter table ACT_RU_INCIDENT
+    drop constraint ACT_FK_INC_JOB_DEF;
+
 alter table ACT_RU_AUTHORIZATION
     drop constraint ACT_UNIQ_AUTH_GROUP; 
     
@@ -82,6 +83,15 @@ alter table ACT_RU_VARIABLE
 alter table ACT_RU_EXT_TASK
     drop constraint ACT_FK_EXT_TASK_EXE;
 
+alter table ACT_RU_BATCH
+    drop constraint ACT_FK_BATCH_SEED_JOB_DEF;
+
+alter table ACT_RU_BATCH
+    drop constraint ACT_FK_BATCH_MONITOR_JOB_DEF;
+
+alter table ACT_RU_BATCH
+    drop constraint ACT_FK_BATCH_JOB_DEF;
+
 drop index ACT_IDX_EVENT_SUBSCR_CONFIG_;
 drop index ACT_IDX_ATHRZ_PROCEDEF;
 
@@ -91,10 +101,12 @@ drop index ACT_IDX_INC_EXID;
 drop index ACT_IDX_INC_PROCDEFID;
 drop index ACT_IDX_INC_PROCINSTID;
 drop index ACT_IDX_INC_ROOTCAUSEINCID;
+drop index ACT_IDX_INC_JOB_DEF;
 
 drop index ACT_IDX_METER_LOG;
 drop index ACT_IDX_AUTH_RESOURCE_ID;
 drop index ACT_IDX_EXT_TASK_TOPIC;
+drop index ACT_IDX_EXT_TASK_EXEC;
 
 drop index ACT_IDX_BYTEARRAY_NAME;
 drop index ACT_IDX_DEPLOYMENT_NAME;
@@ -102,6 +114,25 @@ drop index ACT_IDX_JOBDEF_PROC_DEF_ID;
 drop index ACT_IDX_JOB_HANDLER_TYPE;
 drop index ACT_IDX_EVENT_SUBSCR_EVT_NAME;
 drop index ACT_IDX_PROCDEF_DEPLOYMENT_ID;
+
+drop index ACT_IDX_EXT_TASK_TENANT_ID;
+drop index ACT_IDX_EXT_TASK_PRIORITY;
+drop index ACT_IDX_INC_TENANT_ID;
+drop index ACT_IDX_JOBDEF_TENANT_ID;
+drop index ACT_IDX_JOB_TENANT_ID;
+drop index ACT_IDX_EVENT_SUBSCR_TENANT_ID;
+drop index ACT_IDX_VARIABLE_TENANT_ID;
+drop index ACT_IDX_TASK_TENANT_ID;
+drop index ACT_IDX_EXEC_TENANT_ID;
+drop index ACT_IDX_PROCDEF_TENANT_ID;
+drop index ACT_IDX_DEPLOYMENT_TENANT_ID;
+
+drop index ACT_IDX_JOB_JOB_DEF_ID;
+drop index ACT_IDX_BATCH_SEED_JOB_DEF;
+drop index ACT_IDX_BATCH_MONITOR_JOB_DEF;
+drop index ACT_IDX_BATCH_JOB_DEF;
+
+drop index ACT_IDX_PROCDEF_VER_TAG;
 
 drop table ACT_GE_PROPERTY if exists;
 drop table ACT_GE_BYTEARRAY if exists;
@@ -119,4 +150,5 @@ drop table ACT_RU_AUTHORIZATION if exists;
 drop table ACT_RU_FILTER if exists;
 drop table ACT_RU_METER_LOG if exists;
 drop table ACT_RU_EXT_TASK if exists;
+drop table ACT_RU_BATCH if exists;
 

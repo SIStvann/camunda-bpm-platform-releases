@@ -63,9 +63,17 @@ public class ProcessApplicationManager {
     return registration;
   }
 
+  public synchronized void clearRegistrations() {
+    registrationsByDeploymentId.clear();
+  }
+
   public synchronized void unregisterProcessApplicationForDeployments(Set<String> deploymentIds, boolean removeProcessesFromCache) {
     removeJobExecutorRegistrations(deploymentIds);
     removeProcessApplicationRegistration(deploymentIds, removeProcessesFromCache);
+  }
+
+  public boolean hasRegistrations() {
+    return !registrationsByDeploymentId.isEmpty();
   }
 
   protected DefaultProcessApplicationRegistration createProcessApplicationRegistration(Set<String> deploymentsToRegister, ProcessApplicationReference reference) {
@@ -129,7 +137,7 @@ public class ProcessApplicationManager {
 
   protected void logRegistration(Set<String> deploymentIds, ProcessApplicationReference reference) {
 
-    if (LOG.isInfoEnabled()) {
+    if (!LOG.isInfoEnabled()) {
       // building the log message is expensive (db queries) so we avoid it if we can
       return;
     }

@@ -30,9 +30,9 @@ import org.camunda.bpm.engine.runtime.Job;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.task.Task;
 import org.camunda.bpm.engine.test.Deployment;
-import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener;
-import org.camunda.bpm.engine.test.examples.bpmn.executionlistener.RecorderExecutionListener.RecordedEvent;
-import org.camunda.bpm.engine.test.examples.bpmn.tasklistener.RecorderTaskListener;
+import org.camunda.bpm.engine.test.bpmn.executionlistener.RecorderExecutionListener;
+import org.camunda.bpm.engine.test.bpmn.executionlistener.RecorderExecutionListener.RecordedEvent;
+import org.camunda.bpm.engine.test.bpmn.tasklistener.util.RecorderTaskListener;
 import org.camunda.bpm.engine.test.util.ExecutionTree;
 import org.camunda.bpm.engine.variable.Variables;
 
@@ -1522,11 +1522,8 @@ public class ProcessInstanceModificationTest extends PluggableProcessEngineTestC
     assertProcessEnded(processInstance.getId());
   }
 
-  /**
-   * disabled until CAM-3604 is fixed
-   */
   @Deployment(resources = TRANSACTION_WITH_COMPENSATION_PROCESS)
-  public void FAILING_testStartAfterActivityDuringCompensation() {
+  public void testStartAfterActivityDuringCompensation() {
     ProcessInstance processInstance = runtimeService.startProcessInstanceByKey("testProcess");
 
     completeTasksInOrder("userTask");

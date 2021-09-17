@@ -18,6 +18,7 @@ import java.util.Map;
 import org.camunda.bpm.dmn.engine.DmnDecisionTableResult;
 import org.camunda.bpm.engine.authorization.Permissions;
 import org.camunda.bpm.engine.authorization.Resources;
+import org.camunda.bpm.engine.dmn.DecisionEvaluationBuilder;
 import org.camunda.bpm.engine.exception.NotFoundException;
 import org.camunda.bpm.engine.exception.NotValidException;
 
@@ -41,7 +42,7 @@ public interface DecisionService {
    *           when no decision definition is deployed with the given id.
    *
    * @throws NotValidException
-   *           when the given case definition id is null.
+   *           when the given decision definition id is null.
    *
    * @throws AuthorizationException
    *           if the user has no {@link Permissions#CREATE_INSTANCE} permission
@@ -62,7 +63,7 @@ public interface DecisionService {
    *           when no decision definition is deployed with the given key.
    *
    * @throws NotValidException
-   *           when the given case definition key is null.
+   *           when the given decision definition key is null.
    *
    * @throws AuthorizationException
    *           if the user has no {@link Permissions#CREATE_INSTANCE} permission
@@ -89,7 +90,7 @@ public interface DecisionService {
    *           version.
    *
    * @throws NotValidException
-   *           when the given case definition key is null.
+   *           when the given decision definition key is null.
    *
    * @throws AuthorizationException
    *           if the user has no {@link Permissions#CREATE_INSTANCE} permission
@@ -97,4 +98,27 @@ public interface DecisionService {
    */
   DmnDecisionTableResult evaluateDecisionTableByKeyAndVersion(String decisionDefinitionKey, Integer version, Map<String, Object> variables);
 
+  /**
+   * Returns a fluent builder to evaluate the decision with the given key.
+   * The builder can be used to set further properties and specify evaluation
+   * instructions.
+   *
+   * @param decisionDefinitionKey
+   *          the key of the decision definition, cannot be <code>null</code>.
+   *
+   * @return a builder to evaluate a decision
+   */
+  DecisionEvaluationBuilder evaluateDecisionTableByKey(String decisionDefinitionKey);
+
+  /**
+   * Returns a fluent builder to evaluate the decision with the given id.
+   * The builder can be used to set further properties and specify evaluation
+   * instructions.
+   *
+   * @param decisionDefinitionId
+   *          the id of the decision definition, cannot be <code>null<code>.
+   *
+   * @return a builder to evaluate a decision
+   */
+  DecisionEvaluationBuilder evaluateDecisionTableById(String decisionDefinitionId);
 }

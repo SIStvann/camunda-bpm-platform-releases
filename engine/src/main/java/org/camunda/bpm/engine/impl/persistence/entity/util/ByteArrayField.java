@@ -15,6 +15,7 @@ package org.camunda.bpm.engine.impl.persistence.entity.util;
 
 import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.persistence.entity.ByteArrayEntity;
+import org.camunda.bpm.engine.impl.persistence.entity.Nameable;
 import org.camunda.bpm.engine.impl.variable.serializer.ValueFields;
 
 /**
@@ -28,10 +29,10 @@ public class ByteArrayField {
   protected ByteArrayEntity byteArrayValue;
   protected String byteArrayId;
 
-  protected final ValueFields valueFields;
+  protected final Nameable nameProvider;
 
-  public ByteArrayField(ValueFields valueFields) {
-    this.valueFields = valueFields;
+  public ByteArrayField(Nameable nameProvider) {
+    this.nameProvider = nameProvider;
   }
 
   public String getByteArrayId() {
@@ -81,7 +82,7 @@ public class ByteArrayField {
       else {
         deleteByteArrayValue();
 
-        byteArrayValue = new ByteArrayEntity(valueFields.getName(), bytes);
+        byteArrayValue = new ByteArrayEntity(nameProvider.getName(), bytes);
         Context.
           getCommandContext()
           .getDbEntityManager()

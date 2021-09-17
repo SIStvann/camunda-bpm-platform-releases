@@ -51,12 +51,16 @@ public class HistoricDecisionInstanceQueryImpl extends AbstractQuery<HistoricDec
 
   protected Date evaluatedBefore;
   protected Date evaluatedAfter;
+  
+  protected String userId;
 
   protected boolean includeInput = false;
   protected boolean includeOutputs = false;
 
   protected boolean isByteArrayFetchingEnabled = true;
   protected boolean isCustomObjectDeserializationEnabled = true;
+
+  protected String[] tenantIds;
 
   public HistoricDecisionInstanceQueryImpl() {
   }
@@ -164,6 +168,23 @@ public class HistoricDecisionInstanceQueryImpl extends AbstractQuery<HistoricDec
     return this;
   }
 
+  public HistoricDecisionInstanceQuery tenantIdIn(String... tenantIds) {
+    ensureNotNull("tenantIds", (Object[]) tenantIds);
+    this.tenantIds = tenantIds;
+    return this;
+  }
+
+  public HistoricDecisionInstanceQuery orderByTenantId() {
+    return orderBy(HistoricDecisionInstanceQueryProperty.TENANT_ID);
+  }
+
+  @Override
+  public HistoricDecisionInstanceQuery userId(String userId) {
+    ensureNotNull(NotValidException.class, "userId", userId);
+    this.userId = userId;
+    return this;
+  }
+
   @Override
   public HistoricDecisionInstanceQuery orderByEvaluationTime() {
     orderBy(HistoricDecisionInstanceQueryProperty.EVALUATION_TIME);
@@ -228,6 +249,10 @@ public class HistoricDecisionInstanceQueryImpl extends AbstractQuery<HistoricDec
 
   public String[] getActivityIds() {
     return activityIds;
+  }
+
+  public String[] getTenantIds() {
+    return tenantIds;
   }
 
   public HistoricDecisionInstanceQuery includeInputs() {

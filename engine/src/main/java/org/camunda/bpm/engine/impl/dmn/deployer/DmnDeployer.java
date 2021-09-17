@@ -12,18 +12,19 @@
  */
 package org.camunda.bpm.engine.impl.dmn.deployer;
 
+import java.io.ByteArrayInputStream;
+import java.util.List;
+
 import org.camunda.bpm.dmn.engine.impl.spi.transform.DmnTransformer;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.impl.AbstractDefinitionDeployer;
+import org.camunda.bpm.engine.impl.core.model.Properties;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionEntity;
 import org.camunda.bpm.engine.impl.dmn.entity.repository.DecisionDefinitionManager;
 import org.camunda.bpm.engine.impl.persistence.deploy.Deployer;
 import org.camunda.bpm.engine.impl.persistence.deploy.DeploymentCache;
 import org.camunda.bpm.engine.impl.persistence.entity.DeploymentEntity;
 import org.camunda.bpm.engine.impl.persistence.entity.ResourceEntity;
-
-import java.io.ByteArrayInputStream;
-import java.util.List;
 
 /**
  * {@link Deployer} responsible to parse DMN 1.0 XML files and create the
@@ -35,11 +36,13 @@ public class DmnDeployer extends AbstractDefinitionDeployer<DecisionDefinitionEn
 
   protected DmnTransformer transformer;
 
+  @Override
   protected String[] getResourcesSuffixes() {
     return DMN_RESOURCE_SUFFIXES;
   }
 
-  protected List<DecisionDefinitionEntity> transformDefinitions(DeploymentEntity deployment, ResourceEntity resource) {
+  @Override
+  protected List<DecisionDefinitionEntity> transformDefinitions(DeploymentEntity deployment, ResourceEntity resource, Properties properties) {
     byte[] bytes = resource.getBytes();
     ByteArrayInputStream inputStream = new ByteArrayInputStream(bytes);
 
@@ -51,18 +54,22 @@ public class DmnDeployer extends AbstractDefinitionDeployer<DecisionDefinitionEn
     }
   }
 
+  @Override
   protected DecisionDefinitionEntity findDefinitionByDeploymentAndKey(String deploymentId, String definitionKey) {
     return getDecisionDefinitionManager().findDecisionDefinitionByDeploymentAndKey(deploymentId, definitionKey);
   }
 
-  protected DecisionDefinitionEntity findLatestDefinitionByKey(String definitionKey) {
-    return getDecisionDefinitionManager().findLatestDecisionDefinitionByKey(definitionKey);
+  @Override
+  protected DecisionDefinitionEntity findLatestDefinitionByKeyAndTenantId(String definitionKey, String tenantId) {
+    return getDecisionDefinitionManager().findLatestDecisionDefinitionByKeyAndTenantId(definitionKey, tenantId);
   }
 
+  @Override
   protected void persistDefinition(DecisionDefinitionEntity definition) {
     getDecisionDefinitionManager().insertDecisionDefinition(definition);
   }
 
+  @Override
   protected void addDefinitionToDeploymentCache(DeploymentCache deploymentCache, DecisionDefinitionEntity definition) {
     deploymentCache.addDecisionDefinition(definition);
   }

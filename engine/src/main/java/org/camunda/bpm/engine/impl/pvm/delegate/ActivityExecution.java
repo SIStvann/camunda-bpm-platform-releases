@@ -128,6 +128,11 @@ public interface ActivityExecution extends DelegateExecution {
   List<? extends ActivityExecution> getExecutions();
 
   /**
+   * returns child executions that are not event scope executions.
+   */
+  List<? extends ActivityExecution> getNonEventScopeExecutions();
+
+  /**
    * @return true if this execution has child executions (event scope executions or not)
    */
   boolean hasChildren();
@@ -201,6 +206,8 @@ public interface ActivityExecution extends DelegateExecution {
    * Retrieves all executions which are concurrent and inactive at the given activity.
    */
   List<ActivityExecution> findInactiveConcurrentExecutions(PvmActivity activity);
+
+  List<ActivityExecution> findInactiveChildExecutions(PvmActivity activity);
 
   /**
    * Takes the given outgoing transitions, and potentially reusing

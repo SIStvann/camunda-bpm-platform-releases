@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.camunda.bpm.engine.ProcessEngineConfiguration;
 import org.camunda.bpm.engine.ProcessEngineException;
 import org.camunda.bpm.engine.history.HistoricDecisionInputInstance;
 import org.camunda.bpm.engine.history.HistoricDecisionInstance;
@@ -39,14 +40,17 @@ import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.CaseInstance;
 import org.camunda.bpm.engine.runtime.ProcessInstance;
 import org.camunda.bpm.engine.test.Deployment;
-import org.camunda.bpm.engine.test.variables.JavaSerializable;
+import org.camunda.bpm.engine.test.RequiredHistoryLevel;
+import org.camunda.bpm.engine.test.api.variables.JavaSerializable;
 import org.camunda.bpm.engine.variable.VariableMap;
 import org.camunda.bpm.engine.variable.Variables;
 import org.joda.time.DateTime;
 
 /**
  * @author Philipp Ossler
+ * @author Ingo Richtsmeier
  */
+@RequiredHistoryLevel(ProcessEngineConfiguration.HISTORY_FULL)
 public class HistoricDecisionInstanceTest extends PluggableProcessEngineTestCase {
 
   public static final String DECISION_CASE = "org/camunda/bpm/engine/test/history/HistoricDecisionInstanceTest.caseWithDecisionTask.cmmn";
@@ -68,6 +72,8 @@ public class HistoricDecisionInstanceTest extends PluggableProcessEngineTestCase
   public static final String DECISION_MULTIPLE_INPUT_DMN = "org/camunda/bpm/engine/test/history/HistoricDecisionInstanceTest.decisionMultipleInput.dmn11.xml";
   public static final String DECISION_COLLECT_SUM_DMN = "org/camunda/bpm/engine/test/history/HistoricDecisionInstanceTest.decisionCollectSum.dmn11.xml";
   public static final String DECISION_RETURNS_TRUE = "org/camunda/bpm/engine/test/history/HistoricDecisionInstanceTest.returnsTrue.dmn11.xml";
+
+  public static final String DECISION_NO_INPUT_DMN = "org/camunda/bpm/engine/test/history/HistoricDecisionInstanceTest.noInput.dmn11.xml";
 
   protected static final String DECISION_DEFINITION_KEY = "testDecision";
 
@@ -200,6 +206,27 @@ public class HistoricDecisionInstanceTest extends PluggableProcessEngineTestCase
 
     assertThat(query.decisionInstanceId("nonExisting").singleResult(), is(nullValue()));
   }
+
+  @Deployment(resources = { DECISION_PROCESS, DECISION_NO_INPUT_DMN })
+  public void testQueryIncludeInputsNoInput() {
+
+    startProcessInstanceAndEvaluateDecision();
+
+    HistoricDecisionInstanceQuery query = historyService.createHistoricDecisionInstanceQuery();
+
+    assertThat(query.includeInputs().singleResult().getInputs().size(), is(0));
+  }
+
+  @Deployment(resources = { DECISION_PROCESS, DECISION_NO_INPUT_DMN })
+  public void testQueryIncludeOutputsNoInput() {
+
+    startProcessInstanceAndEvaluateDecision();
+
+    HistoricDecisionInstanceQuery query = historyService.createHistoricDecisionInstanceQuery();
+
+    assertThat(query.includeOutputs().singleResult().getOutputs().size(), is(0));
+  }
+
 
   @Deployment(resources = { DECISION_PROCESS, DECISION_SINGLE_OUTPUT_DMN })
   public void testDecisionInputInstanceProperties() {
@@ -760,11 +787,36 @@ public class HistoricDecisionInstanceTest extends PluggableProcessEngineTestCase
     }
   }
 
+  @Deployment(resources = { DECISION_SINGLE_OUTPUT_DMN })
+  public void testQueryByUserId() {
+    evaluateDecisionWithAuthenticatedUser("demo");
+
+    HistoricDecisionInstanceQuery query = historyService.createHistoricDecisionInstanceQuery();
+
+    assertThat(query.userId("demo").count(), is(1L));
+  }
+
+  @Deployment(resources = { DECISION_SINGLE_OUTPUT_DMN })
+  public void testQueryByInvalidUserId() {
+    evaluateDecisionWithAuthenticatedUser("demo");
+
+    HistoricDecisionInstanceQuery query = historyService.createHistoricDecisionInstanceQuery();
+
+    assertThat(query.userId("dem1").count(), is(0L));
+
+    try {
+      query.userId(null);
+      fail("exception expected");
+    } catch (ProcessEngineException e) {
+    }
+  }
+
   public void testTableNames() {
+    String tablePrefix = processEngineConfiguration.getDatabaseTablePrefix();
 
-    assertThat(managementService.getTableName(HistoricDecisionInstance.class), is("ACT_HI_DECINST"));
+    assertThat(managementService.getTableName(HistoricDecisionInstance.class), is(tablePrefix +"ACT_HI_DECINST"));
 
-    assertThat(managementService.getTableName(HistoricDecisionInstanceEntity.class), is("ACT_HI_DECINST"));
+    assertThat(managementService.getTableName(HistoricDecisionInstanceEntity.class), is(tablePrefix + "ACT_HI_DECINST"));
   }
 
   @Deployment(resources = { DECISION_PROCESS, DECISION_SINGLE_OUTPUT_DMN })
@@ -772,14 +824,16 @@ public class HistoricDecisionInstanceTest extends PluggableProcessEngineTestCase
 
     startProcessInstanceAndEvaluateDecision();
 
+    String tablePrefix = processEngineConfiguration.getDatabaseTablePrefix();
+
     NativeHistoricDecisionInstanceQuery nativeQuery = historyService
-        .createNativeHistoricDecisionInstanceQuery().sql("SELECT * FROM ACT_HI_DECINST");
+        .createNativeHistoricDecisionInstanceQuery().sql("SELECT * FROM " + tablePrefix + "ACT_HI_DECINST");
 
     assertThat(nativeQuery.list().size(), is(1));
 
     NativeHistoricDecisionInstanceQuery nativeQueryWithParameter = historyService
         .createNativeHistoricDecisionInstanceQuery()
-        .sql("SELECT * FROM ACT_HI_DECINST H WHERE H.DEC_DEF_KEY_ = #{decisionDefinitionKey}");
+        .sql("SELECT * FROM " + tablePrefix + "ACT_HI_DECINST H WHERE H.DEC_DEF_KEY_ = #{decisionDefinitionKey}");
 
     assertThat(nativeQueryWithParameter.parameter("decisionDefinitionKey", DECISION_DEFINITION_KEY).list().size(), is(1));
     assertThat(nativeQueryWithParameter.parameter("decisionDefinitionKey", "other decision").list().size(), is(0));
@@ -790,8 +844,10 @@ public class HistoricDecisionInstanceTest extends PluggableProcessEngineTestCase
 
     startProcessInstanceAndEvaluateDecision();
 
+    String tablePrefix = processEngineConfiguration.getDatabaseTablePrefix();
+
     NativeHistoricDecisionInstanceQuery nativeQuery = historyService
-        .createNativeHistoricDecisionInstanceQuery().sql("SELECT count(*) FROM ACT_HI_DECINST");
+        .createNativeHistoricDecisionInstanceQuery().sql("SELECT count(*) FROM " + tablePrefix + "ACT_HI_DECINST");
 
     assertThat(nativeQuery.count(), is(1L));
   }
@@ -802,8 +858,10 @@ public class HistoricDecisionInstanceTest extends PluggableProcessEngineTestCase
     startProcessInstanceAndEvaluateDecision();
     startProcessInstanceAndEvaluateDecision();
 
+    String tablePrefix = processEngineConfiguration.getDatabaseTablePrefix();
+
     NativeHistoricDecisionInstanceQuery nativeQuery = historyService.createNativeHistoricDecisionInstanceQuery()
-        .sql("SELECT * FROM ACT_HI_DECINST");
+        .sql("SELECT * FROM " + tablePrefix + "ACT_HI_DECINST");
 
     assertThat(nativeQuery.listPage(0, 2).size(), is(2));
     assertThat(nativeQuery.listPage(1, 1).size(), is(1));
@@ -869,6 +927,8 @@ public class HistoricDecisionInstanceTest extends PluggableProcessEngineTestCase
     assertThat(historicDecisionInstance.getProcessInstanceId(), is(nullValue()));
     assertThat(historicDecisionInstance.getActivityId(), is(nullValue()));
     assertThat(historicDecisionInstance.getActivityInstanceId(), is(nullValue()));
+    // the user should be null since no user was authenticated during evaluation
+    assertThat(historicDecisionInstance.getUserId(), is(nullValue()));
   }
 
   @Deployment(resources = { DECISION_PROCESS_WITH_DECISION_SERVICE, DECISION_SINGLE_OUTPUT_DMN })
@@ -1049,6 +1109,45 @@ public class HistoricDecisionInstanceTest extends PluggableProcessEngineTestCase
     assertThat(historicDecisionInstance.getEvaluationTime(), is(notNullValue()));
   }
 
+  @Deployment(resources = { DECISION_SINGLE_OUTPUT_DMN })
+  public void testDecisionEvaluatedWithAuthenticatedUser() {
+    identityService.setAuthenticatedUserId("demo");
+    VariableMap variables = Variables.putValue("input1", "test");
+    decisionService.evaluateDecisionTableByKey(DECISION_DEFINITION_KEY, variables);
+
+    HistoricDecisionInstance historicDecisionInstance = historyService.createHistoricDecisionInstanceQuery().singleResult();
+
+    assertThat(historicDecisionInstance, is(notNullValue()));
+    // the user should be set since the decision was evaluated with the decision service
+    assertThat(historicDecisionInstance.getUserId(), is("demo"));
+  }
+
+  @Deployment(resources = { DECISION_PROCESS, DECISION_SINGLE_OUTPUT_DMN })
+  public void testDecisionEvaluatedWithAuthenticatedUserFromProcess() {
+    identityService.setAuthenticatedUserId("demo");
+    startProcessInstanceAndEvaluateDecision();
+
+    HistoricDecisionInstance historicDecisionInstance = historyService.createHistoricDecisionInstanceQuery().singleResult();
+
+    assertThat(historicDecisionInstance, is(notNullValue()));
+    // the user should be null since the decision was evaluated by the process
+    assertThat(historicDecisionInstance.getUserId(), is(nullValue()));
+  }
+
+  @Deployment(resources = { DECISION_CASE_WITH_DECISION_SERVICE, DECISION_SINGLE_OUTPUT_DMN })
+  public void testDecisionEvaluatedWithAuthenticatedUserFromCase() {
+    identityService.setAuthenticatedUserId("demo");
+    CaseInstance caseInstance = createCaseInstanceAndEvaluateDecision();
+
+    HistoricDecisionInstance historicDecisionInstance = historyService
+        .createHistoricDecisionInstanceQuery()
+        .singleResult();
+
+    assertThat(historicDecisionInstance, is(notNullValue()));
+    // the user should be null since decision was evaluated by the case
+    assertThat(historicDecisionInstance.getUserId(), is(nullValue()));
+  }
+
   @Deployment(resources = { DECISION_CASE_WITH_DECISION_SERVICE, DECISION_SINGLE_OUTPUT_DMN })
   public void testCaseDecisionEvaluatedWithDecisionServiceInsideDelegate() {
 
@@ -1210,6 +1309,12 @@ public class HistoricDecisionInstanceTest extends PluggableProcessEngineTestCase
         .withCaseDefinitionByKey("case")
         .setVariables(getVariables(input))
         .create();
+  }
+
+  protected void evaluateDecisionWithAuthenticatedUser(String userId) {
+    identityService.setAuthenticatedUserId(userId);
+    VariableMap variables = Variables.putValue("input1", "test");
+    decisionService.evaluateDecisionTableByKey(DECISION_DEFINITION_KEY, variables);
   }
 
   protected VariableMap getVariables(Object input) {

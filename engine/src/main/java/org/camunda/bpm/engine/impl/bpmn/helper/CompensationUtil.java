@@ -33,7 +33,8 @@ import org.camunda.bpm.engine.impl.pvm.process.ScopeImpl;
 import org.camunda.bpm.engine.impl.pvm.runtime.PvmExecutionImpl;
 import org.camunda.bpm.engine.impl.tree.TreeVisitor;
 import org.camunda.bpm.engine.impl.tree.FlowScopeWalker;
-import org.camunda.bpm.engine.impl.tree.TreeWalker.WalkCondition;
+import org.camunda.bpm.engine.impl.tree.ReferenceWalker;
+import org.camunda.bpm.engine.impl.tree.ReferenceWalker.WalkCondition;
 
 /**
  * @author Daniel Meyer
@@ -51,15 +52,13 @@ public class CompensationUtil {
   public static void throwCompensationEvent(List<CompensateEventSubscriptionEntity> eventSubscriptions, ActivityExecution execution, boolean async) {
 
     // first spawn the compensating executions
-    for (EventSubscriptionEntity eventSubscription : eventSubscriptions) {
-      ExecutionEntity compensatingExecution = null;
+    for (CompensateEventSubscriptionEntity eventSubscription : eventSubscriptions) {
       // check whether compensating execution is already created
       // (which is the case when compensating an embedded subprocess,
       // where the compensating execution is created when leaving the subprocess
       // and holds snapshot data).
-      if (eventSubscription.getConfiguration() != null) {
-        compensatingExecution = Context.getCommandContext().getExecutionManager().findExecutionById(eventSubscription.getConfiguration());
-
+      ExecutionEntity compensatingExecution = eventSubscription.getCompensatingExecution();
+      if (compensatingExecution != null) {
         if (compensatingExecution.getParent() != execution) {
           // move the compensating execution under this execution if this is not the case yet
           compensatingExecution.setParent((PvmExecutionImpl) execution);
@@ -185,7 +184,7 @@ public class CompensationUtil {
       }
     };
 
-    new FlowScopeWalker(activity).addPostVisitor(eventSubscriptionCollector).walkUntil(new WalkCondition<ScopeImpl>() {
+    new FlowScopeWalker(activity).addPostVisitor(eventSubscriptionCollector).walkUntil(new ReferenceWalker.WalkCondition<ScopeImpl>() {
       @Override
       public boolean isFulfilled(ScopeImpl element) {
         Boolean consumesCompensationProperty = (Boolean) element.getProperty(BpmnParse.PROPERTYNAME_CONSUMES_COMPENSATION);

@@ -64,6 +64,11 @@ public class QueryOrderingProperty implements Serializable {
   public QueryOrderingProperty() {
   }
 
+  public QueryOrderingProperty(QueryProperty queryProperty, Direction direction) {
+    this.queryProperty = queryProperty;
+    this.direction = direction;
+  }
+
   public QueryOrderingProperty(String relation, QueryProperty queryProperty) {
     this.relation = relation;
     this.queryProperty = queryProperty;
@@ -114,6 +119,7 @@ public class QueryOrderingProperty implements Serializable {
     return relation == null && queryProperty.getFunction() == null;
   }
 
+  @Override
   public String toString() {
 
     return "QueryOrderingProperty["
@@ -127,11 +133,13 @@ public class QueryOrderingProperty implements Serializable {
   public String getRelationConditionsString() {
     StringBuilder builder = new StringBuilder();
     builder.append("[");
-    for (int i = 0; i < relationConditions.size(); i++) {
-      if (i > 0) {
-        builder.append(",");
+    if(relationConditions != null) {
+      for (int i = 0; i < relationConditions.size(); i++) {
+        if (i > 0) {
+          builder.append(",");
+        }
+        builder.append(relationConditions.get(i));
       }
-      builder.append(relationConditions.get(i));
     }
     builder.append("]");
     return builder.toString();

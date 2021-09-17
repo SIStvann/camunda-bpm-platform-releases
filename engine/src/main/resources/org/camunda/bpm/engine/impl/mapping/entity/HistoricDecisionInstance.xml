@@ -21,7 +21,9 @@
       ACT_INST_ID_,
       ACT_ID_,
       EVAL_TIME_,
-      COLLECT_VALUE_)
+      COLLECT_VALUE_,
+      USER_ID_,
+      TENANT_ID_)
     values (#{id, jdbcType=VARCHAR},
             #{decisionDefinitionId, jdbcType=VARCHAR},
             #{decisionDefinitionKey, jdbcType=VARCHAR},
@@ -35,7 +37,9 @@
             #{activityInstanceId, jdbcType=VARCHAR},
             #{activityId, jdbcType=VARCHAR},
             #{evaluationTime, jdbcType=TIMESTAMP},
-            #{collectResultValue, jdbcType=DOUBLE}
+            #{collectResultValue, jdbcType=DOUBLE},
+            #{userId, jdbcType=VARCHAR},
+            #{tenantId, jdbcType=VARCHAR}
            )
   </insert>
   
@@ -62,13 +66,16 @@
     <result property="activityId" column="ACT_ID_" jdbcType="VARCHAR"/>
     <result property="evaluationTime" column="EVAL_TIME_" jdbcType="TIMESTAMP"/>
     <result property="collectResultValue" column="COLLECT_VALUE_" jdbcType="DOUBLE"/>
+    <result property="userId" column="USER_ID_" jdbcType="VARCHAR"/>
+    <result property="tenantId" column="TENANT_ID_" jdbcType="VARCHAR"/>
   </resultMap>
 
   <!-- select -->
-  
+
   <select id="selectHistoricDecisionInstancesByDecisionDefinitionId" parameterType="org.camunda.bpm.engine.impl.db.ListQueryParameterObject" resultMap="historicDecisionInstanceResultMap">
-    select * from ${prefix}ACT_HI_DECINST 
+    select * from ${prefix}ACT_HI_DECINST RES
     where DEC_DEF_ID_ = #{parameter, jdbcType=VARCHAR}
+    <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
   </select>
 
   <select id="selectHistoricDecisionInstancesByQueryCriteria" parameterType="org.camunda.bpm.engine.impl.HistoricDecisionInstanceQueryImpl" resultMap="historicDecisionInstanceResultMap">
@@ -118,6 +125,19 @@
 
   <sql id="selectHistoricDecisionInstancesByQueryCriteriaSql">
     from ${prefix}ACT_HI_DECINST RES
+
+    <if test="authCheck.isAuthorizationCheckEnabled &amp;&amp; authCheck.authUserId != null">
+      INNER JOIN (
+        SELECT
+            SELF.DEC_DEF_KEY_ AS KEY_
+        FROM
+            (SELECT DISTINCT DKEYS.DEC_DEF_KEY_ from ${prefix}ACT_HI_DECINST DKEYS) SELF
+        WHERE
+            <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.querySingleAuthorizationCheck" />
+      ) AUTH
+      ON AUTH.KEY_ = RES.DEC_DEF_KEY_
+    </if>
+
     <where>
       <if test="decisionInstanceId != null">
         RES.ID_ = #{decisionInstanceId}
@@ -176,9 +196,21 @@
       <if test="evaluatedAfter != null">
         and RES.EVAL_TIME_ &gt;= #{evaluatedAfter}
       </if>
-
-      <include refid="org.camunda.bpm.engine.impl.persistence.entity.AuthorizationEntity.queryAuthorizationCheck" />
       
+      <if test="userId != null">
+        and RES.USER_ID_ = #{userId} 
+      </if>
+
+      <if test="tenantIds != null &amp;&amp; tenantIds.length > 0">
+        and RES.TENANT_ID_ in
+        <foreach item="tenantId" index="index" collection="tenantIds"
+                 open="(" separator="," close=")">
+          #{tenantId}
+        </foreach>
+      </if>
+
+      <include refid="org.camunda.bpm.engine.impl.persistence.entity.TenantEntity.queryTenantCheck" />
+
     </where>
   </sql>
 
