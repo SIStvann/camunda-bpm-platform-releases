@@ -757,7 +757,7 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
    * <li>CANCEL_EVENT_SCOPE: scope execution for {@link PvmActivity#getEventScope()}</li>
    * </ul>
    *
-   * @param the activity to start
+   * @param activity the activity to start
    */
   @Override
   public void executeActivity(PvmActivity activity) {
@@ -1114,6 +1114,13 @@ public abstract class PvmExecutionImpl extends CoreExecution implements Activity
   @Override
   public String getProcessBusinessKey() {
     return getProcessInstance().getBusinessKey();
+  }
+
+  @Override
+  public String getBusinessKey() {
+    if (this.isProcessInstanceExecution()) {
+      return businessKey;
+    } else return getProcessBusinessKey();
   }
 
   // process definition ///////////////////////////////////////////////////////

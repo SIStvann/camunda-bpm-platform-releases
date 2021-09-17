@@ -24,11 +24,6 @@ import org.camunda.bpm.engine.externaltask.ExternalTaskQuery;
 import org.camunda.bpm.engine.externaltask.ExternalTaskQueryBuilder;
 import org.camunda.bpm.engine.externaltask.UpdateExternalTaskRetriesBuilder;
 import org.camunda.bpm.engine.externaltask.UpdateExternalTaskRetriesSelectBuilder;
-import org.camunda.bpm.engine.history.HistoricProcessInstanceQuery;
-import org.camunda.bpm.engine.runtime.JobQuery;
-import org.camunda.bpm.engine.runtime.ProcessInstanceQuery;
-import org.camunda.bpm.engine.runtime.UpdateProcessInstanceSuspensionStateBuilder;
-import org.camunda.bpm.engine.runtime.UpdateProcessInstanceSuspensionStateSelectBuilder;
 
 /**
  * Service that provides access to {@link ExternalTask} instances. External tasks
@@ -129,6 +124,26 @@ public interface ExternalTaskService {
    */
   public void complete(String externalTaskId, String workerId, Map<String, Object> variables);
 
+  /**
+   * <p>Completes an external task on behalf of a worker and submits variables
+   * to the process instance before continuing execution. The given task must be
+   * assigned to the worker.</p>
+   *
+   * @param externalTaskId the id of the external to complete
+   * @param workerId the id of the worker that completes the task
+   * @param variables a map of variables to set on the execution
+   *   the external task is assigned to
+   * @param localVariables a map of variables to set on the execution locally
+   *
+   * @throws NotFoundException if no external task with the given id exists
+   * @throws BadUserRequestException if the task is assigned to a different worker
+   * @throws AuthorizationException thrown if the current user does not possess any of the following permissions:
+   *   <ul>
+   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_INSTANCE}</li>
+   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
+   *   </ul>
+   */
+  public void complete(String externalTaskId, String workerId, Map<String, Object> variables, Map<String, Object> localVariables);
 
   /**
    * <p>Extends a lock of an external task on behalf of a worker.
@@ -284,12 +299,8 @@ public interface ExternalTaskService {
    * @param externalTaskQuery a query which selects the external tasks to set the retries for.
    * @throws NotFoundException if no external task with one of the given id exists
    * @throws BadUserRequestException if the ids are null or the number of retries is negative
-   * @throws AuthorizationException thrown if the current user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}
-   *    or does not possess any of the following permissions:
-   *   <ul>
-   *     <li>{@link Permissions#UPDATE} on {@link Resources#PROCESS_INSTANCE}</li>
-   *     <li>{@link Permissions#UPDATE_INSTANCE} on {@link Resources#PROCESS_DEFINITION}</li>
-   *   </ul>
+   * @throws AuthorizationException
+   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
    */
   public Batch setRetriesAsync(List<String> externalTaskIds, ExternalTaskQuery externalTaskQuery, int retries);
 

@@ -26,6 +26,7 @@ import org.camunda.bpm.engine.migration.MigrationPlanExecutionBuilder;
 import org.camunda.bpm.engine.repository.Deployment;
 import org.camunda.bpm.engine.repository.ProcessDefinition;
 import org.camunda.bpm.engine.runtime.ActivityInstance;
+import org.camunda.bpm.engine.runtime.ConditionEvaluationBuilder;
 import org.camunda.bpm.engine.runtime.EventSubscriptionQuery;
 import org.camunda.bpm.engine.runtime.Execution;
 import org.camunda.bpm.engine.runtime.ExecutionQuery;
@@ -600,9 +601,7 @@ public interface RuntimeService {
    * @throws BadUserRequestException
    *          when no process instance is found with the given id or id is null.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#DELETE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}
-   *          or no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
    */
   Batch deleteProcessInstancesAsync(List<String> processInstanceIds, ProcessInstanceQuery processInstanceQuery, String deleteReason);
 
@@ -619,9 +618,7 @@ public interface RuntimeService {
    * @throws BadUserRequestException
    *          when no process instance is found with the given id or id is null.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#DELETE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}
-   *          or no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
    */
   Batch deleteProcessInstancesAsync(List<String> processInstanceIds, ProcessInstanceQuery processInstanceQuery, String deleteReason, boolean skipCustomListeners);
 
@@ -640,9 +637,7 @@ public interface RuntimeService {
    * @throws BadUserRequestException
    *          when no process instance is found with the given id or id is null.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#DELETE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}
-   *          or no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
    */
   Batch deleteProcessInstancesAsync(List<String> processInstanceIds, ProcessInstanceQuery processInstanceQuery, String deleteReason, boolean skipCustomListeners, boolean skipSubprocesses);
 
@@ -658,9 +653,7 @@ public interface RuntimeService {
    * @throws BadUserRequestException
    *          when no process instance is found with the given id or id is null.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#DELETE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}
-   *          or no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
    */
   Batch deleteProcessInstancesAsync(ProcessInstanceQuery processInstanceQuery, String deleteReason);
 
@@ -678,9 +671,7 @@ public interface RuntimeService {
    * @throws BadUserRequestException
    *          when no process instance is found with the given id or id is null.
    * @throws AuthorizationException
-   *          if the user has no {@link Permissions#DELETE} permission on {@link Resources#PROCESS_INSTANCE}
-   *          or no {@link Permissions#DELETE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}
-   *          or no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
+   *          If the user has no {@link Permissions#CREATE} permission on {@link Resources#BATCH}.
    */
   Batch deleteProcessInstancesAsync(List<String> processInstanceIds, String deleteReason);
 
@@ -2032,4 +2023,12 @@ public interface RuntimeService {
    *          and no {@link Permissions#UPDATE_INSTANCE} permission on {@link Resources#PROCESS_DEFINITION}.
    */
   void resolveIncident(String incidentId);
+
+  /**
+   * Define a complex condition evaluation using a fluent builder.
+   *
+   * @return the fluent builder for defining the condition evaluation.
+   */
+  ConditionEvaluationBuilder createConditionEvaluation();
+
 }

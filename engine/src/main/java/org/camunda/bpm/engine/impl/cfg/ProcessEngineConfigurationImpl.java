@@ -14,6 +14,7 @@
 package org.camunda.bpm.engine.impl.cfg;
 
 
+import static org.camunda.bpm.engine.impl.cmd.HistoryCleanupCmd.MAX_THREADS_NUMBER;
 import static org.camunda.bpm.engine.impl.util.EnsureUtil.ensureNotNull;
 
 import java.io.InputStream;
@@ -25,6 +26,7 @@ import java.sql.DatabaseMetaData;
 import java.sql.SQLException;
 import java.text.ParseException;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
@@ -112,6 +114,7 @@ import org.camunda.bpm.engine.impl.cfg.auth.ResourceAuthorizationProvider;
 import org.camunda.bpm.engine.impl.cfg.multitenancy.TenantCommandChecker;
 import org.camunda.bpm.engine.impl.cfg.multitenancy.TenantIdProvider;
 import org.camunda.bpm.engine.impl.cfg.standalone.StandaloneTransactionContextFactory;
+import org.camunda.bpm.engine.impl.cmd.HistoryCleanupCmd;
 import org.camunda.bpm.engine.impl.cmmn.CaseServiceImpl;
 import org.camunda.bpm.engine.impl.cmmn.deployer.CmmnDeployer;
 import org.camunda.bpm.engine.impl.cmmn.entity.repository.CaseDefinitionManager;
@@ -122,7 +125,6 @@ import org.camunda.bpm.engine.impl.cmmn.transformer.CmmnTransformFactory;
 import org.camunda.bpm.engine.impl.cmmn.transformer.CmmnTransformListener;
 import org.camunda.bpm.engine.impl.cmmn.transformer.CmmnTransformer;
 import org.camunda.bpm.engine.impl.cmmn.transformer.DefaultCmmnTransformFactory;
-import org.camunda.bpm.engine.impl.context.Context;
 import org.camunda.bpm.engine.impl.db.DbIdGenerator;
 import org.camunda.bpm.engine.impl.db.entitymanager.DbEntityManagerFactory;
 import org.camunda.bpm.engine.impl.db.entitymanager.cache.DbEntityCacheKeyMapping;
@@ -134,6 +136,7 @@ import org.camunda.bpm.engine.impl.digest.PasswordEncryptor;
 import org.camunda.bpm.engine.impl.digest.PasswordManager;
 import org.camunda.bpm.engine.impl.digest.SaltGenerator;
 import org.camunda.bpm.engine.impl.digest.Sha512HashDigest;
+import org.camunda.bpm.engine.impl.dmn.batch.DeleteHistoricDecisionInstancesJobHandler;
 import org.camunda.bpm.engine.impl.dmn.configuration.DmnEngineConfigurationBuilder;
 import org.camunda.bpm.engine.impl.dmn.deployer.DecisionDefinitionDeployer;
 import org.camunda.bpm.engine.impl.dmn.deployer.DecisionRequirementsDefinitionDeployer;
@@ -208,6 +211,8 @@ import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventJobHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerStartEventSubprocessJobHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerSuspendJobDefinitionHandler;
 import org.camunda.bpm.engine.impl.jobexecutor.TimerSuspendProcessDefinitionHandler;
+import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.BatchWindowManager;
+import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.DefaultBatchWindowManager;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupBatch;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupHelper;
 import org.camunda.bpm.engine.impl.jobexecutor.historycleanup.HistoryCleanupJobHandler;
@@ -293,7 +298,9 @@ import org.camunda.bpm.engine.impl.persistence.entity.TaskReportManager;
 import org.camunda.bpm.engine.impl.persistence.entity.TenantManager;
 import org.camunda.bpm.engine.impl.persistence.entity.UserOperationLogManager;
 import org.camunda.bpm.engine.impl.persistence.entity.VariableInstanceManager;
+import org.camunda.bpm.engine.impl.runtime.ConditionHandler;
 import org.camunda.bpm.engine.impl.runtime.CorrelationHandler;
+import org.camunda.bpm.engine.impl.runtime.DefaultConditionHandler;
 import org.camunda.bpm.engine.impl.runtime.DefaultCorrelationHandler;
 import org.camunda.bpm.engine.impl.scripting.ScriptFactory;
 import org.camunda.bpm.engine.impl.scripting.engine.BeansResolverFactory;
@@ -488,6 +495,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected VariableSerializerFactory fallbackSerializerFactory;
 
   protected String defaultSerializationFormat = Variables.SerializationDataFormats.JAVA.getName();
+  protected boolean javaSerializationFormatEnabled = false;
   protected String defaultCharsetName = null;
   protected Charset defaultCharset = null;
 
@@ -571,6 +579,8 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected ProcessApplicationManager processApplicationManager;
 
   protected CorrelationHandler correlationHandler;
+
+  protected ConditionHandler conditionHandler;
 
   /**
    * session factory to be used for obtaining identity provider sessions
@@ -690,15 +700,38 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   protected boolean isUseSharedSqlSessionFactory = false;
 
   //History cleanup configuration
-  private String historyCleanupBatchWindowStartTime;
-  private String historyCleanupBatchWindowEndTime = "00:00";
+  protected String historyCleanupBatchWindowStartTime;
+  protected String historyCleanupBatchWindowEndTime = "00:00";
 
-  private Date historyCleanupBatchWindowStartTimeAsDate;
-  private Date historyCleanupBatchWindowEndTimeAsDate;
+  protected Date historyCleanupBatchWindowStartTimeAsDate;
+  protected Date historyCleanupBatchWindowEndTimeAsDate;
+
+  protected Map<Integer, BatchWindowConfiguration> historyCleanupBatchWindows = new HashMap<Integer, BatchWindowConfiguration>();
+
+  //shortcuts for batch windows configuration available to be configured from XML
+  protected String mondayHistoryCleanupBatchWindowStartTime;
+  protected String mondayHistoryCleanupBatchWindowEndTime;
+  protected String tuesdayHistoryCleanupBatchWindowStartTime;
+  protected String tuesdayHistoryCleanupBatchWindowEndTime;
+  protected String wednesdayHistoryCleanupBatchWindowStartTime;
+  protected String wednesdayHistoryCleanupBatchWindowEndTime;
+  protected String thursdayHistoryCleanupBatchWindowStartTime;
+  protected String thursdayHistoryCleanupBatchWindowEndTime;
+  protected String fridayHistoryCleanupBatchWindowStartTime;
+  protected String fridayHistoryCleanupBatchWindowEndTime;
+  protected String saturdayHistoryCleanupBatchWindowStartTime;
+  protected String saturdayHistoryCleanupBatchWindowEndTime;
+  protected String sundayHistoryCleanupBatchWindowStartTime;
+  protected String sundayHistoryCleanupBatchWindowEndTime;
+
+
+  protected int historyCleanupDegreeOfParallelism = 1;
 
   protected String batchOperationHistoryTimeToLive;
   protected Map<String, String> batchOperationsForHistoryCleanup;
   protected Map<String, Integer> parsedBatchOperationsForHistoryCleanup;
+
+  protected BatchWindowManager batchWindowManager = new DefaultBatchWindowManager();
 
   /**
    * Size of batch in which history cleanup data will be deleted. {@link HistoryCleanupBatch#MAX_BATCH_SIZE} must be respected.
@@ -714,6 +747,12 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   private int failedJobListenerMaxRetries = DEFAULT_FAILED_JOB_LISTENER_MAX_RETRIES;
 
   protected String failedJobRetryTimeCycle;
+
+  // login attempts ///////////////////////////////////////////////////////
+  protected int loginMaxAttempts = 10;
+  protected int loginDelayFactor = 2;
+  protected int loginDelayMaxTime = 60;
+  protected int loginDelayBase = 3;
 
   // buildProcessEngine ///////////////////////////////////////////////////////
 
@@ -767,6 +806,7 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     initEventHandlers();
     initProcessApplicationManager();
     initCorrelationHandler();
+    initConditionHandler();
     initIncidentHandlers();
     initPasswordDigest();
     initDeploymentRegistration();
@@ -780,6 +820,12 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   }
 
   public void initHistoryCleanup() {
+    //validate number of threads
+    if (historyCleanupDegreeOfParallelism < 1 || historyCleanupDegreeOfParallelism > MAX_THREADS_NUMBER) {
+      throw LOG.invalidPropertyValue("historyCleanupDegreeOfParallelism", String.valueOf(historyCleanupDegreeOfParallelism),
+        String.format("value for number of threads for history cleanup should be between 1 and %s", HistoryCleanupCmd.MAX_THREADS_NUMBER));
+    }
+
     if (historyCleanupBatchWindowStartTime != null) {
       initHistoryCleanupBatchWindowStartTime();
     }
@@ -787,6 +833,8 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     if (historyCleanupBatchWindowEndTime != null) {
       initHistoryCleanupBatchWindowEndTime();
     }
+
+    initHistoryCleanupBatchWindowsMap();
 
     if (historyCleanupBatchSize > HistoryCleanupBatch.MAX_BATCH_SIZE || historyCleanupBatchSize <= 0) {
       throw LOG.invalidPropertyValue("historyCleanupBatchSize", String.valueOf(historyCleanupBatchSize),
@@ -799,6 +847,36 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     }
 
     initBatchOperationsHistoryTimeToLive();
+  }
+
+  private void initHistoryCleanupBatchWindowsMap() {
+    if (mondayHistoryCleanupBatchWindowStartTime != null || mondayHistoryCleanupBatchWindowEndTime != null) {
+      historyCleanupBatchWindows.put(Calendar.MONDAY, new BatchWindowConfiguration(mondayHistoryCleanupBatchWindowStartTime, mondayHistoryCleanupBatchWindowEndTime));
+    }
+
+    if (tuesdayHistoryCleanupBatchWindowStartTime != null || tuesdayHistoryCleanupBatchWindowEndTime != null) {
+      historyCleanupBatchWindows.put(Calendar.TUESDAY, new BatchWindowConfiguration(tuesdayHistoryCleanupBatchWindowStartTime, tuesdayHistoryCleanupBatchWindowEndTime));
+    }
+
+    if (wednesdayHistoryCleanupBatchWindowStartTime != null || wednesdayHistoryCleanupBatchWindowEndTime != null) {
+      historyCleanupBatchWindows.put(Calendar.WEDNESDAY, new BatchWindowConfiguration(wednesdayHistoryCleanupBatchWindowStartTime, wednesdayHistoryCleanupBatchWindowEndTime));
+    }
+
+    if (thursdayHistoryCleanupBatchWindowStartTime != null || thursdayHistoryCleanupBatchWindowEndTime != null) {
+      historyCleanupBatchWindows.put(Calendar.THURSDAY, new BatchWindowConfiguration(thursdayHistoryCleanupBatchWindowStartTime, thursdayHistoryCleanupBatchWindowEndTime));
+    }
+
+    if (fridayHistoryCleanupBatchWindowStartTime != null || fridayHistoryCleanupBatchWindowEndTime != null) {
+      historyCleanupBatchWindows.put(Calendar.FRIDAY, new BatchWindowConfiguration(fridayHistoryCleanupBatchWindowStartTime, fridayHistoryCleanupBatchWindowEndTime));
+    }
+
+    if (saturdayHistoryCleanupBatchWindowStartTime != null ||saturdayHistoryCleanupBatchWindowEndTime != null) {
+      historyCleanupBatchWindows.put(Calendar.SATURDAY, new BatchWindowConfiguration(saturdayHistoryCleanupBatchWindowStartTime, saturdayHistoryCleanupBatchWindowEndTime));
+    }
+
+    if (sundayHistoryCleanupBatchWindowStartTime != null || sundayHistoryCleanupBatchWindowEndTime != null) {
+      historyCleanupBatchWindows.put(Calendar.SUNDAY, new BatchWindowConfiguration(sundayHistoryCleanupBatchWindowStartTime, sundayHistoryCleanupBatchWindowEndTime));
+    }
   }
 
   protected void initBatchOperationsHistoryTimeToLive() {
@@ -940,6 +1018,9 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
       UpdateProcessInstancesSuspendStateJobHandler suspendProcessInstancesJobHandler = new UpdateProcessInstancesSuspendStateJobHandler();
       batchHandlers.put(suspendProcessInstancesJobHandler.getType(), suspendProcessInstancesJobHandler);
+
+      DeleteHistoricDecisionInstancesJobHandler deleteHistoricDecisionInstancesJobHandler = new DeleteHistoricDecisionInstancesJobHandler();
+      batchHandlers.put(deleteHistoricDecisionInstancesJobHandler.getType(), deleteHistoricDecisionInstancesJobHandler);
     }
 
     if (customBatchJobHandlers != null) {
@@ -1270,12 +1351,16 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     if (databaseType != null) {
       properties.put("limitBefore", DbSqlSessionFactory.databaseSpecificLimitBeforeStatements.get(databaseType));
       properties.put("limitAfter", DbSqlSessionFactory.databaseSpecificLimitAfterStatements.get(databaseType));
+      properties.put("limitBeforeWithoutOffset", DbSqlSessionFactory.databaseSpecificLimitBeforeWithoutOffsetStatements.get(databaseType));
+      properties.put("limitAfterWithoutOffset", DbSqlSessionFactory.databaseSpecificLimitAfterWithoutOffsetStatements.get(databaseType));
       properties.put("innerLimitAfter", DbSqlSessionFactory.databaseSpecificInnerLimitAfterStatements.get(databaseType));
       properties.put("limitBetween", DbSqlSessionFactory.databaseSpecificLimitBetweenStatements.get(databaseType));
       properties.put("limitBetweenFilter", DbSqlSessionFactory.databaseSpecificLimitBetweenFilterStatements.get(databaseType));
       properties.put("orderBy", DbSqlSessionFactory.databaseSpecificOrderByStatements.get(databaseType));
       properties.put("limitBeforeNativeQuery", DbSqlSessionFactory.databaseSpecificLimitBeforeNativeQueryStatements.get(databaseType));
       properties.put("distinct", DbSqlSessionFactory.databaseSpecificDistinct.get(databaseType));
+
+      properties.put("escapeChar", DbSqlSessionFactory.databaseSpecificEscapeChar.get(databaseType));
 
       properties.put("bitand1", DbSqlSessionFactory.databaseSpecificBitAnd1.get(databaseType));
       properties.put("bitand2", DbSqlSessionFactory.databaseSpecificBitAnd2.get(databaseType));
@@ -2099,6 +2184,13 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
       correlationHandler = new DefaultCorrelationHandler();
     }
 
+  }
+
+  // condition handler //////////////////////////////////////////////////////
+  protected void initConditionHandler() {
+    if (conditionHandler == null) {
+      conditionHandler = new DefaultConditionHandler();
+    }
   }
 
   // history handlers /////////////////////////////////////////////////////
@@ -3069,6 +3161,14 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     this.correlationHandler = correlationHandler;
   }
 
+  public ConditionHandler getConditionHandler() {
+    return conditionHandler;
+  }
+
+  public void setConditionHandler(ConditionHandler conditionHandler) {
+    this.conditionHandler = conditionHandler;
+  }
+
   public ProcessEngineConfigurationImpl setHistoryEventHandler(HistoryEventHandler historyEventHandler) {
     this.historyEventHandler = historyEventHandler;
     return this;
@@ -3401,6 +3501,14 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
   public ProcessEngineConfigurationImpl setDefaultSerializationFormat(String defaultSerializationFormat) {
     this.defaultSerializationFormat = defaultSerializationFormat;
     return this;
+  }
+
+  public boolean isJavaSerializationFormatEnabled() {
+    return javaSerializationFormatEnabled;
+  }
+
+  public void setJavaSerializationFormatEnabled(boolean javaSerializationFormatEnabled) {
+    this.javaSerializationFormatEnabled = javaSerializationFormatEnabled;
   }
 
   public ProcessEngineConfigurationImpl setDefaultCharsetName(String defaultCharsetName) {
@@ -3756,6 +3864,118 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     this.historyCleanupBatchWindowEndTime = historyCleanupBatchWindowEndTime;
   }
 
+  public String getMondayHistoryCleanupBatchWindowStartTime() {
+    return mondayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public void setMondayHistoryCleanupBatchWindowStartTime(String mondayHistoryCleanupBatchWindowStartTime) {
+    this.mondayHistoryCleanupBatchWindowStartTime = mondayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public String getMondayHistoryCleanupBatchWindowEndTime() {
+    return mondayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public void setMondayHistoryCleanupBatchWindowEndTime(String mondayHistoryCleanupBatchWindowEndTime) {
+    this.mondayHistoryCleanupBatchWindowEndTime = mondayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public String getTuesdayHistoryCleanupBatchWindowStartTime() {
+    return tuesdayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public void setTuesdayHistoryCleanupBatchWindowStartTime(String tuesdayHistoryCleanupBatchWindowStartTime) {
+    this.tuesdayHistoryCleanupBatchWindowStartTime = tuesdayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public String getTuesdayHistoryCleanupBatchWindowEndTime() {
+    return tuesdayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public void setTuesdayHistoryCleanupBatchWindowEndTime(String tuesdayHistoryCleanupBatchWindowEndTime) {
+    this.tuesdayHistoryCleanupBatchWindowEndTime = tuesdayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public String getWednesdayHistoryCleanupBatchWindowStartTime() {
+    return wednesdayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public void setWednesdayHistoryCleanupBatchWindowStartTime(String wednesdayHistoryCleanupBatchWindowStartTime) {
+    this.wednesdayHistoryCleanupBatchWindowStartTime = wednesdayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public String getWednesdayHistoryCleanupBatchWindowEndTime() {
+    return wednesdayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public void setWednesdayHistoryCleanupBatchWindowEndTime(String wednesdayHistoryCleanupBatchWindowEndTime) {
+    this.wednesdayHistoryCleanupBatchWindowEndTime = wednesdayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public String getThursdayHistoryCleanupBatchWindowStartTime() {
+    return thursdayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public void setThursdayHistoryCleanupBatchWindowStartTime(String thursdayHistoryCleanupBatchWindowStartTime) {
+    this.thursdayHistoryCleanupBatchWindowStartTime = thursdayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public String getThursdayHistoryCleanupBatchWindowEndTime() {
+    return thursdayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public void setThursdayHistoryCleanupBatchWindowEndTime(String thursdayHistoryCleanupBatchWindowEndTime) {
+    this.thursdayHistoryCleanupBatchWindowEndTime = thursdayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public String getFridayHistoryCleanupBatchWindowStartTime() {
+    return fridayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public void setFridayHistoryCleanupBatchWindowStartTime(String fridayHistoryCleanupBatchWindowStartTime) {
+    this.fridayHistoryCleanupBatchWindowStartTime = fridayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public String getFridayHistoryCleanupBatchWindowEndTime() {
+    return fridayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public void setFridayHistoryCleanupBatchWindowEndTime(String fridayHistoryCleanupBatchWindowEndTime) {
+    this.fridayHistoryCleanupBatchWindowEndTime = fridayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public String getSaturdayHistoryCleanupBatchWindowStartTime() {
+    return saturdayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public void setSaturdayHistoryCleanupBatchWindowStartTime(String saturdayHistoryCleanupBatchWindowStartTime) {
+    this.saturdayHistoryCleanupBatchWindowStartTime = saturdayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public String getSaturdayHistoryCleanupBatchWindowEndTime() {
+    return saturdayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public void setSaturdayHistoryCleanupBatchWindowEndTime(String saturdayHistoryCleanupBatchWindowEndTime) {
+    this.saturdayHistoryCleanupBatchWindowEndTime = saturdayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public String getSundayHistoryCleanupBatchWindowStartTime() {
+    return sundayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public void setSundayHistoryCleanupBatchWindowStartTime(String sundayHistoryCleanupBatchWindowStartTime) {
+    this.sundayHistoryCleanupBatchWindowStartTime = sundayHistoryCleanupBatchWindowStartTime;
+  }
+
+  public String getSundayHistoryCleanupBatchWindowEndTime() {
+    return sundayHistoryCleanupBatchWindowEndTime;
+  }
+
+  public void setSundayHistoryCleanupBatchWindowEndTime(String sundayHistoryCleanupBatchWindowEndTime) {
+    this.sundayHistoryCleanupBatchWindowEndTime = sundayHistoryCleanupBatchWindowEndTime;
+  }
+
   public Date getHistoryCleanupBatchWindowStartTimeAsDate() {
     return historyCleanupBatchWindowStartTimeAsDate;
   }
@@ -3770,6 +3990,14 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   public Date getHistoryCleanupBatchWindowEndTimeAsDate() {
     return historyCleanupBatchWindowEndTimeAsDate;
+  }
+
+  public Map<Integer, BatchWindowConfiguration> getHistoryCleanupBatchWindows() {
+    return historyCleanupBatchWindows;
+  }
+
+  public void setHistoryCleanupBatchWindows(Map<Integer, BatchWindowConfiguration> historyCleanupBatchWindows) {
+    this.historyCleanupBatchWindows = historyCleanupBatchWindows;
   }
 
   public int getHistoryCleanupBatchSize() {
@@ -3800,6 +4028,14 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     return batchOperationHistoryTimeToLive;
   }
 
+  public int getHistoryCleanupDegreeOfParallelism() {
+    return historyCleanupDegreeOfParallelism;
+  }
+
+  public void setHistoryCleanupDegreeOfParallelism(int historyCleanupDegreeOfParallelism) {
+    this.historyCleanupDegreeOfParallelism = historyCleanupDegreeOfParallelism;
+  }
+
   public void setBatchOperationHistoryTimeToLive(String batchOperationHistoryTimeToLive) {
     this.batchOperationHistoryTimeToLive = batchOperationHistoryTimeToLive;
   }
@@ -3820,6 +4056,14 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
     this.parsedBatchOperationsForHistoryCleanup = parsedBatchOperationsForHistoryCleanup;
   }
 
+  public BatchWindowManager getBatchWindowManager() {
+    return batchWindowManager;
+  }
+
+  public void setBatchWindowManager(BatchWindowManager batchWindowManager) {
+    this.batchWindowManager = batchWindowManager;
+  }
+
   public int getFailedJobListenerMaxRetries() {
     return failedJobListenerMaxRetries;
   }
@@ -3834,6 +4078,38 @@ public abstract class ProcessEngineConfigurationImpl extends ProcessEngineConfig
 
   public void setFailedJobRetryTimeCycle(String failedJobRetryTimeCycle) {
     this.failedJobRetryTimeCycle = failedJobRetryTimeCycle;
+  }
+
+  public int getLoginMaxAttempts() {
+    return loginMaxAttempts;
+  }
+
+  public void setLoginMaxAttempts(int loginMaxAttempts) {
+    this.loginMaxAttempts = loginMaxAttempts;
+  }
+
+  public int getLoginDelayFactor() {
+    return loginDelayFactor;
+  }
+
+  public void setLoginDelayFactor(int loginDelayFactor) {
+    this.loginDelayFactor = loginDelayFactor;
+  }
+
+  public int getLoginDelayMaxTime() {
+    return loginDelayMaxTime;
+  }
+
+  public void setLoginDelayMaxTime(int loginDelayMaxTime) {
+    this.loginDelayMaxTime = loginDelayMaxTime;
+  }
+
+  public int getLoginDelayBase() {
+    return loginDelayBase;
+  }
+
+  public void setLoginDelayBase(int loginInitialDelay) {
+    this.loginDelayBase = loginInitialDelay;
   }
 
 }

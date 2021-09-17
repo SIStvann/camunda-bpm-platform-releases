@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.camunda.bpm.qa</groupId>
     <artifactId>camunda-qa</artifactId>
-    <version>7.8.0</version>
+    <version>7.9.0</version>
   </parent>
 
   <properties>
@@ -146,7 +146,7 @@
     <dependency>
       <groupId>com.fasterxml.jackson.datatype</groupId>
       <artifactId>jackson-datatype-joda</artifactId>
-      <version>2.6.3</version>
+      <version>2.9.5</version>
     </dependency>
 
 
@@ -435,6 +435,7 @@
                 <excludes>**/jboss/**</excludes>
                 <excludes>**/SpringPAExpressionResolvingTest.java</excludes>
                 <excludes>**/SpringServletPALifecycleTest.java</excludes>
+                <exclude>**/BusinessRuleTaskVersionTagTest.java</exclude>
                 <!-- CAM-1778 -->
                 <exludes>**/TestWarDeploymentWithProcessEnginePlugin.java</exludes>
                 <exclude>**/JavascriptScriptEngineSupportTest.java</exclude>
@@ -458,7 +459,15 @@
       <id>wildfly10</id>
       <properties>
         <container.adapter.groupId>org.wildfly.arquillian</container.adapter.groupId>
-        <container.adapter.version>1.1.0.Beta1</container.adapter.version>
+        <container.adapter.version>2.1.0.Final</container.adapter.version>
+      </properties>
+    </profile>
+
+    <profile>
+      <id>wildfly11</id>
+      <properties>
+        <container.adapter.groupId>org.wildfly.arquillian</container.adapter.groupId>
+        <container.adapter.version>2.1.0.Final</container.adapter.version>
       </properties>
     </profile>
 
@@ -646,6 +655,7 @@
                 <excludes>**/jboss/**</excludes>
                 <excludes>**/SpringPAExpressionResolvingTest.java</excludes>
                 <excludes>**/SpringServletPALifecycleTest.java</excludes>
+                <exclude>**/BusinessRuleTaskVersionTagTest.java</exclude>
                 <!-- CAM-1778 -->
                 <exludes>**/TestWarDeploymentWithProcessEnginePlugin.java</exludes>
                 <exclude>**/JavascriptScriptEngineSupportTest.java</exclude>

@@ -117,13 +117,15 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
   public ProcessEngineException flushDbOperationException(List<DbOperation> operationsToFlush, DbOperation operation,
       Throwable cause) {
 
-    return new ProcessEngineException(exceptionMessage(
+    String exceptionMessage = exceptionMessage(
       "004",
       "Exception while executing Database Operation '{}' with message '{}'. Flush summary: \n {}",
       operation.toString(),
       cause.getMessage(),
       buildStringFromList(operationsToFlush)
-    ), cause);
+    );
+
+    return new ProcessEngineException(exceptionMessage, cause);
   }
 
   public OptimisticLockingException concurrentUpdateDbEntityException(DbOperation operation) {
@@ -405,13 +407,14 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
         thatDeploymentId);
   }
 
-  public ProcessEngineException toManyProcessDefinitionsException(int count, String key, Integer version, String tenantId) {
+  public ProcessEngineException toManyProcessDefinitionsException(int count, String key, String versionAttribute, String versionValue, String tenantId) {
     return new ProcessEngineException(exceptionMessage(
       "045",
-      "There are '{}' results for a process definition with key '{}', version '{}' and tenant-id '{}'.",
+      "There are '{}' results for a process definition with key '{}', {} '{}' and tenant-id '{}'.",
       count,
       key,
-      version
+      versionAttribute,
+      versionValue
     ));
   }
 
@@ -651,7 +654,7 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
 
   public void noStartupLockPropertyFound() {
     logError(
-        "081", "No startup lock property found in databse");
+        "081", "No startup lock property found in database");
   }
 
   public void printBatchResults(List<BatchResult> results) {
@@ -686,11 +689,13 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
       exCause = exCause.getCause();
     } while (exCause != null);
 
-    return new ProcessEngineException(exceptionMessage(
+    String exceptionMessage = exceptionMessage(
       "083",
       "Exception while executing Batch Database Operations with message '{}'. Flush summary: \n {}", message,
       buildStringFromList(operationsToFlush)
-    ), cause);
+    );
+
+    return new ProcessEngineException(exceptionMessage, cause);
   }
 
   public ProcessEngineException wrongBatchResultsSizeException(List<DbOperation> operationsToFlush) {
@@ -699,6 +704,14 @@ public class EnginePersistenceLogger extends ProcessEngineLogger {
       "Exception while executing Batch Database Operations: the size of Batch Result does not correspond to the number of flushed operations. Flush summary: \n {}",
       buildStringFromList(operationsToFlush)
     ));
+  }
+
+  public ProcessEngineException multipleDefinitionsForVersionTagException(String decisionDefinitionKey, String decisionDefinitionVersionTag) {
+    return new ProcessEngineException(exceptionMessage(
+        "085",
+        "Found more than one decision definition for key '{}' and versionTag '{}'",
+        decisionDefinitionKey, decisionDefinitionVersionTag
+        ));
   }
 
 }
